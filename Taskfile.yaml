@@ -1,0 +1,36 @@
+# https://taskfile.dev
+
+version: '3'
+
+vars:
+    OUTPUT_DIR: build
+    BOOTLOADER_DIR: bootloader
+    KERNEL_DIR: kernel
+
+    BOOTLOADER_FILE: bootx64.efi
+    KERNEL_FILE: kernel.bin
+
+tasks:
+    init:
+        cmds:
+            - mkdir -p {{$.OUTPUT_DIR}}
+
+    build:
+        cmds:
+            - task build-bootloader
+            - task build-kernel
+
+    build-bootloader:
+        deps: [init]
+        dir: ./{{$.BOOTLOADER_DIR}}
+        cmds:
+            - cargo build --target x86_64-unknown-uefi --release -Z build-std=core
+            - cp ./target/x86_64-unknown-uefi/release/libbootloader.rlib ../{{$.OUTPUT_DIR}}/{{$.BOOTLOADER_FILE}}
+
+    build-kernel:
+        deps: [init]
+        dir: ./{{$.KERNEL_DIR}}
+        cmds:
+            - cargo build --target x86_64-unknown-none --release -Z build-std=core
+            - cp ./target/x86_64-unknown-none/release/libkernel.rlib ../{{$.OUTPUT_DIR}}/{{$.KERNEL_FILE}}
+
