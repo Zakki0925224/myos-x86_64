@@ -24,13 +24,13 @@ tasks:
         deps: [init]
         dir: ./{{$.BOOTLOADER_DIR}}
         cmds:
-            - cargo build --target x86_64-unknown-uefi --release -Z build-std=core
+            - cargo build
             - cp ./target/x86_64-unknown-uefi/release/libbootloader.rlib ../{{$.OUTPUT_DIR}}/{{$.BOOTLOADER_FILE}}
 
     build-kernel:
         deps: [init]
         dir: ./{{$.KERNEL_DIR}}
         cmds:
-            - cargo build --target x86_64-unknown-none --release -Z build-std=core
+            - cargo build
             - cp ./target/x86_64-unknown-none/release/libkernel.rlib ../{{$.OUTPUT_DIR}}/{{$.KERNEL_FILE}}
 
