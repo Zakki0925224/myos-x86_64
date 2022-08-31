@@ -1,16 +1,17 @@
 #![no_std]
 #![no_main]
+#![feature(abi_efiapi)]
 
-use core::panic::PanicInfo;
+use core::fmt::Write;
+use uefi::{prelude::*, table::runtime::ResetType};
 
-#[no_mangle]
-pub extern "C" fn efi_main() -> !
+#[entry]
+fn efi_main(_handle: Handle, mut system_table: SystemTable<Boot>) -> Status
 {
-    loop {};
-}
+    uefi_services::init(&mut system_table).unwrap();
 
-#[panic_handler]
-fn panic(_info: &PanicInfo) -> !
-{
-    loop {};
+    system_table.stdout().reset(false).unwrap();
+    writeln!(system_table.stdout(), "Hello world!");
+    system_table.stdout().reset(false).unwrap();
+    system_table.runtime_services().reset(ResetType::Shutdown, Status::SUCCESS, None);
 }

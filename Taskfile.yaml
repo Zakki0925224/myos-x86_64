@@ -8,8 +8,16 @@ vars:
     KERNEL_DIR: kernel
 
     BOOTLOADER_FILE: bootx64.efi
-    KERNEL_FILE: kernel.bin
+    KERNEL_FILE: kernel.elf
+    IMG_FILE: myos.img
+    ISO_FILE: myos.iso
 
+    QEMU_DEVICES: |
+        ahci,id=ahci
+#        ide-cd,drive=disk,bus=ahci.0
+    QEMU_DRIVES: |
+#        id=disk,if=none,format=raw,file={{$.OUTPUT_DIR}}/{{$.IMG_FILE}}
+    QEMU: qemu-system-x86_64 -bios /usr/share/edk2-ovmf/x64/OVMF.fd -no-reboot -no-shutdown -m 4G {{range .QEMU_DRIVES | splitLines -}}{{if .}}-drive {{.}} {{end}}{{end -}} {{range .QEMU_DEVICES | splitLines -}}{{if .}}-device {{.}} {{end}}{{end -}} -serial mon:stdio -cdrom {{$.OUTPUT_DIR}}/{{$.ISO_FILE}}
 tasks:
     init:
         cmds:
@@ -24,13 +32,34 @@ tasks:
         deps: [init]
         dir: ./{{$.BOOTLOADER_DIR}}
         cmds:
-            - cargo build
+            - cargo build --release
             - cp ./target/x86_64-unknown-uefi/release/libbootloader.rlib ../{{$.OUTPUT_DIR}}/{{$.BOOTLOADER_FILE}}
 
     build-kernel:
         deps: [init]
         dir: ./{{$.KERNEL_DIR}}
         cmds:
-            - cargo build
+            - cargo build --release
             - cp ./target/x86_64-unknown-none/release/libkernel.rlib ../{{$.OUTPUT_DIR}}/{{$.KERNEL_FILE}}
+
+    makeiso:
+        deps: [build]
+        cmds:
+            # - dd if=/dev/zero of=./{{$.OUTPUT_DIR}}/{{$.IMG_FILE}} bs=1M count=128 # 128MiB
+            # - mkfs.fat -n "MYOS" -F 32 -s 2 ./{{$.OUTPUT_DIR}}/{{$.IMG_FILE}} # format for FAT32
+            # - sudo mount -o loop ./{{$.OUTPUT_DIR}}/{{$.IMG_FILE}} /mnt
+            # - sudo mkdir -p /mnt/EFI/BOOT
+            # - sudo cp {{$.OUTPUT_DIR}}/{{$.BOOTLOADER_FILE}} /mnt/EFI/BOOT/BOOTX64.EFI
+            # - sudo cp {{$.OUTPUT_DIR}}/{{$.KERNEL_FILE}} /mnt/
+            # - sudo umount /mnt
+            # - xorriso -as mkisofs -R -f -e {{$.IMG_FILE}} -no-emul-boot -o {{$.OUTPUT_DIR}}/{{$.ISO_FILE}} {{$.OUTPUT_DIR}}/isofiles
+
+            - mkdir -p ./{{$.OUTPUT_DIR}}/isofiles/EFI/BOOT
+            - cp {{$.OUTPUT_DIR}}/{{$.BOOTLOADER_FILE}} ./{{$.OUTPUT_DIR}}/isofiles/EFI/BOOT/BOOTx64.EFI
+            - mkisofs -R -f -V "MYOS" -e /EFI/BOOT/BOOTx64.EFI -no-emul-boot -o ./{{$.OUTPUT_DIR}}/{{$.ISO_FILE}} ./{{$.OUTPUT_DIR}}/isofiles
+
+    run:
+        deps: [makeiso]
+        cmds:
+            - "{{$.QEMU}}"
 

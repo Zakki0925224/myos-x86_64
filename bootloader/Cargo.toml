@@ -11,3 +11,5 @@ panic = "abort"
 panic = "abort"
 
 [dependencies]
+uefi = { version = "0.16.0", features = ["exts"] }
+uefi-services = "0.13.0"
