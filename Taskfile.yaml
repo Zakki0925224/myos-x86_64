@@ -31,9 +31,7 @@ tasks:
             - mkdir -p {{$.OUTPUT_DIR}}
 
     build:
-        cmds:
-            - task build-bootloader
-            - task build-kernel
+        deps: [build-bootloader, build-kernel]
 
     build-bootloader:
         deps: [init]
