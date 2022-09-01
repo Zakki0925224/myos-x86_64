@@ -4,12 +4,6 @@ version = "0.1.0"
 edition = "2021"
 authors = ["Zakki <zakki0925224@gmail.com>"]
 
-[profile.dev]
-panic = "abort"
-
-[profile.release]
-panic = "abort"
-
 [dependencies]
 uefi = { version = "0.16.0", features = ["exts"] }
 uefi-services = "0.13.0"

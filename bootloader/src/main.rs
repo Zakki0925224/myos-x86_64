@@ -3,7 +3,7 @@
 #![feature(abi_efiapi)]
 
 use core::fmt::Write;
-use uefi::{prelude::*, table::runtime::ResetType};
+use uefi::prelude::*;
 
 #[entry]
 fn efi_main(_handle: Handle, mut system_table: SystemTable<Boot>) -> Status
@@ -12,6 +12,5 @@ fn efi_main(_handle: Handle, mut system_table: SystemTable<Boot>) -> Status
 
     system_table.stdout().reset(false).unwrap();
     writeln!(system_table.stdout(), "Hello world!");
-    system_table.stdout().reset(false).unwrap();
-    system_table.runtime_services().reset(ResetType::Shutdown, Status::SUCCESS, None);
+    return Status::ABORTED;
 }
