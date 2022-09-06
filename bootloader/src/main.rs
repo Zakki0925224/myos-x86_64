@@ -2,15 +2,21 @@
 #![no_main]
 #![feature(abi_efiapi)]
 
-use core::fmt::Write;
+#[macro_use]
+extern crate log;
+
+use core::{fmt::Write, arch::asm};
 use uefi::prelude::*;
 
 #[entry]
 fn efi_main(_handle: Handle, mut system_table: SystemTable<Boot>) -> Status
 {
     uefi_services::init(&mut system_table).unwrap();
+    let boot_service = system_table.boot_services();
 
-    system_table.stdout().reset(false).unwrap();
-    writeln!(system_table.stdout(), "Hello world!");
-    return Status::ABORTED;
+    info!("Running bootloader...");
+
+    loop { unsafe { asm!("hlt") } }
+
+    return Status::SUCCESS;
 }
