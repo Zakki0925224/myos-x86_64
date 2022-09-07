@@ -1,9 +1,7 @@
-ENTRY(_start)
-
-KERNEL_BEGIN = 0xffffff0000000000;
+ENTRY(start)
 
 SECTIONS {
-    . = KERNEL_BEGIN;
+    . = 1M;
 
     .rodata ALIGN(4K):
     {
