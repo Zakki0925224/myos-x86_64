@@ -1,12 +1,25 @@
 #![no_std]
 #![no_main]
+#![feature(start)]
+#![feature(alloc_error_handler)]
 
-use core::panic::PanicInfo;
+extern crate alloc;
+
+use core::{arch::asm ,panic::PanicInfo};
+use bootloader::BootInfo;
 
 #[no_mangle]
-pub extern "C" fn kernel_main() -> !
+#[start]
+pub extern "C" fn kernel_main(boot_info: &BootInfo) -> !
 {
+    unsafe { asm!("mov dr0, {}", in(reg) 0xdead); }
     loop {};
+}
+
+#[alloc_error_handler]
+fn alloc_error_handler(layout: alloc::alloc::Layout) -> !
+{
+    panic!("Allocation error: {:?}", layout);
 }
 
 #[panic_handler]

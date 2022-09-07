@@ -6,6 +6,7 @@ vars:
     OUTPUT_DIR: build
     BOOTLOADER_DIR: bootloader
     KERNEL_DIR: kernel
+    DUMP_DIR: dump
 
     BOOTLOADER_FILE: bootx64.efi
     KERNEL_FILE: kernel.elf
@@ -31,7 +32,7 @@ tasks:
             - mkdir -p {{$.OUTPUT_DIR}}
 
     build:
-        deps: [build-bootloader, build-kernel]
+        deps: [build-kernel, build-bootloader]
 
     build-bootloader:
         deps: [init]
@@ -54,8 +55,9 @@ tasks:
             - mkfs.fat -n "MYOS" -F 32 -s 2 ./{{$.OUTPUT_DIR}}/{{$.IMG_FILE}} # format for FAT32
             - sudo mount -o loop ./{{$.OUTPUT_DIR}}/{{$.IMG_FILE}} /mnt
             - sudo mkdir -p /mnt/EFI/BOOT
+            - sudo mkdir -p /mnt/EFI/myos
             - sudo cp {{$.OUTPUT_DIR}}/{{$.BOOTLOADER_FILE}} /mnt/EFI/BOOT/BOOTX64.EFI
-            - sudo cp {{$.OUTPUT_DIR}}/{{$.KERNEL_FILE}} /mnt/
+            - sudo cp {{$.OUTPUT_DIR}}/{{$.KERNEL_FILE}} /mnt/EFI/myos/kernel.elf
             - sleep 0.5
             - sudo umount /mnt
 
@@ -67,4 +69,11 @@ tasks:
     qemu-monitor:
         cmds:
             - telnet localhost 1234
+
+    dump:
+        deps: [build]
+        cmds:
+            - mkdir -p {{$.DUMP_DIR}}
+            - objdump -d {{$.OUTPUT_DIR}}/{{$.KERNEL_FILE}} > {{$.DUMP_DIR}}/dump_kernel.txt
+            - objdump -d {{$.OUTPUT_DIR}}/{{$.BOOTLOADER_FILE}} > {{$.DUMP_DIR}}/dump_bootloader.txt
 

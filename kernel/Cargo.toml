@@ -6,3 +6,4 @@ authors = ["Zakki <zakki0925224@gmail.com>"]
 
 [dependencies]
 bootloader = { path = "../bootloader" }
+log = "0.4.17"
