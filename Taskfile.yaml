@@ -46,7 +46,7 @@ tasks:
         dir: ./{{$.KERNEL_DIR}}
         cmds:
             - cargo build --release
-            - cp ./target/x86_64-unknown-none/release/kernel ../{{$.OUTPUT_DIR}}/{{$.KERNEL_FILE}}
+            - cp ./target/x86_64/release/kernel ../{{$.OUTPUT_DIR}}/{{$.KERNEL_FILE}}
 
     makeimg:
         deps: [build]
