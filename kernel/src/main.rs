@@ -10,9 +10,9 @@ use bootloader::BootInfo;
 
 #[no_mangle]
 #[start]
-pub extern "C" fn kernel_main(boot_info: &BootInfo) -> !
+pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> !
 {
-    unsafe { asm!("mov dr0, {}", in(reg) 0xdead); }
+    unsafe { asm!("int3"); }
     loop {};
 }
 

@@ -5,7 +5,7 @@
 #[macro_use]
 extern crate log;
 
-use core::{arch::asm, slice::from_raw_parts_mut};
+use core::{arch::asm, slice::from_raw_parts_mut, mem};
 use bootloader::{config::DEFAULT_BOOT_CONFIG, GraphicInfo, BootInfo};
 use uefi::{prelude::*, proto::{media::{file::*, fs::SimpleFileSystem}, console::gop::GraphicsOutput}, CStr16, table::boot::*};
 use xmas_elf::ElfFile;
@@ -46,9 +46,9 @@ fn open_file(bs: &BootServices, path: &str) -> RegularFile
 {
     info!("Opening file: \"{}\"", path);
 
-    let fs = bs
+    let fs = unsafe { bs
         .locate_protocol::<SimpleFileSystem>()
-        .expect("Failed to get FileSystem");
+        .expect("Failed to get FileSystem") };
 
     let fs = unsafe { &mut *fs.get() };
     let mut buf = [0; 256];
@@ -113,14 +113,11 @@ fn init_graphic(bs: &BootServices, resolution: Option<(usize, usize)>) -> Graphi
     return gi;
 }
 
-fn jump_to_entry(entry: u64, bi: *const BootInfo, stack_addr: u64, stack_size: u64)
+fn jump_to_entry(entry: u64, bi: &BootInfo, stack_addr: u64, stack_size: u64)
 {
     let stacktop = stack_addr + stack_size * 0x1000;
-    unsafe
-    {
-        info!("Entering kernel...");
-        asm!("mov rsp, {}; call {}", in(reg) stacktop, in(reg) entry, in("rdi") bi);
-        info!("Left kernel");
-        loop { asm!("nop") };
-    }
+    let entry_point: extern "sysv64" fn(&BootInfo) = unsafe { mem::transmute(entry) };
+    info!("Entering kernel...");
+    entry_point(bi);
+    info!("Leaved kernel");
 }
