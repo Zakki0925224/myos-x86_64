@@ -5,5 +5,5 @@ edition = "2021"
 authors = ["Zakki <zakki0925224@gmail.com>"]
 
 [dependencies]
-bootloader = { path = "../bootloader" }
+common = { path = "../common" }
 log = "0.4.17"

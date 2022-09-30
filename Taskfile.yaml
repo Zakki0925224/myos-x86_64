@@ -24,7 +24,7 @@ vars:
         -no-shutdown
         -m 4G
         -serial mon:stdio
-        -monitor telnet::1234,server,nowait
+        -monitor telnet::5678,server,nowait
     QEMU: qemu-system-x86_64 {{range .QEMU_ARGS | splitLines -}}{{if .}}{{.}} {{end}}{{end -}} {{range .QEMU_DRIVES | splitLines -}}{{if .}}-drive {{.}} {{end}}{{end -}} {{range .QEMU_DEVICES | splitLines -}}{{if .}}-device {{.}} {{end}}{{end -}}
 tasks:
     init:
@@ -38,15 +38,15 @@ tasks:
         deps: [init]
         dir: ./{{$.BOOTLOADER_DIR}}
         cmds:
-            - cargo build --release
-            - cp ./target/x86_64-unknown-uefi/release/bootloader.efi ../{{$.OUTPUT_DIR}}/{{$.BOOTLOADER_FILE}}
+            - cargo build
+            - cp ./target/x86_64-unknown-uefi/debug/bootloader.efi ../{{$.OUTPUT_DIR}}/{{$.BOOTLOADER_FILE}}
 
     build-kernel:
         deps: [init]
         dir: ./{{$.KERNEL_DIR}}
         cmds:
-            - cargo build --release
-            - cp ./target/x86_64/release/kernel ../{{$.OUTPUT_DIR}}/{{$.KERNEL_FILE}}
+            - cargo build
+            - cp ./target/x86_64/debug/kernel ../{{$.OUTPUT_DIR}}/{{$.KERNEL_FILE}}
 
     makeimg:
         deps: [build]
@@ -68,7 +68,7 @@ tasks:
 
     qemu-monitor:
         cmds:
-            - telnet localhost 1234
+            - telnet localhost 5678
 
     dump:
         deps: [build]

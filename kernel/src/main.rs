@@ -6,14 +6,17 @@
 extern crate alloc;
 
 use core::{arch::asm ,panic::PanicInfo};
-use bootloader::BootInfo;
+use common::boot_info::BootInfo;
 
 #[no_mangle]
 #[start]
-pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> !
+pub extern "C" fn kernel_main(_boot_info: &BootInfo) -> !
 {
     unsafe { asm!("int3"); }
-    loop {};
+    loop
+    {
+        unsafe { asm!("hlt"); }
+    }
 }
 
 #[alloc_error_handler]

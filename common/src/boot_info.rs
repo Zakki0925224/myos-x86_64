@@ -1,8 +1,4 @@
-#![no_std]
-
 use uefi::proto::console::gop::ModeInfo;
-
-pub mod config;
 
 #[derive(Debug)]
 #[repr(C)]
