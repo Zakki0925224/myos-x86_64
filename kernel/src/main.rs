@@ -26,6 +26,7 @@ pub extern "C" fn kernel_main(boot_info: &BootInfo) -> !
     serial.send_data(b'l').unwrap();
     serial.send_data(b'o').unwrap();
     serial.send_data(b'!').unwrap();
+    serial.send_data(b'\n').unwrap();
 
     loop
     {
@@ -42,5 +43,8 @@ fn alloc_error_handler(layout: alloc::alloc::Layout) -> !
 #[panic_handler]
 fn panic(_info: &PanicInfo) -> !
 {
-    loop {};
+    loop
+    {
+        unsafe { asm!("hlt"); }
+    }
 }

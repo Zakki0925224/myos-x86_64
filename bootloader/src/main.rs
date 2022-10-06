@@ -7,7 +7,11 @@ mod config;
 #[macro_use]
 extern crate log;
 
+#[macro_use]
+extern crate alloc;
+
 use core::{slice::{from_raw_parts_mut, self}, mem};
+use alloc::{boxed::Box, vec::Vec};
 use common::boot_info::{BootInfo, GraphicInfo};
 use uefi::{prelude::*, proto::{media::{file::*, fs::SimpleFileSystem}, console::gop::GraphicsOutput}, CStr16, table::boot::*};
 use xmas_elf::{ElfFile, program::Type};
@@ -15,13 +19,13 @@ use xmas_elf::{ElfFile, program::Type};
 use crate::config::DEFAULT_BOOT_CONFIG;
 
 const PAGE_SIZE: usize = 0x1000;
-const KERNEL_BASE_ADDR: usize = 0x100000;
+const KERNEL_BASE_ADDR: usize = 0x10_0000;
 
 #[entry]
-fn efi_main(_handle: Handle, mut system_table: SystemTable<Boot>) -> Status
+fn efi_main(handle: Handle, mut st: SystemTable<Boot>) -> Status
 {
-    uefi_services::init(&mut system_table).unwrap();
-    let bs = system_table.boot_services();
+    uefi_services::init(&mut st).unwrap();
+    let bs = st.boot_services();
 
     info!("Running bootloader...");
 
@@ -39,12 +43,27 @@ fn efi_main(_handle: Handle, mut system_table: SystemTable<Boot>) -> Status
     let kernel_entry_point_addr = kernel.header.pt2.entry_point();
     info!("Kernel entry point: 0x{:x}", kernel_entry_point_addr);
 
+    // get memory map
+    let mmap_size = bs.memory_map_size().map_size;
+    let mmap_buf = Box::leak(vec![0; mmap_size * 2].into_boxed_slice());
+    //let mmap_iter = bs.memory_map(mmap_buf).expect("Failed to get memory map").1;
+
+    // exit boot service
+    info!("Exit boot services");
+    let mut mem_map = Vec::with_capacity(128);
+
+    let (_rt, mmap_iter) = st.exit_boot_services(handle, mmap_buf).expect("Failed to exit boot services");
+
+    for desc in mmap_iter
+    {
+        mem_map.push(desc);
+    }
+
     let bi = BootInfo
     {
+        mem_map,
         graphic_info: graphic_info
     };
-
-    info!("{:?}", bi);
 
     // https://github.com/uchan-nos/os-from-zero/issues/41
     // not changed when add flag "-z separate-code"

@@ -1,10 +1,11 @@
-use uefi::proto::console::gop::ModeInfo;
+use alloc::vec::Vec;
+use uefi::{proto::console::gop::ModeInfo, table::boot::MemoryDescriptor};
 
 #[derive(Debug)]
 #[repr(C)]
 pub struct BootInfo
 {
-    // mem_map,
+    pub mem_map: Vec<&'static MemoryDescriptor>,
     pub graphic_info: GraphicInfo
     // phys_mem_offset,
     // cmdline,
