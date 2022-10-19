@@ -1,0 +1,5 @@
+control_brace_style = "AlwaysNextLine"
+brace_style = "AlwaysNextLine"
+fn_single_line = true
+imports_indent = "Visual"
+indent_style = "Visual"

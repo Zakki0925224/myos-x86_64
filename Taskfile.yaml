@@ -1,6 +1,6 @@
 # https://taskfile.dev
 
-version: '3'
+version: "3"
 
 vars:
     OUTPUT_DIR: build
@@ -76,4 +76,3 @@ tasks:
             - mkdir -p {{$.DUMP_DIR}}
             - objdump -d {{$.OUTPUT_DIR}}/{{$.KERNEL_FILE}} > {{$.DUMP_DIR}}/dump_kernel.txt
             - objdump -d {{$.OUTPUT_DIR}}/{{$.BOOTLOADER_FILE}} > {{$.DUMP_DIR}}/dump_bootloader.txt
-

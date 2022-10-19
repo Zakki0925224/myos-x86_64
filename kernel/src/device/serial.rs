@@ -12,14 +12,15 @@ pub const IO_PORT_COM8: u16 = 0x4e8;
 pub struct SerialPort
 {
     io_port: u16,
-    is_init: bool
+    is_init: bool,
 }
 
 impl SerialPort
 {
     pub fn new(io_port: u16) -> Self
     {
-        return Self { io_port, is_init: false };
+        return Self { io_port,
+                      is_init: false };
     }
 
     pub fn init(&mut self)
@@ -30,7 +31,7 @@ impl SerialPort
         asm::out8(self.io_port + 1, 0x00);
         asm::out8(self.io_port + 3, 0x03); // set data word length to 8 bits
         asm::out8(self.io_port + 2, 0xc7); // enable FIFO, clear TX/RX queues
-                                                      // and set interrupt watermakrk at 14 bytes
+                                           // and set interrupt watermakrk at 14 bytes
         asm::out8(self.io_port + 4, 0x0b); // IRQs enabled, RTS/DSR set
         asm::out8(self.io_port + 4, 0x1e); // set loopback mode, test the serial chip
         asm::out8(self.io_port + 0, 0xae); // test the serial chip (send 0xae)
@@ -62,13 +63,11 @@ impl SerialPort
             return Err("Serial port wasn't initialized");
         }
 
-        while self.is_transmit_empty() == 0 {}
+        while self.is_transmit_empty() == 0
+        {}
         asm::out8(self.io_port, data);
         return Ok(());
     }
 
-    fn is_transmit_empty(&self) -> u8
-    {
-        return asm::in8(self.io_port + 5) & 0x20;
-    }
+    fn is_transmit_empty(&self) -> u8 { return asm::in8(self.io_port + 5) & 0x20; }
 }
