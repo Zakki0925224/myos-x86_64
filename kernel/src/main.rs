@@ -8,6 +8,7 @@ mod device;
 
 extern crate alloc;
 
+use arch::asm;
 use common::boot_info::BootInfo;
 use core::{arch::asm, panic::PanicInfo};
 use device::serial::{self, SerialPort};
@@ -30,7 +31,9 @@ pub extern "C" fn kernel_main(boot_info: &BootInfo) -> !
 
     loop
     {
-        unsafe { asm!("hlt") }
+        asm::cli();
+
+        asm::hlt();
     }
 }
 
@@ -45,6 +48,6 @@ fn panic(_info: &PanicInfo) -> !
 {
     loop
     {
-        unsafe { asm!("hlt") }
+        asm::hlt();
     }
 }

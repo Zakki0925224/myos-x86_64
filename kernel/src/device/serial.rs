@@ -53,7 +53,14 @@ impl SerialPort
             return Err("Serial port wasn't initialized");
         }
 
-        return Ok(asm::in8(self.io_port + 5) & 1);
+        let res = asm::in8(self.io_port + 5) & 1;
+
+        if res == 0
+        {
+            return Err("Hasn't received data");
+        }
+
+        return Ok(asm::in8(self.io_port));
     }
 
     pub fn send_data(&self, data: u8) -> Result<(), &str>
