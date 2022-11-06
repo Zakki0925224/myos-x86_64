@@ -28,10 +28,9 @@ impl SerialPort
         asm::out8(self.io_port + 1, 0x00); // disable all interrupts
         asm::out8(self.io_port + 3, 0x80); // enable DLAB
         asm::out8(self.io_port + 0, 0x03); // set baud late 38400 bps
-        asm::out8(self.io_port + 1, 0x00);
-        asm::out8(self.io_port + 3, 0x03); // set data word length to 8 bits
-        asm::out8(self.io_port + 2, 0xc7); // enable FIFO, clear TX/RX queues
-                                           // and set interrupt watermakrk at 14 bytes
+        asm::out8(self.io_port + 1, 0x00); // re disable all interrupts
+        asm::out8(self.io_port + 3, 0x03); // 8bit, no parity, 1 stop bit
+        asm::out8(self.io_port + 2, 0xc7); // enable FIFO, clear TX/RX queues and set interrupt watermakrk at 14 bytes
         asm::out8(self.io_port + 4, 0x0b); // IRQs enabled, RTS/DSR set
         asm::out8(self.io_port + 4, 0x1e); // set loopback mode, test the serial chip
         asm::out8(self.io_port + 0, 0xae); // test the serial chip (send 0xae)

@@ -33,7 +33,12 @@ pub extern "C" fn kernel_main(boot_info: &BootInfo) -> !
     {
         asm::cli();
 
-        asm::hlt();
+        if let Ok(data) = serial.receive_data()
+        {
+            serial.send_data(data).unwrap();
+        }
+
+        //asm::hlt();
     }
 }
 
