@@ -31,7 +31,7 @@ pub extern "C" fn kernel_main(boot_info: &BootInfo) -> !
 
     loop
     {
-        asm::cli();
+        //asm::cli();
 
         if let Ok(data) = serial.receive_data()
         {
