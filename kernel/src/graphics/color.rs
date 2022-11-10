@@ -20,6 +20,7 @@ impl Color for RGBColor
 {
     fn get_color_code(&self) -> u32
     {
+        // only support bgr pixel format
         let r = (self.r as u32) << 16;
         let g = (self.g as u32) << 8;
         let b = (self.b as u32) << 0;

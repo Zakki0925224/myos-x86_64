@@ -6,6 +6,7 @@
 mod arch;
 mod device;
 mod graphics;
+mod mem;
 
 extern crate alloc;
 
