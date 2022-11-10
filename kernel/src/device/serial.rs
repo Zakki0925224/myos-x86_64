@@ -17,11 +17,7 @@ pub struct SerialPort
 
 impl SerialPort
 {
-    pub fn new(io_port: u16) -> Self
-    {
-        return Self { io_port,
-                      is_init: false };
-    }
+    pub fn new(io_port: u16) -> Self { return Self { io_port, is_init: false }; }
 
     pub fn init(&mut self)
     {

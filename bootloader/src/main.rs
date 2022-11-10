@@ -12,13 +12,8 @@ extern crate alloc;
 
 use alloc::{boxed::Box, vec::Vec};
 use common::boot_info::{BootInfo, GraphicInfo};
-use core::{mem,
-           slice::{self, from_raw_parts_mut}};
-use uefi::{prelude::*,
-           proto::{console::gop::GraphicsOutput,
-                   media::{file::*, fs::SimpleFileSystem}},
-           table::boot::*,
-           CStr16};
+use core::{mem, slice::{self, from_raw_parts_mut}};
+use uefi::{prelude::*, proto::{console::gop::GraphicsOutput, media::{file::*, fs::SimpleFileSystem}}, table::boot::*, CStr16};
 use xmas_elf::{program::Type, ElfFile};
 
 use crate::config::DEFAULT_BOOT_CONFIG;
@@ -57,23 +52,24 @@ fn efi_main(handle: Handle, mut st: SystemTable<Boot>) -> Status
     info!("Exit boot services");
     let mut mem_map = Vec::with_capacity(128);
 
-    let (_rt, mmap_iter) = st.exit_boot_services(handle, mmap_buf)
-                             .expect("Failed to exit boot services");
+    let (_rt, mmap_iter) =
+        st.exit_boot_services(handle, mmap_buf).expect("Failed to exit boot services");
 
     for desc in mmap_iter
     {
         mem_map.push(desc);
     }
 
-    let bi = BootInfo { mem_map,
-                        graphic_info: graphic_info };
+    let bi = BootInfo { mem_map, graphic_info: graphic_info };
 
     // https://github.com/uchan-nos/os-from-zero/issues/41
     // not changed when add flag "-z separate-code"
-    jump_to_entry(kernel_entry_point_addr - 0x1000,
-                  &bi,
-                  config.kernel_stack_addr,
-                  config.kernel_stack_size);
+    jump_to_entry(
+        kernel_entry_point_addr - 0x1000,
+        &bi,
+        config.kernel_stack_addr,
+        config.kernel_stack_size,
+    );
 
     return Status::SUCCESS;
 }
@@ -82,15 +78,14 @@ fn open_file(bs: &BootServices, path: &str) -> RegularFile
 {
     info!("Opening file: \"{}\"", path);
 
-    let fs = bs.locate_protocol::<SimpleFileSystem>()
-               .expect("Failed to get FileSystem");
+    let fs = bs.locate_protocol::<SimpleFileSystem>().expect("Failed to get FileSystem");
 
     let fs = unsafe { &mut *fs.get() };
     let mut buf = [0; 256];
     let path = CStr16::from_str_with_buf(path, &mut buf).expect("Failed to convert path to ucs-2");
     let mut root = fs.open_volume().expect("Failed to open volume");
-    let handle = root.open(path, FileMode::Read, FileAttribute::empty())
-                     .expect("Failed to open file");
+    let handle =
+        root.open(path, FileMode::Read, FileAttribute::empty()).expect("Failed to open file");
 
     match handle.into_type().expect("Failed to into_type")
     {
@@ -103,12 +98,12 @@ fn load_file_to_mem(bs: &BootServices, file: &mut RegularFile, addr: usize) -> &
 {
     let mut info_buf = [0; 256];
 
-    let info = file.get_info::<FileInfo>(&mut info_buf)
-                   .expect("Failed to get file info");
+    let info = file.get_info::<FileInfo>(&mut info_buf).expect("Failed to get file info");
 
     let pages = (info.file_size() as usize + 0xfff) / PAGE_SIZE;
-    let mem_start = bs.allocate_pages(AllocateType::Address(addr), MemoryType::LOADER_DATA, pages)
-                      .expect("Failed to allocate pages");
+    let mem_start = bs
+        .allocate_pages(AllocateType::Address(addr), MemoryType::LOADER_DATA, pages)
+        .expect("Failed to allocate pages");
     let buf = unsafe { from_raw_parts_mut(mem_start as *mut u8, pages * PAGE_SIZE) };
     let len = file.read(buf).expect("Failed to read file");
 
@@ -156,24 +151,26 @@ fn copy_load_segs(elf: &ElfFile)
 
 fn init_graphic(bs: &BootServices, resolution: Option<(usize, usize)>) -> GraphicInfo
 {
-    let gop = bs.locate_protocol::<GraphicsOutput>()
-                .expect("Failed to get GraphicsOutput");
+    let gop = bs.locate_protocol::<GraphicsOutput>().expect("Failed to get GraphicsOutput");
 
     let gop = unsafe { &mut *gop.get() };
 
     if let Some(resolution) = resolution
     {
-        let mode = gop.modes()
-                      .find(|mode| mode.info().resolution() == resolution)
-                      .expect("Graphic mode not found");
+        let mode = gop
+            .modes()
+            .find(|mode| mode.info().resolution() == resolution)
+            .expect("Graphic mode not found");
 
         info!("Switching graphic mode...");
         gop.set_mode(&mode).expect("Failed to set graphic mode");
     }
 
-    let gi = GraphicInfo { mode: gop.current_mode_info(),
-                           framebuf_addr: gop.frame_buffer().as_mut_ptr() as u64,
-                           framebuf_size: gop.frame_buffer().size() as u64 };
+    let gi = GraphicInfo {
+        mode: gop.current_mode_info(),
+        framebuf_addr: gop.frame_buffer().as_mut_ptr() as u64,
+        framebuf_size: gop.frame_buffer().size() as u64,
+    };
 
     return gi;
 }
