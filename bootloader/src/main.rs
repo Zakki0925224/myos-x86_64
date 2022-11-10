@@ -34,6 +34,7 @@ fn efi_main(handle: Handle, mut st: SystemTable<Boot>) -> Status
 
     // graphic info
     let graphic_info = init_graphic(bs, config.resolution);
+    info!("{:?}", graphic_info);
 
     // read kernel.elf
     let mut f = open_file(bs, config.kernel_path);
@@ -46,7 +47,6 @@ fn efi_main(handle: Handle, mut st: SystemTable<Boot>) -> Status
     // get memory map
     let mmap_size = bs.memory_map_size().map_size;
     let mmap_buf = Box::leak(vec![0; mmap_size * 2].into_boxed_slice());
-    //let mmap_iter = bs.memory_map(mmap_buf).expect("Failed to get memory map").1;
 
     // exit boot service
     info!("Exit boot services");
@@ -59,6 +59,8 @@ fn efi_main(handle: Handle, mut st: SystemTable<Boot>) -> Status
     {
         mem_map.push(desc);
     }
+
+    // can't use info!()
 
     let bi = BootInfo { mem_map, graphic_info: graphic_info };
 
@@ -178,7 +180,7 @@ fn init_graphic(bs: &BootServices, resolution: Option<(usize, usize)>) -> Graphi
 fn jump_to_entry(entry_base_addr: u64, bi: &BootInfo, stack_addr: u64, stack_size: u64)
 {
     let stacktop = stack_addr + stack_size * PAGE_SIZE as u64;
-    let entry_point: extern "C" fn(&BootInfo) =
+    let entry_point: extern "sysv64" fn(&BootInfo) =
         unsafe { mem::transmute(entry_base_addr as *const u64) };
     info!("Entering kernel (0x{:x})...", entry_base_addr);
     entry_point(bi);

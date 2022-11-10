@@ -10,12 +10,12 @@ extern crate alloc;
 
 use arch::asm;
 use common::boot_info::BootInfo;
-use core::{arch::asm, panic::PanicInfo};
+use core::{arch::asm, panic::PanicInfo, ptr::write_volatile};
 use device::serial::{self, SerialPort};
 
 #[no_mangle]
 #[start]
-pub extern "C" fn kernel_main(boot_info: &BootInfo) -> !
+pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> !
 {
     let graphic = boot_info.graphic_info;
 
@@ -28,6 +28,14 @@ pub extern "C" fn kernel_main(boot_info: &BootInfo) -> !
     serial.send_data(b'o').unwrap();
     serial.send_data(b'!').unwrap();
     serial.send_data(b'\n').unwrap();
+
+    for i in 0..graphic.framebuf_size
+    {
+        unsafe {
+            let ptr = (graphic.framebuf_addr as u64 + i) as *mut u8;
+            write_volatile(ptr, 255);
+        }
+    }
 
     loop
     {
