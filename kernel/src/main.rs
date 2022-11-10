@@ -5,19 +5,21 @@
 
 mod arch;
 mod device;
+mod graphics;
 
 extern crate alloc;
 
 use arch::asm;
 use common::boot_info::BootInfo;
-use core::{arch::asm, panic::PanicInfo, ptr::write_volatile};
+use core::panic::PanicInfo;
 use device::serial::{self, SerialPort};
+use graphics::{color::RGBColor, Graphics};
 
 #[no_mangle]
 #[start]
 pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> !
 {
-    let graphic = boot_info.graphic_info;
+    let graphics = Graphics::new(boot_info.graphic_info);
 
     let mut serial = SerialPort::new(serial::IO_PORT_COM1);
     serial.init();
@@ -29,13 +31,8 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> !
     serial.send_data(b'!').unwrap();
     serial.send_data(b'\n').unwrap();
 
-    for i in 0..graphic.framebuf_size
-    {
-        unsafe {
-            let ptr = (graphic.framebuf_addr as u64 + i) as *mut u8;
-            write_volatile(ptr, 255);
-        }
-    }
+    graphics.clear(0xffffffff);
+    graphics.draw_rect(100, 100, 100, 100, RGBColor::new(0, 255, 0)).unwrap();
 
     loop
     {

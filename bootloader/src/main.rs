@@ -114,43 +114,6 @@ fn load_file_to_mem(bs: &BootServices, file: &mut RegularFile, addr: usize) -> &
     return &mut buf[..len];
 }
 
-fn copy_load_segs(elf: &ElfFile)
-{
-    let mut i = 0;
-
-    loop
-    {
-        let header = elf.program_header(i);
-        if let Err(_) = header
-        {
-            break;
-        }
-
-        match header.unwrap().get_type()
-        {
-            Err(_) => break,
-            Ok(ht) =>
-            {
-                if ht != Type::Load
-                {
-                    i += 1;
-                    continue;
-                }
-            }
-        }
-
-        let vaddr = header.unwrap().virtual_addr();
-        let offset = header.unwrap().offset() as usize;
-        let fsize = header.unwrap().file_size() as usize;
-        let msize = header.unwrap().mem_size() as usize;
-        let dest = unsafe { slice::from_raw_parts_mut(vaddr as *mut u8, msize) };
-        dest[..fsize].copy_from_slice(&elf.input[offset..offset + fsize]);
-        dest[fsize..].fill(0);
-
-        i += 1;
-    }
-}
-
 fn init_graphic(bs: &BootServices, resolution: Option<(usize, usize)>) -> GraphicInfo
 {
     let gop = bs.locate_protocol::<GraphicsOutput>().expect("Failed to get GraphicsOutput");

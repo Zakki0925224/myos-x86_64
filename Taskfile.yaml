@@ -61,6 +61,11 @@ tasks:
             - sleep 0.5
             - sudo umount /mnt
 
+    makeiso:
+        deps: [makeimg]
+        cmds:
+            - dd if=./{{$.OUTPUT_DIR}}/{{$.IMG_FILE}} of={{$.OUTPUT_DIR}}/{{$.ISO_FILE}}
+
     run:
         deps: [makeimg]
         cmds:
