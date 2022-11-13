@@ -11,10 +11,10 @@ extern crate log;
 extern crate alloc;
 
 use alloc::{boxed::Box, vec::Vec};
-use common::boot_info::{BootInfo, GraphicInfo};
-use core::{mem, slice::{self, from_raw_parts_mut}};
-use uefi::{prelude::*, proto::{console::gop::GraphicsOutput, media::{file::*, fs::SimpleFileSystem}}, table::boot::*, CStr16};
-use xmas_elf::{program::Type, ElfFile};
+use common::{boot_info::BootInfo, graphic_info::{self, GraphicInfo}, mem_desc};
+use core::{mem, slice::from_raw_parts_mut};
+use uefi::{prelude::*, proto::{console::gop::{GraphicsOutput, PixelFormat}, media::{file::*, fs::SimpleFileSystem}}, table::boot::*, CStr16};
+use xmas_elf::ElfFile;
 
 use crate::config::DEFAULT_BOOT_CONFIG;
 
@@ -49,20 +49,28 @@ fn efi_main(handle: Handle, mut st: SystemTable<Boot>) -> Status
     let mmap_buf = Box::leak(vec![0; mmap_size * 2].into_boxed_slice());
 
     // exit boot service
+    // FIXME: can't jump to kernel entry point
     info!("Exit boot services");
     let mut mem_map = Vec::with_capacity(128);
 
-    let (_rt, mmap_iter) =
-        st.exit_boot_services(handle, mmap_buf).expect("Failed to exit boot services");
+    // let (_rt, mmap_iter) =
+    //     st.exit_boot_services(handle, mmap_buf).expect("Failed to exit boot services");
 
-    for desc in mmap_iter
-    {
-        mem_map.push(desc);
-    }
+    // for desc in mmap_iter
+    // {
+    //     let ty = convert_mem_type(desc.ty);
+    //     let phys_start = desc.phys_start;
+    //     let virt_start = desc.virt_start;
+    //     let page_cnt = desc.page_count;
+    //     let attr = convert_mem_attr(desc.att);
+
+    //     mem_map.push(mem_desc::MemoryDescriptor { ty, phys_start, virt_start, page_cnt, attr });
+    // }
 
     // can't use info!()
 
-    let bi = BootInfo { mem_map, graphic_info: graphic_info };
+    let mem_map_len = mem_map.len();
+    let bi = BootInfo::new(mem_map.as_slice(), mem_map_len, graphic_info);
 
     // https://github.com/uchan-nos/os-from-zero/issues/41
     // not changed when add flag "-z separate-code"
@@ -100,6 +108,7 @@ fn load_file_to_mem(bs: &BootServices, file: &mut RegularFile, addr: usize) -> &
 {
     let mut info_buf = [0; 256];
 
+    // FIXME: paniced here on real mahcine? (usb boot)
     let info = file.get_info::<FileInfo>(&mut info_buf).expect("Failed to get file info");
 
     let pages = (info.file_size() as usize + 0xfff) / PAGE_SIZE;
@@ -131,13 +140,71 @@ fn init_graphic(bs: &BootServices, resolution: Option<(usize, usize)>) -> Graphi
         gop.set_mode(&mode).expect("Failed to set graphic mode");
     }
 
+    let mode_info = gop.current_mode_info();
+    let res = mode_info.resolution();
+
     let gi = GraphicInfo {
-        mode: gop.current_mode_info(),
+        resolution: (res.0 as u32, res.1 as u32),
+        format: convert_pixel_format(mode_info.pixel_format()),
+        stride: mode_info.stride(),
         framebuf_addr: gop.frame_buffer().as_mut_ptr() as u64,
         framebuf_size: gop.frame_buffer().size() as u64,
     };
 
     return gi;
+}
+
+fn convert_pixel_format(pixel_format: PixelFormat) -> graphic_info::PixelFormat
+{
+    return match pixel_format
+    {
+        PixelFormat::Rgb => graphic_info::PixelFormat::Rgb,
+        PixelFormat::Bgr => graphic_info::PixelFormat::Bgr,
+        _ => panic!("Unsupported pixel format"),
+    };
+}
+
+fn convert_mem_type(mem_type: MemoryType) -> mem_desc::MemoryType
+{
+    return match mem_type
+    {
+        MemoryType::RESERVED => mem_desc::MemoryType::Reserved,
+        MemoryType::LOADER_CODE => mem_desc::MemoryType::LoaderCode,
+        MemoryType::LOADER_DATA => mem_desc::MemoryType::LoaderData,
+        MemoryType::BOOT_SERVICES_CODE => mem_desc::MemoryType::BootServicesCode,
+        MemoryType::BOOT_SERVICES_DATA => mem_desc::MemoryType::BootServicesData,
+        MemoryType::RUNTIME_SERVICES_CODE => mem_desc::MemoryType::RuntimeServicesCode,
+        MemoryType::RUNTIME_SERVICES_DATA => mem_desc::MemoryType::RuntimeServicesData,
+        MemoryType::CONVENTIONAL => mem_desc::MemoryType::Conventional,
+        MemoryType::UNUSABLE => mem_desc::MemoryType::Unusable,
+        MemoryType::ACPI_RECLAIM => mem_desc::MemoryType::AcpiReclaim,
+        MemoryType::ACPI_NON_VOLATILE => mem_desc::MemoryType::AcpiNonVolatile,
+        MemoryType::MMIO => mem_desc::MemoryType::Mmio,
+        MemoryType::MMIO_PORT_SPACE => mem_desc::MemoryType::MmioPortSpace,
+        MemoryType::PAL_CODE => mem_desc::MemoryType::PalCode,
+        MemoryType::PERSISTENT_MEMORY => mem_desc::MemoryType::PersistentMemory,
+        MemoryType(value) => mem_desc::MemoryType::Custom(value),
+    };
+}
+
+fn convert_mem_attr(mem_attr: MemoryAttribute) -> mem_desc::MemoryAttribute
+{
+    return match mem_attr
+    {
+        MemoryAttribute::UNCACHEABLE => mem_desc::MemoryAttribute::Uncacheable,
+        MemoryAttribute::WRITE_COMBINE => mem_desc::MemoryAttribute::WriteCombine,
+        MemoryAttribute::WRITE_THROUGH => mem_desc::MemoryAttribute::WriteThrough,
+        MemoryAttribute::WRITE_BACK => mem_desc::MemoryAttribute::WriteBack,
+        MemoryAttribute::UNCACHABLE_EXPORTED => mem_desc::MemoryAttribute::UncachableExported,
+        MemoryAttribute::WRITE_PROTECT => mem_desc::MemoryAttribute::WriteProtect,
+        MemoryAttribute::READ_PROTECT => mem_desc::MemoryAttribute::ReadProtect,
+        MemoryAttribute::EXECUTE_PROTECT => mem_desc::MemoryAttribute::ExecuteProtect,
+        MemoryAttribute::NON_VOLATILE => mem_desc::MemoryAttribute::NonVolatile,
+        MemoryAttribute::MORE_RELIABLE => mem_desc::MemoryAttribute::MoreReliable,
+        MemoryAttribute::READ_ONLY => mem_desc::MemoryAttribute::ReadOnly,
+        MemoryAttribute::RUNTIME => mem_desc::MemoryAttribute::Runtime,
+        _ => panic!("Failed to convert memory map attribute"),
+    };
 }
 
 fn jump_to_entry(entry_base_addr: u64, bi: &BootInfo, stack_addr: u64, stack_size: u64)

@@ -1,14 +1,15 @@
+// TODO: implement global allocator
+
 #![no_std]
 #![no_main]
 #![feature(start)]
-#![feature(alloc_error_handler)]
+//#![feature(alloc_error_handler)]
 
 mod arch;
 mod device;
 mod graphics;
-mod mem;
 
-extern crate alloc;
+//extern crate alloc;
 
 use arch::asm;
 use common::boot_info::BootInfo;
@@ -48,11 +49,11 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> !
     }
 }
 
-#[alloc_error_handler]
-fn alloc_error_handler(layout: alloc::alloc::Layout) -> !
-{
-    panic!("Allocation error: {:?}", layout);
-}
+// #[alloc_error_handler]
+// fn alloc_error_handler(layout: alloc::alloc::Layout) -> !
+// {
+//     panic!("Allocation error: {:?}", layout);
+// }
 
 #[panic_handler]
 fn panic(_info: &PanicInfo) -> !

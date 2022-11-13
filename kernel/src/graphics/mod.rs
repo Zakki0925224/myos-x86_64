@@ -2,7 +2,7 @@ pub mod color;
 
 use core::ptr::write_volatile;
 
-use common::boot_info::GraphicInfo;
+use common::graphic_info::GraphicInfo;
 
 use self::color::Color;
 
@@ -15,7 +15,11 @@ impl Graphics
 {
     pub fn new(graphic_info: GraphicInfo) -> Self { return Self { graphic_info }; }
 
-    pub fn get_resolution(&self) -> (usize, usize) { return self.graphic_info.mode.resolution(); }
+    pub fn get_resolution(&self) -> (usize, usize)
+    {
+        let res = self.graphic_info.resolution;
+        return (res.0 as usize, res.1 as usize);
+    }
 
     pub fn set_color(&self, x: usize, y: usize, color: impl Color) -> Result<(), &str>
     {

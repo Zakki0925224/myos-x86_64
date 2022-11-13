@@ -1,5 +1,5 @@
 #![no_std]
 
-extern crate alloc;
-
 pub mod boot_info;
+pub mod graphic_info;
+pub mod mem_desc;

@@ -7,5 +7,3 @@ authors = ["Zakki <zakki0925224@gmail.com>"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-uefi = { version = "0.16.0", features = ["exts"] }
-uefi-services = "0.13.0"
