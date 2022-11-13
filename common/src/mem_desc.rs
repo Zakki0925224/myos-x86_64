@@ -1,3 +1,5 @@
+use bitflags::bitflags;
+
 #[derive(Debug, Copy, Clone)]
 pub enum MemoryType
 {
@@ -19,22 +21,22 @@ pub enum MemoryType
     Custom(u32),
 }
 
-#[derive(Debug, Copy, Clone)]
-#[repr(u64)]
-pub enum MemoryAttribute
-{
-    Uncacheable = 0x1,
-    WriteCombine = 0x2,
-    WriteThrough = 0x4,
-    WriteBack = 0x8,
-    UncachableExported = 0x10,
-    WriteProtect = 0x1000,
-    ReadProtect = 0x2000,
-    ExecuteProtect = 0x4000,
-    NonVolatile = 0x8000,
-    MoreReliable = 0x10000,
-    ReadOnly = 0x20000,
-    Runtime = 0x8000_0000_0000_0000,
+bitflags! {
+    pub struct MemoryAttribute: u64
+    {
+        const UNCACHEABLE = 0x1;
+        const WRITE_COMBINE = 0x2;
+        const WRITE_THROUGH = 0x4;
+        const WRITE_BACK = 0x8;
+        const UNCACHABLE_EXPORTED = 0x10;
+        const WRITE_PROTECT = 0x1000;
+        const READ_PROTECT = 0x2000;
+        const EXECUTE_PROTECT = 0x4000;
+        const NON_VOLATILE = 0x8000;
+        const MORE_RELIABLE = 0x10000;
+        const READ_ONLY = 0x20000;
+        const RUNTIME = 0x8000_0000_0000_0000;
+    }
 }
 
 #[derive(Debug, Copy, Clone)]

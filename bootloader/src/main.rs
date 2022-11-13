@@ -49,23 +49,22 @@ fn efi_main(handle: Handle, mut st: SystemTable<Boot>) -> Status
     let mmap_buf = Box::leak(vec![0; mmap_size * 2].into_boxed_slice());
 
     // exit boot service
-    // FIXME: can't jump to kernel entry point
     info!("Exit boot services");
     let mut mem_map = Vec::with_capacity(128);
 
-    // let (_rt, mmap_iter) =
-    //     st.exit_boot_services(handle, mmap_buf).expect("Failed to exit boot services");
+    let (_rt, mmap_iter) =
+        st.exit_boot_services(handle, mmap_buf).expect("Failed to exit boot services");
 
-    // for desc in mmap_iter
-    // {
-    //     let ty = convert_mem_type(desc.ty);
-    //     let phys_start = desc.phys_start;
-    //     let virt_start = desc.virt_start;
-    //     let page_cnt = desc.page_count;
-    //     let attr = convert_mem_attr(desc.att);
+    for desc in mmap_iter
+    {
+        let ty = convert_mem_type(desc.ty);
+        let phys_start = desc.phys_start;
+        let virt_start = desc.virt_start;
+        let page_cnt = desc.page_count;
+        let attr = convert_mem_attr(desc.att);
 
-    //     mem_map.push(mem_desc::MemoryDescriptor { ty, phys_start, virt_start, page_cnt, attr });
-    // }
+        mem_map.push(mem_desc::MemoryDescriptor { ty, phys_start, virt_start, page_cnt, attr });
+    }
 
     // can't use info!()
 
@@ -189,22 +188,7 @@ fn convert_mem_type(mem_type: MemoryType) -> mem_desc::MemoryType
 
 fn convert_mem_attr(mem_attr: MemoryAttribute) -> mem_desc::MemoryAttribute
 {
-    return match mem_attr
-    {
-        MemoryAttribute::UNCACHEABLE => mem_desc::MemoryAttribute::Uncacheable,
-        MemoryAttribute::WRITE_COMBINE => mem_desc::MemoryAttribute::WriteCombine,
-        MemoryAttribute::WRITE_THROUGH => mem_desc::MemoryAttribute::WriteThrough,
-        MemoryAttribute::WRITE_BACK => mem_desc::MemoryAttribute::WriteBack,
-        MemoryAttribute::UNCACHABLE_EXPORTED => mem_desc::MemoryAttribute::UncachableExported,
-        MemoryAttribute::WRITE_PROTECT => mem_desc::MemoryAttribute::WriteProtect,
-        MemoryAttribute::READ_PROTECT => mem_desc::MemoryAttribute::ReadProtect,
-        MemoryAttribute::EXECUTE_PROTECT => mem_desc::MemoryAttribute::ExecuteProtect,
-        MemoryAttribute::NON_VOLATILE => mem_desc::MemoryAttribute::NonVolatile,
-        MemoryAttribute::MORE_RELIABLE => mem_desc::MemoryAttribute::MoreReliable,
-        MemoryAttribute::READ_ONLY => mem_desc::MemoryAttribute::ReadOnly,
-        MemoryAttribute::RUNTIME => mem_desc::MemoryAttribute::Runtime,
-        _ => panic!("Failed to convert memory map attribute"),
-    };
+    return mem_desc::MemoryAttribute::from_bits_truncate(mem_attr.bits());
 }
 
 fn jump_to_entry(entry_base_addr: u64, bi: &BootInfo, stack_addr: u64, stack_size: u64)
