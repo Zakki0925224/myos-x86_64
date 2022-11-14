@@ -1,3 +1,5 @@
+use common::graphic_info::PixelFormat;
+
 #[derive(Clone, Copy)]
 pub struct RGBColor
 {
@@ -13,23 +15,32 @@ impl RGBColor
 
 pub trait Color
 {
-    fn get_color_code(&self) -> u32;
+    fn get_color_code(&self, pixel_format: PixelFormat) -> u32;
 }
 
 impl Color for RGBColor
 {
-    fn get_color_code(&self) -> u32
+    fn get_color_code(&self, pixel_format: PixelFormat) -> u32
     {
-        // only support bgr pixel format
-        let r = (self.r as u32) << 16;
-        let g = (self.g as u32) << 8;
-        let b = (self.b as u32) << 0;
+        let mut result = 0;
 
-        return r | g | b;
+        // only support bgr or rgb pixel format
+        if pixel_format == PixelFormat::Bgr
+        {
+            result = (self.r as u32) << 16 | (self.g as u32) << 8 | (self.b as u32) << 0;
+        }
+        else
+        {
+            result = (self.b as u32) << 16 | (self.g as u32) << 8 | (self.r as u32) << 0;
+        }
+
+        return result;
     }
 }
 
 impl Color for u32
 {
-    fn get_color_code(&self) -> u32 { return *self; }
+    fn get_color_code(&self, _: PixelFormat) -> u32 { return *self; }
 }
+
+// TODO: const RGBColor not working (filled by all 1)

@@ -145,7 +145,7 @@ fn init_graphic(bs: &BootServices, resolution: Option<(usize, usize)>) -> Graphi
     let gi = GraphicInfo {
         resolution: (res.0 as u32, res.1 as u32),
         format: convert_pixel_format(mode_info.pixel_format()),
-        stride: mode_info.stride(),
+        stride: mode_info.stride() as u32,
         framebuf_addr: gop.frame_buffer().as_mut_ptr() as u64,
         framebuf_size: gop.frame_buffer().size() as u64,
     };
