@@ -6,6 +6,7 @@
 //#![feature(alloc_error_handler)]
 
 mod arch;
+mod console;
 mod device;
 mod graphics;
 
@@ -23,7 +24,7 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> !
 {
     let graphic_info = &boot_info.graphic_info;
     let graphics = Graphics::new(
-        (graphic_info.resolution.0 as usize, graphic_info.resolution.0 as usize),
+        (graphic_info.resolution.0 as usize, graphic_info.resolution.1 as usize),
         graphic_info.format,
         graphic_info.framebuf_addr,
         graphic_info.framebuf_size as usize,

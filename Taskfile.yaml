@@ -7,6 +7,7 @@ vars:
     BOOTLOADER_DIR: bootloader
     KERNEL_DIR: kernel
     DUMP_DIR: dump
+    THIRD_PARTY_DIR: third-party
 
     BOOTLOADER_FILE: bootx64.efi
     KERNEL_FILE: kernel.elf
@@ -27,30 +28,49 @@ vars:
         -monitor telnet::5678,server,nowait
     QEMU: qemu-system-x86_64 {{range .QEMU_ARGS | splitLines -}}{{if .}}{{.}} {{end}}{{end -}} {{range .QEMU_DRIVES | splitLines -}}{{if .}}-drive {{.}} {{end}}{{end -}} {{range .QEMU_DEVICES | splitLines -}}{{if .}}-device {{.}} {{end}}{{end -}}
 tasks:
+    clear:
+        cmds:
+            - rm -rf {{$.OUTPUT_DIR}}
+            - rm -rf {{$.THIRD_PARTY_DIR}}
+            - rm -rf {{$.DUMP_DIR}}
+
     init:
         cmds:
             - mkdir -p {{$.OUTPUT_DIR}}
+            - mkdir -p {{$.THIRD_PARTY_DIR}}
+
+    build-fonts:
+        dir: ./{{$.THIRD_PARTY_DIR}}
+        cmds:
+            # download Cozette font and convert to psf font
+            - TAGNAME=`curl https://api.github.com/repos/slavfox/Cozette/releases/latest | jq ".tag_name" | sed 's/"//g'` && wget https://github.com/slavfox/Cozette/releases/download/${TAGNAME}/cozette.bdf
+            - bdf2psf --fb cozette.bdf /usr/share/bdf2psf/standard.equivalents /usr/share/bdf2psf/fontsets/Uni2.512 512 cozette.psf
+            - rm cozette.bdf
 
     build:
-        deps: [build-kernel, build-bootloader]
+        cmds:
+            - task: clear
+            - task: build-fonts
+            - task: build-bootloader
+            - task: build-kernel
 
     build-bootloader:
-        deps: [init]
         dir: ./{{$.BOOTLOADER_DIR}}
         cmds:
+            - task: init
             - cargo build
             - cp ./target/x86_64-unknown-uefi/debug/bootloader.efi ../{{$.OUTPUT_DIR}}/{{$.BOOTLOADER_FILE}}
 
     build-kernel:
-        deps: [init]
         dir: ./{{$.KERNEL_DIR}}
         cmds:
+            - task: init
             - cargo build
             - cp ./target/x86_64/debug/kernel ../{{$.OUTPUT_DIR}}/{{$.KERNEL_FILE}}
 
     makeimg:
-        deps: [build]
         cmds:
+            - task: build
             - qemu-img create -f raw ./{{$.OUTPUT_DIR}}/{{$.IMG_FILE}} 200M
             - mkfs.fat -n "MYOS" -F 32 -s 2 ./{{$.OUTPUT_DIR}}/{{$.IMG_FILE}} # format for FAT32
             - sudo mount -o loop ./{{$.OUTPUT_DIR}}/{{$.IMG_FILE}} /mnt
@@ -62,13 +82,13 @@ tasks:
             - sudo umount /mnt
 
     makeiso:
-        deps: [makeimg]
         cmds:
+            - task: makeimg
             - dd if=./{{$.OUTPUT_DIR}}/{{$.IMG_FILE}} of={{$.OUTPUT_DIR}}/{{$.ISO_FILE}}
 
     run:
-        deps: [makeimg]
         cmds:
+            - task: makeimg
             - "{{$.QEMU}}"
 
     qemu-monitor:
@@ -76,8 +96,8 @@ tasks:
             - telnet localhost 5678
 
     dump:
-        deps: [build]
         cmds:
+            - task: build
             - mkdir -p {{$.DUMP_DIR}}
             - objdump -d {{$.OUTPUT_DIR}}/{{$.KERNEL_FILE}} > {{$.DUMP_DIR}}/dump_kernel.txt
             - objdump -d {{$.OUTPUT_DIR}}/{{$.BOOTLOADER_FILE}} > {{$.DUMP_DIR}}/dump_bootloader.txt

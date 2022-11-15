@@ -1,4 +1,5 @@
 pub mod color;
+pub mod font;
 
 use core::ptr::write_volatile;
 
