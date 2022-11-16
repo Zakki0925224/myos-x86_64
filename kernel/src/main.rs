@@ -6,7 +6,6 @@
 //#![feature(alloc_error_handler)]
 
 mod arch;
-mod console;
 mod device;
 mod graphics;
 
@@ -14,9 +13,9 @@ mod graphics;
 
 use arch::asm;
 use common::boot_info::BootInfo;
-use core::panic::PanicInfo;
+use core::{panic::PanicInfo, ptr::read_volatile};
 use device::serial::{self, SerialPort};
-use graphics::{color::*, Graphics};
+use graphics::{color::*, font::{self, PsfFont}, Graphics};
 
 #[no_mangle]
 #[start]
@@ -58,6 +57,14 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> !
     graphics.draw_rect(260, 0, 20, 20, &RGBColor::new(0, 0, 128));
     graphics.draw_rect(280, 0, 20, 20, &RGBColor::new(0, 128, 128));
     graphics.draw_rect(300, 0, 20, 20, &RGBColor::new(128, 0, 0));
+
+    let font = PsfFont::new();
+
+    if (font.has_unicode_table)
+    {
+        serial.send_data(b'U').unwrap();
+        serial.send_data(b'T').unwrap();
+    }
 
     loop
     {

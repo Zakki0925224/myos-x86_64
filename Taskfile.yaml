@@ -31,7 +31,7 @@ tasks:
     clear:
         cmds:
             - rm -rf {{$.OUTPUT_DIR}}
-            - rm -rf {{$.THIRD_PARTY_DIR}}
+            #- rm -rf {{$.THIRD_PARTY_DIR}}
             - rm -rf {{$.DUMP_DIR}}
 
     init:
@@ -42,10 +42,11 @@ tasks:
     build-fonts:
         dir: ./{{$.THIRD_PARTY_DIR}}
         cmds:
+            - task: init
             # download Cozette font and convert to psf font
-            - TAGNAME=`curl https://api.github.com/repos/slavfox/Cozette/releases/latest | jq ".tag_name" | sed 's/"//g'` && wget https://github.com/slavfox/Cozette/releases/download/${TAGNAME}/cozette.bdf
-            - bdf2psf --fb cozette.bdf /usr/share/bdf2psf/standard.equivalents /usr/share/bdf2psf/fontsets/Uni2.512 512 cozette.psf
-            - rm cozette.bdf
+            - if [ ! -f cozette.psf ];then TAGNAME=`curl https://api.github.com/repos/slavfox/Cozette/releases/latest | jq ".tag_name" | sed 's/"//g'` && wget https://github.com/slavfox/Cozette/releases/download/${TAGNAME}/cozette.bdf;fi
+            - if [ ! -f cozette.psf ];then bdf2psf --fb cozette.bdf /usr/share/bdf2psf/standard.equivalents /usr/share/bdf2psf/fontsets/Uni2.512 512 cozette.psf;fi
+            - rm -f cozette.bdf
 
     build:
         cmds:
