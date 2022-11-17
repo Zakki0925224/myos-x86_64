@@ -58,13 +58,10 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> !
     graphics.draw_rect(280, 0, 20, 20, &RGBColor::new(0, 128, 128));
     graphics.draw_rect(300, 0, 20, 20, &RGBColor::new(128, 0, 0));
 
-    let font = PsfFont::new();
+    graphics.draw_font(100, 100, '!', &RGBColor::new(255, 255, 255));
 
-    if (font.has_unicode_table)
-    {
-        serial.send_data(b'U').unwrap();
-        serial.send_data(b'T').unwrap();
-    }
+    serial.send_data(b'O').unwrap();
+    serial.send_data(b'k').unwrap();
 
     loop
     {

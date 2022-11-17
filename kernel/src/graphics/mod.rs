@@ -5,7 +5,7 @@ use core::ptr::write_volatile;
 
 use common::graphic_info::PixelFormat;
 
-use self::color::Color;
+use self::{color::Color, font::PsfFont};
 
 pub struct Graphics
 {
@@ -14,6 +14,7 @@ pub struct Graphics
     framebuf_addr: u64,
     framebuf_size: usize,
     stride: usize,
+    font: PsfFont,
 }
 
 impl Graphics
@@ -26,7 +27,14 @@ impl Graphics
         stride: usize,
     ) -> Self
     {
-        return Self { resolution, format, framebuf_addr, framebuf_size, stride };
+        return Self {
+            resolution,
+            format,
+            framebuf_addr,
+            framebuf_size,
+            stride,
+            font: PsfFont::new(),
+        };
     }
 
     pub fn get_resolution(&self) -> (usize, usize) { return self.resolution; }
@@ -72,6 +80,35 @@ impl Graphics
         }
 
         return Ok(());
+    }
+
+    // based vga font
+    pub fn draw_font(&self, x1: usize, y1: usize, c: char, color: &impl Color) -> Result<(), &str>
+    {
+        if let Some(glyph) = self.font.get_glyph(5)
+        {
+            for h in 0..self.font.height
+            {
+                for w in 0..self.font.width
+                {
+                    let bit = glyph[h * self.font.width / 8] >> self.font.width - 1 - w;
+
+                    if bit == 1
+                    {
+                        if let Err(msg) = self.draw_rect(x1 + w, y1 + h, 1, 1, color)
+                        {
+                            return Err(msg);
+                        }
+                    }
+                }
+            }
+
+            return Ok(());
+        }
+        else
+        {
+            return Err("Failed to get font glyph");
+        }
     }
 
     pub fn clear(&self, color: &impl Color)
