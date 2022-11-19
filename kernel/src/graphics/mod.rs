@@ -5,7 +5,7 @@ use core::ptr::write_volatile;
 
 use common::graphic_info::PixelFormat;
 
-use self::{color::Color, font::PsfFont};
+use self::{color::{Color, RGBColor}, font::PsfFont};
 
 pub struct Graphics
 {
@@ -67,9 +67,9 @@ impl Graphics
         color: &impl Color,
     ) -> Result<(), &str>
     {
-        for y in y1..=y1 + height
+        for y in y1..y1 + height
         {
-            for x in x1..=x1 + width
+            for x in x1..x1 + width
             {
                 if let Err(msg) =
                     self.set_color(x, y, &color.get_color_code(self.get_pixel_format()))
@@ -82,18 +82,23 @@ impl Graphics
         return Ok(());
     }
 
-    // based vga font
-    pub fn draw_font(&self, x1: usize, y1: usize, c: char, color: &impl Color) -> Result<(), &str>
+    pub fn draw_font(
+        &self,
+        x1: usize,
+        y1: usize,
+        index: usize,
+        color: &impl Color,
+    ) -> Result<(), &str>
     {
-        if let Some(glyph) = self.font.get_glyph(5)
-        {
-            for h in 0..self.font.height
-            {
-                for w in 0..self.font.width
-                {
-                    let bit = glyph[h * self.font.width / 8] >> self.font.width - 1 - w;
+        let red = &RGBColor::new(255, 0, 0);
 
-                    if bit == 1
+        if let Some(glyph) = self.font.get_glyph(index)
+        {
+            for h in 0..self.font.get_height()
+            {
+                for w in 0..self.font.get_width()
+                {
+                    if (glyph[h] << w) & 0x80 == 0x80
                     {
                         if let Err(msg) = self.draw_rect(x1 + w, y1 + h, 1, 1, color)
                         {

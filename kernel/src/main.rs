@@ -13,9 +13,9 @@ mod graphics;
 
 use arch::asm;
 use common::boot_info::BootInfo;
-use core::{panic::PanicInfo, ptr::read_volatile};
+use core::panic::PanicInfo;
 use device::serial::{self, SerialPort};
-use graphics::{color::*, font::{self, PsfFont}, Graphics};
+use graphics::{color::*, Graphics};
 
 #[no_mangle]
 #[start]
@@ -40,6 +40,7 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> !
     serial.send_data(b'!').unwrap();
     serial.send_data(b'\n').unwrap();
 
+    // TODO: const colors
     graphics.clear(&RGBColor::new(0, 0, 0));
     graphics.draw_rect(0, 0, 20, 20, &RGBColor::new(255, 255, 255));
     graphics.draw_rect(20, 0, 20, 20, &RGBColor::new(128, 128, 0));
@@ -58,9 +59,22 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> !
     graphics.draw_rect(280, 0, 20, 20, &RGBColor::new(0, 128, 128));
     graphics.draw_rect(300, 0, 20, 20, &RGBColor::new(128, 0, 0));
 
-    graphics.draw_font(100, 100, '!', &RGBColor::new(255, 255, 255));
+    let white = &RGBColor::new(255, 255, 255);
 
-    serial.send_data(b'O').unwrap();
+    for i in 0..150
+    {
+        graphics.draw_font(10 + 7 * i, 100, i, white);
+    }
+    for i in 0..150
+    {
+        graphics.draw_font(10 + 7 * i, 114, 150 + i, white);
+    }
+    for i in 0..150
+    {
+        graphics.draw_font(10 + 7 * i, 114, 150 + i, white);
+    }
+
+    serial.send_data(b'o').unwrap();
     serial.send_data(b'k').unwrap();
 
     loop

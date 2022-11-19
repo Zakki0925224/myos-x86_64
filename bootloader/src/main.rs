@@ -13,13 +13,12 @@ extern crate alloc;
 use alloc::{boxed::Box, vec::Vec};
 use common::{boot_info::BootInfo, graphic_info::{self, GraphicInfo}, mem_desc};
 use core::{mem, slice::from_raw_parts_mut};
-use uefi::{prelude::*, proto::{console::gop::{GraphicsOutput, PixelFormat}, media::{file::*, fs::SimpleFileSystem}}, table::boot::*, CStr16};
-use xmas_elf::ElfFile;
+use uefi::{prelude::*, proto::{console::gop::{GraphicsOutput, PixelFormat}, media::file::*}, table::boot::*, CStr16};
+use xmas_elf::{program, ElfFile};
 
 use crate::config::DEFAULT_BOOT_CONFIG;
 
 const PAGE_SIZE: usize = 0x1000;
-const KERNEL_BASE_ADDR: usize = 0x10_0000;
 
 #[entry]
 fn efi_main(handle: Handle, mut st: SystemTable<Boot>) -> Status
@@ -36,12 +35,8 @@ fn efi_main(handle: Handle, mut st: SystemTable<Boot>) -> Status
     let graphic_info = init_graphic(bs, config.resolution);
     info!("{:?}", graphic_info);
 
-    // read kernel.elf
-    let mut f = open_file(bs, config.kernel_path);
-    let buf = load_file_to_mem(bs, &mut f, KERNEL_BASE_ADDR);
-    let kernel = ElfFile::new(buf).expect("Failed to parse ELF file");
-    //copy_load_segs(&kernel);
-    let kernel_entry_point_addr = kernel.header.pt2.entry_point();
+    // load kernel
+    let kernel_entry_point_addr = load_elf(bs, handle, config.kernel_path);
     info!("Kernel entry point: 0x{:x}", kernel_entry_point_addr);
 
     // get memory map
@@ -52,8 +47,7 @@ fn efi_main(handle: Handle, mut st: SystemTable<Boot>) -> Status
     info!("Exit boot services");
     let mut mem_map = Vec::with_capacity(128);
 
-    let (_rt, mmap_iter) =
-        st.exit_boot_services(handle, mmap_buf).expect("Failed to exit boot services");
+    let (_rt, mmap_iter) = st.exit_boot_services(handle, mmap_buf).unwrap();
 
     for desc in mmap_iter
     {
@@ -71,72 +65,84 @@ fn efi_main(handle: Handle, mut st: SystemTable<Boot>) -> Status
     let mem_map_len = mem_map.len();
     let bi = BootInfo::new(mem_map.as_slice(), mem_map_len, graphic_info);
 
-    // https://github.com/uchan-nos/os-from-zero/issues/41
-    // not changed when add flag "-z separate-code"
-    jump_to_entry(
-        kernel_entry_point_addr - 0x1000,
-        &bi,
-        config.kernel_stack_addr,
-        config.kernel_stack_size,
-    );
+    // TODO: not working after jump to entry at virtualbox or real machine
+    jump_to_entry(kernel_entry_point_addr, &bi, config.kernel_stack_addr, config.kernel_stack_size);
 
     return Status::SUCCESS;
 }
 
-fn open_file(bs: &BootServices, path: &str) -> RegularFile
+fn load_elf(bs: &BootServices, image: Handle, path: &str) -> u64
 {
+    // open file
     info!("Opening file: \"{}\"", path);
-
-    let fs = bs.locate_protocol::<SimpleFileSystem>().expect("Failed to get FileSystem");
-
-    let fs = unsafe { &mut *fs.get() };
+    let root = bs.get_image_file_system(image).unwrap();
+    let mut root = unsafe { &mut *root.interface.get() }.open_volume().unwrap();
     let mut buf = [0; 256];
-    let path = CStr16::from_str_with_buf(path, &mut buf).expect("Failed to convert path to ucs-2");
-    let mut root = fs.open_volume().expect("Failed to open volume");
-    let handle =
-        root.open(path, FileMode::Read, FileAttribute::empty()).expect("Failed to open file");
+    let path = CStr16::from_str_with_buf(path, &mut buf).unwrap();
+    let file =
+        root.open(path, FileMode::Read, FileAttribute::empty()).unwrap().into_type().unwrap();
 
-    match handle.into_type().expect("Failed to into_type")
+    let mut file = match file
     {
-        FileType::Regular(r) => return r,
-        _ => panic!("Invalid file type"),
+        FileType::Regular(file) => file,
+        FileType::Dir(_) => panic!("Not file: \"{}\"", path),
+    };
+
+    let file_info = file.get_boxed_info::<FileInfo>().unwrap();
+    let file_size = file_info.file_size() as usize;
+    let mut buf = vec![0; file_size];
+
+    file.read(&mut buf).unwrap();
+
+    // load elf
+    let elf = ElfFile::new(&buf).unwrap();
+
+    let mut dest_start = usize::MAX;
+    let mut dest_end = 0;
+
+    for p in elf.program_iter()
+    {
+        if p.get_type().unwrap() != program::Type::Load
+        {
+            continue;
+        }
+
+        dest_start = dest_start.min(p.virtual_addr() as usize);
+        dest_end = dest_end.max((p.virtual_addr() + p.mem_size()) as usize);
     }
-}
 
-fn load_file_to_mem(bs: &BootServices, file: &mut RegularFile, addr: usize) -> &'static mut [u8]
-{
-    let mut info_buf = [0; 256];
+    let pages = (dest_end - dest_start + PAGE_SIZE - 1) / PAGE_SIZE;
+    bs.allocate_pages(AllocateType::Address(dest_start), MemoryType::LOADER_DATA, pages).unwrap();
 
-    // FIXME: paniced here on real mahcine? (usb boot)
-    let info = file.get_info::<FileInfo>(&mut info_buf).expect("Failed to get file info");
+    for p in elf.program_iter()
+    {
+        if p.get_type().unwrap() != program::Type::Load
+        {
+            continue;
+        }
 
-    let pages = (info.file_size() as usize + 0xfff) / PAGE_SIZE;
-    let mem_start = bs
-        .allocate_pages(AllocateType::Address(addr), MemoryType::LOADER_DATA, pages)
-        .expect("Failed to allocate pages");
-    let buf = unsafe { from_raw_parts_mut(mem_start as *mut u8, pages * PAGE_SIZE) };
-    let len = file.read(buf).expect("Failed to read file");
+        let offset = p.offset() as usize;
+        let file_size = p.file_size() as usize;
+        let mem_size = p.mem_size() as usize;
+        let dest = unsafe { from_raw_parts_mut(p.virtual_addr() as *mut u8, mem_size) };
+        dest[..file_size].copy_from_slice(&buf[offset..offset + file_size]);
+        dest[file_size..].fill(0);
+    }
 
-    info!("Loaded {}bytes at 0x{:x}", len, mem_start);
-
-    return &mut buf[..len];
+    return elf.header.pt2.entry_point();
 }
 
 fn init_graphic(bs: &BootServices, resolution: Option<(usize, usize)>) -> GraphicInfo
 {
-    let gop = bs.locate_protocol::<GraphicsOutput>().expect("Failed to get GraphicsOutput");
-
+    let gop = bs.locate_protocol::<GraphicsOutput>().unwrap();
     let gop = unsafe { &mut *gop.get() };
 
     if let Some(resolution) = resolution
     {
-        let mode = gop
-            .modes()
-            .find(|mode| mode.info().resolution() == resolution)
-            .expect("Graphic mode not found");
+        let mode = gop.modes().find(|mode| mode.info().resolution() == resolution).unwrap();
 
         info!("Switching graphic mode...");
-        gop.set_mode(&mode).expect("Failed to set graphic mode");
+        gop.set_mode(&mode).unwrap();
     }
 
     let mode_info = gop.current_mode_info();

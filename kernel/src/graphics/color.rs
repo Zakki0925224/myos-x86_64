@@ -38,5 +38,3 @@ impl Color for u32
 {
     fn get_color_code(&self, _: PixelFormat) -> u32 { return *self; }
 }
-
-// TODO: const RGBColor not working (filled by all 1)
