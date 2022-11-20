@@ -8,7 +8,7 @@
 
 -   [Cozette](https://github.com/slavfox/Cozette)
 
-### Features
+## Features
 
 -   [x] Written in Rust and Assembly
 -   [x] My own UEFI boot loader by using [uefi-rs](https://github.com/rust-osdev/uefi-rs)
