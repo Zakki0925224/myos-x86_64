@@ -82,17 +82,9 @@ impl Graphics
         return Ok(());
     }
 
-    pub fn draw_font(
-        &self,
-        x1: usize,
-        y1: usize,
-        index: usize,
-        color: &impl Color,
-    ) -> Result<(), &str>
+    pub fn draw_font(&self, x1: usize, y1: usize, c: char, color: &impl Color) -> Result<(), &str>
     {
-        let red = &RGBColor::new(255, 0, 0);
-
-        if let Some(glyph) = self.font.get_glyph(index)
+        if let Some(glyph) = self.font.get_glyph(self.font.unicode_char_to_glyph_index(c))
         {
             for h in 0..self.font.get_height()
             {

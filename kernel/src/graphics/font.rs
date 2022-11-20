@@ -5,6 +5,7 @@ const UNICODE_TABLE_SEPARATOR: u8 = 0xff;
 
 pub struct PsfFont
 {
+    binary_len: usize,
     height: usize,
     width: usize,
     glyphs_len: usize,
@@ -81,6 +82,7 @@ impl PsfFont
             panic!("Invalid font binary");
         }
 
+        let binary_len = FONT.len();
         let height = get_pixel_height() as usize;
         let width = get_pixel_width() as usize;
         let glyphs_len = get_glyphs_len() as usize;
@@ -90,6 +92,7 @@ impl PsfFont
         let unicode_table_offset = header_size + glyph_size * glyphs_len;
 
         return Self {
+            binary_len,
             height,
             width,
             glyphs_len,
@@ -122,45 +125,28 @@ impl PsfFont
         return Some(self.unicode_table_offset);
     }
 
-    // TODO
+    // ascii char only
     pub fn unicode_char_to_glyph_index(&self, c: char) -> usize
     {
         if !self.has_unicode_table
         {
-            return c as u32 as usize;
+            return c as u8 as usize;
         }
 
-        let bytes: [u8; 4] = (c as u32).to_be_bytes();
-        let mut index = self.unicode_table_offset;
-        let mut font_bytes_offset = index;
-        let mut i = 0;
+        let code_point = c as u8;
+        let mut index = 0;
 
-        while font_bytes_offset + bytes.len() < FONT.len()
+        for i in self.unicode_table_offset..self.binary_len
         {
-            while i < bytes.len()
+            if code_point == FONT[i]
             {
-                if bytes[i] == 0
-                {
-                    i += 1;
-                    continue;
-                }
-
-                if bytes[i] != FONT[font_bytes_offset]
-                {
-                    break;
-                }
-
-                i += 1;
-                font_bytes_offset += 1;
+                break;
             }
 
-            if FONT[font_bytes_offset] == UNICODE_TABLE_SEPARATOR
+            if FONT[i] == UNICODE_TABLE_SEPARATOR
             {
                 index += 1;
             }
-
-            i = 0;
-            font_bytes_offset += 1;
         }
 
         return index;

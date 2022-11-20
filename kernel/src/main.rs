@@ -60,19 +60,40 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> !
     graphics.draw_rect(300, 0, 20, 20, &RGBColor::new(128, 0, 0));
 
     let white = &RGBColor::new(255, 255, 255);
+    graphics.draw_font(10, 100, 'W', white);
+    graphics.draw_font(16, 100, 'e', white);
+    graphics.draw_font(22, 100, 'l', white);
+    graphics.draw_font(28, 100, 'c', white);
+    graphics.draw_font(34, 100, 'o', white);
+    graphics.draw_font(40, 100, 'm', white);
+    graphics.draw_font(46, 100, 'e', white);
+    graphics.draw_font(52, 100, '!', white);
 
-    for i in 0..150
-    {
-        graphics.draw_font(10 + 7 * i, 100, i, white);
-    }
-    for i in 0..150
-    {
-        graphics.draw_font(10 + 7 * i, 114, 150 + i, white);
-    }
-    for i in 0..150
-    {
-        graphics.draw_font(10 + 7 * i, 114, 150 + i, white);
-    }
+    graphics.draw_font(10, 108, 'H', white);
+    graphics.draw_font(16, 108, 'e', white);
+    graphics.draw_font(22, 108, 'l', white);
+    graphics.draw_font(28, 108, 'l', white);
+    graphics.draw_font(34, 108, 'o', white);
+    graphics.draw_font(40, 108, ' ', white);
+    graphics.draw_font(46, 108, 'W', white);
+    graphics.draw_font(52, 108, 'o', white);
+    graphics.draw_font(58, 108, 'r', white);
+    graphics.draw_font(64, 108, 'l', white);
+    graphics.draw_font(70, 108, 'd', white);
+    graphics.draw_font(76, 108, '!', white);
+
+    // for i in 0..150
+    // {
+    //     graphics.draw_font(10 + 7 * i, 100, i, white);
+    // }
+    // for i in 0..150
+    // {
+    //     graphics.draw_font(10 + 7 * i, 114, 150 + i, white);
+    // }
+    // for i in 0..150
+    // {
+    //     graphics.draw_font(10 + 7 * i, 114, 150 + i, white);
+    // }
 
     serial.send_data(b'o').unwrap();
     serial.send_data(b'k').unwrap();
