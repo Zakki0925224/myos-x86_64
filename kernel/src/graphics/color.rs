@@ -1,5 +1,21 @@
 use common::graphic_info::PixelFormat;
 
+pub const COLOR_WHITE: RGBColor = RGBColor { r: 255, g: 255, b: 255 };
+pub const COLOR_OLIVE: RGBColor = RGBColor { r: 128, g: 128, b: 0 };
+pub const COLOR_YELLOW: RGBColor = RGBColor { r: 255, g: 255, b: 0 };
+pub const COLOR_FUCHSIA: RGBColor = RGBColor { r: 255, g: 0, b: 255 };
+pub const COLOR_SILVER: RGBColor = RGBColor { r: 192, g: 192, b: 192 };
+pub const COLOR_CYAN: RGBColor = RGBColor { r: 0, g: 255, b: 255 };
+pub const COLOR_GREEN: RGBColor = RGBColor { r: 0, g: 255, b: 0 };
+pub const COLOR_RED: RGBColor = RGBColor { r: 255, g: 0, b: 0 };
+pub const COLOR_GRAY: RGBColor = RGBColor { r: 128, g: 128, b: 128 };
+pub const COLOR_BLUE: RGBColor = RGBColor { r: 0, g: 0, b: 255 };
+pub const COLOR_PURPLE: RGBColor = RGBColor { r: 128, g: 0, b: 128 };
+pub const COLOR_BLACK: RGBColor = RGBColor { r: 0, g: 0, b: 0 };
+pub const COLOR_NAVY: RGBColor = RGBColor { r: 0, g: 0, b: 128 };
+pub const COLOR_TEAL: RGBColor = RGBColor { r: 0, g: 128, b: 128 };
+pub const COLOR_MAROON: RGBColor = RGBColor { r: 128, g: 0, b: 0 };
+
 #[derive(Clone, Copy)]
 pub struct RGBColor
 {

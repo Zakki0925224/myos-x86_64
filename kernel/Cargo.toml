@@ -6,4 +6,9 @@ authors = ["Zakki <zakki0925224@gmail.com>"]
 
 [dependencies]
 common = { path = "../common" }
+spin = "0.9.4"
 log = "0.4.17"
+
+[dependencies.lazy_static]
+version = "1.4.0"
+features = ["spin_no_std"]

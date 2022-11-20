@@ -6,6 +6,7 @@
 //#![feature(alloc_error_handler)]
 
 mod arch;
+mod console;
 mod device;
 mod graphics;
 
@@ -13,16 +14,17 @@ mod graphics;
 
 use arch::asm;
 use common::boot_info::BootInfo;
+use console::CONSOLE;
 use core::panic::PanicInfo;
-use device::serial::{self, SerialPort};
-use graphics::{color::*, Graphics};
+use device::serial::{self, SERIAL};
+use graphics::GRAPHICS;
 
 #[no_mangle]
 #[start]
 pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> !
 {
     let graphic_info = &boot_info.graphic_info;
-    let graphics = Graphics::new(
+    GRAPHICS.lock().init(
         (graphic_info.resolution.0 as usize, graphic_info.resolution.1 as usize),
         graphic_info.format,
         graphic_info.framebuf_addr,
@@ -30,82 +32,14 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> !
         graphic_info.stride as usize,
     );
 
-    let mut serial = SerialPort::new(serial::IO_PORT_COM1);
-    serial.init();
-    serial.send_data(b'H').unwrap();
-    serial.send_data(b'e').unwrap();
-    serial.send_data(b'l').unwrap();
-    serial.send_data(b'l').unwrap();
-    serial.send_data(b'o').unwrap();
-    serial.send_data(b'!').unwrap();
-    serial.send_data(b'\n').unwrap();
+    SERIAL.lock().init(serial::IO_PORT_COM1);
+    CONSOLE.lock().init();
 
-    // TODO: const colors
-    graphics.clear(&RGBColor::new(0, 0, 0));
-    graphics.draw_rect(0, 0, 20, 20, &RGBColor::new(255, 255, 255));
-    graphics.draw_rect(20, 0, 20, 20, &RGBColor::new(128, 128, 0));
-    graphics.draw_rect(40, 0, 20, 20, &RGBColor::new(255, 255, 0));
-    graphics.draw_rect(60, 0, 20, 20, &RGBColor::new(255, 0, 255));
-    graphics.draw_rect(80, 0, 20, 20, &RGBColor::new(192, 192, 192));
-    graphics.draw_rect(100, 0, 20, 20, &RGBColor::new(0, 255, 255));
-    graphics.draw_rect(120, 0, 20, 20, &RGBColor::new(0, 255, 0));
-    graphics.draw_rect(140, 0, 20, 20, &RGBColor::new(255, 0, 0));
-    graphics.draw_rect(160, 0, 20, 20, &RGBColor::new(128, 128, 128));
-    graphics.draw_rect(180, 0, 20, 20, &RGBColor::new(0, 0, 255));
-    graphics.draw_rect(200, 0, 20, 20, &RGBColor::new(0, 255, 0));
-    graphics.draw_rect(220, 0, 20, 20, &RGBColor::new(128, 0, 128));
-    graphics.draw_rect(240, 0, 20, 20, &RGBColor::new(0, 0, 0));
-    graphics.draw_rect(260, 0, 20, 20, &RGBColor::new(0, 0, 128));
-    graphics.draw_rect(280, 0, 20, 20, &RGBColor::new(0, 128, 128));
-    graphics.draw_rect(300, 0, 20, 20, &RGBColor::new(128, 0, 0));
-
-    let white = &RGBColor::new(255, 255, 255);
-    graphics.draw_font(10, 100, 'W', white);
-    graphics.draw_font(16, 100, 'e', white);
-    graphics.draw_font(22, 100, 'l', white);
-    graphics.draw_font(28, 100, 'c', white);
-    graphics.draw_font(34, 100, 'o', white);
-    graphics.draw_font(40, 100, 'm', white);
-    graphics.draw_font(46, 100, 'e', white);
-    graphics.draw_font(52, 100, '!', white);
-
-    graphics.draw_font(10, 108, 'H', white);
-    graphics.draw_font(16, 108, 'e', white);
-    graphics.draw_font(22, 108, 'l', white);
-    graphics.draw_font(28, 108, 'l', white);
-    graphics.draw_font(34, 108, 'o', white);
-    graphics.draw_font(40, 108, ' ', white);
-    graphics.draw_font(46, 108, 'W', white);
-    graphics.draw_font(52, 108, 'o', white);
-    graphics.draw_font(58, 108, 'r', white);
-    graphics.draw_font(64, 108, 'l', white);
-    graphics.draw_font(70, 108, 'd', white);
-    graphics.draw_font(76, 108, '!', white);
-
-    // for i in 0..150
-    // {
-    //     graphics.draw_font(10 + 7 * i, 100, i, white);
-    // }
-    // for i in 0..150
-    // {
-    //     graphics.draw_font(10 + 7 * i, 114, 150 + i, white);
-    // }
-    // for i in 0..150
-    // {
-    //     graphics.draw_font(10 + 7 * i, 114, 150 + i, white);
-    // }
-
-    serial.send_data(b'o').unwrap();
-    serial.send_data(b'k').unwrap();
+    println!("Hello world!");
 
     loop
     {
         //asm::cli();
-
-        if let Ok(data) = serial.receive_data()
-        {
-            serial.send_data(data).unwrap();
-        }
 
         //asm::hlt();
     }

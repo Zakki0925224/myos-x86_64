@@ -1,4 +1,6 @@
 use crate::arch::asm;
+use lazy_static::lazy_static;
+use spin::Mutex;
 
 pub const IO_PORT_COM1: u16 = 0x3f8;
 pub const IO_PORT_COM2: u16 = 0x2f8;
@@ -9,6 +11,10 @@ pub const IO_PORT_COM6: u16 = 0x4f8;
 pub const IO_PORT_COM7: u16 = 0x5e8;
 pub const IO_PORT_COM8: u16 = 0x4e8;
 
+lazy_static! {
+    pub static ref SERIAL: Mutex<SerialPort> = Mutex::new(SerialPort::new());
+}
+
 pub struct SerialPort
 {
     io_port: u16,
@@ -17,10 +23,13 @@ pub struct SerialPort
 
 impl SerialPort
 {
-    pub fn new(io_port: u16) -> Self { return Self { io_port, is_init: false }; }
+    pub fn new() -> Self { return Self { io_port: 0, is_init: false }; }
 
-    pub fn init(&mut self)
+    pub fn is_init(&self) -> bool { return self.is_init; }
+
+    pub fn init(&mut self, io_port: u16)
     {
+        self.io_port = io_port;
         asm::out8(self.io_port + 1, 0x00); // IER - disable all interrupts
         asm::out8(self.io_port + 3, 0x80); // LCR - enable DLAB
         asm::out8(self.io_port + 0, 0x03); // DLL - set baud late 38400 bps
