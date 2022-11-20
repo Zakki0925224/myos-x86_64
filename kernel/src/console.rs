@@ -16,6 +16,7 @@ pub struct Console
 {
     is_init: bool,
     back_color: RGBColor,
+    default_fore_color: RGBColor,
     fore_color: RGBColor,
     font_glyph_size: (usize, usize),
     max_x_res: usize,
@@ -33,6 +34,7 @@ impl Console
         return Self {
             is_init: false,
             back_color,
+            default_fore_color: fore_color,
             fore_color,
             font_glyph_size: (0, 0),
             max_x_res: 0,
@@ -81,6 +83,10 @@ impl Console
         self.is_init = true;
     }
 
+    pub fn set_fore_color(&mut self, fore_color: RGBColor) { self.fore_color = fore_color; }
+
+    pub fn reset_fore_color(&mut self) { self.fore_color = self.default_fore_color; }
+
     pub fn write_char(&mut self, c: char)
     {
         if !self.is_init
@@ -112,6 +118,8 @@ impl Console
                 &self.fore_color,
             )
             .unwrap();
+
+        // TODO: send console color code
         SERIAL.lock().send_data(c as u8).unwrap();
 
         self.inc_cursor();

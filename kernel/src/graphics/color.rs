@@ -16,7 +16,7 @@ pub const COLOR_NAVY: RGBColor = RGBColor { r: 0, g: 0, b: 128 };
 pub const COLOR_TEAL: RGBColor = RGBColor { r: 0, g: 128, b: 128 };
 pub const COLOR_MAROON: RGBColor = RGBColor { r: 128, g: 0, b: 0 };
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct RGBColor
 {
     pub r: u8,

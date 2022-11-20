@@ -19,6 +19,8 @@ use core::panic::PanicInfo;
 use device::serial::{self, SERIAL};
 use graphics::GRAPHICS;
 
+use crate::graphics::color::COLOR_RED;
+
 #[no_mangle]
 #[start]
 pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> !
@@ -52,8 +54,12 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> !
 // }
 
 #[panic_handler]
-fn panic(_info: &PanicInfo) -> !
+fn panic(info: &PanicInfo) -> !
 {
+    CONSOLE.lock().set_fore_color(COLOR_RED);
+    println!("{:?}", info);
+    CONSOLE.lock().reset_fore_color();
+
     loop
     {
         asm::hlt();
