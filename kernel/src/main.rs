@@ -39,6 +39,11 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> !
 
     println!("Hello world!");
 
+    for i in 0..1000
+    {
+        println!("{}", i);
+    }
+
     loop
     {
         //asm::cli();

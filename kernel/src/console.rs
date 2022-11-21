@@ -9,7 +9,8 @@ const TAB_DISP_CHAR: char = ' ';
 const TAB_INDENT_SIZE: usize = 4;
 
 lazy_static! {
-    pub static ref CONSOLE: Mutex<Console> = Mutex::new(Console::new(COLOR_BLACK, COLOR_WHITE));
+    pub static ref CONSOLE: Mutex<Console> =
+        Mutex::new(Console::new(RGBColor::new(3, 26, 0), RGBColor::new(18, 202, 99)));
 }
 
 pub struct Console
@@ -63,22 +64,22 @@ impl Console
         self.cursor_x = 0;
         self.cursor_y = 2;
 
-        GRAPHICS.lock().clear(&self.back_color).unwrap();
-        GRAPHICS.lock().draw_rect(0, 0, 20, 20, &COLOR_WHITE).unwrap();
-        GRAPHICS.lock().draw_rect(20, 0, 20, 20, &COLOR_OLIVE).unwrap();
-        GRAPHICS.lock().draw_rect(40, 0, 20, 20, &COLOR_YELLOW).unwrap();
-        GRAPHICS.lock().draw_rect(60, 0, 20, 20, &COLOR_FUCHSIA).unwrap();
-        GRAPHICS.lock().draw_rect(80, 0, 20, 20, &COLOR_SILVER).unwrap();
-        GRAPHICS.lock().draw_rect(100, 0, 20, 20, &COLOR_CYAN).unwrap();
-        GRAPHICS.lock().draw_rect(120, 0, 20, 20, &COLOR_GREEN).unwrap();
-        GRAPHICS.lock().draw_rect(140, 0, 20, 20, &COLOR_RED).unwrap();
-        GRAPHICS.lock().draw_rect(160, 0, 20, 20, &COLOR_GRAY).unwrap();
-        GRAPHICS.lock().draw_rect(180, 0, 20, 20, &COLOR_BLUE).unwrap();
-        GRAPHICS.lock().draw_rect(200, 0, 20, 20, &COLOR_PURPLE).unwrap();
-        GRAPHICS.lock().draw_rect(220, 0, 20, 20, &COLOR_BLACK).unwrap();
-        GRAPHICS.lock().draw_rect(240, 0, 20, 20, &COLOR_NAVY).unwrap();
-        GRAPHICS.lock().draw_rect(260, 0, 20, 20, &COLOR_TEAL).unwrap();
-        GRAPHICS.lock().draw_rect(280, 0, 20, 20, &COLOR_MAROON).unwrap();
+        GRAPHICS.lock().clear(&self.back_color);
+        GRAPHICS.lock().draw_rect(0, 0, 20, 20, &COLOR_WHITE);
+        GRAPHICS.lock().draw_rect(20, 0, 20, 20, &COLOR_OLIVE);
+        GRAPHICS.lock().draw_rect(40, 0, 20, 20, &COLOR_YELLOW);
+        GRAPHICS.lock().draw_rect(60, 0, 20, 20, &COLOR_FUCHSIA);
+        GRAPHICS.lock().draw_rect(80, 0, 20, 20, &COLOR_SILVER);
+        GRAPHICS.lock().draw_rect(100, 0, 20, 20, &COLOR_CYAN);
+        GRAPHICS.lock().draw_rect(120, 0, 20, 20, &COLOR_GREEN);
+        GRAPHICS.lock().draw_rect(140, 0, 20, 20, &COLOR_RED);
+        GRAPHICS.lock().draw_rect(160, 0, 20, 20, &COLOR_GRAY);
+        GRAPHICS.lock().draw_rect(180, 0, 20, 20, &COLOR_BLUE);
+        GRAPHICS.lock().draw_rect(200, 0, 20, 20, &COLOR_PURPLE);
+        GRAPHICS.lock().draw_rect(220, 0, 20, 20, &COLOR_BLACK);
+        GRAPHICS.lock().draw_rect(240, 0, 20, 20, &COLOR_NAVY);
+        GRAPHICS.lock().draw_rect(260, 0, 20, 20, &COLOR_TEAL);
+        GRAPHICS.lock().draw_rect(280, 0, 20, 20, &COLOR_MAROON);
 
         self.is_init = true;
     }
@@ -109,15 +110,12 @@ impl Console
             _ => (),
         }
 
-        GRAPHICS
-            .lock()
-            .draw_font(
-                self.cursor_x * self.font_glyph_size.0,
-                self.cursor_y * self.font_glyph_size.1,
-                c,
-                &self.fore_color,
-            )
-            .unwrap();
+        GRAPHICS.lock().draw_font(
+            self.cursor_x * self.font_glyph_size.0,
+            self.cursor_y * self.font_glyph_size.1,
+            c,
+            &self.fore_color,
+        );
 
         // TODO: send console color code
         SERIAL.lock().send_data(c as u8).unwrap();
@@ -176,8 +174,27 @@ impl Console
         SERIAL.lock().send_data(b'\n').unwrap();
     }
 
-    // TODO: implement copy_pixel() at Graphics struct
-    fn scroll(&mut self) {}
+    // scroll is too slow
+    fn scroll(&self)
+    {
+        let font_glyph_size_y = self.font_glyph_size.1;
+
+        for y in font_glyph_size_y..self.max_y_res
+        {
+            for x in 0..self.max_x_res
+            {
+                GRAPHICS.lock().copy_pixel(x, y, x, y - font_glyph_size_y);
+            }
+        }
+
+        for y in self.max_y_res - font_glyph_size_y..self.max_y_res
+        {
+            for x in 0..self.max_x_res
+            {
+                GRAPHICS.lock().set_color(x, y, &self.back_color);
+            }
+        }
+    }
 }
 
 impl fmt::Write for Console
