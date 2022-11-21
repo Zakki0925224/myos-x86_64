@@ -7,6 +7,7 @@
 
 mod arch;
 mod device;
+mod env;
 mod graphics;
 mod terminal;
 mod util;
@@ -21,7 +22,7 @@ use graphics::GRAPHICS;
 use log::*;
 use terminal::TERMINAL;
 
-use crate::{graphics::color::COLOR_RED, util::logger};
+use crate::util::logger;
 
 #[no_mangle]
 #[start]
@@ -42,6 +43,8 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> !
     TERMINAL.lock().init();
     logger::init().unwrap();
     info!("Initialized kernel terminal");
+
+    env::print_info();
 
     loop
     {
