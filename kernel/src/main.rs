@@ -6,25 +6,28 @@
 //#![feature(alloc_error_handler)]
 
 mod arch;
-mod console;
 mod device;
 mod graphics;
+mod terminal;
+mod util;
 
 //extern crate alloc;
 
 use arch::asm;
 use common::boot_info::BootInfo;
-use console::CONSOLE;
 use core::panic::PanicInfo;
 use device::serial::{self, SERIAL};
 use graphics::GRAPHICS;
+use log::*;
+use terminal::TERMINAL;
 
-use crate::graphics::color::COLOR_RED;
+use crate::{graphics::color::COLOR_RED, util::logger};
 
 #[no_mangle]
 #[start]
 pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> !
 {
+    // initialize graphics
     let graphic_info = &boot_info.graphic_info;
     GRAPHICS.lock().init(
         (graphic_info.resolution.0 as usize, graphic_info.resolution.1 as usize),
@@ -34,15 +37,11 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> !
         graphic_info.stride as usize,
     );
 
+    // initialize kerenl terminal
     SERIAL.lock().init(serial::IO_PORT_COM1);
-    CONSOLE.lock().init();
-
-    println!("Hello world!");
-
-    for i in 0..1000
-    {
-        println!("{}", i);
-    }
+    TERMINAL.lock().init();
+    logger::init().unwrap();
+    info!("Initialized kernel terminal");
 
     loop
     {
@@ -61,9 +60,7 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> !
 #[panic_handler]
 fn panic(info: &PanicInfo) -> !
 {
-    CONSOLE.lock().set_fore_color(COLOR_RED);
-    println!("{:?}", info);
-    CONSOLE.lock().reset_fore_color();
+    error!("{:?}", info);
 
     loop
     {

@@ -26,7 +26,7 @@ vars:
         -m 4G
         -serial mon:stdio
         -monitor telnet::5678,server,nowait
-    QEMU: qemu-system-x86_64 {{range .QEMU_ARGS | splitLines -}}{{if .}}{{.}} {{end}}{{end -}} {{range .QEMU_DRIVES | splitLines -}}{{if .}}-drive {{.}} {{end}}{{end -}} {{range .QEMU_DEVICES | splitLines -}}{{if .}}-device {{.}} {{end}}{{end -}}
+    QEMU: qemu-system-x86_64 -accel kvm {{range .QEMU_ARGS | splitLines -}}{{if .}}{{.}} {{end}}{{end -}} {{range .QEMU_DRIVES | splitLines -}}{{if .}}-drive {{.}} {{end}}{{end -}} {{range .QEMU_DEVICES | splitLines -}}{{if .}}-device {{.}} {{end}}{{end -}}
 tasks:
     clear:
         cmds:

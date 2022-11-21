@@ -27,6 +27,8 @@ impl SerialPort
 
     pub fn is_init(&self) -> bool { return self.is_init; }
 
+    pub fn get_port_num(&self) -> u16 { return self.io_port }
+
     pub fn init(&mut self, io_port: u16)
     {
         self.io_port = io_port;

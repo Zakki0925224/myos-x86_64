@@ -9,11 +9,11 @@ const TAB_DISP_CHAR: char = ' ';
 const TAB_INDENT_SIZE: usize = 4;
 
 lazy_static! {
-    pub static ref CONSOLE: Mutex<Console> =
-        Mutex::new(Console::new(RGBColor::new(3, 26, 0), RGBColor::new(18, 202, 99)));
+    pub static ref TERMINAL: Mutex<Terminal> =
+        Mutex::new(Terminal::new(RGBColor::new(3, 26, 0), RGBColor::new(18, 202, 99)));
 }
 
-pub struct Console
+pub struct Terminal
 {
     is_init: bool,
     back_color: RGBColor,
@@ -28,7 +28,7 @@ pub struct Console
     cursor_y: usize,
 }
 
-impl Console
+impl Terminal
 {
     pub fn new(back_color: RGBColor, fore_color: RGBColor) -> Self
     {
@@ -55,7 +55,7 @@ impl Console
         }
 
         let (glyph_size_width, glyph_size_height) = GRAPHICS.lock().get_font_glyph_size();
-        self.font_glyph_size = (glyph_size_width, glyph_size_height + 5);
+        self.font_glyph_size = (glyph_size_width, glyph_size_height + 6); // line spacing 6px
 
         self.max_x_res = GRAPHICS.lock().get_stride();
         self.max_y_res = GRAPHICS.lock().get_resolution().1;
@@ -92,7 +92,7 @@ impl Console
     {
         if !self.is_init
         {
-            panic!("Console is not initialized");
+            panic!("Terminal is not initialized");
         }
 
         match c
@@ -117,7 +117,7 @@ impl Console
             &self.fore_color,
         );
 
-        // TODO: send console color code
+        // TODO: send Terminal color code
         SERIAL.lock().send_data(c as u8).unwrap();
 
         self.inc_cursor();
@@ -174,7 +174,7 @@ impl Console
         SERIAL.lock().send_data(b'\n').unwrap();
     }
 
-    // scroll is too slow
+    // scroll is too slow -> use KVM
     fn scroll(&self)
     {
         let font_glyph_size_y = self.font_glyph_size.1;
@@ -197,13 +197,13 @@ impl Console
     }
 }
 
-impl fmt::Write for Console
+impl fmt::Write for Terminal
 {
     fn write_str(&mut self, s: &str) -> fmt::Result
     {
         if !self.is_init
         {
-            panic!("Console is not initialized");
+            panic!("Terminal is not initialized");
         }
 
         self.write_string(s);
@@ -213,12 +213,12 @@ impl fmt::Write for Console
 
 // print!, println! macro
 #[doc(hidden)]
-pub fn _print(args: fmt::Arguments) { CONSOLE.lock().write_fmt(args).unwrap(); }
+pub fn _print(args: fmt::Arguments) { TERMINAL.lock().write_fmt(args).unwrap(); }
 
 #[macro_export]
 macro_rules! print
 {
-    ($($arg:tt)*) => ($crate::console::_print(format_args!($($arg)*)));
+    ($($arg:tt)*) => ($crate::terminal::_print(format_args!($($arg)*)));
 }
 
 #[macro_export]
