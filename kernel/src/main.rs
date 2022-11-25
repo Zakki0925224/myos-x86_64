@@ -3,6 +3,7 @@
 #![no_std]
 #![no_main]
 #![feature(start)]
+#![feature(abi_x86_interrupt)]
 //#![feature(alloc_error_handler)]
 
 mod arch;
@@ -22,7 +23,7 @@ use graphics::GRAPHICS;
 use log::*;
 use terminal::TERMINAL;
 
-use crate::util::logger;
+use crate::{arch::idt, util::logger};
 
 #[no_mangle]
 #[start]
@@ -43,6 +44,9 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> !
     TERMINAL.lock().init();
     logger::init().unwrap();
     info!("Initialized kernel terminal");
+
+    // initialize IDT
+    idt::init();
 
     env::print_info();
 

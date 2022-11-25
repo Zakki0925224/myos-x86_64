@@ -13,6 +13,7 @@ vars:
     KERNEL_FILE: kernel.elf
     IMG_FILE: myos.img
     ISO_FILE: myos.iso
+    VDI_FILE: myos.vdi
 
     QEMU_DEVICES: |
         ahci,id=ahci
@@ -85,7 +86,12 @@ tasks:
     makeiso:
         cmds:
             - task: makeimg
-            - dd if=./{{$.OUTPUT_DIR}}/{{$.IMG_FILE}} of={{$.OUTPUT_DIR}}/{{$.ISO_FILE}}
+            - dd if=./{{$.OUTPUT_DIR}}/{{$.IMG_FILE}} of=./{{$.OUTPUT_DIR}}/{{$.ISO_FILE}}
+
+    makevdi:
+        cmds:
+            - task: makeimg
+            - qemu-img convert -O vdi ./{{$.OUTPUT_DIR}}/{{$.IMG_FILE}} ./{{$.OUTPUT_DIR}}/{{$.VDI_FILE}}
 
     run:
         cmds:
