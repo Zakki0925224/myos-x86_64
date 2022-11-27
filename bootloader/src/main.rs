@@ -11,14 +11,12 @@ extern crate log;
 extern crate alloc;
 
 use alloc::{boxed::Box, vec::Vec};
-use common::{boot_info::BootInfo, graphic_info::{self, GraphicInfo}, mem_desc};
+use common::{boot_info::BootInfo, graphic_info::{self, GraphicInfo}, mem_desc::{self, UEFI_PAGE_SIZE}};
 use core::{mem, slice::from_raw_parts_mut};
 use uefi::{prelude::*, proto::{console::gop::{GraphicsOutput, PixelFormat}, media::file::*}, table::boot::*, CStr16};
 use xmas_elf::{program, ElfFile};
 
 use crate::config::DEFAULT_BOOT_CONFIG;
-
-const PAGE_SIZE: usize = 0x1000;
 
 #[entry]
 fn efi_main(handle: Handle, mut st: SystemTable<Boot>) -> Status
@@ -59,8 +57,6 @@ fn efi_main(handle: Handle, mut st: SystemTable<Boot>) -> Status
 
         mem_map.push(mem_desc::MemoryDescriptor { ty, phys_start, virt_start, page_cnt, attr });
     }
-
-    // can't use info!()
 
     let mem_map_len = mem_map.len();
     let bi = BootInfo::new(mem_map.as_slice(), mem_map_len, graphic_info);
@@ -111,7 +107,7 @@ fn load_elf(bs: &BootServices, image: Handle, path: &str) -> u64
         dest_end = dest_end.max((p.virtual_addr() + p.mem_size()) as usize);
     }
 
-    let pages = (dest_end - dest_start + PAGE_SIZE - 1) / PAGE_SIZE;
+    let pages = (dest_end - dest_start + UEFI_PAGE_SIZE - 1) / UEFI_PAGE_SIZE;
     bs.allocate_pages(AllocateType::Address(dest_start), MemoryType::LOADER_DATA, pages).unwrap();
 
     for p in elf.program_iter()
@@ -199,10 +195,8 @@ fn convert_mem_attr(mem_attr: MemoryAttribute) -> mem_desc::MemoryAttribute
 
 fn jump_to_entry(entry_base_addr: u64, bi: &BootInfo, stack_addr: u64, stack_size: u64)
 {
-    let stacktop = stack_addr + stack_size * PAGE_SIZE as u64;
+    let stacktop = stack_addr + stack_size * UEFI_PAGE_SIZE as u64;
     let entry_point: extern "sysv64" fn(&BootInfo) =
         unsafe { mem::transmute(entry_base_addr as *const u64) };
-    info!("Entering kernel (0x{:x})...", entry_base_addr);
     entry_point(bi);
-    info!("Leaved kernel");
 }

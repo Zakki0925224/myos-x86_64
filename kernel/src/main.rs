@@ -10,6 +10,7 @@ mod arch;
 mod device;
 mod env;
 mod graphics;
+mod mem;
 mod terminal;
 mod util;
 
@@ -47,6 +48,9 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> !
 
     // initialize IDT
     idt::init();
+
+    // initialize memory management
+    mem::init(boot_info.get_mem_map());
 
     env::print_info();
 

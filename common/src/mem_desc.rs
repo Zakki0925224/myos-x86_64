@@ -1,5 +1,7 @@
 use bitflags::bitflags;
 
+pub const UEFI_PAGE_SIZE: usize = 0x1000;
+
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum MemoryType
 {
