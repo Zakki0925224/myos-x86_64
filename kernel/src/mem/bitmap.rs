@@ -5,16 +5,38 @@ use lazy_static::lazy_static;
 use log::info;
 use spin::Mutex;
 
+use crate::println;
+
 lazy_static! {
     pub static ref BITMAP_MEM_MAN: Mutex<BitmapMemoryManager> =
         Mutex::new(BitmapMemoryManager::new());
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct MemoryFrameInfo
+{
+    frame_start_phys_addr: u64,
+    frame_size: usize,
+    frame_index: usize,
+    is_allocated: bool,
+}
+
+impl MemoryFrameInfo
+{
+    pub fn get_frame_start_phys_addr(&self) -> u64 { return self.frame_start_phys_addr; }
+
+    pub fn get_frame_szie(&self) -> usize { return self.frame_size; }
+
+    pub fn get_frame_index(&self) -> usize { return self.frame_index; }
+
+    pub fn is_allocated(&self) -> bool { return self.is_allocated; }
 }
 
 #[derive(Debug)]
 pub struct BitmapMemoryManager
 {
     is_init: bool,
-    bitmap_base_addr: u64,
+    bitmap_phys_addr: u64,
     bitmap_size: usize,
     frame_len: usize,
     allocated_frame_len: usize,
@@ -28,7 +50,7 @@ impl BitmapMemoryManager
     {
         return Self {
             is_init: false,
-            bitmap_base_addr: 0,
+            bitmap_phys_addr: 0,
             bitmap_size: 0,
             frame_len: 0,
             allocated_frame_len: 0,
@@ -47,7 +69,7 @@ impl BitmapMemoryManager
         let bitmap_size = total_page_cnt / u8::BITS as usize;
 
         // find available memory area for bitmap
-        let mut bitmap_base_addr = 0;
+        let mut bitmap_phys_addr = 0;
         for d in mem_map
         {
             if d.ty != MemoryType::Conventional
@@ -57,16 +79,16 @@ impl BitmapMemoryManager
                 continue;
             }
 
-            bitmap_base_addr = d.phys_start;
+            bitmap_phys_addr = d.phys_start;
             break;
         }
 
-        if bitmap_base_addr == 0
+        if bitmap_phys_addr == 0
         {
             panic!("Failed to find available memory area for bitmap");
         }
 
-        self.bitmap_base_addr = bitmap_base_addr;
+        self.bitmap_phys_addr = bitmap_phys_addr;
         self.bitmap_size = bitmap_size;
         self.frame_len = total_page_cnt;
         self.allocated_frame_len = 0;
@@ -100,8 +122,8 @@ impl BitmapMemoryManager
         }
 
         // allocate bitmap memory frame
-        let start = self.get_mem_frame_index(self.bitmap_base_addr);
-        let end = self.get_mem_frame_index(self.bitmap_base_addr + self.bitmap_size as u64);
+        let start = self.get_mem_frame_index(self.bitmap_phys_addr);
+        let end = self.get_mem_frame_index(self.bitmap_phys_addr + self.bitmap_size as u64);
         for i in start..=end
         {
             self.alloc_frame(i);
@@ -112,13 +134,82 @@ impl BitmapMemoryManager
 
     pub fn is_init(&self) -> bool { return self.is_init; }
 
+    pub fn get_frame_size(&self) -> usize { return self.frame_size; }
+
     pub fn get_total_mem_size(&self) -> usize { return self.frame_size * self.frame_len; }
 
     pub fn get_used_mem_size(&self) -> usize { return self.allocated_frame_len * self.frame_size; }
 
-    fn get_mem_frame_index(&self, base_addr: u64) -> usize
+    pub fn get_mem_frame(&self, frame_index: usize) -> Option<MemoryFrameInfo>
     {
-        let index = base_addr as usize / self.frame_size;
+        if !self.is_init || frame_index >= self.frame_len
+        {
+            return None;
+        }
+
+        let bitmap_offset = frame_index / u8::BITS as usize;
+        let bitmap_pos = frame_index % u8::BITS as usize; // 0 ~ 7
+        let bitmap = self.read_bitmap(bitmap_offset);
+        let mut is_allocated = false;
+
+        if (bitmap << bitmap_pos) & 0x80 == 0x80
+        {
+            is_allocated = true;
+        }
+
+        return Some(MemoryFrameInfo {
+            frame_start_phys_addr: (frame_index * self.frame_size) as u64,
+            frame_size: self.frame_size,
+            frame_index,
+            is_allocated,
+        });
+    }
+
+    pub fn alloc_single_mem_frame(&mut self) -> MemoryFrameInfo
+    {
+        if self.free_frame_len == 0
+        {
+            panic!("No free memotry frames");
+        }
+
+        let mut found_mem_frame_index = 0;
+        'outer: for i in 0..self.bitmap_size
+        {
+            let bitmap = self.read_bitmap(i);
+
+            if bitmap == 0xff
+            {
+                continue;
+            }
+
+            for j in 0..u8::BITS as usize
+            {
+                if (bitmap << j) & 0x80 == 0
+                {
+                    found_mem_frame_index = i * u8::BITS as usize + j;
+                    break 'outer;
+                }
+            }
+        }
+
+        self.alloc_frame(found_mem_frame_index);
+
+        return MemoryFrameInfo {
+            frame_start_phys_addr: (found_mem_frame_index * self.frame_size) as u64,
+            frame_size: self.frame_size,
+            frame_index: found_mem_frame_index,
+            is_allocated: true,
+        };
+    }
+
+    pub fn dealloc_mem_frame(&mut self, mem_frame_info: MemoryFrameInfo)
+    {
+        self.dealloc_frame(mem_frame_info.frame_index);
+    }
+
+    fn get_mem_frame_index(&self, phys_addr: u64) -> usize
+    {
+        let index = phys_addr as usize / self.frame_size;
 
         return index;
     }
@@ -135,7 +226,7 @@ impl BitmapMemoryManager
             panic!("Memory map offset out of bounds");
         }
 
-        let ptr = (self.bitmap_base_addr + offset as u64) as *const u8;
+        let ptr = (self.bitmap_phys_addr + offset as u64) as *const u8;
         return unsafe { read_volatile(ptr) };
     }
 
@@ -151,17 +242,12 @@ impl BitmapMemoryManager
             panic!("Memory map offset out of bounds");
         }
 
-        let ptr = (self.bitmap_base_addr + offset as u64) as *mut u8;
+        let ptr = (self.bitmap_phys_addr + offset as u64) as *mut u8;
         unsafe { write_volatile(ptr, bitmap) };
     }
 
     fn alloc_frame(&mut self, frame_index: usize)
     {
-        if !self.is_init
-        {
-            panic!("Bitmap memory manager was not initialized");
-        }
-
         if frame_index >= self.frame_len
         {
             panic!("Memory frame index out of bounds");
@@ -186,11 +272,6 @@ impl BitmapMemoryManager
 
     fn dealloc_frame(&mut self, frame_index: usize)
     {
-        if !self.is_init
-        {
-            panic!("Bitmap memory manager was not initialized");
-        }
-
         if frame_index >= self.frame_len
         {
             panic!("Memory frame index out of bounds");
@@ -201,7 +282,7 @@ impl BitmapMemoryManager
 
         let mut bitmap = self.read_bitmap(bitmap_offset);
 
-        if (bitmap >> bitmap_pos) & 0x80 == 0
+        if (bitmap << bitmap_pos) & 0x80 == 0
         {
             panic!("This memory frame was already deallocated");
         }

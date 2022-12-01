@@ -17,7 +17,6 @@ pub fn in8(port: u16) -> u8
     return data;
 }
 
-#[derive(Debug)]
 #[repr(C, packed)]
 pub struct DescriptorTableArgs
 {

@@ -54,8 +54,8 @@ impl Terminal
             panic!("Graphics or serial port is not initialized");
         }
 
-        let (glyph_size_width, glyph_size_height) = GRAPHICS.lock().get_font_glyph_size();
-        self.font_glyph_size = (glyph_size_width, glyph_size_height + 6); // line spacing 6px
+        let (glyph_size_width, _) = GRAPHICS.lock().get_font_glyph_size();
+        self.font_glyph_size = (glyph_size_width, 16);
 
         self.max_x_res = GRAPHICS.lock().get_stride();
         self.max_y_res = GRAPHICS.lock().get_resolution().1;

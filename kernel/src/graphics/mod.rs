@@ -132,7 +132,7 @@ impl Graphics
         }
 
         let (res_x, res_y) = self.get_resolution();
-        if x > res_x || y > res_y
+        if x >= res_x || y >= res_y
         {
             panic!("Outside the frame buffer area was specified");
         }
@@ -151,7 +151,7 @@ impl Graphics
         }
 
         let (res_x, res_y) = self.get_resolution();
-        if x > res_x || y > res_y
+        if x >= res_x || y >= res_y
         {
             panic!("Outside the frame buffer area was specified");
         }
