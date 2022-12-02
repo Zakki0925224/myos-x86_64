@@ -109,6 +109,11 @@ fn set_handler(vec_num: usize, handler: Handler)
     }
 }
 
+extern "x86-interrupt" fn breakpint_handler()
+{
+    panic!("break point");
+}
+
 extern "x86-interrupt" fn double_fault_handler()
 {
     panic!("double fault");
@@ -117,6 +122,7 @@ extern "x86-interrupt" fn double_fault_handler()
 pub fn init()
 {
     // TODO: support IDT updates via LIDT (use IDT struct)
+    //set_handler(VEC_BREAKPOINT, breakpint_handler);
     set_handler(VEC_DOUBLE_FAULT, double_fault_handler);
     info!("Initialized IDT");
 }

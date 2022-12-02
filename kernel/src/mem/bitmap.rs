@@ -5,8 +5,6 @@ use lazy_static::lazy_static;
 use log::info;
 use spin::Mutex;
 
-use crate::println;
-
 lazy_static! {
     pub static ref BITMAP_MEM_MAN: Mutex<BitmapMemoryManager> =
         Mutex::new(BitmapMemoryManager::new());

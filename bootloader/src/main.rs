@@ -196,7 +196,7 @@ fn convert_mem_attr(mem_attr: MemoryAttribute) -> mem_desc::MemoryAttribute
 fn jump_to_entry(entry_base_addr: u64, bi: &BootInfo, stack_addr: u64, stack_size: u64)
 {
     let stacktop = stack_addr + stack_size * UEFI_PAGE_SIZE as u64;
-    let entry_point: extern "sysv64" fn(&BootInfo) =
-        unsafe { mem::transmute(entry_base_addr as *const u64) };
+    let entry_point: extern "sysv64" fn(*const BootInfo) =
+        unsafe { mem::transmute(entry_base_addr) };
     entry_point(bi);
 }

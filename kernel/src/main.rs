@@ -28,8 +28,10 @@ use crate::{arch::idt, util::logger};
 
 #[no_mangle]
 #[start]
-pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> !
+pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> !
 {
+    let boot_info = unsafe { boot_info.read() };
+
     // initialize graphics
     let graphic_info = &boot_info.graphic_info;
     GRAPHICS.lock().init(
@@ -39,6 +41,8 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> !
         graphic_info.framebuf_size as usize,
         graphic_info.stride as usize,
     );
+
+    asm::int3();
 
     // initialize kerenl terminal
     SERIAL.lock().init(serial::IO_PORT_COM1);
@@ -56,9 +60,9 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> !
 
     loop
     {
-        //asm::cli();
+        asm::cli();
 
-        //asm::hlt();
+        asm::hlt();
     }
 }
 
