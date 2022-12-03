@@ -52,34 +52,33 @@ impl SerialPort
         self.is_init = true;
     }
 
-    pub fn receive_data(&self) -> Result<u8, &str>
+    pub fn receive_data(&self) -> Option<u8>
     {
         if !self.is_init
         {
-            return Err("Serial port wasn't initialized");
+            return None;
         }
 
         let res = asm::in8(self.io_port + 5) & 1;
 
         if res == 0
         {
-            return Err("Hasn't received data");
+            return None;
         }
 
-        return Ok(asm::in8(self.io_port));
+        return Some(asm::in8(self.io_port));
     }
 
-    pub fn send_data(&self, data: u8) -> Result<(), &str>
+    pub fn send_data(&self, data: u8)
     {
         if !self.is_init
         {
-            return Err("Serial port wasn't initialized");
+            return;
         }
 
         while self.is_transmit_empty() == 0
         {}
         asm::out8(self.io_port, data);
-        return Ok(());
     }
 
     fn is_transmit_empty(&self) -> u8 { return asm::in8(self.io_port + 5) & 0x20; }

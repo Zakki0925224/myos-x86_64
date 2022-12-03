@@ -61,7 +61,6 @@ fn efi_main(handle: Handle, mut st: SystemTable<Boot>) -> Status
     let mem_map_len = mem_map.len();
     let bi = BootInfo::new(mem_map.as_slice(), mem_map_len, graphic_info);
 
-    // TODO: not working after jump to entry at virtualbox or real machine
     jump_to_entry(kernel_entry_point_addr, &bi, config.kernel_stack_addr, config.kernel_stack_size);
 
     return Status::SUCCESS;

@@ -42,8 +42,6 @@ pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> !
         graphic_info.stride as usize,
     );
 
-    asm::int3();
-
     // initialize kerenl terminal
     SERIAL.lock().init(serial::IO_PORT_COM1);
     TERMINAL.lock().init();

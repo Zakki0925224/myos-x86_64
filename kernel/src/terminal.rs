@@ -1,4 +1,4 @@
-use crate::{device::serial::SERIAL, graphics::color::*};
+use crate::{arch::asm, device::serial::SERIAL, graphics::color::*};
 
 use super::graphics::GRAPHICS;
 use core::fmt::{self, Write};
@@ -49,9 +49,9 @@ impl Terminal
 
     pub fn init(&mut self)
     {
-        if !GRAPHICS.lock().is_init() || !SERIAL.lock().is_init()
+        if !GRAPHICS.lock().is_init()
         {
-            panic!("Graphics or serial port is not initialized");
+            panic!("Graphics is not initialized");
         }
 
         let (glyph_size_width, _) = GRAPHICS.lock().get_font_glyph_size();
@@ -118,7 +118,7 @@ impl Terminal
         );
 
         // TODO: send Terminal color code
-        SERIAL.lock().send_data(c as u8).unwrap();
+        SERIAL.lock().send_data(c as u8);
 
         self.inc_cursor();
     }
@@ -157,7 +157,7 @@ impl Terminal
             self.inc_cursor();
         }
 
-        SERIAL.lock().send_data(b'\t').unwrap();
+        SERIAL.lock().send_data(b'\t');
     }
 
     fn new_line(&mut self)
@@ -171,7 +171,7 @@ impl Terminal
             self.cursor_y = self.char_max_y_len;
         }
 
-        SERIAL.lock().send_data(b'\n').unwrap();
+        SERIAL.lock().send_data(b'\n');
     }
 
     // scroll is too slow -> use KVM
