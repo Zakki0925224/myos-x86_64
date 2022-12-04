@@ -17,6 +17,28 @@ pub fn in8(port: u16) -> u8
     return data;
 }
 
+pub fn set_ds(value: u16) { unsafe { asm!("mov ds, {}", in(reg) value) } }
+
+pub fn set_es(value: u16) { unsafe { asm!("mov es, {}", in(reg) value) } }
+
+pub fn set_fs(value: u16) { unsafe { asm!("mov fs, {}", in(reg) value) } }
+
+pub fn set_gs(value: u16) { unsafe { asm!("mov gs, {}", in(reg) value) } }
+
+// pub fn set_ss(value: u16) { unsafe { asm!("mov ss, {}", in(reg) value) } }
+
+// pub fn set_cs(value: u16)
+// {
+//     unsafe {
+//         asm!(
+//             "push {value}",
+//             "popfq",
+//             "mov cs, {value}",
+//             value = in(reg) value
+//         );
+//     }
+// }
+
 #[repr(C, packed)]
 pub struct DescriptorTableArgs
 {
@@ -28,6 +50,25 @@ pub fn sidt() -> DescriptorTableArgs
 {
     let mut args_buf: [u8; 10] = [0; 10]; // 8bytes: limit, 2bytes: offset
     unsafe { asm!("sidt [{}]", in(reg) &mut args_buf) }
+
+    let mut args = DescriptorTableArgs { base: 0, limit: 0 };
+    args.base |= (args_buf[9] as u64) << 56;
+    args.base |= (args_buf[8] as u64) << 48;
+    args.base |= (args_buf[7] as u64) << 40;
+    args.base |= (args_buf[6] as u64) << 32;
+    args.base |= (args_buf[5] as u64) << 24;
+    args.base |= (args_buf[4] as u64) << 16;
+    args.base |= (args_buf[3] as u64) << 8;
+    args.base |= (args_buf[2] as u64) << 0;
+    args.limit = (args_buf[1] as u16) << 8 | args_buf[0] as u16;
+
+    return args;
+}
+
+pub fn sgdt() -> DescriptorTableArgs
+{
+    let mut args_buf: [u8; 10] = [0; 10]; // 8bytes: limit, 2bytes: offset
+    unsafe { asm!("sgdt [{}]", in(reg) &mut args_buf) }
 
     let mut args = DescriptorTableArgs { base: 0, limit: 0 };
     args.base |= (args_buf[9] as u64) << 56;

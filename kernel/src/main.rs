@@ -24,7 +24,7 @@ use graphics::GRAPHICS;
 use log::*;
 use terminal::TERMINAL;
 
-use crate::{arch::idt, util::logger};
+use crate::{arch::{gdt, idt}, util::logger};
 
 #[no_mangle]
 #[start]
@@ -50,6 +50,7 @@ pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> !
 
     // initialize IDT
     idt::init();
+    gdt::init();
 
     // initialize memory management
     mem::init(boot_info.get_mem_map());
