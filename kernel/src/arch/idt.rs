@@ -100,7 +100,7 @@ fn set_handler(vec_num: usize, handler: Handler)
 {
     if let Some(mut desc) = read_desc(vec_num)
     {
-        desc.set_handler(handler, asm::get_cs());
+        desc.set_handler(handler, asm::read_cs());
         write_desc(vec_num, desc);
     }
     else

@@ -107,8 +107,8 @@ pub fn init()
     asm::set_fs(0);
     asm::set_gs(0);
     // TODO: how to set ss and cs register
-    // asm::set_ss(1 << 3);
-    // asm::set_cs(2 << 3);
+    asm::set_ss(0);
+    asm::set_cs(2 << 3);
 
-    info!("Initialized GDT");
+    info!("Initialized GDT (having todo)");
 }

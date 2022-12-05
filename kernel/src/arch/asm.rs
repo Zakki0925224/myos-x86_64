@@ -25,19 +25,9 @@ pub fn set_fs(value: u16) { unsafe { asm!("mov fs, {}", in(reg) value) } }
 
 pub fn set_gs(value: u16) { unsafe { asm!("mov gs, {}", in(reg) value) } }
 
-// pub fn set_ss(value: u16) { unsafe { asm!("mov ss, {}", in(reg) value) } }
+pub fn set_ss(value: u16) { unsafe { asm!("mov ss, {}", in(reg) value) } }
 
-// pub fn set_cs(value: u16)
-// {
-//     unsafe {
-//         asm!(
-//             "push {value}",
-//             "popfq",
-//             "mov cs, {value}",
-//             value = in(reg) value
-//         );
-//     }
-// }
+pub fn set_cs(value: u16) {}
 
 #[repr(C, packed)]
 pub struct DescriptorTableArgs
@@ -84,9 +74,16 @@ pub fn sgdt() -> DescriptorTableArgs
     return args;
 }
 
-pub fn get_cs() -> u16
+pub fn read_cs() -> u16
 {
     let mut cs = 0;
     unsafe { asm!("mov {}, cs", out(reg) cs) }
     return cs;
+}
+
+pub fn read_cr3() -> u64
+{
+    let mut cr3 = 0;
+    unsafe { asm!("mov {}, cr3", out(reg) cr3) }
+    return cr3;
 }
