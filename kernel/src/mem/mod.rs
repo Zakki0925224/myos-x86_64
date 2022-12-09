@@ -1,6 +1,8 @@
+use core::ptr::read_volatile;
+
 use common::mem_desc::MemoryDescriptor;
 
-use crate::{mem::paging::PAGING, println};
+use crate::{arch::addr::VirtualAddress, mem::paging::PAGING, println};
 
 use self::bitmap::BITMAP_MEM_MAN;
 
@@ -14,5 +16,8 @@ pub fn init(mem_map: &[MemoryDescriptor])
     let total = BITMAP_MEM_MAN.lock().get_total_mem_size();
     println!("Memory used: {}B/{}B ({}%)", used, total, (used as f32 / total as f32) * 100f32);
 
-    PAGING.lock().test();
+    let virt = VirtualAddress::new(0x10_0000_0000);
+    println!("Virt: 0x{:x}", virt.get());
+
+    println!("Phys: 0x{:x}", PAGING.lock().calc_phys_addr(virt).unwrap().get());
 }

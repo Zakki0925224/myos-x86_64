@@ -5,6 +5,8 @@ use lazy_static::lazy_static;
 use log::info;
 use spin::Mutex;
 
+use crate::arch::addr::VirtualAddress;
+
 lazy_static! {
     pub static ref BITMAP_MEM_MAN: Mutex<BitmapMemoryManager> =
         Mutex::new(BitmapMemoryManager::new());
@@ -13,7 +15,7 @@ lazy_static! {
 #[derive(Debug, Clone, Copy)]
 pub struct MemoryFrameInfo
 {
-    frame_start_phys_addr: u64,
+    frame_start_virt_addr: VirtualAddress,
     frame_size: usize,
     frame_index: usize,
     is_allocated: bool,
@@ -21,7 +23,7 @@ pub struct MemoryFrameInfo
 
 impl MemoryFrameInfo
 {
-    pub fn get_frame_start_phys_addr(&self) -> u64 { return self.frame_start_phys_addr; }
+    pub fn get_frame_start_virt_addr(&self) -> VirtualAddress { return self.frame_start_virt_addr; }
 
     pub fn get_frame_szie(&self) -> usize { return self.frame_size; }
 
@@ -34,7 +36,7 @@ impl MemoryFrameInfo
 pub struct BitmapMemoryManager
 {
     is_init: bool,
-    bitmap_phys_addr: u64,
+    bitmap_virt_addr: VirtualAddress,
     bitmap_size: usize,
     frame_len: usize,
     allocated_frame_len: usize,
@@ -48,7 +50,7 @@ impl BitmapMemoryManager
     {
         return Self {
             is_init: false,
-            bitmap_phys_addr: 0,
+            bitmap_virt_addr: VirtualAddress::new(0),
             bitmap_size: 0,
             frame_len: 0,
             allocated_frame_len: 0,
@@ -67,7 +69,7 @@ impl BitmapMemoryManager
         let bitmap_size = total_page_cnt / u8::BITS as usize;
 
         // find available memory area for bitmap
-        let mut bitmap_phys_addr = 0;
+        let mut bitmap_virt_addr = VirtualAddress::new(0);
         for d in mem_map
         {
             if d.ty != MemoryType::Conventional
@@ -77,16 +79,16 @@ impl BitmapMemoryManager
                 continue;
             }
 
-            bitmap_phys_addr = d.phys_start;
+            bitmap_virt_addr.set(d.phys_start);
             break;
         }
 
-        if bitmap_phys_addr == 0
+        if bitmap_virt_addr.get() == 0
         {
             panic!("Failed to find available memory area for bitmap");
         }
 
-        self.bitmap_phys_addr = bitmap_phys_addr;
+        self.bitmap_virt_addr = bitmap_virt_addr;
         self.bitmap_size = bitmap_size;
         self.frame_len = total_page_cnt;
         self.allocated_frame_len = 0;
@@ -120,8 +122,8 @@ impl BitmapMemoryManager
         }
 
         // allocate bitmap memory frame
-        let start = self.get_mem_frame_index(self.bitmap_phys_addr);
-        let end = self.get_mem_frame_index(self.bitmap_phys_addr + self.bitmap_size as u64);
+        let start = self.get_mem_frame_index(self.bitmap_virt_addr);
+        let end = self.get_mem_frame_index(self.bitmap_virt_addr.offset(self.bitmap_size));
         for i in start..=end
         {
             self.alloc_frame(i);
@@ -156,7 +158,7 @@ impl BitmapMemoryManager
         }
 
         return Some(MemoryFrameInfo {
-            frame_start_phys_addr: (frame_index * self.frame_size) as u64,
+            frame_start_virt_addr: VirtualAddress::new((frame_index * self.frame_size) as u64),
             frame_size: self.frame_size,
             frame_index,
             is_allocated,
@@ -190,14 +192,29 @@ impl BitmapMemoryManager
             }
         }
 
-        self.alloc_frame(found_mem_frame_index);
-
-        return MemoryFrameInfo {
-            frame_start_phys_addr: (found_mem_frame_index * self.frame_size) as u64,
+        let mem_frame_info = MemoryFrameInfo {
+            frame_start_virt_addr: VirtualAddress::new(
+                (found_mem_frame_index * self.frame_size) as u64,
+            ),
             frame_size: self.frame_size,
             frame_index: found_mem_frame_index,
             is_allocated: true,
         };
+
+        self.alloc_frame(found_mem_frame_index);
+        self.mem_clear(&mem_frame_info);
+
+        return mem_frame_info;
+    }
+
+    pub fn mem_clear(&self, mem_frame_info: &MemoryFrameInfo)
+    {
+        for i in mem_frame_info.frame_start_virt_addr.get()
+            ..mem_frame_info.frame_start_virt_addr.get() + mem_frame_info.frame_size as u64
+        {
+            let ptr = i as *mut u8;
+            unsafe { write_volatile(ptr, 0) };
+        }
     }
 
     pub fn dealloc_mem_frame(&mut self, mem_frame_info: MemoryFrameInfo)
@@ -205,9 +222,9 @@ impl BitmapMemoryManager
         self.dealloc_frame(mem_frame_info.frame_index);
     }
 
-    fn get_mem_frame_index(&self, phys_addr: u64) -> usize
+    fn get_mem_frame_index(&self, virt_addr: VirtualAddress) -> usize
     {
-        let index = phys_addr as usize / self.frame_size;
+        let index = virt_addr.get() as usize / self.frame_size;
 
         return index;
     }
@@ -224,7 +241,7 @@ impl BitmapMemoryManager
             panic!("Memory map offset out of bounds");
         }
 
-        let ptr = (self.bitmap_phys_addr + offset as u64) as *const u8;
+        let ptr = (self.bitmap_virt_addr.get() + offset as u64) as *const u8;
         return unsafe { read_volatile(ptr) };
     }
 
@@ -240,7 +257,7 @@ impl BitmapMemoryManager
             panic!("Memory map offset out of bounds");
         }
 
-        let ptr = (self.bitmap_phys_addr + offset as u64) as *mut u8;
+        let ptr = (self.bitmap_virt_addr.get() + offset as u64) as *mut u8;
         unsafe { write_volatile(ptr, bitmap) };
     }
 

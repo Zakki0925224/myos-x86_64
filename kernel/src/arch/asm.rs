@@ -87,3 +87,5 @@ pub fn read_cr3() -> u64
     unsafe { asm!("mov {}, cr3", out(reg) cr3) }
     return cr3;
 }
+
+pub fn write_cr3(value: u64) { unsafe { asm!("mov cr3, {}", in(reg) value) } }
