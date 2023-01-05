@@ -1,3 +1,5 @@
+use crate::mem::paging::PAGING;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(transparent)]
 pub struct PhysicalAddress(u64);
@@ -28,9 +30,14 @@ pub struct VirtualAddress(u64);
 
 impl VirtualAddress
 {
+    pub fn is_valid_addr(addr: u64) -> bool
+    {
+        return !(addr > 0x7fff_ffff_ffff_ffff && addr < 0xffff_8000_0000_0000);
+    }
+
     pub fn new(addr: u64) -> Self
     {
-        if addr > 0x7fff_ffff_ffff_ffff && addr < 0xffff_8000_0000_0000
+        if !VirtualAddress::is_valid_addr(addr)
         {
             panic!("Invalid virtual address");
         }
@@ -49,8 +56,12 @@ impl VirtualAddress
 
     pub fn get_phys_addr(&self) -> PhysicalAddress
     {
-        // TODO
-        return PhysicalAddress::new(0);
+        if let Some(addr) = PAGING.lock().calc_phys_addr(self)
+        {
+            return addr;
+        }
+
+        panic!("This virtual address is not mapped (#GP)");
     }
 
     pub fn get_pml4_entry_index(&self) -> usize { return ((self.0 >> 39) & 0x1ff) as usize; }
