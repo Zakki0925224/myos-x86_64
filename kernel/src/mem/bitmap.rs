@@ -165,11 +165,11 @@ impl BitmapMemoryManager
         });
     }
 
-    pub fn alloc_single_mem_frame(&mut self) -> MemoryFrameInfo
+    pub fn alloc_single_mem_frame(&mut self) -> Option<MemoryFrameInfo>
     {
         if self.free_frame_len == 0
         {
-            panic!("No free memotry frames");
+            return None;
         }
 
         let mut found_mem_frame_index = 0;
@@ -204,7 +204,7 @@ impl BitmapMemoryManager
         self.alloc_frame(found_mem_frame_index);
         self.mem_clear(&mem_frame_info);
 
-        return mem_frame_info;
+        return Some(mem_frame_info);
     }
 
     pub fn mem_clear(&self, mem_frame_info: &MemoryFrameInfo)

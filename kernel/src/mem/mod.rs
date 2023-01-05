@@ -14,12 +14,13 @@ pub fn init(mem_map: &[MemoryDescriptor])
     let total = BITMAP_MEM_MAN.lock().get_total_mem_size();
     println!("Memory used: {}B/{}B ({}%)", used, total, (used as f32 / total as f32) * 100f32);
 
-    let virt = VirtualAddress::new(0x7fff_ffff_ffff_ffff);
+    let virt = VirtualAddress::new(0xdeadbeaf_dead);
+    println!("map to identity...");
     PAGING.lock().map_to_identity(&virt);
-    //println!("Phys: 0x{:x}", PAGING.lock().calc_phys_addr(&virt).unwrap().get());
+    println!("calc phys addr...");
+    println!("{:?}", PAGING.lock().calc_phys_addr(&virt).unwrap());
 
     let virt = VirtualAddress::new(0xdeadbeaf);
-    println!("Virt: 0x{:x}", virt.get());
-
-    println!("Phys: 0x{:x}", PAGING.lock().calc_phys_addr(&virt).unwrap().get());
+    println!("{:?}", virt);
+    println!("{:?}", PAGING.lock().calc_phys_addr(&virt).unwrap());
 }

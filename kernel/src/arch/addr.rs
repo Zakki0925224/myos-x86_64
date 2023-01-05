@@ -1,4 +1,4 @@
-use crate::mem::paging::PAGING;
+use crate::{mem::paging::{MappingType, PAGING}, println};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(transparent)]
@@ -19,8 +19,15 @@ impl PhysicalAddress
 
     pub fn get_virt_addr(&self) -> VirtualAddress
     {
-        // TODO
-        return VirtualAddress::new(0);
+        // println!("{:?}", PAGING.lock());
+        // println!("a");
+
+        // return match PAGING.lock().mapping_type()
+        // {
+        //     MappingType::Identity => VirtualAddress::new(self.0),
+        //     _ => panic!("Unsupported mapping type"),
+        // };
+        return VirtualAddress::new(self.0);
     }
 }
 
@@ -56,12 +63,13 @@ impl VirtualAddress
 
     pub fn get_phys_addr(&self) -> PhysicalAddress
     {
-        if let Some(addr) = PAGING.lock().calc_phys_addr(self)
-        {
-            return addr;
-        }
+        // if let Some(addr) = PAGING.lock().calc_phys_addr(self)
+        // {
+        //     return addr;
+        // }
 
-        panic!("This virtual address is not mapped (#GP)");
+        // panic!("This virtual address is not mapped (#GP)");
+        return PhysicalAddress::new(self.0);
     }
 
     pub fn get_pml4_entry_index(&self) -> usize { return ((self.0 >> 39) & 0x1ff) as usize; }
