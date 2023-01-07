@@ -63,13 +63,13 @@ impl VirtualAddress
 
     pub fn get_phys_addr(&self) -> PhysicalAddress
     {
-        // if let Some(addr) = PAGING.lock().calc_phys_addr(self)
-        // {
-        //     return addr;
-        // }
+        if let Some(addr) = PAGING.lock().calc_phys_addr(self, true)
+        {
+            return addr;
+        }
 
-        // panic!("This virtual address is not mapped (#GP)");
-        return PhysicalAddress::new(self.0);
+        panic!("This virtual address is not mapped (#GP)");
+        //return PhysicalAddress::new(self.0);
     }
 
     pub fn get_pml4_entry_index(&self) -> usize { return ((self.0 >> 39) & 0x1ff) as usize; }

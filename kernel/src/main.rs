@@ -4,6 +4,7 @@
 #![no_main]
 #![feature(start)]
 #![feature(abi_x86_interrupt)]
+#![feature(panic_info_message)]
 //#![feature(alloc_error_handler)]
 
 mod arch;
@@ -74,7 +75,8 @@ pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> !
 #[panic_handler]
 fn panic(info: &PanicInfo) -> !
 {
-    error!("{:?}", info);
+    error!("{:?}", info.message());
+    error!("{:?}", info.location());
 
     loop
     {

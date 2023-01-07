@@ -81,6 +81,13 @@ pub fn read_cs() -> u16
     return cs;
 }
 
+pub fn read_cr2() -> u64
+{
+    let mut cr2 = 0;
+    unsafe { asm!("mov {}, cr2", out(reg) cr2) }
+    return cr2;
+}
+
 pub fn read_cr3() -> u64
 {
     let mut cr3 = 0;

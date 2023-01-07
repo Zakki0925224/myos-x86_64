@@ -2,7 +2,7 @@ use core::{mem::size_of, ptr::{read_volatile, write_volatile}};
 use log::{error, info};
 use modular_bitfield::{bitfield, specifiers::*, BitfieldSpecifier};
 
-use crate::arch::asm;
+use crate::arch::{asm, register::cr2::Cr2};
 
 const IDT_LEN: usize = 256;
 const VEC_DIVIDE_ERR: usize = 0;
@@ -111,18 +111,24 @@ fn set_handler(vec_num: usize, handler: Handler)
 
 extern "x86-interrupt" fn breakpint_handler()
 {
-    panic!("break point");
+    panic!("Exception: BREAKPOINT");
+}
+
+extern "x86-interrupt" fn page_fault_handler()
+{
+    panic!("Exception: PAGE FAULT, Accessed virtual address: 0x{:x}", Cr2::read().get());
 }
 
 extern "x86-interrupt" fn double_fault_handler()
 {
-    panic!("double fault");
+    panic!("Exception: DOUBLE FAULT");
 }
 
 pub fn init()
 {
     // TODO: support IDT updates via LIDT (use IDT struct)
-    //set_handler(VEC_BREAKPOINT, breakpint_handler);
+    set_handler(VEC_BREAKPOINT, breakpint_handler);
+    set_handler(VEC_PAGE_FAULT, page_fault_handler);
     set_handler(VEC_DOUBLE_FAULT, double_fault_handler);
     info!("Initialized IDT");
 }
