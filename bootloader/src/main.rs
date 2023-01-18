@@ -124,6 +124,7 @@ fn load_elf(bs: &BootServices, image: Handle, path: &str) -> u64
         dest[file_size..].fill(0);
     }
 
+    info!("Loaded ELF at: 0x{:x}", dest_start);
     return elf.header.pt2.entry_point();
 }
 

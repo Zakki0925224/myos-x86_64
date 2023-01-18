@@ -62,7 +62,6 @@ impl BitmapMemoryManager
     pub fn init(&mut self, mem_map: &[MemoryDescriptor])
     {
         // TODO: boot services data/code
-
         // get total page count (a page=4096B)
         let total_page_cnt = mem_map.into_iter().map(|d| d.page_cnt as usize).sum();
         // get bitmap size
@@ -124,6 +123,14 @@ impl BitmapMemoryManager
         // allocate bitmap memory frame
         let start = self.get_mem_frame_index(self.bitmap_virt_addr);
         let end = self.get_mem_frame_index(self.bitmap_virt_addr.offset(self.bitmap_size));
+        for i in start..=end
+        {
+            self.alloc_frame(i);
+        }
+
+        // allocate less 1MB memory space
+        let start = 0;
+        let end = self.get_mem_frame_index(VirtualAddress::new(1024 * 1024));
         for i in start..=end
         {
             self.alloc_frame(i);
@@ -202,7 +209,7 @@ impl BitmapMemoryManager
         };
 
         self.alloc_frame(found_mem_frame_index);
-        self.mem_clear(&mem_frame_info);
+        //self.mem_clear(&mem_frame_info);
 
         return Some(mem_frame_info);
     }
@@ -273,9 +280,10 @@ impl BitmapMemoryManager
 
         let mut bitmap = self.read_bitmap(bitmap_offset);
 
+        // already allocated
         if (bitmap << bitmap_pos) & 0x80 == 0x80
         {
-            panic!("This memory frame was already allocated");
+            return;
         }
 
         bitmap |= 0x80 >> bitmap_pos;

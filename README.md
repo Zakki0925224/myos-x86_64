@@ -4,9 +4,13 @@
 
 ## Third party
 
+### UEFI firmware
+
+-   [EDK II](https://github.com/tianocore/edk2) (Using forked source)
+
 ### Console font
 
--   [Cozette](https://github.com/slavfox/Cozette)
+-   [Cozette](https://github.com/slavfox/Cozette) (Using forked source)
 
 ## Features
 
@@ -16,3 +20,14 @@
 -   Device support
     -   [x] Serial connection (UART 16650A)
 -   [x] GUI support by using Graphics Output Protocol
+
+## How to build
+
+### Dependent tools
+
+-   TODO
+
+```bash
+$ git clone https://github.com/Zakki0925224/myos-x86_64.git --recursive
+$ task build
+```

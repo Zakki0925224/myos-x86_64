@@ -5,7 +5,7 @@ use log::{error, info};
 use modular_bitfield::{bitfield, specifiers::*, BitfieldSpecifier};
 use spin::Mutex;
 
-use crate::{arch::{addr::{PhysicalAddress, VirtualAddress}, register::cr3::Cr3}, println};
+use crate::{arch::{addr::{PhysicalAddress, VirtualAddress}, asm, register::{cr2::Cr2, cr3::Cr3}}, println};
 
 use super::bitmap::BITMAP_MEM_MAN;
 
@@ -104,7 +104,7 @@ pub enum MappingType
 #[derive(Debug)]
 pub struct Paging
 {
-    pml4_table_addr: PhysicalAddress,
+    pub pml4_table_addr: PhysicalAddress,
     pml4_table_addr_backup: PhysicalAddress,
     mapping_type: MappingType,
 }
@@ -128,6 +128,7 @@ impl Paging
         {
             self.pml4_table_addr =
                 self.calc_phys_addr(&mem_info.get_frame_start_virt_addr(), true).unwrap();
+            println!("PML4 table addr: 0x{:x}", self.pml4_table_addr.get());
         }
         else
         {
@@ -135,12 +136,17 @@ impl Paging
             return;
         }
 
-        let total_mem_size = BITMAP_MEM_MAN.lock().get_total_mem_size();
-        let total_mem_size: usize = 0xf800000; // can go to end
-        let total_mem_size: usize = 0xf800001; // stop anywhere in loop
+        let total_mem_size = BITMAP_MEM_MAN.lock().get_total_mem_size() as u64 / 2;
+        let frame_size = BITMAP_MEM_MAN.lock().get_frame_size() as u64;
+        // 0x0f601000 ~ 0xf0dff000 not working
+        // max: 0xfffa0000
+        // max - 0xf3a0000 -> ok -> 0xf0e00000
+        // max - 0xf3a1000 -> NG -> 0xf0dff000
+        //let total_mem_size = 0x0f601000;
         let mut virt_addr = VirtualAddress::new(0);
+        info!("Mapping to identity...");
 
-        while virt_addr.get() < total_mem_size as u64
+        while virt_addr.get() < total_mem_size
         {
             if let Err(_) = self.map_to_identity(&virt_addr)
             {
@@ -157,7 +163,7 @@ impl Paging
                 return;
             }
 
-            virt_addr.set(virt_addr.get() + BITMAP_MEM_MAN.lock().get_frame_size() as u64);
+            virt_addr.set(virt_addr.get() + frame_size);
         }
 
         info!("Finished to map to identity");
@@ -234,7 +240,7 @@ impl Paging
                     PageWriteThroughLevel::WriteBack,
                 );
 
-                //println!("new PML3 entry[{}]: {:?}", pml4e_index, entry);
+                //println!("new PML3 entry[{}]: {:?}", pml3e_index, entry);
                 entry_addr = mem_info.get_frame_start_virt_addr();
                 unsafe { write_volatile(ptr, table) }
 

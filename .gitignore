@@ -1,3 +1,4 @@
 build
 dump
-third-party
+qemu_debug.log
+third-party/*.*

@@ -8,51 +8,66 @@ vars:
     KERNEL_DIR: kernel
     DUMP_DIR: dump
     THIRD_PARTY_DIR: third-party
+    COZETTE_DIR: cozette
+    EDK2_DIR: edk2
 
     BOOTLOADER_FILE: bootx64.efi
     KERNEL_FILE: kernel.elf
     IMG_FILE: myos.img
     ISO_FILE: myos.iso
     VDI_FILE: myos.vdi
+    COZETTE_FILE: cozette.psf
+    OVMF_CODE_FILE: OVMF_CODE.fd
+    OVMF_VARS_FILE: OVMF_VARS.fd
+    GDB_FILE: gdb.scr
 
     QEMU_DEVICES: |
         ahci,id=ahci
         ide-cd,drive=disk,bus=ahci.0
     QEMU_DRIVES: |
         id=disk,if=none,format=raw,file={{$.OUTPUT_DIR}}/{{$.IMG_FILE}}
+        if=pflash,format=raw,readonly=on,file={{$.THIRD_PARTY_DIR}}/{{$.OVMF_CODE_FILE}}
+        if=pflash,format=raw,file={{$.THIRD_PARTY_DIR}}/{{$.OVMF_VARS_FILE}}
     QEMU_ARGS: |
-        -bios /usr/share/edk2-ovmf/x64/OVMF.fd
         -no-reboot
         -no-shutdown
         -m 4G
         -serial mon:stdio
         -monitor telnet::5678,server,nowait
+        -gdb tcp::3333
+        -d int,cpu_reset -D qemu_debug.log
     QEMU: qemu-system-x86_64 -accel kvm {{range .QEMU_ARGS | splitLines -}}{{if .}}{{.}} {{end}}{{end -}} {{range .QEMU_DRIVES | splitLines -}}{{if .}}-drive {{.}} {{end}}{{end -}} {{range .QEMU_DEVICES | splitLines -}}{{if .}}-device {{.}} {{end}}{{end -}}
 tasks:
     clear:
         cmds:
             - rm -rf {{$.OUTPUT_DIR}}
-            #- rm -rf {{$.THIRD_PARTY_DIR}}
             - rm -rf {{$.DUMP_DIR}}
 
     init:
         cmds:
             - mkdir -p {{$.OUTPUT_DIR}}
-            - mkdir -p {{$.THIRD_PARTY_DIR}}
 
-    build-fonts:
-        dir: ./{{$.THIRD_PARTY_DIR}}
+    build-cozette:
+        dir: ./{{$.THIRD_PARTY_DIR}}/{{$.COZETTE_DIR}}
         cmds:
-            - task: init
-            # download Cozette font and convert to psf font
-            - if [ ! -f cozette.psf ];then TAGNAME=`curl https://api.github.com/repos/slavfox/Cozette/releases/latest | jq ".tag_name" | sed 's/"//g'` && wget https://github.com/slavfox/Cozette/releases/download/${TAGNAME}/cozette.bdf;fi
-            - if [ ! -f cozette.psf ];then bdf2psf --fb cozette.bdf /usr/share/bdf2psf/standard.equivalents /usr/share/bdf2psf/fontsets/Uni2.512 512 cozette.psf;fi
-            - rm -f cozette.bdf
+            - git pull
+            - if [ ! -f ../{{$.COZETTE_FILE}} ];then pipenv install && pipenv run python3 ./build.py fonts ;fi
+            - if [ ! -f ../{{$.COZETTE_FILE}} ];then bdf2psf --fb ./build/cozette.bdf /usr/share/bdf2psf/standard.equivalents /usr/share/bdf2psf/fontsets/Uni2.512 512 ../{{$.COZETTE_FILE}};fi
+
+    build-edk2:
+        dir: ./{{$.THIRD_PARTY_DIR}}/{{$.EDK2_DIR}}
+        cmds:
+            - git pull
+            - make -C ./BaseTools/Source/C
+            - if [ ! -f ../{{$.OVMF_CODE_FILE}} -o ! -f ../{{$.OVMF_VARS_FILE}} ];then ./OvmfPkg/build.sh -a X64 -n 4;fi
+            - if [ ! -f ../{{$.OVMF_CODE_FILE}} ];then cp ./Build/OvmfX64/DEBUG_GCC5/FV/OVMF_CODE.fd ../{{$.OVMF_CODE_FILE}};fi
+            - if [ ! -f ../{{$.OVMF_VARS_FILE}} ];then cp ./Build/OvmfX64/DEBUG_GCC5/FV/OVMF_VARS.fd ../{{$.OVMF_VARS_FILE}};fi
 
     build:
         cmds:
             - task: clear
-            - task: build-fonts
+            - task: build-cozette
+            - task: build-edk2
             - task: build-bootloader
             - task: build-kernel
 
@@ -98,9 +113,18 @@ tasks:
             - task: makeimg
             - "{{$.QEMU}}"
 
+    run-with-gdb:
+        cmds:
+            - task: makeimg
+            - "{{$.QEMU}} -S"
+
     qemu-monitor:
         cmds:
             - telnet localhost 5678
+
+    gdb:
+        cmds:
+            - "rust-gdb -x gdb.scr"
 
     dump:
         cmds:
