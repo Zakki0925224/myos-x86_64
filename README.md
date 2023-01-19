@@ -6,11 +6,11 @@
 
 ### UEFI firmware
 
--   [EDK II](https://github.com/tianocore/edk2) (Using forked source)
+-   [EDK II (Using forked source)](https://github.com/Zakki0925224/edk2)
 
 ### Console font
 
--   [Cozette](https://github.com/slavfox/Cozette) (Using forked source)
+-   [Cozette (Using forked source)](https://github.com/Zakki0925224/Cozette)
 
 ## Features
 
@@ -25,7 +25,22 @@
 
 ### Dependent tools
 
--   TODO
+#### myos
+
+-   [rust (nightly)]()
+-   [go-task](https://github.com/go-task/task)
+
+#### cozette
+
+-   [python3, pip](https://www.python.org/)
+-   [pipenv](https://pypi.org/project/pipenv/)
+-   [fontforge](https://github.com/fontforge/fontforge)
+-   bdf2psf
+
+#### edk2
+
+-   [uuid-dev]()
+-   [nasm]()
 
 ```bash
 $ git clone https://github.com/Zakki0925224/myos-x86_64.git --recursive

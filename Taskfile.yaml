@@ -50,16 +50,16 @@ tasks:
     build-cozette:
         dir: ./{{$.THIRD_PARTY_DIR}}/{{$.COZETTE_DIR}}
         cmds:
-            - git pull
-            - if [ ! -f ../{{$.COZETTE_FILE}} ];then pipenv install && pipenv run python3 ./build.py fonts ;fi
+            - git submodule update --init --recursive
+            - if [ ! -f ../{{$.COZETTE_FILE}} ];then pipenv install --python 3 && pipenv run python3 ./build.py fonts ;fi
             - if [ ! -f ../{{$.COZETTE_FILE}} ];then bdf2psf --fb ./build/cozette.bdf /usr/share/bdf2psf/standard.equivalents /usr/share/bdf2psf/fontsets/Uni2.512 512 ../{{$.COZETTE_FILE}};fi
 
     build-edk2:
         dir: ./{{$.THIRD_PARTY_DIR}}/{{$.EDK2_DIR}}
         cmds:
-            - git pull
+            - git submodule update --init --recursive
             - make -C ./BaseTools/Source/C
-            - if [ ! -f ../{{$.OVMF_CODE_FILE}} -o ! -f ../{{$.OVMF_VARS_FILE}} ];then ./OvmfPkg/build.sh -a X64 -n 4;fi
+            - if [ ! -f ../{{$.OVMF_CODE_FILE}} ] || [ ! -f ../{{$.OVMF_VARS_FILE}} ];then ./OvmfPkg/build.sh -a X64 -n 4;fi
             - if [ ! -f ../{{$.OVMF_CODE_FILE}} ];then cp ./Build/OvmfX64/DEBUG_GCC5/FV/OVMF_CODE.fd ../{{$.OVMF_CODE_FILE}};fi
             - if [ ! -f ../{{$.OVMF_VARS_FILE}} ];then cp ./Build/OvmfX64/DEBUG_GCC5/FV/OVMF_VARS.fd ../{{$.OVMF_VARS_FILE}};fi
 
