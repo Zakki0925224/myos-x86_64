@@ -1,8 +1,8 @@
 [submodule "third-party/cozette"]
 	path = third-party/cozette
-	url = https://github.com/Zakki0925224/Cozette.git
+	url = https://github.com/slavfox/Cozette.git
     ignore = dirty
 [submodule "third-party/edk2"]
 	path = third-party/edk2
-	url = https://github.com/Zakki0925224/edk2.git
+	url = https://github.com/tianocore/edk2.git
     ignore = dirty

@@ -51,6 +51,9 @@ tasks:
         dir: ./{{$.THIRD_PARTY_DIR}}/{{$.COZETTE_DIR}}
         cmds:
             - git submodule update --init --recursive
+            - git fetch --tags
+            - latestTag=$(git describe --tags `git rev-list --tags --max-count=1`)
+            - git checkout $latestTag
             - if [ ! -f ../{{$.COZETTE_FILE}} ];then pipenv install --python 3 && pipenv run python3 ./build.py fonts ;fi
             - if [ ! -f ../{{$.COZETTE_FILE}} ];then bdf2psf --fb ./build/cozette.bdf /usr/share/bdf2psf/standard.equivalents /usr/share/bdf2psf/fontsets/Uni2.512 512 ../{{$.COZETTE_FILE}};fi
 
@@ -58,6 +61,9 @@ tasks:
         dir: ./{{$.THIRD_PARTY_DIR}}/{{$.EDK2_DIR}}
         cmds:
             - git submodule update --init --recursive
+            - git fetch --tags
+            - latestTag=$(git describe --tags `git rev-list --tags --max-count=1`)
+            - git checkout $latestTag
             - make -C ./BaseTools/Source/C
             - if [ ! -f ../{{$.OVMF_CODE_FILE}} ] || [ ! -f ../{{$.OVMF_VARS_FILE}} ];then ./OvmfPkg/build.sh -a X64 -n 4;fi
             - if [ ! -f ../{{$.OVMF_CODE_FILE}} ];then cp ./Build/OvmfX64/DEBUG_GCC5/FV/OVMF_CODE.fd ../{{$.OVMF_CODE_FILE}};fi

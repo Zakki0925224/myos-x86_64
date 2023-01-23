@@ -81,6 +81,15 @@ pub fn read_cs() -> u16
     return cs;
 }
 
+pub fn read_cr0() -> u64
+{
+    let mut cr0 = 0;
+    unsafe { asm!("mov {}, cr0", out(reg) cr0) }
+    return cr0;
+}
+
+pub fn write_cr0(value: u64) { unsafe { asm!("mov cr3, {}", in(reg) value) } }
+
 pub fn read_cr2() -> u64
 {
     let mut cr2 = 0;

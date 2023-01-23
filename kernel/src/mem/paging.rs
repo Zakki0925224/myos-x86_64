@@ -5,7 +5,7 @@ use log::{error, info};
 use modular_bitfield::{bitfield, specifiers::*, BitfieldSpecifier};
 use spin::Mutex;
 
-use crate::{arch::{addr::{PhysicalAddress, VirtualAddress}, asm, register::{cr2::Cr2, cr3::Cr3}}, println};
+use crate::{arch::{addr::{PhysicalAddress, VirtualAddress}, register::control::*}, println};
 
 use super::bitmap::BITMAP_MEM_MAN;
 
@@ -104,7 +104,7 @@ pub enum MappingType
 #[derive(Debug)]
 pub struct Paging
 {
-    pub pml4_table_addr: PhysicalAddress,
+    pml4_table_addr: PhysicalAddress,
     pml4_table_addr_backup: PhysicalAddress,
     mapping_type: MappingType,
 }
@@ -122,6 +122,7 @@ impl Paging
         };
     }
 
+    // TODO: not working yet
     pub fn create_new_page_table(&mut self)
     {
         if let Some(mem_info) = BITMAP_MEM_MAN.lock().alloc_single_mem_frame()
@@ -167,6 +168,10 @@ impl Paging
         }
 
         info!("Finished to map to identity");
+        // disable current paging
+        let mut cr0 = Cr0::read();
+        cr0.set_paging(false);
+        cr0.write();
         Cr3::write(self.pml4_table_addr);
         self.pml4_table_addr_backup = self.pml4_table_addr;
         self.mapping_type = MappingType::Identity;

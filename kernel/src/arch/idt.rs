@@ -2,7 +2,7 @@ use core::{mem::size_of, ptr::{read_volatile, write_volatile}};
 use log::{error, info};
 use modular_bitfield::{bitfield, specifiers::*, BitfieldSpecifier};
 
-use crate::arch::{asm, register::cr2::Cr2};
+use crate::arch::{asm, register::control::Cr2};
 
 const IDT_LEN: usize = 256;
 const VEC_DIVIDE_ERR: usize = 0;

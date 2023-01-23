@@ -13,6 +13,7 @@ pub fn init(mem_map: &[MemoryDescriptor])
     let used = BITMAP_MEM_MAN.lock().get_used_mem_size();
     let total = BITMAP_MEM_MAN.lock().get_total_mem_size();
     println!("Memory used: {}B/{}B ({}%)", used, total, (used as f32 / total as f32) * 100f32);
+    println!("Page mapping type: {:?}", PAGING.lock().mapping_type());
 
     // PAGING.lock().pml4_table_addr = BITMAP_MEM_MAN
     //     .lock()
@@ -31,5 +32,5 @@ pub fn init(mem_map: &[MemoryDescriptor])
     //     //println!("0x{:x}", virt.get_phys_addr().get());
     // }
     // println!("OK");
-    PAGING.lock().create_new_page_table();
+    //PAGING.lock().create_new_page_table();
 }

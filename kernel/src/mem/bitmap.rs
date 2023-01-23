@@ -5,7 +5,7 @@ use lazy_static::lazy_static;
 use log::info;
 use spin::Mutex;
 
-use crate::arch::addr::VirtualAddress;
+use crate::{arch::addr::VirtualAddress, println};
 
 lazy_static! {
     pub static ref BITMAP_MEM_MAN: Mutex<BitmapMemoryManager> =

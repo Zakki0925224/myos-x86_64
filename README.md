@@ -6,11 +6,11 @@
 
 ### UEFI firmware
 
--   [EDK II (Using forked source)](https://github.com/Zakki0925224/edk2)
+-   [EDK II](https://github.com/tianocore/edk2.git)
 
 ### Console font
 
--   [Cozette (Using forked source)](https://github.com/Zakki0925224/Cozette)
+-   [Cozette](https://github.com/slavfox/Cozette.git)
 
 ## Features
 
@@ -39,8 +39,8 @@
 
 #### edk2
 
--   [uuid-dev]()
--   [nasm]()
+-   uuid-dev
+-   nasm
 
 ```bash
 $ git clone https://github.com/Zakki0925224/myos-x86_64.git --recursive
