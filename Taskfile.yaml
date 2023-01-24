@@ -65,9 +65,11 @@ tasks:
             - latestTag=$(git describe --tags `git rev-list --tags --max-count=1`)
             - git checkout $latestTag
             - make -C ./BaseTools/Source/C
-            - if [ ! -f ../{{$.OVMF_CODE_FILE}} ] || [ ! -f ../{{$.OVMF_VARS_FILE}} ];then ./OvmfPkg/build.sh -a X64 -n 4;fi
-            - if [ ! -f ../{{$.OVMF_CODE_FILE}} ];then cp ./Build/OvmfX64/DEBUG_GCC5/FV/OVMF_CODE.fd ../{{$.OVMF_CODE_FILE}};fi
-            - if [ ! -f ../{{$.OVMF_VARS_FILE}} ];then cp ./Build/OvmfX64/DEBUG_GCC5/FV/OVMF_VARS.fd ../{{$.OVMF_VARS_FILE}};fi
+            - if [ ! -f ../{{$.OVMF_CODE_FILE}} ] || [ ! -f ../{{$.OVMF_VARS_FILE}} ];then ./OvmfPkg/build.sh -a X64 -b RELEASE -n 4;fi
+            - if [ ! -f ../{{$.OVMF_CODE_FILE}} ];then sudo cp /usr/share/OVMF/x64/OVMF_CODE.fd ../{{$.OVMF_CODE_FILE}} && sudo chown zakki:zakki ../{{$.OVMF_CODE_FILE}};fi
+            - if [ ! -f ../{{$.OVMF_VARS_FILE}} ];then sudo cp /usr/share/OVMF/x64/OVMF_VARS.fd ../{{$.OVMF_VARS_FILE}} && sudo chown zakki:zakki ../{{$.OVMF_VARS_FILE}};fi
+            # - if [ ! -f ../{{$.OVMF_CODE_FILE}} ];then cp ./Build/OvmfX64/RELEASE_GCC5/FV/OVMF_CODE.fd ../{{$.OVMF_CODE_FILE}};fi
+            # - if [ ! -f ../{{$.OVMF_VARS_FILE}} ];then cp ./Build/OvmfX64/RELEASE_GCC5/FV/OVMF_VARS.fd ../{{$.OVMF_VARS_FILE}};fi
 
     build:
         cmds:

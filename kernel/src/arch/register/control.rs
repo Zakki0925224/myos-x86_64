@@ -1,6 +1,6 @@
 use modular_bitfield::{bitfield, specifiers::*, BitfieldSpecifier};
 
-use crate::{arch::{addr::{PhysicalAddress, VirtualAddress}, asm}, println};
+use crate::arch::{addr::{PhysicalAddress, VirtualAddress}, asm};
 
 // https://en.wikipedia.org/wiki/Control_register
 #[derive(BitfieldSpecifier, Debug, Clone, Copy)]
