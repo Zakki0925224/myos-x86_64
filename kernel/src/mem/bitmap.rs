@@ -2,7 +2,7 @@ use core::ptr::{read_volatile, write_volatile};
 
 use common::mem_desc::{MemoryDescriptor, MemoryType, UEFI_PAGE_SIZE};
 use lazy_static::lazy_static;
-use log::info;
+use log::{info, warn};
 use spin::Mutex;
 
 use crate::{arch::addr::VirtualAddress, println};
@@ -30,6 +30,60 @@ impl MemoryFrameInfo
     pub fn get_frame_index(&self) -> usize { return self.frame_index; }
 
     pub fn is_allocated(&self) -> bool { return self.is_allocated; }
+}
+
+#[derive(Debug)]
+struct Bitmap(u8);
+
+impl Bitmap
+{
+    pub fn new(bitmap: u8) -> Self { return Self(bitmap); }
+
+    pub fn get_map(&self) -> [bool; u8::BITS as usize]
+    {
+        let mut map = [false; u8::BITS as usize];
+
+        for i in 0..u8::BITS as usize
+        {
+            map[i] = (self.0 << 0) == 1;
+        }
+
+        return map;
+    }
+
+    pub fn allocated_frame_len(&self) -> usize
+    {
+        let mut len = 0;
+
+        for i in 0..u8::BITS as usize
+        {
+            if (self.0 >> 8 - i) == 1
+            {
+                len += 1;
+            }
+        }
+
+        return len;
+    }
+
+    pub fn free_frame_len(&self) -> usize
+    {
+        let mut len = 0;
+
+        for i in 0..u8::BITS as usize
+        {
+            if (self.0 >> 8 - i) == 0
+            {
+                len += 1;
+            }
+        }
+
+        return len;
+    }
+
+    pub fn is_allocated_all(&self) -> bool { return self.0 == 0xff; }
+
+    pub fn is_free_all(&self) -> bool { return self.0 == 0; }
 }
 
 #[derive(Debug)]
@@ -99,7 +153,7 @@ impl BitmapMemoryManager
         // clear all bitmap
         for i in 0..self.bitmap_size
         {
-            self.write_bitmap(i, 0);
+            self.write_bitmap(i, Bitmap(0));
         }
 
         // allocate no conventional memory frame
@@ -157,18 +211,12 @@ impl BitmapMemoryManager
         let bitmap_offset = frame_index / u8::BITS as usize;
         let bitmap_pos = frame_index % u8::BITS as usize; // 0 ~ 7
         let bitmap = self.read_bitmap(bitmap_offset);
-        let mut is_allocated = false;
-
-        if (bitmap << bitmap_pos) & 0x80 == 0x80
-        {
-            is_allocated = true;
-        }
 
         return Some(MemoryFrameInfo {
             frame_start_virt_addr: VirtualAddress::new((frame_index * self.frame_size) as u64),
             frame_size: self.frame_size,
             frame_index,
-            is_allocated,
+            is_allocated: bitmap.get_map()[bitmap_pos],
         });
     }
 
@@ -179,39 +227,79 @@ impl BitmapMemoryManager
             return None;
         }
 
-        let mut found_mem_frame_index = 0;
+        let mut found_mem_frame_index = None;
         'outer: for i in 0..self.bitmap_size
         {
             let bitmap = self.read_bitmap(i);
 
-            if bitmap == 0xff
+            if bitmap.is_allocated_all()
             {
                 continue;
             }
 
             for j in 0..u8::BITS as usize
             {
-                if (bitmap << j) & 0x80 == 0
+                if bitmap.get_map()[j]
                 {
-                    found_mem_frame_index = i * u8::BITS as usize + j;
+                    found_mem_frame_index = Some(i * u8::BITS as usize + j);
                     break 'outer;
                 }
             }
         }
 
+        if let None = found_mem_frame_index
+        {
+            return None;
+        }
+
         let mem_frame_info = MemoryFrameInfo {
             frame_start_virt_addr: VirtualAddress::new(
-                (found_mem_frame_index * self.frame_size) as u64,
+                (found_mem_frame_index.unwrap() * self.frame_size) as u64,
             ),
             frame_size: self.frame_size,
-            frame_index: found_mem_frame_index,
+            frame_index: found_mem_frame_index.unwrap(),
             is_allocated: true,
         };
 
-        self.alloc_frame(found_mem_frame_index);
+        self.alloc_frame(found_mem_frame_index.unwrap());
         //self.mem_clear(&mem_frame_info);
 
         return Some(mem_frame_info);
+    }
+
+    pub fn alloc_multi_mem_frame(&mut self, len: usize) -> Option<MemoryFrameInfo>
+    {
+        if len > u8::BITS as usize
+        {
+            warn!(
+                "Unsupported memory frame length (max: {}, but specified: {})",
+                u8::BITS as usize,
+                len
+            );
+            return None;
+        }
+
+        if len == 0 || self.free_frame_len < len
+        {
+            return None;
+        }
+
+        if len == 1
+        {
+            return self.alloc_single_mem_frame();
+        }
+
+        let mut allocated_cnt = 0;
+        let mut i = 0;
+
+        while i < self.bitmap_size
+        {
+            let bitmap = self.read_bitmap(i);
+
+            i += 1;
+        }
+
+        return None;
     }
 
     pub fn mem_clear(&self, mem_frame_info: &MemoryFrameInfo)
@@ -226,6 +314,7 @@ impl BitmapMemoryManager
 
     pub fn dealloc_mem_frame(&mut self, mem_frame_info: MemoryFrameInfo)
     {
+        self.mem_clear(&mem_frame_info);
         self.dealloc_frame(mem_frame_info.frame_index);
     }
 
@@ -236,7 +325,7 @@ impl BitmapMemoryManager
         return index;
     }
 
-    fn read_bitmap(&self, offset: usize) -> u8
+    fn read_bitmap(&self, offset: usize) -> Bitmap
     {
         if !self.is_init
         {
@@ -249,10 +338,10 @@ impl BitmapMemoryManager
         }
 
         let ptr = (self.bitmap_virt_addr.get() + offset as u64) as *const u8;
-        return unsafe { read_volatile(ptr) };
+        return Bitmap::new(unsafe { read_volatile(ptr) });
     }
 
-    fn write_bitmap(&self, offset: usize, bitmap: u8)
+    fn write_bitmap(&self, offset: usize, bitmap: Bitmap)
     {
         if !self.is_init
         {
@@ -265,7 +354,7 @@ impl BitmapMemoryManager
         }
 
         let ptr = (self.bitmap_virt_addr.get() + offset as u64) as *mut u8;
-        unsafe { write_volatile(ptr, bitmap) };
+        unsafe { write_volatile(ptr, bitmap.0) };
     }
 
     fn alloc_frame(&mut self, frame_index: usize)
@@ -281,12 +370,12 @@ impl BitmapMemoryManager
         let mut bitmap = self.read_bitmap(bitmap_offset);
 
         // already allocated
-        if (bitmap << bitmap_pos) & 0x80 == 0x80
+        if bitmap.get_map()[bitmap_pos]
         {
             return;
         }
 
-        bitmap |= 0x80 >> bitmap_pos;
+        bitmap.0 |= 0x80 >> bitmap_pos;
         self.write_bitmap(bitmap_offset, bitmap);
 
         self.allocated_frame_len += 1;
@@ -305,12 +394,12 @@ impl BitmapMemoryManager
 
         let mut bitmap = self.read_bitmap(bitmap_offset);
 
-        if (bitmap << bitmap_pos) & 0x80 == 0
+        if !bitmap.get_map()[bitmap_pos]
         {
             panic!("This memory frame was already deallocated");
         }
 
-        bitmap &= !(0x80 >> bitmap_pos);
+        bitmap.0 &= !(0x80 >> bitmap_pos);
         self.write_bitmap(bitmap_offset, bitmap);
 
         self.allocated_frame_len -= 1;
