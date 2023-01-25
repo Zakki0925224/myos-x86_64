@@ -15,8 +15,8 @@ pub fn init(mem_map: &[MemoryDescriptor])
     println!("Memory used: {}B/{}B ({}%)", used, total, (used as f32 / total as f32) * 100f32);
     println!("Page mapping type: {:?}", PAGING.lock().mapping_type());
 
-    let info = BITMAP_MEM_MAN.lock().alloc_multi_mem_frame(114514);
-    println!("{:?}", info);
+    // let info = BITMAP_MEM_MAN.lock().alloc_multi_mem_frame(114514);
+    // println!("{:?}", info);
 
     // PAGING.lock().pml4_table_addr = BITMAP_MEM_MAN
     //     .lock()

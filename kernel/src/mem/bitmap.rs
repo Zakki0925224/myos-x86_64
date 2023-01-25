@@ -2,10 +2,10 @@ use core::ptr::{read_volatile, write_volatile};
 
 use common::mem_desc::{MemoryDescriptor, MemoryType, UEFI_PAGE_SIZE};
 use lazy_static::lazy_static;
-use log::{info, warn};
+use log::info;
 use spin::Mutex;
 
-use crate::{arch::addr::VirtualAddress, println};
+use crate::arch::addr::VirtualAddress;
 
 lazy_static! {
     pub static ref BITMAP_MEM_MAN: Mutex<BitmapMemoryManager> =
@@ -49,15 +49,11 @@ impl Bitmap
             map[i] = ((self.0 << i) & 0x80) != 0;
         }
 
-        //println!("read: {:b}", self.0);
-        //println!("read: {:?}", map);
-
         return map;
     }
 
     pub fn set_map(&mut self, map: [bool; BITMAP_SIZE])
     {
-        //println!("new map: {:?}", map);
         let mut bitmap = 0;
         for i in 0..BITMAP_SIZE
         {
@@ -65,39 +61,42 @@ impl Bitmap
         }
 
         self.0 = bitmap;
-        //println!("new bitmap: {:b}", self.0);
     }
 
     pub fn allocated_frame_len(&self) -> usize
     {
-        let mut len = 0;
         let map = self.get_map();
-
-        for i in 0..BITMAP_SIZE
-        {
-            if map[i]
-            {
-                len += 1;
-            }
-        }
-
-        return len;
+        return map
+            .into_iter()
+            .map(|m| {
+                if m
+                {
+                    1
+                }
+                else
+                {
+                    0
+                }
+            })
+            .sum();
     }
 
     pub fn free_frame_len(&self) -> usize
     {
-        let mut len = 0;
         let map = self.get_map();
-
-        for i in 0..BITMAP_SIZE
-        {
-            if !map[i]
-            {
-                len += 1;
-            }
-        }
-
-        return len;
+        return map
+            .into_iter()
+            .map(|m| {
+                if !m
+                {
+                    1
+                }
+                else
+                {
+                    0
+                }
+            })
+            .sum();
     }
 
     pub fn is_allocated_all(&self) -> bool { return self.0 == 0xff; }
@@ -278,7 +277,7 @@ impl BitmapMemoryManager
         };
 
         self.alloc_frame(found_mem_frame_index.unwrap());
-        //self.mem_clear(&mem_frame_info);
+        self.mem_clear(&mem_frame_info);
 
         return Some(mem_frame_info);
     }
@@ -304,8 +303,6 @@ impl BitmapMemoryManager
             let bitmap = self.read_bitmap(i);
 
             let map = bitmap.get_map();
-            //println!("{}: {:?}", i, map);
-            //println!("{:b}", bitmap.0);
             for j in 0..BITMAP_SIZE
             {
                 if start != None && count == len
@@ -316,7 +313,6 @@ impl BitmapMemoryManager
                 if len - count > BITMAP_SIZE && bitmap.is_free_all() && start != None
                 {
                     count += BITMAP_SIZE;
-                    //println!("skip with alloc ({})", count);
                     break;
                 }
 
@@ -324,7 +320,6 @@ impl BitmapMemoryManager
                 {
                     start = None;
                     count = 0;
-                    //println!("reset ({}, all)", i);
                     break;
                 }
 
@@ -332,7 +327,6 @@ impl BitmapMemoryManager
                 if !map[j]
                 {
                     count += 1;
-                    //println!("new count: {}", count);
 
                     if start == None
                     {
@@ -387,8 +381,6 @@ impl BitmapMemoryManager
 
     pub fn dealloc_mem_frame(&mut self, mem_frame_info: MemoryFrameInfo)
     {
-        self.mem_clear(&mem_frame_info);
-
         let frame_size = mem_frame_info.frame_size;
         if frame_size == self.frame_size
         {
@@ -440,7 +432,6 @@ impl BitmapMemoryManager
 
         let ptr = (self.bitmap_virt_addr.get() + offset as u64) as *mut u8;
         unsafe { write_volatile(ptr, bitmap.0) };
-        let read = unsafe { read_volatile(ptr) };
     }
 
     fn clear_bitmap(&self)
