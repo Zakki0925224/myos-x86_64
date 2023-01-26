@@ -2,8 +2,6 @@ use common::mem_desc::UEFI_PAGE_SIZE;
 use core::{alloc::{GlobalAlloc, Layout}, cell::UnsafeCell, ptr::null_mut};
 use log::info;
 
-use crate::println;
-
 use super::bitmap::BITMAP_MEM_MAN;
 
 const HEAP_SIZE: usize = UEFI_PAGE_SIZE * UEFI_PAGE_SIZE; // 16MiB
@@ -30,6 +28,11 @@ unsafe impl GlobalAlloc for Allocator
         let start_virt_addr = self.start_virt_addr.get();
         let base_virt_addr = self.base_virt_addr.get();
         let base_virt_addr_clone = (*base_virt_addr).clone();
+
+        if *start_virt_addr == 0 && *base_virt_addr == 0
+        {
+            panic!("Heap was used before heap allocator was initialized");
+        }
 
         if size > HEAP_SIZE as u64
         {

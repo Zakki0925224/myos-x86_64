@@ -60,7 +60,6 @@ pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> !
     loop
     {
         asm::cli();
-
         asm::hlt();
     }
 }
