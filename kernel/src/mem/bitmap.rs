@@ -328,7 +328,7 @@ impl BitmapMemoryManager
                 {
                     count += 1;
 
-                    if start == None
+                    if start.is_none()
                     {
                         start = Some((i, j));
                     }
@@ -344,7 +344,7 @@ impl BitmapMemoryManager
             i += 1;
         }
 
-        if start == None || count != len
+        if start.is_none() || count != len
         {
             return None;
         }

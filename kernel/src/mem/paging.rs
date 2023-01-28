@@ -157,7 +157,7 @@ impl Paging
             }
 
             // check
-            if self.calc_phys_addr(&virt_addr, false) == None
+            if self.calc_phys_addr(&virt_addr, false).is_none()
             {
                 self.pml4_table_addr = self.pml4_table_addr_backup;
                 error!("New page tables was not work collectly");

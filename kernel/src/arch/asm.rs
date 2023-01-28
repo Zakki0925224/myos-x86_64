@@ -17,6 +17,18 @@ pub fn in8(port: u16) -> u8
     return data;
 }
 
+pub fn out32(port: u32, data: u32)
+{
+    unsafe { asm!("out dx, eax", in("edx") port, in("eax") data) }
+}
+
+pub fn in32(port: u32) -> u32
+{
+    let mut data: u32;
+    unsafe { asm!("in eax, dx", out("eax") data, in("edx") port) }
+    return data;
+}
+
 pub fn set_ds(value: u16) { unsafe { asm!("mov ds, {}", in(reg) value) } }
 
 pub fn set_es(value: u16) { unsafe { asm!("mov es, {}", in(reg) value) } }
