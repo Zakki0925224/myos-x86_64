@@ -24,7 +24,7 @@ use graphics::GRAPHICS;
 use log::*;
 use terminal::TERMINAL;
 
-use crate::{arch::{gdt, idt}, device::pci, util::logger};
+use crate::{arch::{gdt, idt}, device::pci::PciDeviceManager, util::logger};
 
 #[no_mangle]
 #[start]
@@ -57,26 +57,8 @@ pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> !
 
     env::print_info();
 
-    for i in 0..256
-    {
-        for j in 0..32
-        {
-            for k in 0..8
-            {
-                if let Some(cmn) = pci::read_config_data(i, j, k)
-                {
-                    if cmn.is_exist()
-                    {
-                        println!("-------------------");
-                        println!("{}:{}:{}", i, j, k);
-                        println!("Device name: {:?}", cmn.get_device_name());
-                        println!("Vendor name: {:?}", cmn.get_vendor_name());
-                        println!("Class name: {:?}", cmn.get_class_name());
-                    }
-                }
-            }
-        }
-    }
+    let pci_device_manager = PciDeviceManager::new();
+    println!("{:?}", pci_device_manager);
 
     loop
     {

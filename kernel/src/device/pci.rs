@@ -1,11 +1,16 @@
+use alloc::vec::Vec;
 use modular_bitfield::{bitfield, specifiers::*, BitfieldSpecifier};
-use pci_ids::{Class, Classes, Device, Vendor, Vendors};
+use pci_ids::*;
 
 use crate::arch::asm;
 
-const IO_PORT_CONFIG_ADDR: u32 = 0xcf8;
-const IO_PORT_CONFIG_DATA: u32 = 0xcfc;
+const IO_PORT_CONF_ADDR: u32 = 0xcf8;
+const IO_PORT_CONF_DATA: u32 = 0xcfc;
 const PCI_DEVICE_NON_EXIST: u16 = 0xffff;
+const PCI_DEVICE_BUS_LEN: usize = 256;
+const PCI_DEVICE_DEVICE_LEN: usize = 32;
+const PCI_DEVICE_FUNC_LEN: usize = 8;
+const PCI_CONF_MAX_OFFSET: usize = 124;
 
 #[derive(BitfieldSpecifier, Debug, Clone, Copy)]
 #[bits = 1]
@@ -75,6 +80,16 @@ pub struct ConfigurationSpaceStatusRegister
     detected_parity_err: bool,
 }
 
+#[derive(BitfieldSpecifier, Debug, Clone, Copy)]
+#[bits = 8]
+pub enum ConfigurationSpaceHeaderType
+{
+    GenericDevice = 0x0,
+    PciToPciBridge = 0x1,
+    PciToCardBusBridge = 0x2,
+    MutliFunctionDevice = 0x80,
+}
+
 #[bitfield]
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
@@ -95,7 +110,8 @@ pub struct ConfigurationSpaceCommonHeaderField
     pub class_code: B8,
     cache_line_size: B8,
     latency_timer: B8,
-    header_type: B8,
+    #[skip(setters)]
+    pub header_type: ConfigurationSpaceHeaderType,
     bist: B8,
 }
 
@@ -120,8 +136,7 @@ impl ConfigurationSpaceCommonHeaderField
     pub fn get_device_name(&self) -> Option<&str>
     {
         let vendor = self.get_vendor();
-
-        if vendor.is_none() || !self.is_exist()
+        if !self.is_exist() || vendor.is_none()
         {
             return None;
         }
@@ -148,8 +163,19 @@ impl ConfigurationSpaceCommonHeaderField
             return None;
         }
 
-        let class = self.get_class(self.class_code());
+        let class = self.get_class();
         return if class.is_some() { Some(class.unwrap().name()) } else { None };
+    }
+
+    pub fn get_subclass_name(&self) -> Option<&str>
+    {
+        let subclass = self.get_subclass();
+        if !self.is_exist() || subclass.is_none()
+        {
+            return None;
+        }
+
+        return Some(subclass.unwrap().name());
     }
 
     fn get_vendor(&self) -> Option<&Vendor>
@@ -162,15 +188,88 @@ impl ConfigurationSpaceCommonHeaderField
         return vendor.devices().find(|d| d.id() == self.device_id());
     }
 
-    fn get_class(&self, class_code: u8) -> Option<&Class>
+    fn get_class(&self) -> Option<&Class>
     {
-        return Classes::iter().find(|c| c.id() == class_code);
+        return Classes::iter().find(|c| c.id() == self.class_code());
+    }
+
+    fn get_subclass(&self) -> Option<&Subclass>
+    {
+        if let Some(class) = self.get_class()
+        {
+            return class.subclasses().find(|c| c.id() == self.subclass());
+        }
+        else
+        {
+            return None;
+        }
     }
 }
 
-fn read_config_space(bus: usize, device: usize, func: usize, byte_offset: usize) -> Option<u32>
+#[derive(Debug)]
+pub struct PciDevice
 {
-    if bus > 255 || device > 31 || func > 7 || byte_offset >= 64 || byte_offset % 4 != 0
+    pub bus: usize,
+    pub device: usize,
+    pub func: usize,
+    pub conf_space_header: ConfigurationSpaceCommonHeaderField,
+}
+
+impl PciDevice
+{
+    pub fn new(bus: usize, device: usize, func: usize) -> Option<Self>
+    {
+        if let Some(conf_space_header) = read_conf_space_header(bus, device, func)
+        {
+            return Some(Self { bus, device, func, conf_space_header });
+        }
+        else
+        {
+            return None;
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct PciDeviceManager
+{
+    devices: Vec<PciDevice>,
+}
+
+impl PciDeviceManager
+{
+    pub fn new() -> Self
+    {
+        let mut devices = Vec::new();
+
+        for bus in 0..PCI_DEVICE_BUS_LEN
+        {
+            for device in 0..PCI_DEVICE_DEVICE_LEN
+            {
+                for func in 0..PCI_DEVICE_FUNC_LEN
+                {
+                    if let Some(pci_device) = PciDevice::new(bus, device, func)
+                    {
+                        if pci_device.conf_space_header.is_exist()
+                        {
+                            devices.push(pci_device);
+                        }
+                    }
+                }
+            }
+        }
+
+        return Self { devices };
+    }
+}
+
+fn read_conf_space(bus: usize, device: usize, func: usize, byte_offset: usize) -> Option<u32>
+{
+    if bus >= PCI_DEVICE_BUS_LEN
+        || device >= PCI_DEVICE_DEVICE_LEN
+        || func >= PCI_DEVICE_FUNC_LEN
+        || byte_offset > PCI_CONF_MAX_OFFSET
+        || byte_offset % 4 != 0
     {
         return None;
     }
@@ -180,23 +279,23 @@ fn read_config_space(bus: usize, device: usize, func: usize, byte_offset: usize)
         | (device as u32) << 11
         | (func as u32) << 8
         | byte_offset as u32;
-    asm::out32(IO_PORT_CONFIG_ADDR, addr);
-    let result = asm::in32(IO_PORT_CONFIG_DATA);
+    asm::out32(IO_PORT_CONF_ADDR, addr);
+    let result = asm::in32(IO_PORT_CONF_DATA);
 
     return Some(result);
 }
 
-pub fn read_config_data(
+fn read_conf_space_header(
     bus: usize,
     device: usize,
     func: usize,
 ) -> Option<ConfigurationSpaceCommonHeaderField>
 {
     let data = [
-        read_config_space(bus, device, func, 0),
-        read_config_space(bus, device, func, 4),
-        read_config_space(bus, device, func, 8),
-        read_config_space(bus, device, func, 12),
+        read_conf_space(bus, device, func, 0),
+        read_conf_space(bus, device, func, 4),
+        read_conf_space(bus, device, func, 8),
+        read_conf_space(bus, device, func, 12),
     ];
 
     if data.iter().filter(|&d| d.is_none()).count() != 0
