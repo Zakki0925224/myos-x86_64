@@ -58,7 +58,7 @@ pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> !
     env::print_info();
 
     let pci_device_manager = PciDeviceManager::new();
-    println!("{:?}", pci_device_manager);
+    pci_device_manager.debug();
 
     loop
     {

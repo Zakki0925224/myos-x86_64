@@ -7,14 +7,14 @@ description = "This is my os in Rust"
 
 [dependencies]
 common = { path = "../common" }
-spin = "0.9.4"
-log = "0.4.17"
-bitflags = "1.3.2"
-modular-bitfield = "0.11.2"
-pci-ids = "0.2.5"
+spin = "*"
+log = "*"
+bitflags = "*"
+modular-bitfield = "*"
+pci-ids = "*"
 
 [dependencies.lazy_static]
-version = "1.4.0"
+version = "*"
 features = ["spin_no_std"]
 
 [profile.dev]

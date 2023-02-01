@@ -6,10 +6,10 @@ authors = ["Zakki <zakki0925224@gmail.com>"]
 
 [dependencies]
 common = { path = "../common" }
-uefi = { version = "0.16.0", features = ["exts"] }
-uefi-services = "0.13.0"
-log = "0.4.17"
-xmas-elf = "0.9.0"
+uefi = { version = "*", features = ["exts"] }
+uefi-services = "*"
+log = "*"
+xmas-elf = "*"
 
 [profile.dev]
 debug = true

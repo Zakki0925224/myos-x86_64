@@ -22,8 +22,9 @@ vars:
     GDB_FILE: gdb.scr
 
     QEMU_DEVICES: |
+        qemu-xhci
         ahci,id=ahci
-        ide-cd,drive=disk,bus=ahci.0
+        ide-cd,drive=disk,bus=ahci.0,bootindex=1
     QEMU_DRIVES: |
         id=disk,if=none,format=raw,file={{$.OUTPUT_DIR}}/{{$.IMG_FILE}}
         if=pflash,format=raw,readonly=on,file={{$.THIRD_PARTY_DIR}}/{{$.OVMF_CODE_FILE}}
