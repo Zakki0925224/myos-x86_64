@@ -2,7 +2,7 @@ use alloc::vec::Vec;
 use modular_bitfield::{bitfield, specifiers::*, BitfieldSpecifier};
 use pci_ids::*;
 
-use crate::{arch::asm, println};
+use crate::{arch::{addr::VirtualAddress, asm}, println};
 
 const MMIO_PORT_CONF_ADDR: u32 = 0xcf8;
 const MMIO_PORT_CONF_DATA: u32 = 0xcfc;
@@ -216,8 +216,8 @@ impl ConfigurationSpaceCommonHeaderField
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BaseAddress
 {
-    MemoryAddress32BitSpace(u32, bool), // (addr, is prefetchable)
-    MemoryAddress64BitSpace(u64, bool),
+    MemoryAddress32BitSpace(VirtualAddress, bool), // (addr, is prefetchable)
+    MemoryAddress64BitSpace(VirtualAddress, bool),
     MmioAddressSpace(u32),
 }
 #[bitfield]
@@ -245,11 +245,11 @@ impl BaseAddressRegister
 
         let bar_type = (bar >> 1) & 0x3;
         let prefetchable = bar & 0x8 != 0;
-        let addr = bar & !0xf;
+        let virt_addr = VirtualAddress::new((bar & !0xf) as u64);
         match bar_type
         {
-            0x0 => return Some(BaseAddress::MemoryAddress32BitSpace(addr, prefetchable)),
-            0x2 => return Some(BaseAddress::MemoryAddress64BitSpace(addr as u64, prefetchable)),
+            0x0 => return Some(BaseAddress::MemoryAddress32BitSpace(virt_addr, prefetchable)),
+            0x2 => return Some(BaseAddress::MemoryAddress64BitSpace(virt_addr, prefetchable)),
             _ => return None,
         }
     }
@@ -332,8 +332,9 @@ impl ConfigurationSpaceNonBridgeField
                 Some(BaseAddress::MemoryAddress64BitSpace(addr, is_pref)) =>
                 {
                     let (_, next_bar) = &bars[i + 1];
-                    let addr = (next_bar.read() as u64) << 32 | addr;
-                    let base_addr = BaseAddress::MemoryAddress64BitSpace(addr, is_pref);
+                    let addr = (next_bar.read() as u64) << 32 | addr.get();
+                    let virt_addr = VirtualAddress::new(addr);
+                    let base_addr = BaseAddress::MemoryAddress64BitSpace(virt_addr, is_pref);
                     base_addrs.push((i, base_addr));
                     bars[i] = bars.remove(i + 1);
                 }
@@ -426,8 +427,9 @@ impl ConfigurationSpacePciToPciBridgeField
                 Some(BaseAddress::MemoryAddress64BitSpace(addr, is_pref)) =>
                 {
                     let (_, next_bar) = &bars[i + 1];
-                    let addr = (next_bar.read() as u64) << 32 | addr;
-                    let base_addr = BaseAddress::MemoryAddress64BitSpace(addr, is_pref);
+                    let addr = (next_bar.read() as u64) << 32 | addr.get();
+                    let virt_addr = VirtualAddress::new(addr);
+                    let base_addr = BaseAddress::MemoryAddress64BitSpace(virt_addr, is_pref);
                     base_addrs.push((i, base_addr));
                     bars[i] = bars.remove(i + 1);
                 }
@@ -635,7 +637,24 @@ impl PciDeviceManager
             println!("{:?}", d.conf_space_header.get_device_name());
             if let Some(field) = d.read_conf_space_non_bridge_field()
             {
-                println!("{:?}", field.get_bars());
+                for bar in field.get_bars()
+                {
+                    let ty = match bar.1
+                    {
+                        BaseAddress::MemoryAddress32BitSpace(_, _) => "32 bit memory",
+                        BaseAddress::MemoryAddress64BitSpace(_, _) => "64 bit memory",
+                        BaseAddress::MmioAddressSpace(_) => "I/O",
+                    };
+
+                    let addr = match bar.1
+                    {
+                        BaseAddress::MemoryAddress32BitSpace(addr, _) => addr.get() as usize,
+                        BaseAddress::MemoryAddress64BitSpace(addr, _) => addr.get() as usize,
+                        BaseAddress::MmioAddressSpace(addr) => addr as usize,
+                    };
+
+                    println!("BAR{}: {} at 0x{:x}", bar.0, ty, addr);
+                }
             }
             println!("--------------");
         }

@@ -1,5 +1,3 @@
-use core::ptr::{read_volatile, write_volatile};
-
 use common::mem_desc::{MemoryDescriptor, MemoryType, UEFI_PAGE_SIZE};
 use lazy_static::lazy_static;
 use log::info;
@@ -374,8 +372,8 @@ impl BitmapMemoryManager
         let start_virt_addr = mem_frame_info.frame_start_virt_addr.get();
         for i in start_virt_addr..start_virt_addr + mem_frame_info.frame_size as u64
         {
-            let ptr = i as *mut u8;
-            unsafe { write_volatile(ptr, 0) };
+            let addr = VirtualAddress::new(i);
+            addr.write_volatile::<u8>(0);
         }
     }
 
@@ -414,8 +412,8 @@ impl BitmapMemoryManager
             panic!("Memory map offset out of bounds");
         }
 
-        let ptr = (self.bitmap_virt_addr.get() + offset as u64) as *const u8;
-        return Bitmap::new(unsafe { read_volatile(ptr) });
+        let addr = VirtualAddress::new(self.bitmap_virt_addr.get() + offset as u64);
+        return Bitmap::new(addr.read_volatile());
     }
 
     fn write_bitmap(&self, offset: usize, bitmap: Bitmap)
@@ -430,16 +428,16 @@ impl BitmapMemoryManager
             panic!("Memory map offset out of bounds");
         }
 
-        let ptr = (self.bitmap_virt_addr.get() + offset as u64) as *mut u8;
-        unsafe { write_volatile(ptr, bitmap.0) };
+        let addr = VirtualAddress::new(self.bitmap_virt_addr.get() + offset as u64);
+        addr.write_volatile(bitmap.0);
     }
 
     fn clear_bitmap(&self)
     {
         for i in 0..self.bitmap_len
         {
-            let ptr = (self.bitmap_virt_addr.get() + i as u64) as *mut u8;
-            unsafe { write_volatile(ptr, 0) };
+            let addr = VirtualAddress::new(self.bitmap_virt_addr.get() + i as u64);
+            addr.write_volatile::<u8>(0);
         }
     }
 

@@ -1,8 +1,10 @@
-use core::{mem::size_of, ptr::{read_volatile, write_volatile}};
+use core::mem::size_of;
 use log::{error, info};
 use modular_bitfield::{bitfield, specifiers::*, BitfieldSpecifier};
 
 use crate::arch::{asm, register::control::Cr2};
+
+use super::addr::VirtualAddress;
 
 const IDT_LEN: usize = 256;
 const VEC_DIVIDE_ERR: usize = 0;
@@ -79,9 +81,9 @@ fn read_desc(vec_num: usize) -> Option<GateDescriptor>
         return None;
     }
 
-    let ptr = (asm::sidt().base + (size_of::<GateDescriptor>() * vec_num) as u64)
-        as *const GateDescriptor;
-    return Some(unsafe { read_volatile(ptr) });
+    let addr =
+        VirtualAddress::new(asm::sidt().base + (size_of::<GateDescriptor>() * vec_num) as u64);
+    return Some(addr.read_volatile());
 }
 
 fn write_desc(vec_num: usize, desc: GateDescriptor)
@@ -91,9 +93,9 @@ fn write_desc(vec_num: usize, desc: GateDescriptor)
         return;
     }
 
-    let ptr =
-        (asm::sidt().base + (size_of::<GateDescriptor>() * vec_num) as u64) as *mut GateDescriptor;
-    unsafe { write_volatile(ptr, desc) };
+    let addr =
+        VirtualAddress::new(asm::sidt().base + (size_of::<GateDescriptor>() * vec_num) as u64);
+    addr.write_volatile(desc);
 }
 
 fn set_handler(vec_num: usize, handler: Handler)

@@ -1,4 +1,6 @@
-use crate::{mem::paging::{MappingType, PAGING}, println};
+use core::ptr::{read_volatile, write_volatile};
+
+use crate::mem::paging::PAGING;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(transparent)]
@@ -80,4 +82,52 @@ impl VirtualAddress
     pub fn get_pml1_entry_index(&self) -> usize { return ((self.0 >> 12) & 0x1ff) as usize; }
 
     pub fn get_page_offset(&self) -> usize { return (self.0 & 0xfff) as usize; }
+
+    pub fn read_volatile<T>(&self) -> T
+    {
+        let ptr = self.get() as *const T;
+        return unsafe { read_volatile(ptr) };
+    }
+
+    pub fn write_volatile<T>(&self, data: T)
+    {
+        let ptr = self.get() as *mut T;
+        unsafe { write_volatile(ptr, data) };
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(transparent)]
+pub struct MmioPortAddress32(u32);
+
+impl MmioPortAddress32
+{
+    pub fn new(addr: u32) -> Self { return Self { 0: addr }; }
+
+    pub fn get(&self) -> u32 { return self.0; }
+
+    pub fn set(&mut self, addr: u32) { self.0 = addr; }
+
+    pub fn offset(&self, offset: usize) -> MmioPortAddress32
+    {
+        return MmioPortAddress32::new(self.0 + offset as u32);
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(transparent)]
+pub struct MmioPortAddress16(u16);
+
+impl MmioPortAddress16
+{
+    pub fn new(addr: u16) -> Self { return Self { 0: addr }; }
+
+    pub fn get(&self) -> u16 { return self.0; }
+
+    pub fn set(&mut self, addr: u16) { self.0 = addr; }
+
+    pub fn offset(&self, offset: usize) -> MmioPortAddress16
+    {
+        return MmioPortAddress16::new(self.0 + offset as u16);
+    }
 }

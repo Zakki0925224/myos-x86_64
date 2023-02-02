@@ -1,9 +1,9 @@
-use core::{mem::size_of, ptr::{read_volatile, write_volatile}};
+use core::mem::size_of;
 
 use log::info;
 use modular_bitfield::{bitfield, specifiers::*, BitfieldSpecifier};
 
-use super::asm;
+use super::{addr::VirtualAddress, asm};
 
 const GDT_LEN: usize = 8192;
 
@@ -72,9 +72,9 @@ fn read_desc(vec_num: usize) -> Option<SegmentDescriptor>
         return None;
     }
 
-    let ptr = (asm::sgdt().base + (size_of::<SegmentDescriptor>() * vec_num) as u64)
-        as *const SegmentDescriptor;
-    return Some(unsafe { read_volatile(ptr) });
+    let addr =
+        VirtualAddress::new(asm::sgdt().base + (size_of::<SegmentDescriptor>() * vec_num) as u64);
+    return Some(addr.read_volatile());
 }
 
 fn write_desc(vec_num: usize, desc: SegmentDescriptor)
@@ -84,9 +84,9 @@ fn write_desc(vec_num: usize, desc: SegmentDescriptor)
         return;
     }
 
-    let ptr = (asm::sgdt().base + (size_of::<SegmentDescriptor>() * vec_num) as u64)
-        as *mut SegmentDescriptor;
-    unsafe { write_volatile(ptr, desc) };
+    let addr =
+        VirtualAddress::new(asm::sgdt().base + (size_of::<SegmentDescriptor>() * vec_num) as u64);
+    addr.write_volatile(desc);
 }
 
 pub fn init()

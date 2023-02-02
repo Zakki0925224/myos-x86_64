@@ -1,11 +1,11 @@
 pub mod color;
 pub mod font;
 
-use core::ptr::{read_volatile, write_volatile};
-
 use common::graphic_info::PixelFormat;
 use lazy_static::lazy_static;
 use spin::Mutex;
+
+use crate::arch::addr::VirtualAddress;
 
 use self::{color::Color, font::PsfFont};
 
@@ -137,10 +137,8 @@ impl Graphics
             panic!("Outside the frame buffer area was specified");
         }
 
-        let ptr = (self.framebuf_addr + 4 * (res_x * y) as u64 + 4 * x as u64) as *mut u32;
-        let data = unsafe { read_volatile(ptr) };
-
-        return data;
+        let addr = VirtualAddress::new(self.framebuf_addr + 4 * (res_x * y) as u64 + 4 * x as u64);
+        return addr.read_volatile();
     }
 
     fn write_pixel(&self, x: usize, y: usize, data: u32)
@@ -156,9 +154,7 @@ impl Graphics
             panic!("Outside the frame buffer area was specified");
         }
 
-        let ptr = (self.framebuf_addr + 4 * (res_x * y) as u64 + 4 * x as u64) as *mut u32;
-        unsafe {
-            write_volatile(ptr, data);
-        }
+        let addr = VirtualAddress::new(self.framebuf_addr + 4 * (res_x * y) as u64 + 4 * x as u64);
+        addr.write_volatile(data);
     }
 }
