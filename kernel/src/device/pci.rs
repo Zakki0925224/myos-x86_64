@@ -213,12 +213,12 @@ impl ConfigurationSpaceCommonHeaderField
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub enum BaseAddressRegisterType
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BaseAddress
 {
-    MemoryAddress32BitSpace,
-    MemoryAddress64BitSpace,
-    MmioAddressSpace,
+    MemoryAddress32BitSpace(u32, bool), // (addr, is prefetchable)
+    MemoryAddress64BitSpace(u64, bool),
+    MmioAddressSpace(u32),
 }
 #[bitfield]
 #[derive(BitfieldSpecifier, Debug, Clone, Copy)]
@@ -228,7 +228,7 @@ impl BaseAddressRegister
 {
     pub fn read(&self) -> u32 { return unsafe { self.bytes.align_to::<u32>() }.1[0]; }
 
-    pub fn get_reg_type(&self) -> Option<BaseAddressRegisterType>
+    pub fn get_base_addr(&self) -> Option<BaseAddress>
     {
         let bar = self.read();
 
@@ -239,53 +239,19 @@ impl BaseAddressRegister
 
         if bar & 0x1 != 0
         {
-            return Some(BaseAddressRegisterType::MmioAddressSpace);
+            let addr = bar & !0x3;
+            return Some(BaseAddress::MmioAddressSpace(addr));
         }
 
         let bar_type = (bar >> 1) & 0x3;
+        let prefetchable = bar & 0x8 != 0;
+        let addr = bar & !0xf;
         match bar_type
         {
-            0x0 => return Some(BaseAddressRegisterType::MemoryAddress32BitSpace),
-            0x2 => return Some(BaseAddressRegisterType::MemoryAddress64BitSpace),
-            _ => return None, // reserved type
-        }
-    }
-
-    pub fn is_prefetchable(&self) -> Option<bool>
-    {
-        match self.get_reg_type()
-        {
-            Some(BaseAddressRegisterType::MmioAddressSpace) => return None,
-            _ => (),
-        }
-
-        let result = self.read() & 0x80 != 0;
-        return Some(result);
-    }
-
-    pub fn get_mem_addr(&self) -> Option<u32>
-    {
-        match self.get_reg_type()
-        {
-            Some(BaseAddressRegisterType::MemoryAddress32BitSpace) => (),
-            Some(BaseAddressRegisterType::MemoryAddress64BitSpace) => (),
+            0x0 => return Some(BaseAddress::MemoryAddress32BitSpace(addr, prefetchable)),
+            0x2 => return Some(BaseAddress::MemoryAddress64BitSpace(addr as u64, prefetchable)),
             _ => return None,
         }
-
-        let addr = self.read() & !0xf;
-        return Some(addr);
-    }
-
-    pub fn get_mmio_addr(&self) -> Option<u32>
-    {
-        match self.get_reg_type()
-        {
-            Some(BaseAddressRegisterType::MmioAddressSpace) => (),
-            _ => return None,
-        }
-
-        let addr = self.read() & !0x3;
-        return Some(addr);
     }
 }
 
@@ -343,6 +309,42 @@ impl ConfigurationSpaceNonBridgeField
         let header = unsafe { data.align_to::<Self>() }.1[0];
 
         return Some(header);
+    }
+
+    pub fn get_bars(&self) -> Vec<(usize, BaseAddress)>
+    {
+        let mut bars = Vec::new();
+        bars.push((0, self.bar0()));
+        bars.push((1, self.bar1()));
+        bars.push((2, self.bar2()));
+        bars.push((3, self.bar3()));
+        bars.push((4, self.bar4()));
+        bars.push((5, self.bar5()));
+
+        let mut base_addrs = Vec::new();
+
+        let mut i = 0;
+        while i < bars.len()
+        {
+            let (_, bar) = &bars[i];
+            match bar.get_base_addr()
+            {
+                Some(BaseAddress::MemoryAddress64BitSpace(addr, is_pref)) =>
+                {
+                    let (_, next_bar) = &bars[i + 1];
+                    let addr = (next_bar.read() as u64) << 32 | addr;
+                    let base_addr = BaseAddress::MemoryAddress64BitSpace(addr, is_pref);
+                    base_addrs.push((i, base_addr));
+                    bars[i] = bars.remove(i + 1);
+                }
+                None => (),
+                Some(base_addr) => base_addrs.push((i, base_addr)),
+            }
+
+            i += 1;
+        }
+
+        return base_addrs;
     }
 }
 
@@ -405,6 +407,38 @@ impl ConfigurationSpacePciToPciBridgeField
         let header = unsafe { data.align_to::<Self>() }.1[0];
 
         return Some(header);
+    }
+
+    pub fn get_bars(&self) -> Vec<(usize, BaseAddress)>
+    {
+        let mut bars = Vec::new();
+        bars.push((0, self.bar0()));
+        bars.push((1, self.bar1()));
+
+        let mut base_addrs = Vec::new();
+
+        let mut i = 0;
+        while i < bars.len()
+        {
+            let (_, bar) = &bars[i];
+            match bar.get_base_addr()
+            {
+                Some(BaseAddress::MemoryAddress64BitSpace(addr, is_pref)) =>
+                {
+                    let (_, next_bar) = &bars[i + 1];
+                    let addr = (next_bar.read() as u64) << 32 | addr;
+                    let base_addr = BaseAddress::MemoryAddress64BitSpace(addr, is_pref);
+                    base_addrs.push((i, base_addr));
+                    bars[i] = bars.remove(i + 1);
+                }
+                None => (),
+                Some(base_addr) => base_addrs.push((i, base_addr)),
+            }
+
+            i += 1;
+        }
+
+        return base_addrs;
     }
 }
 
@@ -601,54 +635,7 @@ impl PciDeviceManager
             println!("{:?}", d.conf_space_header.get_device_name());
             if let Some(field) = d.read_conf_space_non_bridge_field()
             {
-                let bar0 = field.bar0();
-                let bar1 = field.bar1();
-                let bar2 = field.bar2();
-                let bar3 = field.bar3();
-                let bar4 = field.bar4();
-                let bar5 = field.bar5();
-                println!(
-                    "BAR0(0x{:x}) - Type: {:?} MemAddr: {:?} MmioAddr: {:?}",
-                    bar0.read(),
-                    bar0.get_reg_type(),
-                    bar0.get_mem_addr(),
-                    bar0.get_mmio_addr()
-                );
-                println!(
-                    "BAR1(0x{:x}) - Type: {:?} MemAddr: {:?} MmioAddr: {:?}",
-                    bar1.read(),
-                    bar1.get_reg_type(),
-                    bar1.get_mem_addr(),
-                    bar1.get_mmio_addr()
-                );
-                println!(
-                    "BAR2(0x{:x}) - Type: {:?} MemAddr: {:?} MmioAddr: {:?}",
-                    bar2.read(),
-                    bar2.get_reg_type(),
-                    bar2.get_mem_addr(),
-                    bar2.get_mmio_addr()
-                );
-                println!(
-                    "BAR3(0x{:x}) - Type: {:?} MemAddr: {:?} MmioAddr: {:?}",
-                    bar3.read(),
-                    bar3.get_reg_type(),
-                    bar3.get_mem_addr(),
-                    bar3.get_mmio_addr()
-                );
-                println!(
-                    "BAR4(0x{:x}) - Type: {:?} MemAddr: {:?} MmioAddr: {:?}",
-                    bar4.read(),
-                    bar4.get_reg_type(),
-                    bar4.get_mem_addr(),
-                    bar4.get_mmio_addr()
-                );
-                println!(
-                    "BAR5(0x{:x}) - Type: {:?} MemAddr: {:?} MmioAddr: {:?}",
-                    bar5.read(),
-                    bar5.get_reg_type(),
-                    bar5.get_mem_addr(),
-                    bar5.get_mmio_addr()
-                );
+                println!("{:?}", field.get_bars());
             }
             println!("--------------");
         }
