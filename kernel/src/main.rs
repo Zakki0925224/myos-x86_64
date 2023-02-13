@@ -6,6 +6,7 @@
 #![feature(alloc_error_handler)]
 
 mod arch;
+mod bus;
 mod device;
 mod env;
 mod graphics;
@@ -24,7 +25,7 @@ use graphics::GRAPHICS;
 use log::*;
 use terminal::TERMINAL;
 
-use crate::{arch::{gdt, idt}, device::pci::PciDeviceManager, util::logger};
+use crate::{arch::{gdt, idt}, bus::pci::device::PciDeviceManager, util::logger};
 
 #[no_mangle]
 #[start]
