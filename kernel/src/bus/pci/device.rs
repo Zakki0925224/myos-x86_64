@@ -1,8 +1,4 @@
-use alloc::vec::Vec;
-
-use crate::{bus::pci::BaseAddress, println};
-
-use super::*;
+use super::conf_space::*;
 
 #[derive(Debug)]
 pub struct PciDevice
@@ -91,69 +87,12 @@ impl PciDevice
             _ => return None,
         }
     }
-}
 
-#[derive(Debug)]
-pub struct PciDeviceManager
-{
-    devices: Vec<PciDevice>,
-}
-
-impl PciDeviceManager
-{
-    pub fn new() -> Self
+    pub fn get_device_id(&self) -> (u8, u8, u8)
     {
-        let mut devices = Vec::new();
-
-        for bus in 0..PCI_DEVICE_BUS_LEN
-        {
-            for device in 0..PCI_DEVICE_DEVICE_LEN
-            {
-                for func in 0..PCI_DEVICE_FUNC_LEN
-                {
-                    if let Some(pci_device) = PciDevice::new(bus, device, func)
-                    {
-                        if pci_device.conf_space_header.is_exist()
-                        {
-                            devices.push(pci_device);
-                        }
-                    }
-                }
-            }
-        }
-
-        return Self { devices };
-    }
-
-    pub fn debug(&self)
-    {
-        for d in &self.devices
-        {
-            println!("{}:{}:{}", d.bus, d.device, d.func);
-            println!("{:?}", d.conf_space_header.header_type());
-            println!("{:?}", d.conf_space_header.get_device_name());
-            if let Some(field) = d.read_conf_space_non_bridge_field()
-            {
-                for bar in field.get_bars()
-                {
-                    let ty = match bar.1
-                    {
-                        BaseAddress::MemoryAddress32BitSpace(_, _) => "32 bit memory",
-                        BaseAddress::MemoryAddress64BitSpace(_, _) => "64 bit memory",
-                        BaseAddress::MmioAddressSpace(_) => "I/O",
-                    };
-
-                    let addr = match bar.1
-                    {
-                        BaseAddress::MemoryAddress32BitSpace(addr, _) => addr.get() as usize,
-                        BaseAddress::MemoryAddress64BitSpace(addr, _) => addr.get() as usize,
-                        BaseAddress::MmioAddressSpace(addr) => addr as usize,
-                    };
-
-                    println!("BAR{}: {} at 0x{:x}", bar.0, ty, addr);
-                }
-            }
-            println!("--------------");
-        }
+        let class_code = self.conf_space_header.class_code();
+        let subclass_code = self.conf_space_header.subclass();
+        let prog_if = self.conf_space_header.prog_if();
+        return (class_code, subclass_code, prog_if);
     }
 }
