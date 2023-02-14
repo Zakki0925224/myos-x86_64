@@ -25,7 +25,7 @@ use graphics::GRAPHICS;
 use log::*;
 use terminal::TERMINAL;
 
-use crate::{arch::{gdt, idt}, bus::pci::device::PciDeviceManager, util::logger};
+use crate::{arch::{gdt, idt}, bus::pci::PciDeviceManager, device::usb::{self, Usb, UsbMode}, util::logger};
 
 #[no_mangle]
 #[start]
@@ -56,10 +56,14 @@ pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> !
     // initialize memory management
     mem::init(boot_info.get_mem_map());
 
+    // initialize pci
+    bus::init();
+
     env::print_info();
 
-    let pci_device_manager = PciDeviceManager::new();
-    pci_device_manager.debug();
+    //let pci_device_manager = PciDeviceManager::scan_devices();
+    let usb_driver = Usb::new(UsbMode::Xhci);
+    println!("{:?}", usb_driver);
 
     loop
     {
