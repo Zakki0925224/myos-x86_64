@@ -7,6 +7,8 @@ use spin::Mutex;
 pub mod conf_space;
 pub mod device;
 pub mod device_id;
+pub mod msi;
+pub mod vendor_id;
 
 lazy_static! {
     pub static ref PCI_DEVICE_MAN: Mutex<PciDeviceManager> = Mutex::new(PciDeviceManager::new());
@@ -46,10 +48,24 @@ impl PciDeviceManager
         self.devices = devices;
     }
 
-    pub fn find(&self, class_code: u8, subclass_code: u8, prog_if: u8) -> Option<&PciDevice>
+    pub fn find_by_class(
+        &self,
+        class_code: u8,
+        subclass_code: u8,
+        prog_if: u8,
+    ) -> Option<&PciDevice>
+    {
+        let found = self
+            .devices
+            .iter()
+            .find(|d| d.get_device_class() == (class_code, subclass_code, prog_if));
+        return found;
+    }
+
+    pub fn find_by_bdf(&self, bus: usize, device: usize, func: usize) -> Option<&PciDevice>
     {
         let found =
-            self.devices.iter().find(|d| d.get_device_id() == (class_code, subclass_code, prog_if));
+            self.devices.iter().find(|d| d.bus == bus && d.device == device && d.func == func);
         return found;
     }
 
@@ -60,7 +76,7 @@ impl PciDeviceManager
             println!("{}:{}:{}", d.bus, d.device, d.func);
             println!("{:?}", d.conf_space_header.header_type());
             println!("{:?}", d.conf_space_header.get_device_name());
-            println!("class code: 0x{:x}", d.conf_space_header.class_code());
+            println!("{:?}", d.read_caps_list());
             if let Some(field) = d.read_conf_space_non_bridge_field()
             {
                 for bar in field.get_bars()

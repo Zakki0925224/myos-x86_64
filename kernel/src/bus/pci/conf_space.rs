@@ -2,7 +2,7 @@ use alloc::vec::Vec;
 use modular_bitfield::{bitfield, specifiers::*, BitfieldSpecifier};
 use pci_ids::*;
 
-use crate::arch::{addr::VirtualAddress, asm};
+use crate::arch::{addr::PhysicalAddress, asm};
 
 const MMIO_PORT_CONF_ADDR: u32 = 0xcf8;
 const MMIO_PORT_CONF_DATA: u32 = 0xcfc;
@@ -10,7 +10,6 @@ const PCI_DEVICE_NON_EXIST: u16 = 0xffff;
 pub const PCI_DEVICE_BUS_LEN: usize = 256;
 pub const PCI_DEVICE_DEVICE_LEN: usize = 32;
 pub const PCI_DEVICE_FUNC_LEN: usize = 8;
-const PCI_CONF_MAX_OFFSET: usize = 124;
 const PCI_CONF_UNIQUE_FIELD_OFFSET: usize = 16;
 
 #[derive(BitfieldSpecifier, Debug, Clone, Copy)]
@@ -26,18 +25,18 @@ pub enum ConfigurationSpaceParityErrorResponse
 #[repr(C)]
 pub struct ConfigurationSpaceCommandRegister
 {
-    io_space: bool,
-    mem_space: bool,
-    bus_master: bool,
-    monitor_special_cycles: bool,
-    mem_write_and_invalidate_enable: bool,
-    vga_palette_snoop: bool,
-    parity_err_res: ConfigurationSpaceParityErrorResponse,
+    pub io_space: bool,
+    pub mem_space: bool,
+    pub bus_master: bool,
+    pub monitor_special_cycles: bool,
+    pub mem_write_and_invalidate_enable: bool,
+    pub vga_palette_snoop: bool,
+    pub parity_err_res: ConfigurationSpaceParityErrorResponse,
     #[skip]
     reserved1: B1,
-    serr_enable: bool,
-    fast_back_to_back_enable: bool,
-    interrupt_disable: bool,
+    pub serr_enable: bool,
+    pub fast_back_to_back_enable: bool,
+    pub interrupt_disable: bool,
     #[skip]
     reserved0: B5,
 }
@@ -66,19 +65,19 @@ pub struct ConfigurationSpaceStatusRegister
 {
     #[skip]
     reserved1: B3,
-    interrupt_status_enable: bool,
-    capabilities_list_available: bool,
-    operating_frequency: ConfigurationSpaceOperatingFrequency,
+    pub interrupt_status_enable: bool,
+    pub caps_list_available: bool,
+    pub operating_frequency: ConfigurationSpaceOperatingFrequency,
     #[skip]
     reserved0: B1,
-    fast_back_to_back_capable: bool,
-    master_data_parity_err: bool,
-    devsel_timing: ConfigurationSpaceDevselTiming,
-    signaled_target_abort: bool,
-    received_target_abort: bool,
-    received_master_abort: bool,
-    signaled_system_err: bool,
-    detected_parity_err: bool,
+    pub fast_back_to_back_capable: bool,
+    pub master_data_parity_err: bool,
+    pub devsel_timing: ConfigurationSpaceDevselTiming,
+    pub signaled_target_abort: bool,
+    pub received_target_abort: bool,
+    pub received_master_abort: bool,
+    pub signaled_system_err: bool,
+    pub detected_parity_err: bool,
 }
 
 #[derive(BitfieldSpecifier, Debug, Clone, Copy)]
@@ -133,9 +132,9 @@ impl ConfigurationSpaceCommonHeaderField
         }
 
         let data = data.map(|d| d.unwrap());
-        let header = unsafe { data.align_to::<Self>() }.1[0];
+        let field = unsafe { data.align_to::<Self>() }.1[0];
 
-        return Some(header);
+        return Some(field);
     }
 
     pub fn is_exist(&self) -> bool { return self.vendor_id() != PCI_DEVICE_NON_EXIST; }
@@ -216,8 +215,8 @@ impl ConfigurationSpaceCommonHeaderField
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BaseAddress
 {
-    MemoryAddress32BitSpace(VirtualAddress, bool), // (addr, is prefetchable)
-    MemoryAddress64BitSpace(VirtualAddress, bool),
+    MemoryAddress32BitSpace(PhysicalAddress, bool), // (addr, is prefetchable)
+    MemoryAddress64BitSpace(PhysicalAddress, bool),
     MmioAddressSpace(u32),
 }
 #[bitfield]
@@ -245,11 +244,11 @@ impl BaseAddressRegister
 
         let bar_type = (bar >> 1) & 0x3;
         let prefetchable = bar & 0x8 != 0;
-        let virt_addr = VirtualAddress::new((bar & !0xf) as u64);
+        let phys_addr = PhysicalAddress::new((bar & !0xf) as u64);
         match bar_type
         {
-            0x0 => return Some(BaseAddress::MemoryAddress32BitSpace(virt_addr, prefetchable)),
-            0x2 => return Some(BaseAddress::MemoryAddress64BitSpace(virt_addr, prefetchable)),
+            0x0 => return Some(BaseAddress::MemoryAddress32BitSpace(phys_addr, prefetchable)),
+            0x2 => return Some(BaseAddress::MemoryAddress64BitSpace(phys_addr, prefetchable)),
             _ => return None,
         }
     }
@@ -270,7 +269,7 @@ pub struct ConfigurationSpaceNonBridgeField
     subsystem_vendor_id: B16,
     subsystem_id: B16,
     expansion_rom_base_addr: B32,
-    caps_pointer: B8,
+    pub caps_ptr: B8,
     #[skip]
     reserved0: B24,
     #[skip]
@@ -306,9 +305,9 @@ impl ConfigurationSpaceNonBridgeField
         }
 
         let data = data.map(|d| d.unwrap());
-        let header = unsafe { data.align_to::<Self>() }.1[0];
+        let field = unsafe { data.align_to::<Self>() }.1[0];
 
-        return Some(header);
+        return Some(field);
     }
 
     pub fn get_bars(&self) -> Vec<(usize, BaseAddress)>
@@ -333,8 +332,8 @@ impl ConfigurationSpaceNonBridgeField
                 {
                     let (_, next_bar) = &bars[i + 1];
                     let addr = (next_bar.read() as u64) << 32 | addr.get();
-                    let virt_addr = VirtualAddress::new(addr);
-                    let base_addr = BaseAddress::MemoryAddress64BitSpace(virt_addr, is_pref);
+                    let phys_addr = PhysicalAddress::new(addr);
+                    let base_addr = BaseAddress::MemoryAddress64BitSpace(phys_addr, is_pref);
                     base_addrs.push((i, base_addr));
                     bars[i] = bars.remove(i + 1);
                 }
@@ -371,7 +370,7 @@ pub struct ConfigurationSpacePciToPciBridgeField
     pref_mem_limit_high: B32,
     io_base_high: B16,
     io_limit_high: B16,
-    caps_pointer: B8,
+    pub caps_ptr: B8,
     #[skip]
     reserved: B24,
     expansion_rom_base_addr: B32,
@@ -405,9 +404,9 @@ impl ConfigurationSpacePciToPciBridgeField
         }
 
         let data = data.map(|d| d.unwrap());
-        let header = unsafe { data.align_to::<Self>() }.1[0];
+        let field = unsafe { data.align_to::<Self>() }.1[0];
 
-        return Some(header);
+        return Some(field);
     }
 
     pub fn get_bars(&self) -> Vec<(usize, BaseAddress)>
@@ -428,8 +427,8 @@ impl ConfigurationSpacePciToPciBridgeField
                 {
                     let (_, next_bar) = &bars[i + 1];
                     let addr = (next_bar.read() as u64) << 32 | addr.get();
-                    let virt_addr = VirtualAddress::new(addr);
-                    let base_addr = BaseAddress::MemoryAddress64BitSpace(virt_addr, is_pref);
+                    let phys_addr = PhysicalAddress::new(addr);
+                    let base_addr = BaseAddress::MemoryAddress64BitSpace(phys_addr, is_pref);
                     base_addrs.push((i, base_addr));
                     bars[i] = bars.remove(i + 1);
                 }
@@ -501,18 +500,17 @@ impl ConfigurationSpacePciToCardBusField
         }
 
         let data = data.map(|d| d.unwrap());
-        let header = unsafe { data.align_to::<Self>() }.1[0];
+        let field = unsafe { data.align_to::<Self>() }.1[0];
 
-        return Some(header);
+        return Some(field);
     }
 }
 
-fn read_conf_space(bus: usize, device: usize, func: usize, byte_offset: usize) -> Option<u32>
+pub fn read_conf_space(bus: usize, device: usize, func: usize, byte_offset: usize) -> Option<u32>
 {
     if bus >= PCI_DEVICE_BUS_LEN
         || device >= PCI_DEVICE_DEVICE_LEN
         || func >= PCI_DEVICE_FUNC_LEN
-        || byte_offset > PCI_CONF_MAX_OFFSET
         || byte_offset % 4 != 0
     {
         return None;

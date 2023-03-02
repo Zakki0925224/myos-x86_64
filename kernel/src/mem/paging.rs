@@ -185,7 +185,7 @@ impl Paging
 
         // pml4 table
         let page_table_addr = self.pml4_table_addr.get_virt_addr();
-        let mut table = page_table_addr.read_volatile::<PageTable>();
+        let mut table: PageTable = page_table_addr.read_volatile();
         let entry = &mut table.entries[pml4e_index];
         let mut entry_addr = entry.get_addr().get_virt_addr();
 
@@ -216,7 +216,7 @@ impl Paging
 
         // pml3 table
         let page_table_addr = entry_addr;
-        let mut table = page_table_addr.read_volatile::<PageTable>();
+        let mut table: PageTable = page_table_addr.read_volatile();
         let entry = &mut table.entries[pml3e_index];
         let mut entry_addr = entry.get_addr().get_virt_addr();
 
@@ -261,7 +261,7 @@ impl Paging
 
         // pml2 table
         let page_table_addr = entry_addr;
-        let mut table = page_table_addr.read_volatile::<PageTable>();
+        let mut table: PageTable = page_table_addr.read_volatile();
         let entry = &mut table.entries[pml2e_index];
         let mut entry_addr = entry.get_addr().get_virt_addr();
 
@@ -306,7 +306,7 @@ impl Paging
 
         // pml1 table
         let page_table_addr = entry_addr;
-        let mut table = page_table_addr.read_volatile::<PageTable>();
+        let mut table: PageTable = page_table_addr.read_volatile();
         let entry = &mut table.entries[pml1e_index];
 
         if !entry.is_used()
@@ -348,7 +348,7 @@ impl Paging
             self.pml4_table_addr
         }
         .get_virt_addr();
-        let table = table_addr.read_volatile::<PageTable>();
+        let table: PageTable = table_addr.read_volatile();
         let entry = &table.entries[pml4e_index];
 
         //println!("get PML4 entry[{}]: {:?}", pml4e_index, entry);
@@ -359,7 +359,7 @@ impl Paging
         }
 
         // pml3 table (pdpt)
-        let table = entry.get_addr().get_virt_addr().read_volatile::<PageTable>();
+        let table: PageTable = entry.get_addr().get_virt_addr().read_volatile();
         let entry = &table.entries[pml3e_index];
 
         //println!("get PML3 entry[{}]: {:?}", pml3e_index, entry);
@@ -377,7 +377,7 @@ impl Paging
         }
 
         // pml2 table (pdt)
-        let table = entry.get_addr().get_virt_addr().read_volatile::<PageTable>();
+        let table: PageTable = entry.get_addr().get_virt_addr().read_volatile();
         let entry = &table.entries[pml2e_index];
 
         //println!("get PML2 entry[{}]: {:?}", pml2e_index, entry);
@@ -395,7 +395,7 @@ impl Paging
         }
 
         // pml1 table (pt)
-        let table = entry.get_addr().get_virt_addr().read_volatile::<PageTable>();
+        let table: PageTable = entry.get_addr().get_virt_addr().read_volatile();
         let entry = &table.entries[pml1e_index];
 
         //println!("get PML1 entry[{}]: {:?}", pml1e_index, entry);

@@ -1,4 +1,4 @@
-use crate::{arch::asm, device::serial::SERIAL, graphics::color::*};
+use crate::{device::serial::SERIAL, graphics::color::*};
 
 use super::graphics::GRAPHICS;
 use core::fmt::{self, Write};
