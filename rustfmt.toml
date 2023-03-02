@@ -1,7 +1,6 @@
 control_brace_style = "AlwaysNextLine"
 brace_style = "AlwaysNextLine"
 fn_single_line = true
-#indent_style = "Visual"
 hex_literal_case = "Lower"
 imports_layout = "Horizontal"
 imports_indent = "Visual"

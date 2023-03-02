@@ -1,6 +1,6 @@
 use core::mem::size_of;
 
-use log::info;
+use log::{info, warn};
 
 use crate::{arch::addr::VirtualAddress, bus::pci::{conf_space::BaseAddress, device_id::*, PCI_DEVICE_MAN}, device::xhci::host::regs::*, println};
 
@@ -48,7 +48,7 @@ impl XhciHostDriver
             return Some(usb);
         }
 
-        info!("xHCI host controller was not found");
+        warn!("xHCI host controller was not found");
         return None;
     }
 
@@ -81,6 +81,12 @@ impl XhciHostDriver
             self.int_reg_sets_virt_addr = self.cap_reg_virt_addr.offset(
                 cap_reg.runtime_reg_space_offset() as usize + size_of::<RuntimeRegitsers>(),
             );
+
+            info!("Initialized xHCI host driver");
+        }
+        else
+        {
+            warn!("Failed to initialize xHCI host driver")
         }
     }
 
