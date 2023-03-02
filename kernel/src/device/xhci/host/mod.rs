@@ -1,8 +1,8 @@
 use core::mem::size_of;
 
-use log::{info, warn};
+use log::{debug, info, warn};
 
-use crate::{arch::addr::VirtualAddress, bus::pci::{conf_space::BaseAddress, device_id::*, PCI_DEVICE_MAN}, device::xhci::host::regs::*, println};
+use crate::{arch::addr::VirtualAddress, bus::pci::{conf_space::BaseAddress, device_id::*, PCI_DEVICE_MAN}, device::xhci::host::regs::*, print, println};
 
 pub mod regs;
 
@@ -54,6 +54,11 @@ impl XhciHostDriver
 
     pub fn init(&mut self)
     {
+        fn failed_init_msg()
+        {
+            warn!("Failed to initialize xHCI host driver");
+        }
+
         if let Some(controller) = PCI_DEVICE_MAN.lock().find_by_bdf(
             self.controller_pci_bus,
             self.controller_pci_device,
@@ -61,12 +66,17 @@ impl XhciHostDriver
         )
         {
             let bars = controller.read_conf_space_non_bridge_field().unwrap().get_bars();
-            println!("{:?}", bars);
             self.cap_reg_virt_addr = match bars[0].1
             {
                 BaseAddress::MemoryAddress64BitSpace(addr, _) => addr,
                 BaseAddress::MemoryAddress32BitSpace(addr, _) => addr,
-                _ => panic!(),
+                _ =>
+                {
+                    warn!("Invalid base address registers");
+                    println!("{:?}", bars);
+                    failed_init_msg();
+                    return;
+                }
             }
             .get_virt_addr();
 
@@ -82,11 +92,43 @@ impl XhciHostDriver
                 cap_reg.runtime_reg_space_offset() as usize + size_of::<RuntimeRegitsers>(),
             );
 
+            if self.ope_reg_virt_addr.get() == 0
+                || self.runtime_reg_virt_addr.get() == 0
+                || self.int_reg_sets_virt_addr.get() == 0
+            {
+                warn!("Some registers virtual address is 0");
+                failed_init_msg();
+                return;
+            }
+
+            // initialize host controller
+            let ope_reg = self.read_ope_reg().unwrap();
+            if !ope_reg.usb_status().hchalted()
+            {
+                warn!("USBSTS.HCH is not 1");
+                failed_init_msg();
+                return;
+            }
+
+            ope_reg.usb_cmd().set_host_controller_reset(true);
+            self.write_ope_reg(ope_reg);
+
+            loop
+            {
+                info!("Waiting xHCI host controller...");
+                let ope_reg = self.read_ope_reg().unwrap();
+                if !ope_reg.usb_cmd().host_controller_reset()
+                    && !ope_reg.usb_status().controller_not_ready()
+                {
+                    break;
+                }
+            }
+
             info!("Initialized xHCI host driver");
         }
         else
         {
-            warn!("Failed to initialize xHCI host driver")
+            failed_init_msg();
         }
     }
 
@@ -108,6 +150,14 @@ impl XhciHostDriver
         }
 
         return Some(self.ope_reg_virt_addr.read_volatile());
+    }
+
+    pub fn write_ope_reg(&self, ope_reg: OperationalRegisters)
+    {
+        if self.ope_reg_virt_addr.get() != 0
+        {
+            self.ope_reg_virt_addr.write_volatile(ope_reg);
+        }
     }
 
     pub fn read_runtime_reg(&self) -> Option<RuntimeRegitsers>

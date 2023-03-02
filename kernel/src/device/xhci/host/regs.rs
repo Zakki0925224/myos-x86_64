@@ -109,23 +109,25 @@ pub struct CapabilityRegisters
 #[repr(C)]
 pub struct UsbCommandRegister
 {
-    run_stop: B1,
-    host_controller_reset: bool,
-    intr_enable: bool,
+    pub run_stop: B1,
+    pub host_controller_reset: bool,
+    pub intr_enable: bool,
     #[skip]
     reserved0: B3,
-    host_system_err_enable: bool,
-    light_host_controller_reset: bool,
-    controller_save_state: B1,
-    controller_reset_state: B1,
-    enable_wrap_event: bool,
-    enable_u3_mfindex_stop: bool,
+    pub host_system_err_enable: bool,
+    pub light_host_controller_reset: bool,
+    pub controller_save_state: B1,
+    pub controller_reset_state: B1,
+    pub enable_wrap_event: bool,
+    pub enable_u3_mfindex_stop: bool,
     #[skip]
     reserved1: B1,
-    cem_enable: bool,
-    extended_tbc_enable: bool,
-    extended_tbc_trb_status_enable: bool,
-    vtio_enable: bool,
+    pub cem_enable: bool,
+    #[skip(setters)]
+    pub extended_tbc_enable: bool,
+    #[skip(setters)]
+    pub extended_tbc_trb_status_enable: bool,
+    pub vtio_enable: bool,
     #[skip]
     reserved2: B15,
 }
@@ -135,19 +137,24 @@ pub struct UsbCommandRegister
 #[repr(C)]
 pub struct UsbStatusRegister
 {
-    hchalted: bool,
+    #[skip(setters)]
+    pub hchalted: bool,
     #[skip]
     reserved0: B1,
-    host_system_err: bool,
-    event_int: bool,
-    port_change_detect: bool,
+    pub host_system_err: bool,
+    pub event_int: bool,
+    pub port_change_detect: bool,
     #[skip]
     reserved1: B3,
-    save_state_status: B1,
-    restore_state_status: B1,
-    save_restore_err: bool,
-    controller_not_ready: bool,
-    host_controller_err: bool,
+    #[skip(setters)]
+    pub save_state_status: B1,
+    #[skip(setters)]
+    pub restore_state_status: B1,
+    pub save_restore_err: bool,
+    #[skip(setters)]
+    pub controller_not_ready: bool,
+    #[skip(setters)]
+    pub host_controller_err: bool,
     #[skip]
     reserved2: B19,
 }
@@ -208,17 +215,17 @@ pub struct ConfigureRegister
 #[repr(C)]
 pub struct OperationalRegisters
 {
-    usb_cmd: UsbCommandRegister,
-    usb_status: UsbStatusRegister,
-    page_size: B32,
+    pub usb_cmd: UsbCommandRegister,
+    pub usb_status: UsbStatusRegister,
+    pub page_size: B32,
     #[skip]
     reserved0: B64,
-    device_notification_ctrl: DeviceNotificationControlRegister,
-    cmd_ring_ctrl: CommandRingControlRegister,
+    pub device_notification_ctrl: DeviceNotificationControlRegister,
+    pub cmd_ring_ctrl: CommandRingControlRegister,
     #[skip]
     reserved1: B128,
-    device_context_base_addr_array_ptr: B64,
-    configure: ConfigureRegister,
+    pub device_context_base_addr_array_ptr: B64,
+    pub configure: ConfigureRegister,
 }
 
 #[bitfield]
