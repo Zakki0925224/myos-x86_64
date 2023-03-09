@@ -1,21 +1,24 @@
-use modular_bitfield::{bitfield, specifiers::*};
+use modular_bitfield::{bitfield, specifiers::*, BitfieldSpecifier};
 
 #[bitfield]
 #[derive(BitfieldSpecifier, Debug, Clone, Copy)]
 #[repr(C)]
-pub struct StructualParamaters1
+pub struct StructuralParamaters1
 {
-    max_device_slots: B8,
-    max_ints: B11,
+    #[skip(setters)]
+    pub max_device_slots: B8,
+    #[skip(setters)]
+    pub max_ints: B11,
     #[skip]
     reserved: B5,
-    max_slots: B8,
+    #[skip(setters)]
+    pub max_slots: B8,
 }
 
 #[bitfield]
 #[derive(BitfieldSpecifier, Debug, Clone, Copy)]
 #[repr(C)]
-pub struct StructualParamaters2
+pub struct StructuralParamaters2
 {
     isochronous_scheduling_threshold: B4,
     event_ring_seg_table_max: B4,
@@ -29,7 +32,7 @@ pub struct StructualParamaters2
 #[bitfield]
 #[derive(BitfieldSpecifier, Debug, Clone, Copy)]
 #[repr(C)]
-pub struct StructualParamaters3
+pub struct StructuralParamaters3
 {
     u1_device_exit_latency: B8,
     u2_device_exit_latency: B8,
@@ -89,11 +92,11 @@ pub struct CapabilityRegisters
     #[skip(setters)]
     pub interface_version_num: B16,
     #[skip(setters)]
-    pub structual_params1: StructualParamaters1,
+    pub structural_params1: StructuralParamaters1,
     #[skip(setters)]
-    pub structual_params2: StructualParamaters2,
+    pub structural_params2: StructuralParamaters2,
     #[skip(setters)]
-    pub structual_params3: StructualParamaters3,
+    pub structural_params3: StructuralParamaters3,
     #[skip(setters)]
     pub cap_params1: CapabilityParamaters1,
     #[skip(setters)]
@@ -189,13 +192,13 @@ pub struct DeviceNotificationControlRegister
 #[repr(C)]
 pub struct CommandRingControlRegister
 {
-    ring_cycle_state: B1,
-    cmd_stop: bool,
-    cmd_abort: bool,
-    cmd_ring_running: bool,
+    pub ring_cycle_state: B1,
+    pub cmd_stop: bool,
+    pub cmd_abort: bool,
+    pub cmd_ring_running: bool,
     #[skip]
     reserved: B2,
-    cmd_ring_ptr: B58,
+    pub cmd_ring_ptr: B58,
 }
 
 #[bitfield]
@@ -203,9 +206,9 @@ pub struct CommandRingControlRegister
 #[repr(C)]
 pub struct ConfigureRegister
 {
-    max_device_slots_ennabled: B8,
-    u3_entry_enable: bool,
-    configure_info_enable: bool,
+    pub max_device_slots_enabled: B8,
+    pub u3_entry_enable: bool,
+    pub configure_info_enable: bool,
     #[skip]
     reserved: B22,
 }
@@ -250,9 +253,97 @@ pub struct RuntimeRegitsers
     reserved6: B32,
 }
 
+#[bitfield]
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
-pub struct InterruptRegisterSets
+pub struct InterrupterRegisterSet
 {
-    pub registers: [u32; 1024],
+    // interrupter management
+    pub int_pending: bool,
+    pub int_enable: bool,
+    #[skip]
+    reserved0: B30,
+    // interrupter moderation
+    pub int_mod_interval: B16,
+    pub int_mod_counter: B16,
+
+    pub event_ring_seg_table_size: B16,
+    #[skip]
+    reserved1: B54,
+    pub event_ring_seg_table_base_addr: B58,
+    pub dequeue_erst_seg_index: B3,
+    pub event_handler_busy: bool,
+    pub event_ring_dequeue_ptr: B60,
+}
+
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct InterrupterRegisterSets
+{
+    pub registers: [InterrupterRegisterSet; 1024],
+}
+
+#[bitfield]
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct EventRingSegmentTableEntry
+{
+    #[skip]
+    reserved0: B6,
+    pub ring_seg_base_addr: B58,
+    pub ring_seg_size: B16,
+    #[skip]
+    reserved1: B48,
+}
+
+#[derive(BitfieldSpecifier, Debug, Clone, Copy)]
+#[bits = 6]
+pub enum TransferRequestBlockType
+{
+    Normal = 1,
+    SetupStage = 2,
+    DataStage = 3,
+    StatusStage = 4,
+    Isoch = 5,
+    Link = 6,
+    EventData = 7,
+    NoOp = 8,
+    EnableSlotCommand = 9,
+    DisableSlotCommand = 10,
+    AddressDeviceCommand = 11,
+    ConfigureEndpointCommnad = 12,
+    EvaluateContextCommand = 13,
+    ResetEndpointCommand = 14,
+    StopEndpointCommand = 15,
+    SetTrDequeuePointerCommand = 16,
+    ResetDeviceCommand = 17,
+    ForceEventCommand = 18,
+    NegotiateBandwidthCommand = 19,
+    SetLatencyToleranceValueCommand = 20,
+    GetPortBandWithCommand = 21,
+    ForceHeaderCommand = 22,
+    NoOpCommand = 23,
+    GetExtendedPropertyCommand = 24,
+    SetExtendedPropertyCommand = 25,
+    TransferEvent = 32,
+    CommandCompletionEvent = 33,
+    PortStatusChangeEvent = 34,
+    BandwithRequestEvent = 35,
+    DoorbellEvent = 36,
+    HostControllerEvent = 37,
+    DeviceNotificationEvent = 38,
+    MfIndexWrapEvent = 39,
+}
+
+#[bitfield]
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct TransferRequestBlock
+{
+    pub param: B64,
+    pub status: B32,
+    pub cycle_bit: B1,
+    pub other_flags: B9,
+    pub trb_type: TransferRequestBlockType,
+    pub ctrl_regs: B16,
 }
