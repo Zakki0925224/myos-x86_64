@@ -27,7 +27,7 @@ const VEC_MACHINE_CHECK: usize = 18;
 const VEC_SIMD_FLOATING_POINT_EX: usize = 19;
 const VEC_VIRT_EX: usize = 20;
 const VEC_CTRL_PROTECTION_EX: usize = 21;
-const VEC_MASKABLE_INT_0: usize = 32;
+pub const VEC_MASKABLE_INT_0: usize = 32;
 
 type Handler = extern "x86-interrupt" fn();
 

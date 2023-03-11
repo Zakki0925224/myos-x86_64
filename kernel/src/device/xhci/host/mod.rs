@@ -1,6 +1,6 @@
 use core::mem::size_of;
 
-use crate::{arch::{addr::VirtualAddress, apic::local::read_local_apic_id, register::msi::{DeliveryMode, Level, MsiMessageAddressField, MsiMessageDataField, TriggerMode}}, bus::pci::{conf_space::BaseAddress, device_id::*, msi::*, PCI_DEVICE_MAN}, device::xhci::host::register::*, mem::bitmap::BITMAP_MEM_MAN, println};
+use crate::{arch::{addr::VirtualAddress, apic::local::read_local_apic_id, idt::VEC_MASKABLE_INT_0, register::msi::*}, bus::pci::{conf_space::BaseAddress, device_id::*, msi::*, PCI_DEVICE_MAN}, device::xhci::host::register::*, mem::bitmap::BITMAP_MEM_MAN, println};
 use alloc::vec::Vec;
 use log::{info, warn};
 
@@ -38,7 +38,7 @@ impl XhciHostDriver
             };
 
             info!(
-                "xHCI host driver: {}.{}:{} - {}",
+                "xHCI host controller: {}.{}:{} - {}",
                 device.bus,
                 device.device,
                 device.func,
@@ -103,12 +103,12 @@ impl XhciHostDriver
 
             // initialize host controller
             let mut ope_reg = self.read_ope_reg().unwrap();
-            if !ope_reg.usb_status().hchalted()
-            {
-                warn!("USBSTS.HCH is not 1");
-                failed_init_msg();
-                return;
-            }
+            // if !ope_reg.usb_status().hchalted()
+            // {
+            //     warn!("USBSTS.HCH is not 1");
+            //     failed_init_msg();
+            //     return;
+            // }
 
             let mut usb_cmd = ope_reg.usb_cmd();
             usb_cmd.set_host_controller_reset(true);
@@ -254,7 +254,7 @@ impl XhciHostDriver
             msg_data.set_trigger_mode(TriggerMode::Level);
             msg_data.set_level(Level::Assert);
             msg_data.set_delivery_mode(DeliveryMode::Fixed);
-            msg_data.set_vector(20); // TODO
+            msg_data.set_vector(VEC_MASKABLE_INT_0 as u8); // TODO
             cap.set_msg_data(msg_data);
 
             caps_list.push(cap);
@@ -279,6 +279,7 @@ impl XhciHostDriver
             // start controller
             let mut ope_reg = self.read_ope_reg().unwrap();
             let mut usb_cmd = ope_reg.usb_cmd();
+            usb_cmd.set_intr_enable(true);
             usb_cmd.set_run_stop(1);
             ope_reg.set_usb_cmd(usb_cmd);
             self.write_ope_reg(ope_reg);
