@@ -1,3 +1,5 @@
+use crate::arch::register::msi::{MsiMessageAddressField, MsiMessageDataField};
+
 use super::conf_space;
 use modular_bitfield::{bitfield, specifiers::*, BitfieldSpecifier};
 
@@ -23,9 +25,9 @@ pub struct MsiCapabilityField
     pub cap_id: B8,
     pub next_ptr: B8,
     pub msg_ctrl: MsiMessageControlField,
-    pub msg_addr_low: B32,
+    pub msg_addr_low: MsiMessageAddressField,
     pub msg_addr_high: B32,
-    pub msg_data: B16,
+    pub msg_data: MsiMessageDataField,
     #[skip]
     reserved: B16,
 }

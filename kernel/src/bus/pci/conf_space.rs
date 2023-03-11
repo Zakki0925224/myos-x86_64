@@ -526,3 +526,22 @@ pub fn read_conf_space(bus: usize, device: usize, func: usize, byte_offset: usiz
 
     return Some(result);
 }
+
+pub fn write_conf_space(bus: usize, device: usize, func: usize, byte_offset: usize, data: u32)
+{
+    if bus >= PCI_DEVICE_BUS_LEN
+        || device >= PCI_DEVICE_DEVICE_LEN
+        || func >= PCI_DEVICE_FUNC_LEN
+        || byte_offset % 4 != 0
+    {
+        return;
+    }
+
+    let addr = 0x80000000
+        | (bus as u32) << 16
+        | (device as u32) << 11
+        | (func as u32) << 8
+        | byte_offset as u32;
+    asm::out32(MMIO_PORT_CONF_ADDR, addr);
+    asm::out32(MMIO_PORT_CONF_DATA, data);
+}

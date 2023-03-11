@@ -1,11 +1,10 @@
 use core::mem::size_of;
 
-use common::mem_desc::UEFI_PAGE_SIZE;
-use log::{debug, info, warn};
+use crate::{arch::{addr::VirtualAddress, apic::local::read_local_apic_id, register::msi::{DeliveryMode, Level, MsiMessageAddressField, MsiMessageDataField, TriggerMode}}, bus::pci::{conf_space::BaseAddress, device_id::*, msi::*, PCI_DEVICE_MAN}, device::xhci::host::register::*, mem::bitmap::BITMAP_MEM_MAN, println};
+use alloc::vec::Vec;
+use log::{info, warn};
 
-use crate::{arch::addr::VirtualAddress, bus::pci::{conf_space::BaseAddress, device_id::*, PCI_DEVICE_MAN}, device::xhci::host::regs::*, mem::bitmap::BITMAP_MEM_MAN, print, println};
-
-pub mod regs;
+pub mod register;
 
 #[derive(Debug)]
 pub struct XhciHostDriver
@@ -116,8 +115,16 @@ impl XhciHostDriver
             ope_reg.set_usb_cmd(usb_cmd);
             self.write_ope_reg(ope_reg);
 
+            let mut cnt = 0;
             loop
             {
+                if cnt > 10
+                {
+                    warn!("Timed out");
+                    failed_init_msg();
+                    return;
+                }
+
                 info!("Waiting xHCI host controller...");
                 let ope_reg = self.read_ope_reg().unwrap();
                 if !ope_reg.usb_cmd().host_controller_reset()
@@ -125,6 +132,8 @@ impl XhciHostDriver
                 {
                     break;
                 }
+
+                cnt += 1;
             }
 
             // initialize device context
@@ -222,6 +231,76 @@ impl XhciHostDriver
                 warn!("Failed to allocate memory frame for event ring or InterruptRegisterSets was not found");
                 failed_init_msg();
                 return;
+            }
+
+            // setting up msi
+            let mut caps_list = Vec::new();
+
+            let mut cap = MsiCapabilityField::new();
+            cap.set_cap_id(5);
+
+            let mut msg_ctrl = MsiMessageControlField::new();
+            msg_ctrl.set_is_enable(true);
+            msg_ctrl.set_multiple_msg_capable(0);
+            cap.set_msg_ctrl(msg_ctrl);
+
+            let mut msg_addr = MsiMessageAddressField::new();
+            msg_addr.set_destination_id(read_local_apic_id());
+            msg_addr.set_redirection_hint_indication(0);
+            msg_addr.set_destination_mode(0);
+            cap.set_msg_addr_low(msg_addr);
+
+            let mut msg_data = MsiMessageDataField::new();
+            msg_data.set_trigger_mode(TriggerMode::Level);
+            msg_data.set_level(Level::Assert);
+            msg_data.set_delivery_mode(DeliveryMode::Fixed);
+            msg_data.set_vector(20); // TODO
+            cap.set_msg_data(msg_data);
+
+            caps_list.push(cap);
+            controller.write_caps_list(caps_list);
+
+            if let Some(mut reg_sets) = self.read_int_reg_sets()
+            {
+                let mut reg_0 = InterrupterRegisterSet::new();
+                reg_0.set_int_mod_interval(4000);
+                reg_0.set_int_pending(true);
+                reg_0.set_int_enable(true);
+                reg_sets.registers[0] = reg_0;
+                self.write_int_reg_sets(reg_sets);
+            }
+            else
+            {
+                warn!("Failed to read Interrupter Register Sets");
+                failed_init_msg();
+                return;
+            }
+
+            // start controller
+            let mut ope_reg = self.read_ope_reg().unwrap();
+            let mut usb_cmd = ope_reg.usb_cmd();
+            usb_cmd.set_run_stop(1);
+            ope_reg.set_usb_cmd(usb_cmd);
+            self.write_ope_reg(ope_reg);
+
+            let mut cnt = 0;
+            loop
+            {
+                if cnt > 10
+                {
+                    warn!("Timed out");
+                    failed_init_msg();
+                    return;
+                }
+
+                info!("Waiting xHCI host controller...");
+                let ope_reg = self.read_ope_reg().unwrap();
+                if !ope_reg.usb_status().hchalted()
+                {
+                    break;
+                }
+
+                cnt += 1;
             }
 
             info!("Initialized xHCI host driver");

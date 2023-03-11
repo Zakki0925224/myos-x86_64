@@ -126,11 +126,17 @@ extern "x86-interrupt" fn double_fault_handler()
     panic!("Exception: DOUBLE FAULT");
 }
 
+extern "x86-interrupt" fn xhci_host_controller_int()
+{
+    info!("Interrupt: XHCI HOST CONTROLLER");
+}
+
 pub fn init()
 {
     // TODO: support IDT updates via LIDT (use IDT struct)
     set_handler(VEC_BREAKPOINT, breakpint_handler);
     set_handler(VEC_PAGE_FAULT, page_fault_handler);
     set_handler(VEC_DOUBLE_FAULT, double_fault_handler);
+    set_handler(VEC_MASKABLE_INT_0, xhci_host_controller_int);
     info!("Initialized IDT");
 }

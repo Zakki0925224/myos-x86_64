@@ -1,4 +1,6 @@
-use super::{conf_space::*, msi::MsiCapabilityField};
+use core::mem::size_of;
+
+use super::{conf_space::{self, *}, msi::MsiCapabilityField};
 use alloc::vec::Vec;
 
 #[derive(Debug)]
@@ -118,7 +120,7 @@ impl PciDevice
             }
             ConfigurationSpaceHeaderType::PciToPciBridge =>
             {
-                self.read_conf_space_non_bridge_field().unwrap().caps_ptr() as usize
+                self.read_conf_space_pci_to_pci_bridge_field().unwrap().caps_ptr() as usize
             }
             _ => return None, // unsupported type
         };
@@ -138,5 +140,64 @@ impl PciDevice
         }
 
         return Some(list);
+    }
+
+    pub fn write_caps_list(&self, mut caps_list: Vec<MsiCapabilityField>)
+    {
+        if !self.is_available_msi_int()
+        {
+            return;
+        }
+
+        let caps_ptr = match self.conf_space_header.header_type()
+        {
+            ConfigurationSpaceHeaderType::NonBridge =>
+            {
+                self.read_conf_space_non_bridge_field().unwrap().caps_ptr() as usize
+            }
+            ConfigurationSpaceHeaderType::PciToPciBridge =>
+            {
+                self.read_conf_space_pci_to_pci_bridge_field().unwrap().caps_ptr() as usize
+            }
+            _ => return, // unsupported type
+        };
+
+        let mut ptr_base = size_of::<ConfigurationSpaceCommonHeaderField>()
+            + size_of::<ConfigurationSpaceNonBridgeField>();
+        if caps_ptr == 0
+        {
+            let caps_list_len = caps_list.len();
+            for (i, cap) in caps_list.iter_mut().enumerate()
+            {
+                let next_ptr = if i == caps_list_len - 1
+                {
+                    0
+                }
+                else
+                {
+                    (ptr_base + i * size_of::<MsiCapabilityField>()) as u8
+                };
+                cap.set_next_ptr(next_ptr);
+            }
+        }
+        else
+        {
+            ptr_base = caps_ptr;
+        }
+
+        for cap in caps_list.iter()
+        {
+            let dwordbytes = unsafe { cap.into_bytes().align_to::<[u32; 4]>() }.1[0];
+            for i in 0..dwordbytes.len()
+            {
+                conf_space::write_conf_space(
+                    self.bus,
+                    self.device,
+                    self.func,
+                    ptr_base + i * 4,
+                    dwordbytes[i],
+                );
+            }
+        }
     }
 }
