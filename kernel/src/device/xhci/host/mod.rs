@@ -1,6 +1,6 @@
 use core::mem::size_of;
 
-use crate::{arch::{addr::VirtualAddress, apic::local::read_local_apic_id, idt::VEC_MASKABLE_INT_0, register::msi::*}, bus::pci::{conf_space::BaseAddress, device_id::*, msi::*, PCI_DEVICE_MAN}, device::xhci::host::register::*, mem::bitmap::BITMAP_MEM_MAN, println};
+use crate::{arch::{addr::VirtualAddress, apic::local::read_local_apic_id, idt::VEC_MASKABLE_INT_0, register::msi::*}, bus::pci::{conf_space::BaseAddress, device_id::*, msi::*, PCI_DEVICE_MAN}, device::xhci::host::register::*, mem::bitmap::BITMAP_MEM_MAN};
 use alloc::vec::Vec;
 use log::{info, warn};
 
@@ -73,7 +73,6 @@ impl XhciHostDriver
                 _ =>
                 {
                     warn!("Invalid base address registers");
-                    println!("{:?}", bars);
                     failed_init_msg();
                     return;
                 }
@@ -103,6 +102,8 @@ impl XhciHostDriver
 
             // initialize host controller
             let mut ope_reg = self.read_ope_reg().unwrap();
+
+            // TODO: what to do if computer have already completed initialization (currently forced to initialize)
             // if !ope_reg.usb_status().hchalted()
             // {
             //     warn!("USBSTS.HCH is not 1");
@@ -254,7 +255,7 @@ impl XhciHostDriver
             msg_data.set_trigger_mode(TriggerMode::Level);
             msg_data.set_level(Level::Assert);
             msg_data.set_delivery_mode(DeliveryMode::Fixed);
-            msg_data.set_vector(VEC_MASKABLE_INT_0 as u8); // TODO
+            msg_data.set_vector(VEC_MASKABLE_INT_0 as u8);
             cap.set_msg_data(msg_data);
 
             caps_list.push(cap);
