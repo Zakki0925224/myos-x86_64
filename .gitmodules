@@ -6,3 +6,7 @@
 	path = third-party/edk2
 	url = https://github.com/tianocore/edk2.git
     ignore = dirty
+[submodule "third-party/qemu"]
+	path = third-party/qemu
+	url = https://gitlab.com/qemu-project/qemu.git
+    ignore = dirty

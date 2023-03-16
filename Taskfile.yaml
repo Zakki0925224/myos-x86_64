@@ -10,6 +10,7 @@ vars:
     THIRD_PARTY_DIR: third-party
     COZETTE_DIR: cozette
     EDK2_DIR: edk2
+    QEMU_DIR: qemu
 
     BOOTLOADER_FILE: bootx64.efi
     KERNEL_FILE: kernel.elf
@@ -20,9 +21,12 @@ vars:
     OVMF_CODE_FILE: OVMF_CODE.fd
     OVMF_VARS_FILE: OVMF_VARS.fd
     GDB_FILE: gdb.scr
+    QEMU_TRACE_FILE: qemu_trace
+
+    GIT_CHECKOUT_TO_LATEST_TAG: git submodule update --init --recursive && git fetch --tags && latestTag=$(git describe --tags `git rev-list --tags --max-count=1`) &&git checkout $latestTag && git gc
 
     QEMU_DEVICES: |
-        qemu-xhci
+        nec-usb-xhci,id=xhci
         ahci,id=ahci
         ide-cd,drive=disk,bus=ahci.0,bootindex=1
         usb-mouse
@@ -38,8 +42,9 @@ vars:
         -serial mon:stdio
         -monitor telnet::5678,server,nowait
         -gdb tcp::3333
-        -d int,cpu_reset -D qemu_debug.log
     QEMU: qemu-system-x86_64 -accel kvm {{range .QEMU_ARGS | splitLines -}}{{if .}}{{.}} {{end}}{{end -}} {{range .QEMU_DRIVES | splitLines -}}{{if .}}-drive {{.}} {{end}}{{end -}} {{range .QEMU_DEVICES | splitLines -}}{{if .}}-device {{.}} {{end}}{{end -}}
+    OWN_QEMU: "{{$.THIRD_PARTY_DIR}}/{{$.QEMU_DIR}}/build/x86_64-softmmu/{{$.QEMU}} --display sdl --trace events={{$.QEMU_TRACE_FILE}}"
+
 tasks:
     clear:
         cmds:
@@ -53,32 +58,31 @@ tasks:
     build-cozette:
         dir: ./{{$.THIRD_PARTY_DIR}}/{{$.COZETTE_DIR}}
         cmds:
-            - git submodule update --init --recursive
-            - git fetch --tags
-            - latestTag=$(git describe --tags `git rev-list --tags --max-count=1`)
-            - git checkout $latestTag
+            - if [ ! -f ../{{$.COZETTE_FILE}} ];then {{$.GIT_CHECKOUT_TO_LATEST_TAG}} ;fi
             - if [ ! -f ../{{$.COZETTE_FILE}} ];then pipenv install --python 3 && pipenv run python3 ./build.py fonts ;fi
-            - if [ ! -f ../{{$.COZETTE_FILE}} ];then bdf2psf --fb ./build/cozette.bdf /usr/share/bdf2psf/standard.equivalents /usr/share/bdf2psf/fontsets/Uni2.512 512 ../{{$.COZETTE_FILE}};fi
+            - if [ ! -f ../{{$.COZETTE_FILE}} ];then bdf2psf --fb ./build/cozette.bdf /usr/share/bdf2psf/standard.equivalents /usr/share/bdf2psf/fontsets/Uni2.512 512 ../{{$.COZETTE_FILE}} ;fi
 
     build-edk2:
         dir: ./{{$.THIRD_PARTY_DIR}}/{{$.EDK2_DIR}}
         cmds:
-            - git submodule update --init --recursive
-            - git fetch --tags
-            - latestTag=$(git describe --tags `git rev-list --tags --max-count=1`)
-            - git checkout $latestTag
-            - make -C ./BaseTools/Source/C
-            - if [ ! -f ../{{$.OVMF_CODE_FILE}} ] || [ ! -f ../{{$.OVMF_VARS_FILE}} ];then ./OvmfPkg/build.sh -a X64 -b RELEASE -n 4;fi
-            - if [ ! -f ../{{$.OVMF_CODE_FILE}} ];then sudo cp /usr/share/OVMF/x64/OVMF_CODE.fd ../{{$.OVMF_CODE_FILE}} && sudo chown zakki:zakki ../{{$.OVMF_CODE_FILE}};fi
-            - if [ ! -f ../{{$.OVMF_VARS_FILE}} ];then sudo cp /usr/share/OVMF/x64/OVMF_VARS.fd ../{{$.OVMF_VARS_FILE}} && sudo chown zakki:zakki ../{{$.OVMF_VARS_FILE}};fi
-            # - if [ ! -f ../{{$.OVMF_CODE_FILE}} ];then cp ./Build/OvmfX64/RELEASE_GCC5/FV/OVMF_CODE.fd ../{{$.OVMF_CODE_FILE}};fi
-            # - if [ ! -f ../{{$.OVMF_VARS_FILE}} ];then cp ./Build/OvmfX64/RELEASE_GCC5/FV/OVMF_VARS.fd ../{{$.OVMF_VARS_FILE}};fi
+            - if [ ! -f ../{{$.OVMF_CODE_FILE}} ] || [ ! -f ../{{$.OVMF_VARS_FILE}} ];then {{$.GIT_CHECKOUT_TO_LATEST_TAG}} ;fi
+            - if [ ! -f ../{{$.OVMF_CODE_FILE}} ] || [ ! -f ../{{$.OVMF_VARS_FILE}} ];then make -C ./BaseTools/Source/C ;fi
+            - if [ ! -f ../{{$.OVMF_CODE_FILE}} ] || [ ! -f ../{{$.OVMF_VARS_FILE}} ];then ./OvmfPkg/build.sh -a X64 -b RELEASE -n 4 ;fi
+            - if [ ! -f ../{{$.OVMF_CODE_FILE}} ];then cp ./Build/OvmfX64/RELEASE_GCC5/FV/OVMF_CODE.fd ../{{$.OVMF_CODE_FILE}} ;fi
+            - if [ ! -f ../{{$.OVMF_VARS_FILE}} ];then cp ./Build/OvmfX64/RELEASE_GCC5/FV/OVMF_VARS.fd ../{{$.OVMF_VARS_FILE}} ;fi
+
+    build-qemu:
+        dir: ./{{$.THIRD_PARTY_DIR}}/{{$.QEMU_DIR}}
+        cmds:
+            - if [ ! -f ./build/qemu-system-x86_64 ];then {{$.GIT_CHECKOUT_TO_LATEST_TAG}} ;fi
+            - if [ ! -f ./build/qemu-system-x86_64 ];then mkdir -p build && cd build && ../configure --target-list=x86_64-softmmu --enable-trace-backends=log --enable-sdl --extra-cflags="-DDEBUG_XHCI" && make -j$(nproc) ;fi
 
     build:
         cmds:
             - task: clear
             - task: build-cozette
             - task: build-edk2
+            - task: build-qemu
             - task: build-bootloader
             - task: build-kernel
 
@@ -122,7 +126,7 @@ tasks:
     run:
         cmds:
             - task: makeimg
-            - "{{$.QEMU}}"
+            - "{{$.OWN_QEMU}}"
 
     run-with-gdb:
         cmds:

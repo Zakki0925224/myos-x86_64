@@ -1,38 +1,45 @@
 use modular_bitfield::{bitfield, specifiers::*, BitfieldSpecifier};
 
+pub const DOORBELL_REG_MAX_LEN: usize = 256;
+
 #[bitfield]
 #[derive(BitfieldSpecifier, Debug, Clone, Copy)]
 #[repr(C)]
-pub struct StructuralParamaters1
+pub struct StructuralParameters1
 {
     #[skip(setters)]
-    pub max_device_slots: B8,
+    pub max_slots: B8,
     #[skip(setters)]
-    pub max_ints: B11,
+    pub max_intrs: B11,
     #[skip]
     reserved: B5,
     #[skip(setters)]
-    pub max_slots: B8,
+    pub max_ports: B8,
 }
 
 #[bitfield]
 #[derive(BitfieldSpecifier, Debug, Clone, Copy)]
 #[repr(C)]
-pub struct StructuralParamaters2
+pub struct StructuralParameters2
 {
-    isochronous_scheduling_threshold: B4,
-    event_ring_seg_table_max: B4,
+    #[skip(setters)]
+    pub isochronous_scheduling_threshold: B4,
+    #[skip(setters)]
+    pub event_ring_seg_table_max: B4,
     #[skip]
     reserved: B13,
-    max_scratchpad_bufs_high: B5,
-    scratchpad_restore: bool,
-    max_scratchpad_bufs_low: B5,
+    #[skip(setters)]
+    pub max_scratchpad_bufs_high: B5,
+    #[skip(setters)]
+    pub scratchpad_restore: bool,
+    #[skip(setters)]
+    pub max_scratchpad_bufs_low: B5,
 }
 
 #[bitfield]
 #[derive(BitfieldSpecifier, Debug, Clone, Copy)]
 #[repr(C)]
-pub struct StructuralParamaters3
+pub struct StructuralParameters3
 {
     u1_device_exit_latency: B8,
     u2_device_exit_latency: B8,
@@ -43,7 +50,7 @@ pub struct StructuralParamaters3
 #[bitfield]
 #[derive(BitfieldSpecifier, Debug, Clone, Copy)]
 #[repr(C)]
-pub struct CapabilityParamaters1
+pub struct CapabilityParameters1
 {
     addressing_cap_64bit: B1,
     bandwith_negothiation_cap: bool,
@@ -64,7 +71,7 @@ pub struct CapabilityParamaters1
 #[bitfield]
 #[derive(BitfieldSpecifier, Debug, Clone, Copy)]
 #[repr(C)]
-pub struct CapabilityParamaters2
+pub struct CapabilityParameters2
 {
     u3_entry_cap: B1,
     configure_endpoint_cmd_max_exit_latencty_too_large_cap: bool,
@@ -92,19 +99,19 @@ pub struct CapabilityRegisters
     #[skip(setters)]
     pub interface_version_num: B16,
     #[skip(setters)]
-    pub structural_params1: StructuralParamaters1,
+    pub structural_params1: StructuralParameters1,
     #[skip(setters)]
-    pub structural_params2: StructuralParamaters2,
+    pub structural_params2: StructuralParameters2,
     #[skip(setters)]
-    pub structural_params3: StructuralParamaters3,
+    pub structural_params3: StructuralParameters3,
     #[skip(setters)]
-    pub cap_params1: CapabilityParamaters1,
+    pub cap_params1: CapabilityParameters1,
     #[skip(setters)]
     pub doorbell_offset: B32,
     #[skip(setters)]
     pub runtime_reg_space_offset: B32,
     #[skip(setters)]
-    pub cap_params2: CapabilityParamaters2,
+    pub cap_params2: CapabilityParameters2,
 }
 
 #[bitfield]
@@ -112,7 +119,7 @@ pub struct CapabilityRegisters
 #[repr(C)]
 pub struct UsbCommandRegister
 {
-    pub run_stop: B1,
+    pub run_stop: bool,
     pub host_controller_reset: bool,
     pub intr_enable: bool,
     #[skip]
@@ -192,7 +199,7 @@ pub struct DeviceNotificationControlRegister
 #[repr(C)]
 pub struct CommandRingControlRegister
 {
-    pub ring_cycle_state: B1,
+    pub ring_cycle_state: bool,
     pub cmd_stop: bool,
     pub cmd_abort: bool,
     pub cmd_ring_running: bool,
@@ -296,10 +303,19 @@ pub struct EventRingSegmentTableEntry
     reserved1: B48,
 }
 
-#[derive(BitfieldSpecifier, Debug, Clone, Copy)]
+impl EventRingSegmentTableEntry
+{
+    pub fn is_empty(&self) -> bool
+    {
+        return self.ring_seg_base_addr() == 0 && self.ring_seg_size() == 0;
+    }
+}
+
+#[derive(BitfieldSpecifier, Debug, Clone, Copy, Eq, PartialEq)]
 #[bits = 6]
 pub enum TransferRequestBlockType
 {
+    Invalid = 0,
     Normal = 1,
     SetupStage = 2,
     DataStage = 3,
@@ -342,8 +358,79 @@ pub struct TransferRequestBlock
 {
     pub param: B64,
     pub status: B32,
-    pub cycle_bit: B1,
+    pub cycle_bit: bool,
     pub other_flags: B9,
     pub trb_type: TransferRequestBlockType,
     pub ctrl_regs: B16,
+}
+
+#[derive(BitfieldSpecifier, Debug, Clone, Copy)]
+#[bits = 2]
+pub enum PortIndicatorControl
+{
+    Off = 0,
+    Amber = 1,
+    Green = 2,
+    Undefined = 3,
+}
+
+#[bitfield]
+#[derive(BitfieldSpecifier, Debug, Clone, Copy)]
+#[repr(C)]
+pub struct PortStatusAndControlRegister
+{
+    #[skip(setters)]
+    pub current_connect_status: bool,
+    pub port_enabled: bool,
+    #[skip]
+    reserved0: B1,
+    #[skip(setters)]
+    pub over_current_active: bool,
+    pub port_reset: bool,
+    pub port_link_state: B4,
+    pub port_power: bool,
+    #[skip(setters)]
+    pub port_speed: B4,
+    pub port_indicator_ctrl: PortIndicatorControl,
+    pub port_link_state_write_strobe: bool,
+    pub connect_status_change: bool,
+    pub port_enabled_disabled_change: bool,
+    pub warm_port_reset_change: bool,
+    pub over_current_change: bool,
+    pub port_reset_change: bool,
+    pub port_link_state_change: bool,
+    pub port_config_err_change: bool,
+    #[skip(setters)]
+    pub cold_attach_status: bool,
+    pub wake_on_connect_enable: bool,
+    pub wake_on_disconnect_enable: bool,
+    pub wake_on_over_current_enable: bool,
+    #[skip]
+    reserved1: B2,
+    #[skip(setters)]
+    pub device_removable: bool,
+    pub warm_port_reset: bool,
+}
+
+#[bitfield]
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct PortRegisterSet
+{
+    pub port_status_and_ctrl: PortStatusAndControlRegister,
+    pub port_pm_status_and_ctrl: B32,
+    #[skip(setters)]
+    pub port_link_info: B32,
+    pub port_hardware_lpm_ctrl: B32,
+}
+
+#[bitfield]
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct DoorbellRegister
+{
+    pub db_target: B8,
+    #[skip]
+    reserved: B8,
+    pub db_stream_id: B8,
 }

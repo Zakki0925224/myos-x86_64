@@ -23,7 +23,7 @@ impl MemoryFrameInfo
 {
     pub fn get_frame_start_virt_addr(&self) -> VirtualAddress { return self.frame_start_virt_addr; }
 
-    pub fn get_frame_szie(&self) -> usize { return self.frame_size; }
+    pub fn get_frame_size(&self) -> usize { return self.frame_size; }
 
     pub fn get_frame_index(&self) -> usize { return self.frame_index; }
 

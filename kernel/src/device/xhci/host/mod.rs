@@ -1,14 +1,21 @@
 use core::mem::size_of;
 
-use crate::{arch::{addr::VirtualAddress, apic::local::read_local_apic_id, idt::VEC_MASKABLE_INT_0, register::msi::*}, bus::pci::{conf_space::BaseAddress, device_id::*, msi::*, PCI_DEVICE_MAN}, device::xhci::host::register::*, mem::bitmap::BITMAP_MEM_MAN};
+use crate::{arch::{addr::{PhysicalAddress, VirtualAddress}, apic::local::read_local_apic_id, idt::VEC_MASKABLE_INT_0, register::msi::*}, bus::pci::{conf_space::BaseAddress, device_id::*, msi::*, PCI_DEVICE_MAN}, device::xhci::host::{register::*, ring_buffer::RingBufferType}, mem::bitmap::BITMAP_MEM_MAN, println};
 use alloc::vec::Vec;
 use log::{info, warn};
 
+use self::ring_buffer::RingBuffer;
+
 pub mod register;
+pub mod ring_buffer;
+
+const PORT_REG_SETS_START_VIRT_ADDR_OFFSET: usize = 1024;
+const RING_BUF_LEN: usize = 16;
 
 #[derive(Debug)]
 pub struct XhciHostDriver
 {
+    is_init: bool,
     controller_pci_bus: usize,
     controller_pci_device: usize,
     controller_pci_func: usize,
@@ -16,6 +23,14 @@ pub struct XhciHostDriver
     ope_reg_virt_addr: VirtualAddress,
     runtime_reg_virt_addr: VirtualAddress,
     int_reg_sets_virt_addr: VirtualAddress,
+    port_reg_sets_virt_addr: VirtualAddress,
+    doorbell_reg_virt_addr: VirtualAddress,
+    cmd_ring_virt_addr: VirtualAddress,
+    primary_event_ring_virt_addr: VirtualAddress,
+    root_hub_port_cnt: usize,
+    transfer_ring_buf: Option<RingBuffer>,
+    primary_event_ring_buf: Option<RingBuffer>,
+    cmd_ring_buf: Option<RingBuffer>,
 }
 
 impl XhciHostDriver
@@ -28,6 +43,7 @@ impl XhciHostDriver
             PCI_DEVICE_MAN.lock().find_by_class(class_code, subclass_code, prog_if)
         {
             let usb = XhciHostDriver {
+                is_init: false,
                 controller_pci_bus: device.bus,
                 controller_pci_device: device.device,
                 controller_pci_func: device.func,
@@ -35,6 +51,14 @@ impl XhciHostDriver
                 ope_reg_virt_addr: VirtualAddress::new(0),
                 runtime_reg_virt_addr: VirtualAddress::new(0),
                 int_reg_sets_virt_addr: VirtualAddress::new(0),
+                port_reg_sets_virt_addr: VirtualAddress::new(0),
+                doorbell_reg_virt_addr: VirtualAddress::new(0),
+                cmd_ring_virt_addr: VirtualAddress::new(0),
+                primary_event_ring_virt_addr: VirtualAddress::new(0),
+                root_hub_port_cnt: 0,
+                transfer_ring_buf: None,
+                primary_event_ring_buf: None,
+                cmd_ring_buf: None,
             };
 
             info!(
@@ -65,19 +89,29 @@ impl XhciHostDriver
             self.controller_pci_func,
         )
         {
-            let bars = controller.read_conf_space_non_bridge_field().unwrap().get_bars();
-            self.cap_reg_virt_addr = match bars[0].1
+            let pcs = true;
+            if let Some(conf_space_non_bridge_field) = controller.read_conf_space_non_bridge_field()
             {
-                BaseAddress::MemoryAddress64BitSpace(addr, _) => addr,
-                BaseAddress::MemoryAddress32BitSpace(addr, _) => addr,
-                _ =>
+                let bars = conf_space_non_bridge_field.get_bars();
+                self.cap_reg_virt_addr = match bars[0].1
                 {
-                    warn!("Invalid base address registers");
-                    failed_init_msg();
-                    return;
+                    BaseAddress::MemoryAddress64BitSpace(addr, _) => addr,
+                    BaseAddress::MemoryAddress32BitSpace(addr, _) => addr,
+                    _ =>
+                    {
+                        warn!("Invalid base address registers");
+                        failed_init_msg();
+                        return;
+                    }
                 }
+                .get_virt_addr();
             }
-            .get_virt_addr();
+            else
+            {
+                warn!("ConfigurationSpaceNonBridgeField was not found");
+                failed_init_msg();
+                return;
+            }
 
             let cap_reg = self.read_cap_reg().unwrap();
 
@@ -91,41 +125,50 @@ impl XhciHostDriver
                 cap_reg.runtime_reg_space_offset() as usize + size_of::<RuntimeRegitsers>(),
             );
 
+            self.port_reg_sets_virt_addr =
+                self.ope_reg_virt_addr.offset(PORT_REG_SETS_START_VIRT_ADDR_OFFSET);
+
+            self.doorbell_reg_virt_addr =
+                self.cap_reg_virt_addr.offset(cap_reg.doorbell_offset() as usize);
+
             if self.ope_reg_virt_addr.get() == 0
                 || self.runtime_reg_virt_addr.get() == 0
                 || self.int_reg_sets_virt_addr.get() == 0
+                || self.port_reg_sets_virt_addr.get() == 0
+                || self.doorbell_reg_virt_addr.get() == 0
             {
                 warn!("Some registers virtual address is 0");
                 failed_init_msg();
                 return;
             }
 
-            // initialize host controller
+            // stop controller
             let mut ope_reg = self.read_ope_reg().unwrap();
+            let mut usb_cmd = ope_reg.usb_cmd();
+            usb_cmd.set_run_stop(false);
+            ope_reg.set_usb_cmd(usb_cmd);
+            self.write_ope_reg(ope_reg);
 
-            // TODO: what to do if computer have already completed initialization (currently forced to initialize)
-            // if !ope_reg.usb_status().hchalted()
-            // {
-            //     warn!("USBSTS.HCH is not 1");
-            //     failed_init_msg();
-            //     return;
-            // }
+            loop
+            {
+                info!("Waiting xHCI host controller...");
+                let ope_reg = self.read_ope_reg().unwrap();
+                if ope_reg.usb_status().hchalted()
+                {
+                    break;
+                }
+            }
+            info!("Stopped xHCI host controller");
 
+            // reset controller
+            let mut ope_reg = self.read_ope_reg().unwrap();
             let mut usb_cmd = ope_reg.usb_cmd();
             usb_cmd.set_host_controller_reset(true);
             ope_reg.set_usb_cmd(usb_cmd);
             self.write_ope_reg(ope_reg);
 
-            let mut cnt = 0;
             loop
             {
-                if cnt > 10
-                {
-                    warn!("Timed out");
-                    failed_init_msg();
-                    return;
-                }
-
                 info!("Waiting xHCI host controller...");
                 let ope_reg = self.read_ope_reg().unwrap();
                 if !ope_reg.usb_cmd().host_controller_reset()
@@ -133,36 +176,79 @@ impl XhciHostDriver
                 {
                     break;
                 }
+            }
+            info!("Reset xHCI host controller");
 
-                cnt += 1;
+            // set max device slots
+            let max_slots = cap_reg.structural_params1().max_slots();
+            let mut ope_reg = self.read_ope_reg().unwrap();
+            let mut conf_reg = ope_reg.configure();
+            conf_reg.set_max_device_slots_enabled(max_slots);
+            ope_reg.set_configure(conf_reg);
+            self.write_ope_reg(ope_reg);
+
+            // initialize scratchpad
+            let cap_reg = self.read_cap_reg().unwrap();
+            let sp2 = cap_reg.structural_params2();
+            let num_of_bufs =
+                (sp2.max_scratchpad_bufs_high() << 5 | sp2.max_scratchpad_bufs_low()) as usize;
+            let mut scratchpad_buf_arr_virt_addr = VirtualAddress::new(0);
+            if let Some(scratchpad_buf_arr_mem) = BITMAP_MEM_MAN.lock().alloc_single_mem_frame()
+            {
+                let virt_addr = scratchpad_buf_arr_mem.get_frame_start_virt_addr();
+                let arr: &mut [u64] = virt_addr.read_volatile();
+
+                for i in 0..num_of_bufs
+                {
+                    if let Some(mem_frame_info) = BITMAP_MEM_MAN.lock().alloc_single_mem_frame()
+                    {
+                        arr[i] = mem_frame_info.get_frame_start_virt_addr().get_phys_addr().get();
+                    }
+                    else
+                    {
+                        warn!("Failed to allocate memory frame for scratchpad buffer(#{})", i);
+                        failed_init_msg();
+                        return;
+                    }
+                }
+
+                virt_addr.write_volatile(arr);
+                scratchpad_buf_arr_virt_addr = virt_addr;
+            }
+            else
+            {
+                warn!("Failed to allocate memory frame for scratchpad buffer array");
+                failed_init_msg();
+                return;
             }
 
             // initialize device context
-            let cap_reg = self.read_cap_reg().unwrap();
-            let max_slots = cap_reg.structural_params1().max_slots();
             if let Some(dev_context_mem_frame) = BITMAP_MEM_MAN.lock().alloc_single_mem_frame()
             {
-                let device_context_arr: &mut [u64] =
-                    dev_context_mem_frame.get_frame_start_virt_addr().read_volatile();
+                let virt_addr = dev_context_mem_frame.get_frame_start_virt_addr();
+                let device_context_arr: &mut [u64] = virt_addr.read_volatile();
 
                 // init device context array
                 for i in 0..(max_slots + 1) as usize
                 {
                     if let Some(entry) = device_context_arr.get_mut(i)
                     {
+                        if i == 0
+                        {
+                            *entry = scratchpad_buf_arr_virt_addr.get_phys_addr().get();
+                            continue;
+                        }
+
                         *entry = 0;
                     }
                 }
 
-                dev_context_mem_frame
-                    .get_frame_start_virt_addr()
-                    .write_volatile(device_context_arr);
+                virt_addr.write_volatile(device_context_arr);
 
                 let mut ope_reg = self.read_ope_reg().unwrap();
-                ope_reg.set_device_context_base_addr_array_ptr(
-                    dev_context_mem_frame.get_frame_start_virt_addr().get_phys_addr().get(),
-                );
+                ope_reg.set_device_context_base_addr_array_ptr(virt_addr.get_phys_addr().get());
                 self.write_ope_reg(ope_reg);
+                info!("Initialized device context");
             }
             else
             {
@@ -174,13 +260,36 @@ impl XhciHostDriver
             // register command ring
             if let Some(cmd_ring_mem) = BITMAP_MEM_MAN.lock().alloc_single_mem_frame()
             {
-                let mut ope_reg = self.read_ope_reg().unwrap();
+                self.cmd_ring_virt_addr = cmd_ring_mem.get_frame_start_virt_addr();
+                self.cmd_ring_buf = RingBuffer::new(
+                    cmd_ring_mem,
+                    None,
+                    RING_BUF_LEN,
+                    RingBufferType::CommandRing,
+                    pcs,
+                );
+
+                if let Some(cmd_ring_buf) = &self.cmd_ring_buf
+                {
+                    cmd_ring_buf.init();
+                }
+                else
+                {
+                    warn!("Failed to create command ring buffer");
+                    failed_init_msg();
+                    return;
+                }
+
                 let mut crcr = CommandRingControlRegister::new();
                 crcr.set_cmd_ring_ptr(
                     cmd_ring_mem.get_frame_start_virt_addr().get_phys_addr().get() >> 6,
                 );
+                crcr.set_ring_cycle_state(pcs);
+                let mut ope_reg = self.read_ope_reg().unwrap();
                 ope_reg.set_cmd_ring_ctrl(crcr);
                 self.write_ope_reg(ope_reg);
+
+                info!("Initialized command ring");
             }
             else
             {
@@ -199,19 +308,39 @@ impl XhciHostDriver
                 Some(mut int_reg_sets),
             ) = (event_ring_seg_table_mem, event_ring_seg_mem, int_reg_sets)
             {
-                // init first TRB
-                let mut trb = TransferRequestBlock::new();
-                trb.set_trb_type(TransferRequestBlockType::Normal);
-                trb.set_cycle_bit(1);
-                event_ring_seg_mem.get_frame_start_virt_addr().write_volatile(trb);
+                self.primary_event_ring_virt_addr = event_ring_seg_mem.get_frame_start_virt_addr();
 
-                // init first event ring segment table entry
+                // init event ring segment table
                 let mut event_ring_seg_table: EventRingSegmentTableEntry =
                     event_ring_seg_table_mem.get_frame_start_virt_addr().read_volatile();
                 event_ring_seg_table.set_ring_seg_base_addr(
                     event_ring_seg_mem.get_frame_start_virt_addr().get_phys_addr().get(),
                 );
-                event_ring_seg_table.set_ring_seg_size(1);
+                event_ring_seg_table.set_ring_seg_size(RING_BUF_LEN as u16);
+
+                let mut entries = Vec::new();
+                entries.push(event_ring_seg_table.clone());
+
+                // init event ring buffer
+                self.primary_event_ring_buf = RingBuffer::new(
+                    event_ring_seg_mem,
+                    Some(entries),
+                    RING_BUF_LEN,
+                    RingBufferType::EventRing,
+                    pcs,
+                );
+
+                if let Some(primary_event_ring_buf) = &self.primary_event_ring_buf
+                {
+                    primary_event_ring_buf.init();
+                }
+                else
+                {
+                    warn!("Failed to create primary event ring buffer");
+                    failed_init_msg();
+                    return;
+                }
+
                 event_ring_seg_mem.get_frame_start_virt_addr().write_volatile(event_ring_seg_table);
 
                 // init first interrupter register sets entry
@@ -226,6 +355,8 @@ impl XhciHostDriver
                 );
                 int_reg_sets.registers[0] = int_reg_set_0;
                 self.write_int_reg_sets(int_reg_sets);
+
+                info!("Initialized event ring");
             }
             else
             {
@@ -263,12 +394,13 @@ impl XhciHostDriver
 
             if let Some(mut reg_sets) = self.read_int_reg_sets()
             {
-                let mut reg_0 = InterrupterRegisterSet::new();
+                let mut reg_0 = reg_sets.registers[0];
                 reg_0.set_int_mod_interval(4000);
                 reg_0.set_int_pending(true);
                 reg_0.set_int_enable(true);
                 reg_sets.registers[0] = reg_0;
                 self.write_int_reg_sets(reg_sets);
+                info!("Initialized MSI interrupt");
             }
             else
             {
@@ -278,40 +410,70 @@ impl XhciHostDriver
             }
 
             // start controller
+            info!("Starting xHCI host controller...");
             let mut ope_reg = self.read_ope_reg().unwrap();
             let mut usb_cmd = ope_reg.usb_cmd();
             usb_cmd.set_intr_enable(true);
-            usb_cmd.set_run_stop(1);
+            usb_cmd.set_run_stop(true);
             ope_reg.set_usb_cmd(usb_cmd);
             self.write_ope_reg(ope_reg);
 
-            let mut cnt = 0;
             loop
             {
-                if cnt > 10
-                {
-                    warn!("Timed out");
-                    failed_init_msg();
-                    return;
-                }
-
                 info!("Waiting xHCI host controller...");
                 let ope_reg = self.read_ope_reg().unwrap();
                 if !ope_reg.usb_status().hchalted()
                 {
                     break;
                 }
-
-                cnt += 1;
             }
 
+            // check status
+            let usb_status = self.read_ope_reg().unwrap().usb_status();
+            if usb_status.hchalted()
+            {
+                warn!("Host controller is halted");
+                failed_init_msg();
+                return;
+            }
+
+            if usb_status.host_system_err()
+            {
+                warn!("An error occured on the host system");
+                failed_init_msg();
+                return;
+            }
+
+            if usb_status.host_controller_err()
+            {
+                warn!("An error occured on the xHC");
+                failed_init_msg();
+                return;
+            }
+
+            let cap_leg = self.read_cap_reg().unwrap();
+            self.root_hub_port_cnt = cap_leg.structural_params1().max_ports() as usize;
+
+            self.is_init = true;
             info!("Initialized xHCI host driver");
+
+            let mut noop_trb = TransferRequestBlock::new();
+            noop_trb.set_trb_type(TransferRequestBlockType::NoOpCommand);
+            self.cmd_ring_buf.as_ref().unwrap().write(0, noop_trb);
+
+            // TODO: enqueue and dequeue
+            loop
+            {
+                println!("{:?}", self.primary_event_ring_buf.as_ref().unwrap().read(0));
+            }
         }
         else
         {
             failed_init_msg();
         }
     }
+
+    pub fn is_init(&self) -> bool { return self.is_init; }
 
     pub fn read_cap_reg(&self) -> Option<CapabilityRegisters>
     {
@@ -375,5 +537,53 @@ impl XhciHostDriver
         {
             self.int_reg_sets_virt_addr.write_volatile(int_reg_sets);
         }
+    }
+
+    pub fn read_port_reg_set(&self, index: usize) -> Option<PortRegisterSet>
+    {
+        if index == 0 || index > self.root_hub_port_cnt || self.port_reg_sets_virt_addr.get() == 0
+        {
+            return None;
+        }
+
+        let reg_set_virt_addr =
+            self.port_reg_sets_virt_addr.offset((index - 1) * size_of::<PortRegisterSet>());
+        return Some(reg_set_virt_addr.read_volatile());
+    }
+
+    pub fn write_port_reg_set(&self, index: usize, port_reg_set: PortRegisterSet)
+    {
+        if index == 0 || index > self.root_hub_port_cnt || self.port_reg_sets_virt_addr.get() == 0
+        {
+            return;
+        }
+
+        let reg_set_virt_addr =
+            self.port_reg_sets_virt_addr.offset((index - 1) * size_of::<PortRegisterSet>());
+        reg_set_virt_addr.write_volatile(port_reg_set);
+    }
+
+    pub fn read_doorbell_reg(&self, index: usize) -> Option<DoorbellRegister>
+    {
+        if index > DOORBELL_REG_MAX_LEN || self.doorbell_reg_virt_addr.get() == 0
+        {
+            return None;
+        }
+
+        let reg_virt_addr =
+            self.doorbell_reg_virt_addr.offset(index * size_of::<DoorbellRegister>());
+        return Some(reg_virt_addr.read_volatile());
+    }
+
+    pub fn write_doorbell_reg(&self, index: usize, doorbell_reg: DoorbellRegister)
+    {
+        if index > DOORBELL_REG_MAX_LEN || self.doorbell_reg_virt_addr.get() == 0
+        {
+            return;
+        }
+
+        let reg_virt_addr =
+            self.doorbell_reg_virt_addr.offset(index * size_of::<DoorbellRegister>());
+        reg_virt_addr.write_volatile(doorbell_reg);
     }
 }
