@@ -1,6 +1,6 @@
-use core::mem::size_of;
+use core::mem::{size_of, transmute};
 
-use crate::{arch::{addr::{PhysicalAddress, VirtualAddress}, apic::local::read_local_apic_id, idt::VEC_MASKABLE_INT_0, register::msi::*}, bus::pci::{conf_space::BaseAddress, device_id::*, msi::*, PCI_DEVICE_MAN}, device::xhci::host::{register::*, ring_buffer::RingBufferType}, mem::bitmap::BITMAP_MEM_MAN, println};
+use crate::{arch::{addr::*, apic::local::read_local_apic_id, idt::VEC_MASKABLE_INT_0, register::msi::*}, bus::pci::{conf_space::BaseAddress, device_id::*, msi::*, PCI_DEVICE_MAN}, device::xhci::host::{register::*, ring_buffer::RingBufferType}, mem::bitmap::BITMAP_MEM_MAN, println};
 use alloc::vec::Vec;
 use log::{info, warn};
 
@@ -462,10 +462,10 @@ impl XhciHostDriver
             self.cmd_ring_buf.as_ref().unwrap().write(0, noop_trb);
 
             // TODO: enqueue and dequeue
-            loop
-            {
-                println!("{:?}", self.primary_event_ring_buf.as_ref().unwrap().read(0));
-            }
+            // loop
+            // {
+            //     println!("{:?}", self.primary_event_ring_buf.as_ref().unwrap().read(0));
+            // }
         }
         else
         {
@@ -492,14 +492,26 @@ impl XhciHostDriver
             return None;
         }
 
-        return Some(self.ope_reg_virt_addr.read_volatile());
+        let mut data: [u32; 15] = [0; 15];
+        for (i, elem) in data.iter_mut().enumerate()
+        {
+            *elem = self.ope_reg_virt_addr.offset(i * 4).read_volatile::<u32>();
+        }
+
+        return Some(unsafe { transmute::<[u32; 15], OperationalRegisters>(data) });
     }
 
     pub fn write_ope_reg(&self, ope_reg: OperationalRegisters)
     {
-        if self.ope_reg_virt_addr.get() != 0
+        if self.ope_reg_virt_addr.get() == 0
         {
-            self.ope_reg_virt_addr.write_volatile(ope_reg);
+            return;
+        }
+
+        let data = unsafe { transmute::<OperationalRegisters, [u32; 15]>(ope_reg) };
+        for (i, elem) in data.iter().enumerate()
+        {
+            self.ope_reg_virt_addr.offset(i * 4).write_volatile(*elem);
         }
     }
 
@@ -510,14 +522,26 @@ impl XhciHostDriver
             return None;
         }
 
-        return Some(self.runtime_reg_virt_addr.read_volatile());
+        let mut data: [u32; 8] = [0; 8];
+        for (i, elem) in data.iter_mut().enumerate()
+        {
+            *elem = self.runtime_reg_virt_addr.offset(i * 4).read_volatile::<u32>();
+        }
+
+        return Some(unsafe { transmute::<[u32; 8], RuntimeRegitsers>(data) });
     }
 
     pub fn write_runtime_reg(&self, runtime_reg: RuntimeRegitsers)
     {
-        if self.runtime_reg_virt_addr.get() != 0
+        if self.runtime_reg_virt_addr.get() == 0
         {
-            self.runtime_reg_virt_addr.write_volatile(runtime_reg);
+            return;
+        }
+
+        let data = unsafe { transmute::<RuntimeRegitsers, [u32; 8]>(runtime_reg) };
+        for (i, elem) in data.iter().enumerate()
+        {
+            self.runtime_reg_virt_addr.offset(i * 4).write_volatile(*elem);
         }
     }
 
@@ -528,14 +552,26 @@ impl XhciHostDriver
             return None;
         }
 
-        return Some(self.int_reg_sets_virt_addr.read_volatile());
+        let mut data: [u32; 8192] = [0; 8192];
+        for (i, elem) in data.iter_mut().enumerate()
+        {
+            *elem = self.int_reg_sets_virt_addr.offset(i * 4).read_volatile::<u32>();
+        }
+
+        return Some(unsafe { transmute::<[u32; 8192], InterrupterRegisterSets>(data) });
     }
 
     pub fn write_int_reg_sets(&self, int_reg_sets: InterrupterRegisterSets)
     {
-        if self.int_reg_sets_virt_addr.get() != 0
+        if self.int_reg_sets_virt_addr.get() == 0
         {
-            self.int_reg_sets_virt_addr.write_volatile(int_reg_sets);
+            return;
+        }
+
+        let data = unsafe { transmute::<InterrupterRegisterSets, [u32; 8192]>(int_reg_sets) };
+        for (i, elem) in data.iter().enumerate()
+        {
+            self.int_reg_sets_virt_addr.offset(i * 4).write_volatile(*elem);
         }
     }
 

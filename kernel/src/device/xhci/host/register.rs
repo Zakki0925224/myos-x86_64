@@ -432,5 +432,5 @@ pub struct DoorbellRegister
     pub db_target: B8,
     #[skip]
     reserved: B8,
-    pub db_stream_id: B8,
+    pub db_stream_id: B16,
 }

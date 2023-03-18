@@ -1,3 +1,5 @@
+use core::mem::transmute;
+
 use alloc::vec::Vec;
 use modular_bitfield::{bitfield, specifiers::*, BitfieldSpecifier};
 use pci_ids::*;
@@ -119,22 +121,20 @@ impl ConfigurationSpaceCommonHeaderField
 {
     pub fn read(bus: usize, device: usize, func: usize) -> Option<Self>
     {
-        let data = [
-            read_conf_space(bus, device, func, 0),
-            read_conf_space(bus, device, func, 4),
-            read_conf_space(bus, device, func, 8),
-            read_conf_space(bus, device, func, 12),
-        ];
-
-        if data.iter().filter(|&d| d.is_none()).count() != 0
+        let mut data: [u32; 4] = [0; 4];
+        for (i, elem) in data.iter_mut().enumerate()
         {
-            return None;
+            if let Some(d) = read_conf_space(bus, device, func, i * 4)
+            {
+                *elem = d;
+            }
+            else
+            {
+                return None;
+            }
         }
 
-        let data = data.map(|d| d.unwrap());
-        let field = unsafe { data.align_to::<Self>() }.1[0];
-
-        return Some(field);
+        return Some(unsafe { transmute::<[u32; 4], Self>(data) });
     }
 
     pub fn is_exist(&self) -> bool { return self.vendor_id() != PCI_DEVICE_NON_EXIST; }
@@ -284,30 +284,21 @@ impl ConfigurationSpaceNonBridgeField
 {
     pub fn read(bus: usize, device: usize, func: usize) -> Option<Self>
     {
-        let data = [
-            read_conf_space(bus, device, func, PCI_CONF_UNIQUE_FIELD_OFFSET),
-            read_conf_space(bus, device, func, PCI_CONF_UNIQUE_FIELD_OFFSET + 4),
-            read_conf_space(bus, device, func, PCI_CONF_UNIQUE_FIELD_OFFSET + 8),
-            read_conf_space(bus, device, func, PCI_CONF_UNIQUE_FIELD_OFFSET + 12),
-            read_conf_space(bus, device, func, PCI_CONF_UNIQUE_FIELD_OFFSET + 16),
-            read_conf_space(bus, device, func, PCI_CONF_UNIQUE_FIELD_OFFSET + 20),
-            read_conf_space(bus, device, func, PCI_CONF_UNIQUE_FIELD_OFFSET + 24),
-            read_conf_space(bus, device, func, PCI_CONF_UNIQUE_FIELD_OFFSET + 28),
-            read_conf_space(bus, device, func, PCI_CONF_UNIQUE_FIELD_OFFSET + 32),
-            read_conf_space(bus, device, func, PCI_CONF_UNIQUE_FIELD_OFFSET + 36),
-            read_conf_space(bus, device, func, PCI_CONF_UNIQUE_FIELD_OFFSET + 40),
-            read_conf_space(bus, device, func, PCI_CONF_UNIQUE_FIELD_OFFSET + 44),
-        ];
-
-        if data.iter().filter(|&d| d.is_none()).count() != 0
+        let mut data: [u32; 12] = [0; 12];
+        for (i, elem) in data.iter_mut().enumerate()
         {
-            return None;
+            if let Some(d) =
+                read_conf_space(bus, device, func, PCI_CONF_UNIQUE_FIELD_OFFSET + (i * 4))
+            {
+                *elem = d;
+            }
+            else
+            {
+                return None;
+            }
         }
 
-        let data = data.map(|d| d.unwrap());
-        let field = unsafe { data.align_to::<Self>() }.1[0];
-
-        return Some(field);
+        return Some(unsafe { transmute::<[u32; 12], Self>(data) });
     }
 
     pub fn get_bars(&self) -> Vec<(usize, BaseAddress)>
@@ -383,30 +374,21 @@ impl ConfigurationSpacePciToPciBridgeField
 {
     pub fn read(bus: usize, device: usize, func: usize) -> Option<Self>
     {
-        let data = [
-            read_conf_space(bus, device, func, PCI_CONF_UNIQUE_FIELD_OFFSET),
-            read_conf_space(bus, device, func, PCI_CONF_UNIQUE_FIELD_OFFSET + 4),
-            read_conf_space(bus, device, func, PCI_CONF_UNIQUE_FIELD_OFFSET + 8),
-            read_conf_space(bus, device, func, PCI_CONF_UNIQUE_FIELD_OFFSET + 12),
-            read_conf_space(bus, device, func, PCI_CONF_UNIQUE_FIELD_OFFSET + 16),
-            read_conf_space(bus, device, func, PCI_CONF_UNIQUE_FIELD_OFFSET + 20),
-            read_conf_space(bus, device, func, PCI_CONF_UNIQUE_FIELD_OFFSET + 24),
-            read_conf_space(bus, device, func, PCI_CONF_UNIQUE_FIELD_OFFSET + 28),
-            read_conf_space(bus, device, func, PCI_CONF_UNIQUE_FIELD_OFFSET + 32),
-            read_conf_space(bus, device, func, PCI_CONF_UNIQUE_FIELD_OFFSET + 36),
-            read_conf_space(bus, device, func, PCI_CONF_UNIQUE_FIELD_OFFSET + 40),
-            read_conf_space(bus, device, func, PCI_CONF_UNIQUE_FIELD_OFFSET + 44),
-        ];
-
-        if data.iter().filter(|&d| d.is_none()).count() != 0
+        let mut data: [u32; 12] = [0; 12];
+        for (i, elem) in data.iter_mut().enumerate()
         {
-            return None;
+            if let Some(d) =
+                read_conf_space(bus, device, func, PCI_CONF_UNIQUE_FIELD_OFFSET + (i * 4))
+            {
+                *elem = d;
+            }
+            else
+            {
+                return None;
+            }
         }
 
-        let data = data.map(|d| d.unwrap());
-        let field = unsafe { data.align_to::<Self>() }.1[0];
-
-        return Some(field);
+        return Some(unsafe { transmute::<[u32; 12], Self>(data) });
     }
 
     pub fn get_bars(&self) -> Vec<(usize, BaseAddress)>
@@ -477,32 +459,21 @@ impl ConfigurationSpacePciToCardBusField
 {
     pub fn read(bus: usize, device: usize, func: usize) -> Option<Self>
     {
-        let data = [
-            read_conf_space(bus, device, func, PCI_CONF_UNIQUE_FIELD_OFFSET),
-            read_conf_space(bus, device, func, PCI_CONF_UNIQUE_FIELD_OFFSET + 4),
-            read_conf_space(bus, device, func, PCI_CONF_UNIQUE_FIELD_OFFSET + 8),
-            read_conf_space(bus, device, func, PCI_CONF_UNIQUE_FIELD_OFFSET + 12),
-            read_conf_space(bus, device, func, PCI_CONF_UNIQUE_FIELD_OFFSET + 16),
-            read_conf_space(bus, device, func, PCI_CONF_UNIQUE_FIELD_OFFSET + 20),
-            read_conf_space(bus, device, func, PCI_CONF_UNIQUE_FIELD_OFFSET + 24),
-            read_conf_space(bus, device, func, PCI_CONF_UNIQUE_FIELD_OFFSET + 28),
-            read_conf_space(bus, device, func, PCI_CONF_UNIQUE_FIELD_OFFSET + 32),
-            read_conf_space(bus, device, func, PCI_CONF_UNIQUE_FIELD_OFFSET + 36),
-            read_conf_space(bus, device, func, PCI_CONF_UNIQUE_FIELD_OFFSET + 40),
-            read_conf_space(bus, device, func, PCI_CONF_UNIQUE_FIELD_OFFSET + 44),
-            read_conf_space(bus, device, func, PCI_CONF_UNIQUE_FIELD_OFFSET + 48),
-            read_conf_space(bus, device, func, PCI_CONF_UNIQUE_FIELD_OFFSET + 52),
-        ];
-
-        if data.iter().filter(|&d| d.is_none()).count() != 0
+        let mut data: [u32; 14] = [0; 14];
+        for (i, elem) in data.iter_mut().enumerate()
         {
-            return None;
+            if let Some(d) =
+                read_conf_space(bus, device, func, PCI_CONF_UNIQUE_FIELD_OFFSET + (i * 4))
+            {
+                *elem = d;
+            }
+            else
+            {
+                return None;
+            }
         }
 
-        let data = data.map(|d| d.unwrap());
-        let field = unsafe { data.align_to::<Self>() }.1[0];
-
-        return Some(field);
+        return Some(unsafe { transmute::<[u32; 14], Self>(data) });
     }
 }
 
