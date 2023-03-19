@@ -1,6 +1,6 @@
 use core::mem::{size_of, transmute};
 
-use crate::{arch::{addr::*, apic::local::read_local_apic_id, idt::VEC_MASKABLE_INT_0, register::msi::*}, bus::pci::{conf_space::BaseAddress, device_id::*, msi::*, PCI_DEVICE_MAN}, device::xhci::host::{register::*, ring_buffer::RingBufferType}, mem::bitmap::BITMAP_MEM_MAN, println};
+use crate::{arch::{addr::*, apic::local::read_local_apic_id, idt::VEC_XHCI_INT, register::msi::*}, bus::pci::{conf_space::*, device_id::*, PCI_DEVICE_MAN}, device::xhci::host::{register::*, ring_buffer::RingBufferType}, mem::bitmap::BITMAP_MEM_MAN, println};
 use alloc::vec::Vec;
 use log::{info, warn};
 
@@ -141,6 +141,27 @@ impl XhciHostDriver
                 failed_init_msg();
                 return;
             }
+
+            // setting up msi
+            let mut msg_addr = MsiMessageAddressField::new();
+            msg_addr.set_destination_id(read_local_apic_id());
+            msg_addr.set_redirection_hint_indication(0);
+            msg_addr.set_destination_mode(0);
+
+            let mut msg_data = MsiMessageDataField::new();
+            msg_data.set_trigger_mode(TriggerMode::Level);
+            msg_data.set_level(Level::Assert);
+            msg_data.set_delivery_mode(DeliveryMode::Fixed);
+            msg_data.set_vector(VEC_XHCI_INT as u8);
+
+            if let Err(msg) = controller.set_msix_cap(msg_addr, msg_data)
+            {
+                warn!("{}", msg);
+                failed_init_msg();
+                return;
+            }
+
+            info!("Setup MSI interrupt");
 
             // stop controller
             let mut ope_reg = self.read_ope_reg().unwrap();
@@ -365,33 +386,6 @@ impl XhciHostDriver
                 return;
             }
 
-            // setting up msi
-            let mut caps_list = Vec::new();
-
-            let mut cap = MsiCapabilityField::new();
-            cap.set_cap_id(5);
-
-            let mut msg_ctrl = MsiMessageControlField::new();
-            msg_ctrl.set_is_enable(true);
-            msg_ctrl.set_multiple_msg_capable(0);
-            cap.set_msg_ctrl(msg_ctrl);
-
-            let mut msg_addr = MsiMessageAddressField::new();
-            msg_addr.set_destination_id(read_local_apic_id());
-            msg_addr.set_redirection_hint_indication(0);
-            msg_addr.set_destination_mode(0);
-            cap.set_msg_addr_low(msg_addr);
-
-            let mut msg_data = MsiMessageDataField::new();
-            msg_data.set_trigger_mode(TriggerMode::Level);
-            msg_data.set_level(Level::Assert);
-            msg_data.set_delivery_mode(DeliveryMode::Fixed);
-            msg_data.set_vector(VEC_MASKABLE_INT_0 as u8);
-            cap.set_msg_data(msg_data);
-
-            caps_list.push(cap);
-            controller.write_caps_list(caps_list);
-
             if let Some(mut reg_sets) = self.read_int_reg_sets()
             {
                 let mut reg_0 = reg_sets.registers[0];
@@ -409,68 +403,96 @@ impl XhciHostDriver
                 return;
             }
 
-            // start controller
-            info!("Starting xHCI host controller...");
-            let mut ope_reg = self.read_ope_reg().unwrap();
-            let mut usb_cmd = ope_reg.usb_cmd();
-            usb_cmd.set_intr_enable(true);
-            usb_cmd.set_run_stop(true);
-            ope_reg.set_usb_cmd(usb_cmd);
-            self.write_ope_reg(ope_reg);
-
-            loop
-            {
-                info!("Waiting xHCI host controller...");
-                let ope_reg = self.read_ope_reg().unwrap();
-                if !ope_reg.usb_status().hchalted()
-                {
-                    break;
-                }
-            }
-
-            // check status
-            let usb_status = self.read_ope_reg().unwrap().usb_status();
-            if usb_status.hchalted()
-            {
-                warn!("Host controller is halted");
-                failed_init_msg();
-                return;
-            }
-
-            if usb_status.host_system_err()
-            {
-                warn!("An error occured on the host system");
-                failed_init_msg();
-                return;
-            }
-
-            if usb_status.host_controller_err()
-            {
-                warn!("An error occured on the xHC");
-                failed_init_msg();
-                return;
-            }
-
             let cap_leg = self.read_cap_reg().unwrap();
             self.root_hub_port_cnt = cap_leg.structural_params1().max_ports() as usize;
 
             self.is_init = true;
             info!("Initialized xHCI host driver");
-
-            let mut noop_trb = TransferRequestBlock::new();
-            noop_trb.set_trb_type(TransferRequestBlockType::NoOpCommand);
-            self.cmd_ring_buf.as_ref().unwrap().write(0, noop_trb);
-
-            // TODO: enqueue and dequeue
-            // loop
-            // {
-            //     println!("{:?}", self.primary_event_ring_buf.as_ref().unwrap().read(0));
-            // }
         }
         else
         {
             failed_init_msg();
         }
+    }
+
+    pub fn start(&self)
+    {
+        fn failed_init_msg()
+        {
+            warn!("Failed to start xHCI host driver");
+        }
+
+        if !self.is_init
+        {
+            warn!("Host driver was not initialized");
+            failed_init_msg();
+            return;
+        }
+
+        // start controller
+        info!("Starting xHCI host controller...");
+        let mut ope_reg = self.read_ope_reg().unwrap();
+        let mut usb_cmd = ope_reg.usb_cmd();
+        usb_cmd.set_intr_enable(true);
+        usb_cmd.set_run_stop(true);
+        ope_reg.set_usb_cmd(usb_cmd);
+        self.write_ope_reg(ope_reg);
+
+        loop
+        {
+            info!("Waiting xHCI host controller...");
+            let ope_reg = self.read_ope_reg().unwrap();
+            if !ope_reg.usb_status().hchalted()
+            {
+                break;
+            }
+        }
+
+        // check status
+        let usb_status = self.read_ope_reg().unwrap().usb_status();
+        if usb_status.hchalted()
+        {
+            warn!("Host controller is halted");
+            failed_init_msg();
+            return;
+        }
+
+        if usb_status.host_system_err()
+        {
+            warn!("An error occured on the host system");
+            failed_init_msg();
+            return;
+        }
+
+        if usb_status.host_controller_err()
+        {
+            warn!("An error occured on the xHC");
+            failed_init_msg();
+            return;
+        }
+
+        if let Some(controller) = PCI_DEVICE_MAN.lock().find_by_bdf(
+            self.controller_pci_bus,
+            self.controller_pci_device,
+            self.controller_pci_func,
+        )
+        {
+            // let caps = controller.read_caps_list();
+            // println!("{:?}", caps.unwrap());
+        }
+
+        // let mut noop_trb = TransferRequestBlock::new();
+        // noop_trb.set_trb_type(TransferRequestBlockType::NoOpCommand);
+        // self.cmd_ring_buf.as_ref().unwrap().write(0, noop_trb);
+        // println!("{:?}", self.primary_event_ring_buf.as_ref().unwrap().read(0));
+        // println!("{:?}", self.primary_event_ring_buf.as_ref().unwrap().read(1));
+        // println!("{:?}", self.primary_event_ring_buf.as_ref().unwrap().read(2));
+
+        // TODO: enqueue and dequeue
+        // loop
+        // {
+        //     println!("{:?}", self.primary_event_ring_buf.as_ref().unwrap().read(0));
+        // }
     }
 
     pub fn is_init(&self) -> bool { return self.is_init; }

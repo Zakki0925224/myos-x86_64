@@ -5,3 +5,4 @@ usb_xhci_run
 usb_xhci_stop
 usb_xhci_oper_write
 usb_xhci_oper_read
+usb_xhci_irq_msi

@@ -64,6 +64,7 @@ pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> !
     if let Some(driver) = &mut xhci
     {
         driver.init();
+        driver.start();
     }
 
     env::print_info();

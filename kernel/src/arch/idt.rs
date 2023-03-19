@@ -27,7 +27,8 @@ const VEC_MACHINE_CHECK: usize = 18;
 const VEC_SIMD_FLOATING_POINT_EX: usize = 19;
 const VEC_VIRT_EX: usize = 20;
 const VEC_CTRL_PROTECTION_EX: usize = 21;
-pub const VEC_MASKABLE_INT_0: usize = 32;
+const VEC_MASKABLE_INT_0: usize = 32;
+pub const VEC_XHCI_INT: usize = 64;
 
 type Handler = extern "x86-interrupt" fn();
 
@@ -137,6 +138,6 @@ pub fn init()
     set_handler(VEC_BREAKPOINT, breakpint_handler);
     set_handler(VEC_PAGE_FAULT, page_fault_handler);
     set_handler(VEC_DOUBLE_FAULT, double_fault_handler);
-    set_handler(VEC_MASKABLE_INT_0, xhci_host_controller_int);
+    set_handler(VEC_XHCI_INT, xhci_host_controller_int);
     info!("Initialized IDT");
 }

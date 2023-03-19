@@ -1,6 +1,8 @@
 use core::mem::size_of;
 
-use super::{conf_space::{self, *}, msi::MsiCapabilityField};
+use crate::{arch::register::msi::{MsiMessageAddressField, MsiMessageDataField}, println};
+
+use super::conf_space::*;
 use alloc::vec::Vec;
 
 #[derive(Debug)]
@@ -104,6 +106,22 @@ impl PciDevice
         return self.conf_space_header.status().caps_list_available();
     }
 
+    fn read_caps_ptr(&self) -> Option<u8>
+    {
+        match self.conf_space_header.header_type()
+        {
+            ConfigurationSpaceHeaderType::NonBridge =>
+            {
+                return Some(self.read_conf_space_non_bridge_field().unwrap().caps_ptr());
+            }
+            ConfigurationSpaceHeaderType::PciToPciBridge =>
+            {
+                return Some(self.read_conf_space_pci_to_pci_bridge_field().unwrap().caps_ptr());
+            }
+            _ => return None, // unsupported type
+        };
+    }
+
     pub fn read_caps_list(&self) -> Option<Vec<MsiCapabilityField>>
     {
         if !self.is_available_msi_int()
@@ -112,92 +130,140 @@ impl PciDevice
         }
 
         let mut list = Vec::new();
-        let mut caps_ptr = match self.conf_space_header.header_type()
+        if let Some(caps_ptr) = self.read_caps_ptr()
         {
-            ConfigurationSpaceHeaderType::NonBridge =>
+            let mut caps_ptr = caps_ptr as usize;
+            while caps_ptr != 0
             {
-                self.read_conf_space_non_bridge_field().unwrap().caps_ptr() as usize
+                if let Some(field) =
+                    MsiCapabilityField::read(self.bus, self.device, self.func, caps_ptr)
+                {
+                    caps_ptr = field.next_ptr() as usize;
+                    list.push(field);
+                }
+                else
+                {
+                    break;
+                }
             }
-            ConfigurationSpaceHeaderType::PciToPciBridge =>
-            {
-                self.read_conf_space_pci_to_pci_bridge_field().unwrap().caps_ptr() as usize
-            }
-            _ => return None, // unsupported type
-        };
-
-        while caps_ptr != 0
+        }
+        else
         {
-            if let Some(field) =
-                MsiCapabilityField::read(self.bus, self.device, self.func, caps_ptr)
-            {
-                caps_ptr = field.next_ptr() as usize;
-                list.push(field);
-            }
-            else
-            {
-                break;
-            }
+            return None;
         }
 
         return Some(list);
     }
 
-    pub fn write_caps_list(&self, mut caps_list: Vec<MsiCapabilityField>)
+    pub fn set_msi_cap(
+        &self,
+        msg_addr: MsiMessageAddressField,
+        msg_data: MsiMessageDataField,
+    ) -> Result<(), &'static str>
     {
-        if !self.is_available_msi_int()
+        if let Some(caps_ptr) = self.read_caps_ptr()
         {
-            return;
-        }
-
-        let caps_ptr = match self.conf_space_header.header_type()
-        {
-            ConfigurationSpaceHeaderType::NonBridge =>
-            {
-                self.read_conf_space_non_bridge_field().unwrap().caps_ptr() as usize
-            }
-            ConfigurationSpaceHeaderType::PciToPciBridge =>
-            {
-                self.read_conf_space_pci_to_pci_bridge_field().unwrap().caps_ptr() as usize
-            }
-            _ => return, // unsupported type
-        };
-
-        let mut ptr_base = size_of::<ConfigurationSpaceCommonHeaderField>()
-            + size_of::<ConfigurationSpaceNonBridgeField>();
-        if caps_ptr == 0
-        {
+            let mut cap = MsiCapabilityField::new();
+            let mut caps_ptr = caps_ptr;
+            let caps_list = self.read_caps_list().unwrap();
             let caps_list_len = caps_list.len();
-            for (i, cap) in caps_list.iter_mut().enumerate()
+
+            if caps_list_len == 0
             {
-                let next_ptr = if i == caps_list_len - 1
+                return Err("MSI capability fields was not found");
+            }
+
+            for (i, field) in caps_list.iter().enumerate()
+            {
+                if field.cap_id() == 5
                 {
-                    0
+                    cap = *field;
+                    break;
                 }
-                else
+
+                caps_ptr = field.next_ptr();
+
+                if i == caps_list_len - 1
                 {
-                    (ptr_base + i * size_of::<MsiCapabilityField>()) as u8
-                };
-                cap.set_next_ptr(next_ptr);
+                    return Err("MSI capability field was not found");
+                }
+            }
+
+            let mut msg_ctrl = MsiMessageControlField::new();
+            msg_ctrl.set_is_enable(true);
+            msg_ctrl.set_multiple_msg_capable(0);
+            cap.set_msg_ctrl(msg_ctrl);
+
+            cap.set_msg_addr_low(msg_addr);
+            cap.set_msg_data(msg_data);
+
+            // write cap
+            if let Err(msg) = cap.write(self.bus, self.device, self.func, caps_ptr as usize)
+            {
+                return Err(msg);
             }
         }
         else
         {
-            ptr_base = caps_ptr;
+            return Err("Failed to read MSI capability fields");
         }
 
-        for cap in caps_list.iter()
+        return Ok(());
+    }
+
+    pub fn set_msix_cap(
+        &self,
+        msg_addr: MsiMessageAddressField,
+        msg_data: MsiMessageDataField,
+    ) -> Result<(), &'static str>
+    {
+        if let Some(caps_ptr) = self.read_caps_ptr()
         {
-            let dwordbytes = unsafe { cap.into_bytes().align_to::<[u32; 4]>() }.1[0];
-            for i in 0..dwordbytes.len()
+            let mut cap = MsiCapabilityField::new();
+            let mut caps_ptr = caps_ptr;
+            let caps_list = self.read_caps_list().unwrap();
+            let caps_list_len = caps_list.len();
+
+            if caps_list_len == 0
             {
-                conf_space::write_conf_space(
-                    self.bus,
-                    self.device,
-                    self.func,
-                    ptr_base + i * 4,
-                    dwordbytes[i],
-                );
+                return Err("MSI capability fields was not found");
+            }
+
+            for (i, field) in caps_list.iter().enumerate()
+            {
+                if field.cap_id() == 17
+                {
+                    cap = *field;
+                    break;
+                }
+
+                caps_ptr = field.next_ptr();
+
+                if i == caps_list_len - 1
+                {
+                    return Err("MSI-X capability field was not found");
+                }
+            }
+
+            let mut msg_ctrl = MsiMessageControlField::new();
+            msg_ctrl.set_is_enable(true);
+            msg_ctrl.set_multiple_msg_capable(0);
+            cap.set_msg_ctrl(msg_ctrl);
+
+            cap.set_msg_addr_low(msg_addr);
+            cap.set_msg_data(msg_data);
+
+            // write cap
+            if let Err(msg) = cap.write(self.bus, self.device, self.func, caps_ptr as usize)
+            {
+                return Err(msg);
             }
         }
+        else
+        {
+            return Err("Failed to read MSI capability fields");
+        }
+
+        return Ok(());
     }
 }

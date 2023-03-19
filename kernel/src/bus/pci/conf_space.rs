@@ -4,7 +4,7 @@ use alloc::vec::Vec;
 use modular_bitfield::{bitfield, specifiers::*, BitfieldSpecifier};
 use pci_ids::*;
 
-use crate::arch::{addr::PhysicalAddress, asm};
+use crate::arch::{addr::PhysicalAddress, asm, register::msi::*};
 
 const MMIO_PORT_CONF_ADDR: u32 = 0xcf8;
 const MMIO_PORT_CONF_DATA: u32 = 0xcfc;
@@ -477,7 +477,77 @@ impl ConfigurationSpacePciToCardBusField
     }
 }
 
-pub fn read_conf_space(bus: usize, device: usize, func: usize, byte_offset: usize) -> Option<u32>
+#[bitfield]
+#[derive(BitfieldSpecifier, Debug, Clone, Copy)]
+#[repr(C)]
+pub struct MsiMessageControlField
+{
+    pub is_enable: bool,
+    pub multiple_msg_capable: B3,
+    pub multiple_msg_enable: B3,
+    pub is_64bit: bool,
+    pub per_vec_masking: bool,
+    #[skip]
+    reserved: B7,
+}
+
+#[bitfield]
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct MsiCapabilityField
+{
+    pub cap_id: B8,
+    pub next_ptr: B8,
+    pub msg_ctrl: MsiMessageControlField,
+    pub msg_addr_low: MsiMessageAddressField,
+    pub msg_addr_high: B32,
+    pub msg_data: MsiMessageDataField,
+    #[skip]
+    reserved: B16,
+}
+
+impl MsiCapabilityField
+{
+    pub fn read(bus: usize, device: usize, func: usize, caps_ptr: usize) -> Option<Self>
+    {
+        let mut data: [u32; 4] = [0; 4];
+        for (i, elem) in data.iter_mut().enumerate()
+        {
+            if let Some(d) = read_conf_space(bus, device, func, caps_ptr + (i * 4))
+            {
+                *elem = d;
+            }
+            else
+            {
+                return None;
+            }
+        }
+
+        return Some(unsafe { transmute::<[u32; 4], Self>(data) });
+    }
+
+    pub fn write(
+        &self,
+        bus: usize,
+        device: usize,
+        func: usize,
+        caps_ptr: usize,
+    ) -> Result<(), &'static str>
+    {
+        let mut data = unsafe { transmute::<Self, [u32; 4]>(*self) };
+        for (i, elem) in data.iter().enumerate()
+        {
+            if let Err(msg) = write_conf_space(bus, device, func, caps_ptr + (i * 4), *elem)
+            {
+                return Err(msg);
+            }
+        }
+
+        return Ok(());
+    }
+}
+
+fn read_conf_space(bus: usize, device: usize, func: usize, byte_offset: usize) -> Option<u32>
 {
     if bus >= PCI_DEVICE_BUS_LEN
         || device >= PCI_DEVICE_DEVICE_LEN
@@ -498,14 +568,20 @@ pub fn read_conf_space(bus: usize, device: usize, func: usize, byte_offset: usiz
     return Some(result);
 }
 
-pub fn write_conf_space(bus: usize, device: usize, func: usize, byte_offset: usize, data: u32)
+fn write_conf_space(
+    bus: usize,
+    device: usize,
+    func: usize,
+    byte_offset: usize,
+    data: u32,
+) -> Result<(), &'static str>
 {
     if bus >= PCI_DEVICE_BUS_LEN
         || device >= PCI_DEVICE_DEVICE_LEN
         || func >= PCI_DEVICE_FUNC_LEN
         || byte_offset % 4 != 0
     {
-        return;
+        return Err("Invalid args");
     }
 
     let addr = 0x80000000
@@ -515,4 +591,6 @@ pub fn write_conf_space(bus: usize, device: usize, func: usize, byte_offset: usi
         | byte_offset as u32;
     asm::out32(MMIO_PORT_CONF_ADDR, addr);
     asm::out32(MMIO_PORT_CONF_DATA, data);
+
+    return Ok(());
 }

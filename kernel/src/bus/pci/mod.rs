@@ -7,7 +7,6 @@ use spin::Mutex;
 pub mod conf_space;
 pub mod device;
 pub mod device_id;
-pub mod msi;
 pub mod vendor_id;
 
 lazy_static! {
