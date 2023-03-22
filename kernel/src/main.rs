@@ -25,7 +25,7 @@ use graphics::GRAPHICS;
 use log::*;
 use terminal::TERMINAL;
 
-use crate::{arch::{gdt, idt}, device::xhci::host::XhciHostDriver, util::logger};
+use crate::{arch::{gdt, idt}, device::xhci::host::XhcDriver, util::logger};
 
 #[no_mangle]
 #[start]
@@ -60,7 +60,7 @@ pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> !
     bus::init();
 
     // initialize devices
-    let mut xhci = XhciHostDriver::new();
+    let mut xhci = XhcDriver::new();
     if let Some(driver) = &mut xhci
     {
         driver.init();
