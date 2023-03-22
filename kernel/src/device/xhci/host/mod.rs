@@ -167,6 +167,7 @@ impl XhcDriver
             let mut usb_cmd = ope_reg.usb_cmd();
             usb_cmd.set_host_controller_reset(true);
             ope_reg.set_usb_cmd(usb_cmd);
+
             self.write_ope_reg(ope_reg);
 
             loop
@@ -218,6 +219,7 @@ impl XhcDriver
 
             // initialize device context
             // set max device slots
+            self.root_hub_port_cnt = cap_reg.structural_params1().max_ports() as usize;
             let max_slots = cap_reg.structural_params1().max_slots();
             let mut ope_reg = self.read_ope_reg().unwrap();
             let mut conf_reg = ope_reg.configure();
@@ -388,9 +390,6 @@ impl XhcDriver
             self.write_intr_reg_sets(0, intr_reg_set_0);
             info!("Initialized MSI interrupt");
 
-            let cap_leg = self.read_cap_reg().unwrap();
-            self.root_hub_port_cnt = cap_leg.structural_params1().max_ports() as usize;
-
             self.is_init = true;
             info!("Initialized xHC driver");
         }
@@ -434,7 +433,6 @@ impl XhcDriver
         {
             info!("Waiting xHC...");
             let ope_reg = self.read_ope_reg().unwrap();
-            println!("{:?}", ope_reg);
             if !ope_reg.usb_status().hchalted()
             {
                 break;
@@ -492,7 +490,7 @@ impl XhcDriver
         match self.ope_reg_virt_addr.get()
         {
             0 => return,
-            _ => ope_reg.write(self.cap_reg_virt_addr),
+            _ => ope_reg.write(self.ope_reg_virt_addr),
         }
     }
 
@@ -522,7 +520,7 @@ impl XhcDriver
         }
 
         let base_addr =
-            self.doorbell_reg_virt_addr.offset(index * size_of::<InterrupterRegisterSet>());
+            self.intr_reg_sets_virt_addr.offset(index * size_of::<InterrupterRegisterSet>());
         return Some(InterrupterRegisterSet::read(base_addr));
     }
 
