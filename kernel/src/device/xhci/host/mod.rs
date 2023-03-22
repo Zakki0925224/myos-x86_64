@@ -23,7 +23,7 @@ pub struct XhcDriver
     cap_reg_virt_addr: VirtualAddress,
     ope_reg_virt_addr: VirtualAddress,
     runtime_reg_virt_addr: VirtualAddress,
-    int_reg_sets_virt_addr: VirtualAddress,
+    intr_reg_sets_virt_addr: VirtualAddress,
     port_reg_sets_virt_addr: VirtualAddress,
     doorbell_reg_virt_addr: VirtualAddress,
     cmd_ring_virt_addr: VirtualAddress,
@@ -52,7 +52,7 @@ impl XhcDriver
                 cap_reg_virt_addr: VirtualAddress::new(0),
                 ope_reg_virt_addr: VirtualAddress::new(0),
                 runtime_reg_virt_addr: VirtualAddress::new(0),
-                int_reg_sets_virt_addr: VirtualAddress::new(0),
+                intr_reg_sets_virt_addr: VirtualAddress::new(0),
                 port_reg_sets_virt_addr: VirtualAddress::new(0),
                 doorbell_reg_virt_addr: VirtualAddress::new(0),
                 cmd_ring_virt_addr: VirtualAddress::new(0),
@@ -123,7 +123,7 @@ impl XhcDriver
             self.runtime_reg_virt_addr =
                 self.cap_reg_virt_addr.offset(cap_reg.runtime_reg_space_offset() as usize);
 
-            self.int_reg_sets_virt_addr = self.cap_reg_virt_addr.offset(
+            self.intr_reg_sets_virt_addr = self.cap_reg_virt_addr.offset(
                 cap_reg.runtime_reg_space_offset() as usize + size_of::<RuntimeRegitsers>(),
             );
 
@@ -135,7 +135,7 @@ impl XhcDriver
 
             if self.ope_reg_virt_addr.get() == 0
                 || self.runtime_reg_virt_addr.get() == 0
-                || self.int_reg_sets_virt_addr.get() == 0
+                || self.intr_reg_sets_virt_addr.get() == 0
                 || self.port_reg_sets_virt_addr.get() == 0
                 || self.doorbell_reg_virt_addr.get() == 0
             {
@@ -143,27 +143,6 @@ impl XhcDriver
                 failed_init_msg();
                 return;
             }
-
-            // setting up msi
-            let mut msg_addr = MsiMessageAddressField::new();
-            msg_addr.set_destination_id(read_local_apic_id());
-            msg_addr.set_redirection_hint_indication(0);
-            msg_addr.set_destination_mode(0);
-
-            let mut msg_data = MsiMessageDataField::new();
-            msg_data.set_trigger_mode(TriggerMode::Level);
-            msg_data.set_level(Level::Assert);
-            msg_data.set_delivery_mode(DeliveryMode::Fixed);
-            msg_data.set_vector(VEC_XHCI_INT as u8);
-
-            if let Err(msg) = controller.set_msix_cap(msg_addr, msg_data)
-            {
-                warn!("{}", msg);
-                failed_init_msg();
-                return;
-            }
-
-            info!("Setup MSI interrupt");
 
             // stop controller
             let mut ope_reg = self.read_ope_reg().unwrap();
@@ -324,12 +303,8 @@ impl XhcDriver
             // register event ring (primary)
             let event_ring_seg_table_mem = BITMAP_MEM_MAN.lock().alloc_single_mem_frame();
             let event_ring_seg_mem = BITMAP_MEM_MAN.lock().alloc_single_mem_frame();
-            let int_reg_sets = self.read_int_reg_sets();
-            if let (
-                Some(event_ring_seg_table_mem),
-                Some(event_ring_seg_mem),
-                Some(mut int_reg_sets),
-            ) = (event_ring_seg_table_mem, event_ring_seg_mem, int_reg_sets)
+            if let (Some(event_ring_seg_table_mem), Some(event_ring_seg_mem)) =
+                (event_ring_seg_table_mem, event_ring_seg_mem)
             {
                 self.primary_event_ring_virt_addr = event_ring_seg_mem.get_frame_start_virt_addr();
 
@@ -367,17 +342,16 @@ impl XhcDriver
                 event_ring_seg_mem.get_frame_start_virt_addr().write_volatile(event_ring_seg_table);
 
                 // init first interrupter register sets entry
-                let mut int_reg_set_0 = int_reg_sets.registers[0];
-                int_reg_set_0.set_event_ring_seg_table_base_addr(
+                let mut intr_reg_set_0 = self.read_intr_reg_sets(0).unwrap();
+                intr_reg_set_0.set_event_ring_seg_table_base_addr(
                     event_ring_seg_table_mem.get_frame_start_virt_addr().get_phys_addr().get(),
                 );
-                int_reg_set_0.set_event_ring_seg_table_size(1);
-                int_reg_set_0.set_event_ring_dequeue_ptr(
-                    int_reg_set_0.event_ring_seg_table_base_addr()
+                intr_reg_set_0.set_event_ring_seg_table_size(1);
+                intr_reg_set_0.set_event_ring_dequeue_ptr(
+                    intr_reg_set_0.event_ring_seg_table_base_addr()
                         + size_of::<TransferRequestBlock>() as u64,
                 );
-                int_reg_sets.registers[0] = int_reg_set_0;
-                self.write_int_reg_sets(int_reg_sets);
+                self.write_intr_reg_sets(0, intr_reg_set_0);
 
                 info!("Initialized event ring");
             }
@@ -388,22 +362,31 @@ impl XhcDriver
                 return;
             }
 
-            if let Some(mut reg_sets) = self.read_int_reg_sets()
+            // setting up msi
+            let mut msg_addr = MsiMessageAddressField::new();
+            msg_addr.set_destination_id(read_local_apic_id());
+            msg_addr.set_redirection_hint_indication(0);
+            msg_addr.set_destination_mode(0);
+
+            let mut msg_data = MsiMessageDataField::new();
+            msg_data.set_trigger_mode(TriggerMode::Level);
+            msg_data.set_level(Level::Assert);
+            msg_data.set_delivery_mode(DeliveryMode::Fixed);
+            msg_data.set_vector(VEC_XHCI_INT as u8);
+
+            if let Err(msg) = controller.set_msix_cap(msg_addr, msg_data)
             {
-                let mut reg_0 = reg_sets.registers[0];
-                reg_0.set_int_mod_interval(4000);
-                reg_0.set_int_pending(true);
-                reg_0.set_int_enable(true);
-                reg_sets.registers[0] = reg_0;
-                self.write_int_reg_sets(reg_sets);
-                info!("Initialized MSI interrupt");
-            }
-            else
-            {
-                warn!("Failed to read Interrupter Register Sets");
+                warn!("{}", msg);
                 failed_init_msg();
                 return;
             }
+
+            let mut intr_reg_set_0 = self.read_intr_reg_sets(0).unwrap();
+            intr_reg_set_0.set_int_mod_interval(4000);
+            intr_reg_set_0.set_int_pending(true);
+            intr_reg_set_0.set_int_enable(true);
+            self.write_intr_reg_sets(0, intr_reg_set_0);
+            info!("Initialized MSI interrupt");
 
             let cap_leg = self.read_cap_reg().unwrap();
             self.root_hub_port_cnt = cap_leg.structural_params1().max_ports() as usize;
@@ -451,6 +434,7 @@ impl XhcDriver
         {
             info!("Waiting xHC...");
             let ope_reg = self.read_ope_reg().unwrap();
+            println!("{:?}", ope_reg);
             if !ope_reg.usb_status().hchalted()
             {
                 break;
@@ -485,151 +469,118 @@ impl XhcDriver
 
     pub fn id_running(&self) -> bool { return self.is_running; }
 
-    pub fn read_cap_reg(&self) -> Option<CapabilityRegisters>
+    fn read_cap_reg(&self) -> Option<CapabilityRegisters>
     {
-        if self.cap_reg_virt_addr.get() == 0
+        return match self.cap_reg_virt_addr.get()
+        {
+            0 => None,
+            _ => Some(CapabilityRegisters::read(self.cap_reg_virt_addr)),
+        };
+    }
+
+    fn read_ope_reg(&self) -> Option<OperationalRegisters>
+    {
+        return match self.ope_reg_virt_addr.get()
+        {
+            0 => None,
+            _ => Some(OperationalRegisters::read(self.ope_reg_virt_addr)),
+        };
+    }
+
+    fn write_ope_reg(&self, ope_reg: OperationalRegisters)
+    {
+        match self.ope_reg_virt_addr.get()
+        {
+            0 => return,
+            _ => ope_reg.write(self.cap_reg_virt_addr),
+        }
+    }
+
+    fn read_runtime_reg(&self) -> Option<RuntimeRegitsers>
+    {
+        return match self.runtime_reg_virt_addr.get()
+        {
+            0 => None,
+            _ => Some(RuntimeRegitsers::read(self.runtime_reg_virt_addr)),
+        };
+    }
+
+    fn write_runtime_reg(&self, runtime_reg: RuntimeRegitsers)
+    {
+        match self.runtime_reg_virt_addr.get()
+        {
+            0 => return,
+            _ => runtime_reg.write(self.runtime_reg_virt_addr),
+        }
+    }
+
+    fn read_intr_reg_sets(&self, index: usize) -> Option<InterrupterRegisterSet>
+    {
+        if index > INTR_REG_SET_MAX_LEN || self.intr_reg_sets_virt_addr.get() == 0
         {
             return None;
         }
 
-        return Some(self.cap_reg_virt_addr.read_volatile());
+        let base_addr =
+            self.doorbell_reg_virt_addr.offset(index * size_of::<InterrupterRegisterSet>());
+        return Some(InterrupterRegisterSet::read(base_addr));
     }
 
-    pub fn read_ope_reg(&self) -> Option<OperationalRegisters>
+    fn write_intr_reg_sets(&self, index: usize, intr_reg_set: InterrupterRegisterSet)
     {
-        if self.ope_reg_virt_addr.get() == 0
-        {
-            return None;
-        }
-
-        let mut data: [u32; 15] = [0; 15];
-        for (i, elem) in data.iter_mut().enumerate()
-        {
-            *elem = self.ope_reg_virt_addr.offset(i * 4).read_volatile::<u32>();
-        }
-
-        return Some(unsafe { transmute::<[u32; 15], OperationalRegisters>(data) });
-    }
-
-    pub fn write_ope_reg(&self, ope_reg: OperationalRegisters)
-    {
-        if self.ope_reg_virt_addr.get() == 0
+        if index > INTR_REG_SET_MAX_LEN || self.intr_reg_sets_virt_addr.get() == 0
         {
             return;
         }
 
-        let data = unsafe { transmute::<OperationalRegisters, [u32; 15]>(ope_reg) };
-        for (i, elem) in data.iter().enumerate()
-        {
-            self.ope_reg_virt_addr.offset(i * 4).write_volatile(*elem);
-        }
+        let base_addr =
+            self.intr_reg_sets_virt_addr.offset(index * size_of::<InterrupterRegisterSet>());
+        intr_reg_set.write(base_addr);
     }
 
-    pub fn read_runtime_reg(&self) -> Option<RuntimeRegitsers>
-    {
-        if self.runtime_reg_virt_addr.get() == 0
-        {
-            return None;
-        }
-
-        let mut data: [u32; 8] = [0; 8];
-        for (i, elem) in data.iter_mut().enumerate()
-        {
-            *elem = self.runtime_reg_virt_addr.offset(i * 4).read_volatile::<u32>();
-        }
-
-        return Some(unsafe { transmute::<[u32; 8], RuntimeRegitsers>(data) });
-    }
-
-    pub fn write_runtime_reg(&self, runtime_reg: RuntimeRegitsers)
-    {
-        if self.runtime_reg_virt_addr.get() == 0
-        {
-            return;
-        }
-
-        let data = unsafe { transmute::<RuntimeRegitsers, [u32; 8]>(runtime_reg) };
-        for (i, elem) in data.iter().enumerate()
-        {
-            self.runtime_reg_virt_addr.offset(i * 4).write_volatile(*elem);
-        }
-    }
-
-    pub fn read_int_reg_sets(&self) -> Option<InterrupterRegisterSets>
-    {
-        if self.int_reg_sets_virt_addr.get() == 0
-        {
-            return None;
-        }
-
-        let mut data: [u32; 8192] = [0; 8192];
-        for (i, elem) in data.iter_mut().enumerate()
-        {
-            *elem = self.int_reg_sets_virt_addr.offset(i * 4).read_volatile::<u32>();
-        }
-
-        return Some(unsafe { transmute::<[u32; 8192], InterrupterRegisterSets>(data) });
-    }
-
-    pub fn write_int_reg_sets(&self, int_reg_sets: InterrupterRegisterSets)
-    {
-        if self.int_reg_sets_virt_addr.get() == 0
-        {
-            return;
-        }
-
-        let data = unsafe { transmute::<InterrupterRegisterSets, [u32; 8192]>(int_reg_sets) };
-        for (i, elem) in data.iter().enumerate()
-        {
-            self.int_reg_sets_virt_addr.offset(i * 4).write_volatile(*elem);
-        }
-    }
-
-    pub fn read_port_reg_set(&self, index: usize) -> Option<PortRegisterSet>
+    fn read_port_reg_set(&self, index: usize) -> Option<PortRegisterSet>
     {
         if index == 0 || index > self.root_hub_port_cnt || self.port_reg_sets_virt_addr.get() == 0
         {
             return None;
         }
 
-        let reg_set_virt_addr =
+        let base_addr =
             self.port_reg_sets_virt_addr.offset((index - 1) * size_of::<PortRegisterSet>());
-        return Some(reg_set_virt_addr.read_volatile());
+        return Some(PortRegisterSet::read(base_addr));
     }
 
-    pub fn write_port_reg_set(&self, index: usize, port_reg_set: PortRegisterSet)
+    fn write_port_reg_set(&self, index: usize, port_reg_set: PortRegisterSet)
     {
         if index == 0 || index > self.root_hub_port_cnt || self.port_reg_sets_virt_addr.get() == 0
         {
             return;
         }
 
-        let reg_set_virt_addr =
+        let base_addr =
             self.port_reg_sets_virt_addr.offset((index - 1) * size_of::<PortRegisterSet>());
-        reg_set_virt_addr.write_volatile(port_reg_set);
+        port_reg_set.write(base_addr);
     }
 
-    pub fn read_doorbell_reg(&self, index: usize) -> Option<DoorbellRegister>
+    fn read_doorbell_reg(&self, index: usize) -> Option<DoorbellRegister>
     {
         if index > DOORBELL_REG_MAX_LEN || self.doorbell_reg_virt_addr.get() == 0
         {
             return None;
         }
 
-        let reg_virt_addr =
-            self.doorbell_reg_virt_addr.offset(index * size_of::<DoorbellRegister>());
-        return Some(reg_virt_addr.read_volatile());
+        let base_addr = self.doorbell_reg_virt_addr.offset(index * size_of::<DoorbellRegister>());
+        return Some(DoorbellRegister::read(base_addr));
     }
 
-    pub fn write_doorbell_reg(&self, index: usize, doorbell_reg: DoorbellRegister)
+    fn write_doorbell_reg(&self, index: usize, doorbell_reg: DoorbellRegister)
     {
         if index > DOORBELL_REG_MAX_LEN || self.doorbell_reg_virt_addr.get() == 0
         {
             return;
         }
 
-        let reg_virt_addr =
-            self.doorbell_reg_virt_addr.offset(index * size_of::<DoorbellRegister>());
-        reg_virt_addr.write_volatile(doorbell_reg);
+        let base_addr = self.doorbell_reg_virt_addr.offset(index * size_of::<DoorbellRegister>());
+        doorbell_reg.write(base_addr);
     }
 }

@@ -118,7 +118,7 @@ impl RingBuffer
         return None;
     }
 
-    pub fn read(&self, index: usize) -> Option<TransferRequestBlock>
+    fn read(&self, index: usize) -> Option<TransferRequestBlock>
     {
         if index >= self.buf_len
         {
@@ -144,7 +144,7 @@ impl RingBuffer
         return Some(virt_addr.read_volatile());
     }
 
-    pub fn write(&self, index: usize, trb: TransferRequestBlock)
+    fn write(&self, index: usize, trb: TransferRequestBlock)
     {
         if index >= self.buf_len
         {

@@ -1,6 +1,11 @@
+use core::mem::transmute;
+
 use modular_bitfield::{bitfield, specifiers::*, BitfieldSpecifier};
 
+use crate::arch::addr::VirtualAddress;
+
 pub const DOORBELL_REG_MAX_LEN: usize = 256;
+pub const INTR_REG_SET_MAX_LEN: usize = 1024;
 
 #[bitfield]
 #[derive(BitfieldSpecifier, Debug, Clone, Copy)]
@@ -112,6 +117,11 @@ pub struct CapabilityRegisters
     pub runtime_reg_space_offset: B32,
     #[skip(setters)]
     pub cap_params2: CapabilityParameters2,
+}
+
+impl CapabilityRegisters
+{
+    pub fn read(base_addr: VirtualAddress) -> Self { return base_addr.read_volatile(); }
 }
 
 #[bitfield]
@@ -238,6 +248,29 @@ pub struct OperationalRegisters
     pub configure: ConfigureRegister,
 }
 
+impl OperationalRegisters
+{
+    pub fn read(base_addr: VirtualAddress) -> Self
+    {
+        let mut data = [0; 15];
+        for (i, elem) in data.iter_mut().enumerate()
+        {
+            *elem = base_addr.offset(i * 4).read_volatile::<u32>();
+        }
+
+        return unsafe { transmute::<[u32; 15], Self>(data) };
+    }
+
+    pub fn write(&self, base_addr: VirtualAddress)
+    {
+        let data = unsafe { transmute::<OperationalRegisters, [u32; 15]>(*self) };
+        for (i, elem) in data.iter().enumerate()
+        {
+            base_addr.offset(i * 4).write_volatile(*elem);
+        }
+    }
+}
+
 #[bitfield]
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
@@ -258,6 +291,29 @@ pub struct RuntimeRegitsers
     reserved5: B32,
     #[skip]
     reserved6: B32,
+}
+
+impl RuntimeRegitsers
+{
+    pub fn read(base_addr: VirtualAddress) -> Self
+    {
+        let mut data: [u32; 8] = [0; 8];
+        for (i, elem) in data.iter_mut().enumerate()
+        {
+            *elem = base_addr.offset(i * 4).read_volatile::<u32>();
+        }
+
+        return unsafe { transmute::<[u32; 8], Self>(data) };
+    }
+
+    pub fn write(&self, base_addr: VirtualAddress)
+    {
+        let data = unsafe { transmute::<Self, [u32; 8]>(*self) };
+        for (i, elem) in data.iter().enumerate()
+        {
+            base_addr.offset(i * 4).write_volatile(*elem);
+        }
+    }
 }
 
 #[bitfield]
@@ -283,11 +339,27 @@ pub struct InterrupterRegisterSet
     pub event_ring_dequeue_ptr: B60,
 }
 
-#[derive(Debug, Clone, Copy)]
-#[repr(C)]
-pub struct InterrupterRegisterSets
+impl InterrupterRegisterSet
 {
-    pub registers: [InterrupterRegisterSet; 1024],
+    pub fn read(base_addr: VirtualAddress) -> Self
+    {
+        let mut data: [u32; 8] = [0; 8];
+        for (i, elem) in data.iter_mut().enumerate()
+        {
+            *elem = base_addr.offset(i * 4).read_volatile::<u32>();
+        }
+
+        return unsafe { transmute::<[u32; 8], Self>(data) };
+    }
+
+    pub fn write(&self, base_addr: VirtualAddress)
+    {
+        let data = unsafe { transmute::<Self, [u32; 8]>(*self) };
+        for (i, elem) in data.iter().enumerate()
+        {
+            base_addr.offset(i * 4).write_volatile(*elem);
+        }
+    }
 }
 
 #[bitfield]
@@ -424,6 +496,13 @@ pub struct PortRegisterSet
     pub port_hardware_lpm_ctrl: B32,
 }
 
+impl PortRegisterSet
+{
+    pub fn read(base_addr: VirtualAddress) -> Self { return base_addr.read_volatile(); }
+
+    pub fn write(&self, base_addr: VirtualAddress) { base_addr.write_volatile(*self); }
+}
+
 #[bitfield]
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
@@ -433,4 +512,11 @@ pub struct DoorbellRegister
     #[skip]
     reserved: B8,
     pub db_stream_id: B16,
+}
+
+impl DoorbellRegister
+{
+    pub fn read(base_addr: VirtualAddress) -> Self { return base_addr.read_volatile(); }
+
+    pub fn write(&self, base_addr: VirtualAddress) { base_addr.write_volatile(*self); }
 }
