@@ -1,8 +1,8 @@
-use crate::{arch::addr::VirtualAddress, mem::bitmap::MemoryFrameInfo};
+use crate::{arch::addr::{PhysicalAddress, VirtualAddress}, mem::bitmap::MemoryFrameInfo, println};
 use alloc::vec::Vec;
 use core::mem::size_of;
 
-use super::register::{EventRingSegmentTableEntry, TransferRequestBlock, TransferRequestBlockType};
+use super::register::{EventRingSegmentTableEntry, InterrupterRegisterSet, TransferRequestBlock, TransferRequestBlockType};
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum RingBufferType
@@ -15,6 +15,7 @@ pub enum RingBufferType
 #[derive(Debug)]
 pub struct RingBuffer
 {
+    is_init: bool,
     buf_base_mem_frame: MemoryFrameInfo,
     event_ring_seg_table_entries: Option<Vec<EventRingSegmentTableEntry>>,
     buf_len: usize,
@@ -66,11 +67,14 @@ impl RingBuffer
             buf_len,
             buf_type,
             pcs,
+            is_init: false,
         });
     }
 
-    pub fn init(&self)
+    pub fn init(&mut self)
     {
+        self.is_init = true;
+
         if self.buf_type == RingBufferType::EventRing
         {
             return;
@@ -86,8 +90,99 @@ impl RingBuffer
                 trb.set_trb_type(TransferRequestBlockType::Link);
             }
 
-            self.write(i, trb);
+            self.write(i, trb).unwrap();
         }
+    }
+
+    pub fn is_init(&self) -> bool { return self.is_init; }
+
+    pub fn push(&mut self, trb: TransferRequestBlock) -> Result<(), &'static str>
+    {
+        if !self.is_init
+        {
+            return Err("Ring buffer is not initialized");
+        }
+
+        if self.buf_type == RingBufferType::EventRing
+        {
+            return Err("Event ring is not support push");
+        }
+
+        let mut trb = trb;
+        trb.set_cycle_bit(self.pcs);
+
+        let mut is_buf_end = false;
+        for i in 0..self.buf_len
+        {
+            is_buf_end = i == self.buf_len - 2;
+
+            let read_trb = self.read(i).unwrap();
+
+            if read_trb.cycle_bit() == !self.pcs
+            {
+                self.write(i, trb).unwrap();
+                break;
+            }
+        }
+
+        if is_buf_end
+        {
+            let mut link_trb = self.read(self.buf_len - 1).unwrap();
+            link_trb.set_cycle_bit(!link_trb.cycle_bit());
+            self.write(self.buf_len - 1, link_trb).unwrap();
+            self.pcs = !self.pcs;
+        }
+
+        return Ok(());
+    }
+
+    pub fn pop(
+        &self,
+        mut int_reg_set: InterrupterRegisterSet,
+    ) -> Option<(TransferRequestBlock, InterrupterRegisterSet)>
+    {
+        if !self.is_init
+        {
+            return None;
+        }
+
+        if self.buf_type != RingBufferType::EventRing
+        {
+            return None;
+        }
+
+        let mut dequeue_addr =
+            PhysicalAddress::new(int_reg_set.event_ring_dequeue_ptr() << 4).get_virt_addr();
+
+        let mut index = 0;
+        if let Some(event_ring_seg_table_entries) = &self.event_ring_seg_table_entries
+        {
+            for entry in event_ring_seg_table_entries
+            {
+                let addr = PhysicalAddress::new(entry.ring_seg_base_addr() << 6).get_virt_addr();
+                let size = entry.ring_seg_size() as usize;
+
+                if dequeue_addr.get() >= addr.get() && dequeue_addr.get() <= addr.offset(size).get()
+                {
+                    index += (dequeue_addr.get() - addr.get()) as usize
+                        / size_of::<TransferRequestBlock>();
+                    break;
+                }
+
+                index += size / size_of::<TransferRequestBlock>();
+            }
+        }
+        else
+        {
+            return None;
+        }
+
+        dequeue_addr = dequeue_addr.offset(size_of::<TransferRequestBlock>());
+
+        let trb = self.read(index).unwrap();
+        int_reg_set.set_event_ring_dequeue_ptr(dequeue_addr.get_phys_addr().get() >> 4);
+
+        return Some((trb, int_reg_set));
     }
 
     fn get_buf_virt_addr(&self) -> VirtualAddress
@@ -118,7 +213,7 @@ impl RingBuffer
         return None;
     }
 
-    fn read(&self, index: usize) -> Option<TransferRequestBlock>
+    pub fn read(&self, index: usize) -> Option<TransferRequestBlock>
     {
         if index >= self.buf_len
         {
@@ -144,17 +239,17 @@ impl RingBuffer
         return Some(virt_addr.read_volatile());
     }
 
-    fn write(&self, index: usize, trb: TransferRequestBlock)
+    fn write(&self, index: usize, trb: TransferRequestBlock) -> Result<(), &'static str>
     {
         if index >= self.buf_len
         {
-            return;
+            return Err("Index out of bounds");
         }
 
         let event_ring_seg_index = self.find_event_ring_seg_index(index);
         if self.buf_type == RingBufferType::EventRing && event_ring_seg_index.is_none()
         {
-            return;
+            return Err("Index was not found in ring buffer");
         }
 
         if let Some((i, offset)) = event_ring_seg_index
@@ -164,10 +259,12 @@ impl RingBuffer
             )
             .offset(offset * size_of::<TransferRequestBlock>());
             virt_addr.write_volatile(trb);
-            return;
+            return Ok(());
         }
 
         let virt_addr = self.get_buf_virt_addr().offset(index * size_of::<TransferRequestBlock>());
         virt_addr.write_volatile(trb);
+
+        return Ok(());
     }
 }

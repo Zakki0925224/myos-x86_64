@@ -13,13 +13,13 @@ pub const INTR_REG_SET_MAX_LEN: usize = 1024;
 pub struct StructuralParameters1
 {
     #[skip(setters)]
-    pub max_slots: B8,
+    pub num_of_device_slots: B8,
     #[skip(setters)]
-    pub max_intrs: B11,
+    pub num_of_intrs: B11,
     #[skip]
     reserved: B5,
     #[skip(setters)]
-    pub max_ports: B8,
+    pub num_of_ports: B8,
 }
 
 #[bitfield]
@@ -253,9 +253,9 @@ impl OperationalRegisters
     pub fn read(base_addr: VirtualAddress) -> Self
     {
         let mut data = [0; 15];
-        for (i, elem) in data.iter_mut().enumerate()
+        for (i, field) in data.iter_mut().enumerate()
         {
-            *elem = base_addr.offset(i * 4).read_volatile::<u32>();
+            *field = base_addr.offset(i * 4).read_volatile::<u32>();
         }
 
         return unsafe { transmute::<[u32; 15], Self>(data) };
@@ -264,9 +264,9 @@ impl OperationalRegisters
     pub fn write(&self, base_addr: VirtualAddress)
     {
         let data = unsafe { transmute::<OperationalRegisters, [u32; 15]>(*self) };
-        for (i, elem) in data.iter().enumerate()
+        for (i, field) in data.iter().enumerate()
         {
-            base_addr.offset(i * 4).write_volatile(*elem);
+            base_addr.offset(i * 4).write_volatile(*field);
         }
     }
 }
@@ -309,9 +309,9 @@ impl RuntimeRegitsers
     pub fn write(&self, base_addr: VirtualAddress)
     {
         let data = unsafe { transmute::<Self, [u32; 8]>(*self) };
-        for (i, elem) in data.iter().enumerate()
+        for (i, field) in data.iter().enumerate()
         {
-            base_addr.offset(i * 4).write_volatile(*elem);
+            base_addr.offset(i * 4).write_volatile(*field);
         }
     }
 }
@@ -332,8 +332,8 @@ pub struct InterrupterRegisterSet
 
     pub event_ring_seg_table_size: B16,
     #[skip]
-    reserved1: B54,
-    pub event_ring_seg_table_base_addr: B58,
+    reserved1: B48,
+    pub event_ring_seg_table_base_addr: B64, // 64byte align
     pub dequeue_erst_seg_index: B3,
     pub event_handler_busy: bool,
     pub event_ring_dequeue_ptr: B60,
@@ -344,10 +344,22 @@ impl InterrupterRegisterSet
     pub fn read(base_addr: VirtualAddress) -> Self
     {
         let mut data: [u32; 8] = [0; 8];
-        for (i, elem) in data.iter_mut().enumerate()
+        for (i, field) in data.iter_mut().enumerate()
         {
-            *elem = base_addr.offset(i * 4).read_volatile::<u32>();
+            if i > 3
+            {
+                continue;
+            }
+
+            *field = base_addr.offset(i * 4).read_volatile::<u32>();
         }
+
+        let qword = base_addr.offset(4 * 4).read_volatile::<u64>();
+        data[4] = qword as u32;
+        data[5] = (qword << 32) as u32;
+        let qword = base_addr.offset(6 * 4).read_volatile::<u64>();
+        data[6] = qword as u32;
+        data[7] = (qword << 32) as u32;
 
         return unsafe { transmute::<[u32; 8], Self>(data) };
     }
@@ -355,9 +367,23 @@ impl InterrupterRegisterSet
     pub fn write(&self, base_addr: VirtualAddress)
     {
         let data = unsafe { transmute::<Self, [u32; 8]>(*self) };
-        for (i, elem) in data.iter().enumerate()
+
+        for (i, field) in data.iter().enumerate()
         {
-            base_addr.offset(i * 4).write_volatile(*elem);
+            if i == 5 || i == 7
+            {
+                continue;
+            }
+
+            if i == 4 || i == 6
+            {
+                let qword_field = data[i] as u64 | ((data[i + 1] as u64) << 32);
+                base_addr.offset(i * 4).write_volatile(qword_field);
+
+                continue;
+            }
+
+            base_addr.offset(i * 4).write_volatile(*field);
         }
     }
 }
@@ -367,9 +393,7 @@ impl InterrupterRegisterSet
 #[repr(C)]
 pub struct EventRingSegmentTableEntry
 {
-    #[skip]
-    reserved0: B6,
-    pub ring_seg_base_addr: B58,
+    pub ring_seg_base_addr: B64, // 64byte alignment
     pub ring_seg_size: B16,
     #[skip]
     reserved1: B48,
