@@ -1,6 +1,6 @@
 use core::mem::size_of;
 
-use crate::{arch::{addr::*, apic::local::read_local_apic_id, idt::VEC_XHCI_INT, register::msi::*}, bus::pci::{conf_space::*, device_id::*, PCI_DEVICE_MAN}, device::xhci::{device::Device, register::*, ring_buffer::*}, mem::bitmap::BITMAP_MEM_MAN, println};
+use crate::{arch::{addr::*, apic::local::read_local_apic_id, idt::VEC_XHCI_INT, register::msi::*}, bus::pci::{conf_space::*, device_id::*, PCI_DEVICE_MAN}, device::xhci::{port::Port, register::*, ring_buffer::*}, mem::bitmap::BITMAP_MEM_MAN, println};
 use alloc::vec::Vec;
 use log::{info, warn};
 
@@ -22,12 +22,14 @@ pub struct XhcDriver
     doorbell_reg_virt_addr: VirtualAddress,
     cmd_ring_virt_addr: VirtualAddress,
     primary_event_ring_virt_addr: VirtualAddress,
+    device_context_arr_virt_addr: VirtualAddress,
     num_of_ports: usize,
+    num_of_slots: usize,
     transfer_ring_buf: Option<RingBuffer>,
     primary_event_ring_buf: Option<RingBuffer>,
     cmd_ring_buf: Option<RingBuffer>,
 
-    devices: Vec<Device>,
+    ports: Vec<Port>,
 }
 
 impl XhcDriver
@@ -61,12 +63,14 @@ impl XhcDriver
                     port_reg_sets_virt_addr: VirtualAddress::new(0),
                     doorbell_reg_virt_addr: VirtualAddress::new(0),
                     cmd_ring_virt_addr: VirtualAddress::new(0),
+                    device_context_arr_virt_addr: VirtualAddress::new(0),
                     primary_event_ring_virt_addr: VirtualAddress::new(0),
                     num_of_ports: 0,
+                    num_of_slots: 0,
                     transfer_ring_buf: None,
                     primary_event_ring_buf: None,
                     cmd_ring_buf: None,
-                    devices: Vec::new(),
+                    ports: Vec::new(),
                 };
 
                 info!(
@@ -220,10 +224,10 @@ impl XhcDriver
 
             // set max device slots
             self.num_of_ports = cap_reg.structural_params1().num_of_ports() as usize;
-            let max_slots = cap_reg.structural_params1().num_of_device_slots();
+            self.num_of_slots = cap_reg.structural_params1().num_of_device_slots() as usize;
             let mut ope_reg = self.read_ope_reg().unwrap();
             let mut conf_reg = ope_reg.configure();
-            conf_reg.set_max_device_slots_enabled(max_slots);
+            conf_reg.set_max_device_slots_enabled(self.num_of_slots as u8);
             ope_reg.set_configure(conf_reg);
             self.write_ope_reg(ope_reg);
 
@@ -268,28 +272,21 @@ impl XhcDriver
             // initialize device context
             if let Some(dev_context_mem_frame) = BITMAP_MEM_MAN.lock().alloc_single_mem_frame()
             {
-                let virt_addr = dev_context_mem_frame.get_frame_start_virt_addr();
-                let device_context_arr: &mut [u64] = virt_addr.read_volatile();
+                self.device_context_arr_virt_addr =
+                    dev_context_mem_frame.get_frame_start_virt_addr();
 
                 // init device context array
-                for i in 0..(max_slots + 1) as usize
+                for i in 0..(self.num_of_slots + 1)
                 {
-                    if let Some(entry) = device_context_arr.get_mut(i)
-                    {
-                        if i == 0
-                        {
-                            *entry = scratchpad_buf_arr_virt_addr.get_phys_addr().get();
-                            continue;
-                        }
-
-                        *entry = 0;
-                    }
+                    let entry =
+                        if i == 0 { scratchpad_buf_arr_virt_addr } else { VirtualAddress::new(0) };
+                    self.write_device_context_base_addr(i, entry);
                 }
 
-                virt_addr.write_volatile(device_context_arr);
-
                 let mut ope_reg = self.read_ope_reg().unwrap();
-                ope_reg.set_device_context_base_addr_array_ptr(virt_addr.get_phys_addr().get());
+                ope_reg.set_device_context_base_addr_array_ptr(
+                    self.device_context_arr_virt_addr.get_phys_addr().get(),
+                );
                 self.write_ope_reg(ope_reg);
                 info!("xhci: Initialized device context");
             }
@@ -306,13 +303,8 @@ impl XhcDriver
             if let Some(cmd_ring_mem) = BITMAP_MEM_MAN.lock().alloc_single_mem_frame()
             {
                 self.cmd_ring_virt_addr = cmd_ring_mem.get_frame_start_virt_addr();
-                self.cmd_ring_buf = RingBuffer::new(
-                    cmd_ring_mem,
-                    None,
-                    RING_BUF_LEN,
-                    RingBufferType::CommandRing,
-                    pcs,
-                );
+                self.cmd_ring_buf =
+                    RingBuffer::new(cmd_ring_mem, RING_BUF_LEN, RingBufferType::CommandRing, pcs);
 
                 if let Some(cmd_ring_buf) = self.cmd_ring_buf.as_mut()
                 {
@@ -348,31 +340,24 @@ impl XhcDriver
             // register event ring (primary)
             let event_ring_seg_table_mem = BITMAP_MEM_MAN.lock().alloc_single_mem_frame();
             let event_ring_seg_mem = BITMAP_MEM_MAN.lock().alloc_single_mem_frame();
-            if let (Some(event_ring_seg_table_mem), Some(event_ring_seg_mem)) =
+            if let (Some(seg_table_mem_info), Some(seg_mem_info)) =
                 (event_ring_seg_table_mem, event_ring_seg_mem)
             {
-                self.primary_event_ring_virt_addr = event_ring_seg_mem.get_frame_start_virt_addr();
+                self.primary_event_ring_virt_addr = seg_mem_info.get_frame_start_virt_addr();
+                let seg_table_virt_addr = seg_table_mem_info.get_frame_start_virt_addr();
 
-                // init event ring segment table
-                let mut event_ring_seg_table: EventRingSegmentTableEntry =
-                    event_ring_seg_table_mem.get_frame_start_virt_addr().read_volatile();
-                event_ring_seg_table.set_ring_seg_base_addr(
-                    event_ring_seg_mem.get_frame_start_virt_addr().get_phys_addr().get(),
+                // init event ring segment table entry
+                let mut seg_table_entry =
+                    seg_table_virt_addr.read_volatile::<EventRingSegmentTableEntry>();
+                seg_table_entry.set_ring_seg_base_addr(
+                    self.primary_event_ring_virt_addr.get_phys_addr().get(),
                 );
-                event_ring_seg_table.set_ring_seg_size(RING_BUF_LEN as u16);
+                seg_table_entry.set_ring_seg_size(RING_BUF_LEN as u16);
+                seg_table_virt_addr.write_volatile(seg_table_entry);
 
-                let mut entries = Vec::new();
-                entries.push(event_ring_seg_table.clone());
-
-                // init event ring buffer
-                self.primary_event_ring_buf = RingBuffer::new(
-                    event_ring_seg_mem,
-                    Some(entries),
-                    RING_BUF_LEN,
-                    RingBufferType::EventRing,
-                    pcs,
-                );
-
+                // init event ring buffer (support only segment table length is 1)
+                self.primary_event_ring_buf =
+                    RingBuffer::new(seg_mem_info, RING_BUF_LEN, RingBufferType::EventRing, pcs);
                 if let Some(primary_event_ring_buf) = self.primary_event_ring_buf.as_mut()
                 {
                     primary_event_ring_buf.init();
@@ -384,18 +369,16 @@ impl XhcDriver
                     return;
                 }
 
-                event_ring_seg_mem.get_frame_start_virt_addr().write_volatile(event_ring_seg_table);
-
                 // init first interrupter register sets entry
                 let mut intr_reg_set_0 = self.read_intr_reg_sets(0).unwrap();
                 //println!("before: {:?}", intr_reg_set_0);
-                intr_reg_set_0.set_event_ring_seg_table_base_addr(
-                    event_ring_seg_table_mem.get_frame_start_virt_addr().get_phys_addr().get(),
-                );
+                intr_reg_set_0
+                    .set_event_ring_seg_table_base_addr(seg_table_virt_addr.get_phys_addr().get());
                 intr_reg_set_0.set_event_ring_seg_table_size(1);
                 intr_reg_set_0.set_event_ring_dequeue_ptr(
-                    (intr_reg_set_0.event_ring_seg_table_base_addr()
-                        + size_of::<TransferRequestBlock>() as u64)
+                    self.primary_event_ring_virt_addr
+                        .offset(size_of::<TransferRequestBlock>())
+                        .get()
                         >> 4,
                 );
                 intr_reg_set_0.set_int_mod_interval(4000);
@@ -485,7 +468,10 @@ impl XhcDriver
             return;
         }
 
-        info!("xhci: Available ports: {}", self.num_of_ports);
+        // event ring test
+        println!("{:?}", self.pop_primary_event_ring());
+        println!("{:?}", self.pop_primary_event_ring());
+        println!("{:?}", self.pop_primary_event_ring());
     }
 
     pub fn scan_ports(&mut self)
@@ -495,7 +481,7 @@ impl XhcDriver
             return;
         }
 
-        self.devices = Vec::new();
+        self.ports = Vec::new();
 
         for i in 1..=self.num_of_ports
         {
@@ -510,6 +496,8 @@ impl XhcDriver
                 port_reg_set.set_port_status_and_ctrl(sc_reg);
                 self.write_port_reg_set(i, port_reg_set);
 
+                info!("xhci: Reset port (port id: {})", i);
+
                 loop
                 {
                     if self.read_port_reg_set(i).unwrap().port_status_and_ctrl().port_enabled()
@@ -518,11 +506,27 @@ impl XhcDriver
                     }
                 }
 
-                info!("xhci: Reset port (port id: {})", i);
+                info!("xhci: Enabled port (port id: {})", i);
+                self.ports.push(Port::new(i));
             }
         }
+    }
 
-        println!("{:?}", self.read_intr_reg_sets(0).unwrap());
+    pub fn alloc_slots(&mut self)
+    {
+        if !self.is_init || !self.is_running()
+        {
+            return;
+        }
+
+        let ports_len = self.ports.len();
+        for _ in 0..ports_len
+        {
+            let mut enable_slot_cmd = TransferRequestBlock::new();
+            enable_slot_cmd.set_trb_type(TransferRequestBlockType::EnableSlotCommand);
+            self.push_cmd_ring(enable_slot_cmd).unwrap();
+            println!("{:?}", self.pop_primary_event_ring());
+        }
     }
 
     pub fn is_init(&self) -> bool { return self.is_init; }
@@ -652,5 +656,68 @@ impl XhcDriver
 
         let base_addr = self.doorbell_reg_virt_addr.offset(index * size_of::<DoorbellRegister>());
         doorbell_reg.write(base_addr);
+    }
+
+    fn read_device_context_base_addr(&self, index: usize) -> Option<VirtualAddress>
+    {
+        if self.device_context_arr_virt_addr.get() == 0
+        {
+            return None;
+        }
+
+        if index > self.num_of_slots + 1
+        {
+            return None;
+        }
+
+        let entry =
+            self.device_context_arr_virt_addr.offset(index * size_of::<u64>()).read_volatile();
+        let virt_addr = PhysicalAddress::new(entry).get_virt_addr();
+
+        return Some(virt_addr);
+    }
+
+    fn write_device_context_base_addr(&self, index: usize, base_addr: VirtualAddress)
+    {
+        if self.device_context_arr_virt_addr.get() == 0
+        {
+            return;
+        }
+
+        if index > self.num_of_slots + 1
+        {
+            return;
+        }
+
+        self.device_context_arr_virt_addr
+            .offset(index * size_of::<u64>())
+            .write_volatile(base_addr.get_phys_addr().get());
+    }
+
+    fn push_cmd_ring(&mut self, trb: TransferRequestBlock) -> Result<(), &'static str>
+    {
+        if let Some(cmd_ring) = self.cmd_ring_buf.as_mut()
+        {
+            return cmd_ring.push(trb);
+        }
+
+        return Err("Command ring buffer is not initialized");
+    }
+
+    fn pop_primary_event_ring(&self) -> Option<TransferRequestBlock>
+    {
+        if let Some(event_ring) = &self.primary_event_ring_buf
+        {
+            let intr_reg_set = self.read_intr_reg_sets(0).unwrap();
+            if let Some((trb, intr_reg_set)) = event_ring.pop(intr_reg_set)
+            {
+                self.write_intr_reg_sets(0, intr_reg_set);
+                return Some(trb);
+            }
+
+            return None;
+        }
+
+        return None;
     }
 }

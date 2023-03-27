@@ -1,10 +1,10 @@
 #[derive(Debug)]
-pub struct Device
+pub struct Port
 {
     port_num: usize,
 }
 
-impl Device
+impl Port
 {
     pub fn new(port_num: usize) -> Self { return Self { port_num }; }
 }

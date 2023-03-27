@@ -61,11 +61,12 @@ pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> !
 
     // initialize devices
     let mut xhci = XhcDriver::new();
-    if let Some(driver) = &mut xhci
+    if let Some(driver) = xhci.as_mut()
     {
         driver.init();
         driver.start();
         driver.scan_ports();
+        //driver.alloc_slots();
     }
 
     env::print_info();

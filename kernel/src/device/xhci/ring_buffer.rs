@@ -1,8 +1,9 @@
-use crate::{arch::addr::{PhysicalAddress, VirtualAddress}, mem::bitmap::MemoryFrameInfo, println};
-use alloc::vec::Vec;
+use log::warn;
+
+use crate::{arch::addr::*, mem::bitmap::MemoryFrameInfo, println};
 use core::mem::size_of;
 
-use super::register::{EventRingSegmentTableEntry, InterrupterRegisterSet, TransferRequestBlock, TransferRequestBlockType};
+use super::register::*;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum RingBufferType
@@ -16,8 +17,7 @@ pub enum RingBufferType
 pub struct RingBuffer
 {
     is_init: bool,
-    buf_base_mem_frame: MemoryFrameInfo,
-    event_ring_seg_table_entries: Option<Vec<EventRingSegmentTableEntry>>,
+    buf_base_virt_addr: VirtualAddress,
     buf_len: usize,
     buf_type: RingBufferType,
     pcs: bool,
@@ -27,7 +27,6 @@ impl RingBuffer
 {
     pub fn new(
         buf_base_mem_frame: MemoryFrameInfo,
-        event_ring_seg_table_entries: Option<Vec<EventRingSegmentTableEntry>>,
         buf_len: usize,
         buf_type: RingBufferType,
         pcs: bool,
@@ -39,31 +38,8 @@ impl RingBuffer
             return None;
         }
 
-        if buf_type == RingBufferType::EventRing
-        {
-            if event_ring_seg_table_entries.is_none()
-            {
-                return None;
-            }
-
-            let ring_seg_size_sum: usize = event_ring_seg_table_entries
-                .as_ref()
-                .unwrap()
-                .iter()
-                .map(|e| e.ring_seg_size() as usize)
-                .sum();
-
-            if ring_seg_size_sum != buf_len
-                || event_ring_seg_table_entries.as_ref().unwrap()[0].ring_seg_base_addr()
-                    != buf_base_mem_frame.get_frame_start_virt_addr().get_phys_addr().get()
-            {
-                return None;
-            }
-        }
-
         return Some(Self {
-            buf_base_mem_frame,
-            event_ring_seg_table_entries,
+            buf_base_virt_addr: buf_base_mem_frame.get_frame_start_virt_addr(),
             buf_len,
             buf_type,
             pcs,
@@ -151,66 +127,56 @@ impl RingBuffer
             return None;
         }
 
+        if int_reg_set.event_ring_seg_table_size() != 1 || int_reg_set.dequeue_erst_seg_index() != 0
+        {
+            warn!("xhci: Unsupported event ring segment table length (is not 1)");
+            return None;
+        }
+
+        let trb_size = size_of::<TransferRequestBlock>();
         let mut dequeue_addr =
             PhysicalAddress::new(int_reg_set.event_ring_dequeue_ptr() << 4).get_virt_addr();
 
-        let mut index = 0;
-        if let Some(event_ring_seg_table_entries) = &self.event_ring_seg_table_entries
+        let mut index =
+            (dequeue_addr.get() - self.buf_base_virt_addr.get()) as usize / trb_size - 1;
+
+        let mut trb = self.read(index).unwrap();
+
+        let mut skip_cnt = 0;
+        loop
         {
-            for entry in event_ring_seg_table_entries
+            if skip_cnt == self.buf_len
             {
-                let addr = PhysicalAddress::new(entry.ring_seg_base_addr() << 6).get_virt_addr();
-                let size = entry.ring_seg_size() as usize;
-
-                if dequeue_addr.get() >= addr.get() && dequeue_addr.get() <= addr.offset(size).get()
-                {
-                    index += (dequeue_addr.get() - addr.get()) as usize
-                        / size_of::<TransferRequestBlock>();
-                    break;
-                }
-
-                index += size / size_of::<TransferRequestBlock>();
+                println!("valid TRB was not found");
+                return None;
             }
-        }
-        else
-        {
-            return None;
+
+            if index >= self.buf_len
+            {
+                index = 0;
+                dequeue_addr = self.buf_base_virt_addr;
+            }
+
+            trb = self.read(index).unwrap();
+            if trb.cycle_bit() == self.pcs
+            {
+                break;
+            }
+
+            index += 1;
+            skip_cnt += 1;
         }
 
-        dequeue_addr = dequeue_addr.offset(size_of::<TransferRequestBlock>());
+        let tmp_trb = trb;
+        trb.set_cycle_bit(!self.pcs);
+        self.write(index, trb).unwrap();
 
-        let trb = self.read(index).unwrap();
+        dequeue_addr = dequeue_addr.offset(trb_size);
+
         int_reg_set.set_event_ring_dequeue_ptr(dequeue_addr.get_phys_addr().get() >> 4);
+        int_reg_set.set_event_handler_busy(false);
 
-        return Some((trb, int_reg_set));
-    }
-
-    fn get_buf_virt_addr(&self) -> VirtualAddress
-    {
-        return self.buf_base_mem_frame.get_frame_start_virt_addr();
-    }
-
-    fn find_event_ring_seg_index(&self, index: usize) -> Option<(usize, usize)>
-    {
-        let mut offset = 0;
-
-        if let Some(event_ring_seg_table_entries) = &self.event_ring_seg_table_entries
-        {
-            for (i, e) in event_ring_seg_table_entries.iter().enumerate()
-            {
-                let size = e.ring_seg_size() as usize;
-                if index < offset + size
-                {
-                    return Some((i, index - offset));
-                }
-
-                offset += size;
-            }
-
-            return None;
-        }
-
-        return None;
+        return Some((tmp_trb, int_reg_set));
     }
 
     pub fn read(&self, index: usize) -> Option<TransferRequestBlock>
@@ -220,22 +186,7 @@ impl RingBuffer
             return None;
         }
 
-        let event_ring_seg_index = self.find_event_ring_seg_index(index);
-        if self.buf_type == RingBufferType::EventRing && event_ring_seg_index.is_none()
-        {
-            return None;
-        }
-
-        if let Some((i, offset)) = event_ring_seg_index
-        {
-            let virt_addr = VirtualAddress::new(
-                self.event_ring_seg_table_entries.as_ref().unwrap()[i].ring_seg_base_addr(),
-            )
-            .offset(offset * size_of::<TransferRequestBlock>());
-            return Some(virt_addr.read_volatile());
-        }
-
-        let virt_addr = self.get_buf_virt_addr().offset(index * size_of::<TransferRequestBlock>());
+        let virt_addr = self.buf_base_virt_addr.offset(index * size_of::<TransferRequestBlock>());
         return Some(virt_addr.read_volatile());
     }
 
@@ -246,23 +197,7 @@ impl RingBuffer
             return Err("Index out of bounds");
         }
 
-        let event_ring_seg_index = self.find_event_ring_seg_index(index);
-        if self.buf_type == RingBufferType::EventRing && event_ring_seg_index.is_none()
-        {
-            return Err("Index was not found in ring buffer");
-        }
-
-        if let Some((i, offset)) = event_ring_seg_index
-        {
-            let virt_addr = VirtualAddress::new(
-                self.event_ring_seg_table_entries.as_ref().unwrap()[i].ring_seg_base_addr(),
-            )
-            .offset(offset * size_of::<TransferRequestBlock>());
-            virt_addr.write_volatile(trb);
-            return Ok(());
-        }
-
-        let virt_addr = self.get_buf_virt_addr().offset(index * size_of::<TransferRequestBlock>());
+        let virt_addr = self.buf_base_virt_addr.offset(index * size_of::<TransferRequestBlock>());
         virt_addr.write_volatile(trb);
 
         return Ok(());
