@@ -47,18 +47,21 @@ impl PciDeviceManager
         self.devices = devices;
     }
 
-    pub fn find_by_class(
-        &self,
-        class_code: u8,
-        subclass_code: u8,
-        prog_if: u8,
-    ) -> Option<&PciDevice>
+    pub fn find_by_class(&self, class_code: u8, subclass_code: u8, prog_if: u8) -> Vec<&PciDevice>
     {
-        let found = self
+        let mut devices = Vec::new();
+
+        let founds = self
             .devices
             .iter()
-            .find(|d| d.get_device_class() == (class_code, subclass_code, prog_if));
-        return found;
+            .filter(|d| d.get_device_class() == (class_code, subclass_code, prog_if));
+
+        for device in founds
+        {
+            devices.push(device);
+        }
+
+        return devices;
     }
 
     pub fn find_by_bdf(&self, bus: usize, device: usize, func: usize) -> Option<&PciDevice>

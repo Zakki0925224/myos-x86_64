@@ -139,5 +139,5 @@ pub fn init()
     set_handler(VEC_PAGE_FAULT, page_fault_handler);
     set_handler(VEC_DOUBLE_FAULT, double_fault_handler);
     set_handler(VEC_XHCI_INT, xhci_host_controller_int);
-    info!("Initialized IDT");
+    info!("idt: Initialized IDT");
 }

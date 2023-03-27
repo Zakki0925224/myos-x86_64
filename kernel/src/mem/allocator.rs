@@ -70,7 +70,7 @@ impl Allocator
                 (*self.base_virt_addr.get()) = virt_addr.get();
             }
 
-            info!("Initialized heap allocator");
+            info!("mem: Initialized heap allocator");
         }
         else
         {

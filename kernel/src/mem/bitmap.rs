@@ -203,7 +203,7 @@ impl BitmapMemoryManager
             self.alloc_frame(i);
         }
 
-        info!("Initialized bitmap memory manager");
+        info!("mem: Initialized bitmap memory manager");
     }
 
     pub fn is_init(&self) -> bool { return self.is_init; }

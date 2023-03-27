@@ -1,15 +1,8 @@
 use core::mem::size_of;
 
-use crate::{arch::{addr::*, apic::local::read_local_apic_id, idt::VEC_XHCI_INT, register::msi::*}, bus::pci::{conf_space::*, device_id::*, PCI_DEVICE_MAN}, device::xhci::host::{register::*, ring_buffer::RingBufferType}, mem::bitmap::BITMAP_MEM_MAN, println};
+use crate::{arch::{addr::*, apic::local::read_local_apic_id, idt::VEC_XHCI_INT, register::msi::*}, bus::pci::{conf_space::*, device_id::*, PCI_DEVICE_MAN}, device::xhci::{device::Device, register::*, ring_buffer::*}, mem::bitmap::BITMAP_MEM_MAN, println};
 use alloc::vec::Vec;
 use log::{info, warn};
-
-use self::ring_buffer::RingBuffer;
-
-use super::device::Device;
-
-pub mod register;
-pub mod ring_buffer;
 
 const PORT_REG_SETS_START_VIRT_ADDR_OFFSET: usize = 1024;
 const RING_BUF_LEN: usize = 16;
@@ -43,41 +36,52 @@ impl XhcDriver
     {
         let (class_code, subclass_code, prog_if) = PCI_USB_XHCI_ID;
 
-        if let Some(device) =
-            PCI_DEVICE_MAN.lock().find_by_class(class_code, subclass_code, prog_if)
+        let pci_device_man = PCI_DEVICE_MAN.lock();
+        let xhci_controllers = pci_device_man.find_by_class(class_code, subclass_code, prog_if);
+
+        for device in xhci_controllers
         {
-            let usb = XhcDriver {
-                is_init: false,
-                controller_pci_bus: device.bus,
-                controller_pci_device: device.device,
-                controller_pci_func: device.func,
-                cap_reg_virt_addr: VirtualAddress::new(0),
-                ope_reg_virt_addr: VirtualAddress::new(0),
-                runtime_reg_virt_addr: VirtualAddress::new(0),
-                intr_reg_sets_virt_addr: VirtualAddress::new(0),
-                port_reg_sets_virt_addr: VirtualAddress::new(0),
-                doorbell_reg_virt_addr: VirtualAddress::new(0),
-                cmd_ring_virt_addr: VirtualAddress::new(0),
-                primary_event_ring_virt_addr: VirtualAddress::new(0),
-                num_of_ports: 0,
-                transfer_ring_buf: None,
-                primary_event_ring_buf: None,
-                cmd_ring_buf: None,
-                devices: Vec::new(),
-            };
+            if let Some(conf_space) = device.read_conf_space_non_bridge_field()
+            {
+                let bars = conf_space.get_bars();
+                if bars.len() == 0
+                {
+                    continue;
+                }
 
-            info!(
-                "xHC device: {}.{}:{} - {}",
-                device.bus,
-                device.device,
-                device.func,
-                device.conf_space_header.get_device_name().unwrap()
-            );
+                let usb = XhcDriver {
+                    is_init: false,
+                    controller_pci_bus: device.bus,
+                    controller_pci_device: device.device,
+                    controller_pci_func: device.func,
+                    cap_reg_virt_addr: VirtualAddress::new(0),
+                    ope_reg_virt_addr: VirtualAddress::new(0),
+                    runtime_reg_virt_addr: VirtualAddress::new(0),
+                    intr_reg_sets_virt_addr: VirtualAddress::new(0),
+                    port_reg_sets_virt_addr: VirtualAddress::new(0),
+                    doorbell_reg_virt_addr: VirtualAddress::new(0),
+                    cmd_ring_virt_addr: VirtualAddress::new(0),
+                    primary_event_ring_virt_addr: VirtualAddress::new(0),
+                    num_of_ports: 0,
+                    transfer_ring_buf: None,
+                    primary_event_ring_buf: None,
+                    cmd_ring_buf: None,
+                    devices: Vec::new(),
+                };
 
-            return Some(usb);
+                info!(
+                    "xhci: xHC device: {}.{}:{} - {}",
+                    device.bus,
+                    device.device,
+                    device.func,
+                    device.conf_space_header.get_device_name().unwrap()
+                );
+
+                return Some(usb);
+            }
         }
 
-        warn!("xHC device was not found");
+        warn!("xhci: xHC device was not found");
         return None;
     }
 
@@ -85,7 +89,7 @@ impl XhcDriver
     {
         fn failed_init_msg()
         {
-            warn!("Failed to initialize xHC driver");
+            warn!("xhci: Failed to initialize xHC driver");
         }
 
         if let Some(controller) = PCI_DEVICE_MAN.lock().find_by_bdf(
@@ -94,7 +98,6 @@ impl XhcDriver
             self.controller_pci_func,
         )
         {
-            let pcs = true;
             if let Some(conf_space_non_bridge_field) = controller.read_conf_space_non_bridge_field()
             {
                 let bars = conf_space_non_bridge_field.get_bars();
@@ -104,7 +107,7 @@ impl XhcDriver
                     BaseAddress::MemoryAddress32BitSpace(addr, _) => addr,
                     _ =>
                     {
-                        warn!("Invalid base address registers");
+                        warn!("xhci: Invalid base address registers");
                         failed_init_msg();
                         return;
                     }
@@ -113,7 +116,7 @@ impl XhcDriver
             }
             else
             {
-                warn!("ConfigurationSpaceNonBridgeField was not found");
+                warn!("xhci: ConfigurationSpaceNonBridgeField was not found");
                 failed_init_msg();
                 return;
             }
@@ -142,40 +145,70 @@ impl XhcDriver
                 || self.port_reg_sets_virt_addr.get() == 0
                 || self.doorbell_reg_virt_addr.get() == 0
             {
-                warn!("Some registers virtual address is 0");
+                warn!("xhci: Some registers virtual address is 0");
                 failed_init_msg();
                 return;
             }
 
+            // setting up msi
+            let mut msg_addr = MsiMessageAddressField::new();
+            msg_addr.set_destination_id(read_local_apic_id());
+            msg_addr.set_redirection_hint_indication(0);
+            msg_addr.set_destination_mode(0);
+
+            let mut msg_data = MsiMessageDataField::new();
+            msg_data.set_trigger_mode(TriggerMode::Level);
+            msg_data.set_level(Level::Assert);
+            msg_data.set_delivery_mode(DeliveryMode::Fixed);
+            msg_data.set_vector(VEC_XHCI_INT as u8);
+
+            if let Err(msg) = controller.set_msix_cap(msg_addr, msg_data)
+            {
+                warn!("xhci: {}", msg);
+            }
+            else
+            {
+                info!("xhci: Initialized MSI interrupt");
+            }
+
+            // TODO: request host controller ownership
+
             // stop controller
             let mut ope_reg = self.read_ope_reg().unwrap();
             let mut usb_cmd = ope_reg.usb_cmd();
-            usb_cmd.set_run_stop(false);
+            usb_cmd.set_intr_enable(false);
+            usb_cmd.set_host_system_err_enable(false);
+            usb_cmd.set_enable_wrap_event(false);
+
+            if !ope_reg.usb_status().hchalted()
+            {
+                usb_cmd.set_run_stop(false);
+            }
+
             ope_reg.set_usb_cmd(usb_cmd);
             self.write_ope_reg(ope_reg);
 
             loop
             {
-                info!("Waiting xHC...");
+                info!("xhci: Waiting xHC...");
                 let ope_reg = self.read_ope_reg().unwrap();
                 if ope_reg.usb_status().hchalted()
                 {
                     break;
                 }
             }
-            info!("Stopped xHC");
+            info!("xhci: Stopped xHC");
 
             // reset controller
             let mut ope_reg = self.read_ope_reg().unwrap();
             let mut usb_cmd = ope_reg.usb_cmd();
             usb_cmd.set_host_controller_reset(true);
             ope_reg.set_usb_cmd(usb_cmd);
-
             self.write_ope_reg(ope_reg);
 
             loop
             {
-                info!("Waiting xHC...");
+                info!("xhci: Waiting xHC...");
                 let ope_reg = self.read_ope_reg().unwrap();
                 if !ope_reg.usb_cmd().host_controller_reset()
                     && !ope_reg.usb_status().controller_not_ready()
@@ -183,7 +216,16 @@ impl XhcDriver
                     break;
                 }
             }
-            info!("Reset xHC");
+            info!("xhci: Reset xHC");
+
+            // set max device slots
+            self.num_of_ports = cap_reg.structural_params1().num_of_ports() as usize;
+            let max_slots = cap_reg.structural_params1().num_of_device_slots();
+            let mut ope_reg = self.read_ope_reg().unwrap();
+            let mut conf_reg = ope_reg.configure();
+            conf_reg.set_max_device_slots_enabled(max_slots);
+            ope_reg.set_configure(conf_reg);
+            self.write_ope_reg(ope_reg);
 
             // initialize scratchpad
             let cap_reg = self.read_cap_reg().unwrap();
@@ -204,7 +246,10 @@ impl XhcDriver
                     }
                     else
                     {
-                        warn!("Failed to allocate memory frame for scratchpad buffer(#{})", i);
+                        warn!(
+                            "xhci: Failed to allocate memory frame for scratchpad buffer(#{})",
+                            i
+                        );
                         failed_init_msg();
                         return;
                     }
@@ -215,21 +260,12 @@ impl XhcDriver
             }
             else
             {
-                warn!("Failed to allocate memory frame for scratchpad buffer array");
+                warn!("xhci: Failed to allocate memory frame for scratchpad buffer array");
                 failed_init_msg();
                 return;
             }
 
             // initialize device context
-            // set max device slots
-            self.num_of_ports = cap_reg.structural_params1().num_of_ports() as usize;
-            let max_slots = cap_reg.structural_params1().num_of_device_slots();
-            let mut ope_reg = self.read_ope_reg().unwrap();
-            let mut conf_reg = ope_reg.configure();
-            conf_reg.set_max_device_slots_enabled(max_slots);
-            ope_reg.set_configure(conf_reg);
-            self.write_ope_reg(ope_reg);
-
             if let Some(dev_context_mem_frame) = BITMAP_MEM_MAN.lock().alloc_single_mem_frame()
             {
                 let virt_addr = dev_context_mem_frame.get_frame_start_virt_addr();
@@ -255,14 +291,16 @@ impl XhcDriver
                 let mut ope_reg = self.read_ope_reg().unwrap();
                 ope_reg.set_device_context_base_addr_array_ptr(virt_addr.get_phys_addr().get());
                 self.write_ope_reg(ope_reg);
-                info!("Initialized device context");
+                info!("xhci: Initialized device context");
             }
             else
             {
-                warn!("Failed to allocate memory frame for device context");
+                warn!("xhci: Failed to allocate memory frame for device context");
                 failed_init_msg();
                 return;
             }
+
+            let pcs = true;
 
             // register command ring
             if let Some(cmd_ring_mem) = BITMAP_MEM_MAN.lock().alloc_single_mem_frame()
@@ -282,7 +320,7 @@ impl XhcDriver
                 }
                 else
                 {
-                    warn!("Failed to create command ring buffer");
+                    warn!("xhci: Failed to create command ring buffer");
                     failed_init_msg();
                     return;
                 }
@@ -292,15 +330,17 @@ impl XhcDriver
                     cmd_ring_mem.get_frame_start_virt_addr().get_phys_addr().get() >> 6,
                 );
                 crcr.set_ring_cycle_state(pcs);
+                crcr.set_cmd_stop(false);
+                crcr.set_cmd_abort(false);
                 let mut ope_reg = self.read_ope_reg().unwrap();
                 ope_reg.set_cmd_ring_ctrl(crcr);
                 self.write_ope_reg(ope_reg);
 
-                info!("Initialized command ring");
+                info!("xhci: Initialized command ring");
             }
             else
             {
-                warn!("Failed to allocate memory frame for command ring");
+                warn!("xhci: Failed to allocate memory frame for command ring");
                 failed_init_msg();
                 return;
             }
@@ -339,7 +379,7 @@ impl XhcDriver
                 }
                 else
                 {
-                    warn!("Failed to create primary event ring buffer");
+                    warn!("xhci: Failed to create primary event ring buffer");
                     failed_init_msg();
                     return;
                 }
@@ -348,7 +388,7 @@ impl XhcDriver
 
                 // init first interrupter register sets entry
                 let mut intr_reg_set_0 = self.read_intr_reg_sets(0).unwrap();
-                println!("before: {:?}", intr_reg_set_0);
+                //println!("before: {:?}", intr_reg_set_0);
                 intr_reg_set_0.set_event_ring_seg_table_base_addr(
                     event_ring_seg_table_mem.get_frame_start_virt_addr().get_phys_addr().get(),
                 );
@@ -358,48 +398,31 @@ impl XhcDriver
                         + size_of::<TransferRequestBlock>() as u64)
                         >> 4,
                 );
-                println!("after: {:?}", intr_reg_set_0);
+                intr_reg_set_0.set_int_mod_interval(4000);
+                intr_reg_set_0.set_int_pending(true);
+                intr_reg_set_0.set_int_enable(true);
+                //println!("after: {:?}", intr_reg_set_0);
                 self.write_intr_reg_sets(0, intr_reg_set_0);
-                println!("read: {:?}", self.read_intr_reg_sets(0).unwrap());
+                //println!("read: {:?}", self.read_intr_reg_sets(0).unwrap());
 
-                info!("Initialized event ring");
+                info!("xhci: Initialized event ring");
             }
             else
             {
-                warn!("Failed to allocate memory frame for event ring or InterruptRegisterSets was not found");
+                warn!("xhci: Failed to allocate memory frame for event ring or InterruptRegisterSets was not found");
                 failed_init_msg();
                 return;
             }
 
-            // setting up msi
-            let mut msg_addr = MsiMessageAddressField::new();
-            msg_addr.set_destination_id(read_local_apic_id());
-            msg_addr.set_redirection_hint_indication(0);
-            msg_addr.set_destination_mode(0);
-
-            let mut msg_data = MsiMessageDataField::new();
-            msg_data.set_trigger_mode(TriggerMode::Level);
-            msg_data.set_level(Level::Assert);
-            msg_data.set_delivery_mode(DeliveryMode::Fixed);
-            msg_data.set_vector(VEC_XHCI_INT as u8);
-
-            if let Err(msg) = controller.set_msix_cap(msg_addr, msg_data)
-            {
-                warn!("{}", msg);
-            }
-            else
-            {
-                let mut intr_reg_set_0 = self.read_intr_reg_sets(0).unwrap();
-                intr_reg_set_0.set_int_mod_interval(4000);
-                intr_reg_set_0.set_int_pending(true);
-                intr_reg_set_0.set_int_enable(true);
-                self.write_intr_reg_sets(0, intr_reg_set_0);
-                println!("read: {:?}", self.read_intr_reg_sets(0).unwrap());
-                info!("Initialized MSI interrupt");
-            }
+            // enable interrupt
+            let mut ope_reg = self.read_ope_reg().unwrap();
+            let mut usb_cmd = ope_reg.usb_cmd();
+            usb_cmd.set_intr_enable(true);
+            ope_reg.set_usb_cmd(usb_cmd);
+            self.write_ope_reg(ope_reg);
 
             self.is_init = true;
-            info!("Initialized xHC driver");
+            info!("xhci: Initialized xHC driver");
         }
         else
         {
@@ -411,28 +434,27 @@ impl XhcDriver
     {
         fn failed_init_msg()
         {
-            warn!("Failed to start xHC driver");
+            warn!("xhci: Failed to start xHC driver");
         }
 
         if !self.is_init
         {
-            warn!("xHC driver was not initialized");
+            warn!("xhci: xHC driver was not initialized");
             failed_init_msg();
             return;
         }
 
         // start controller
-        info!("Starting xHC...");
+        info!("xhci: Starting xHC...");
         let mut ope_reg = self.read_ope_reg().unwrap();
         let mut usb_cmd = ope_reg.usb_cmd();
-        usb_cmd.set_intr_enable(true);
         usb_cmd.set_run_stop(true);
         ope_reg.set_usb_cmd(usb_cmd);
         self.write_ope_reg(ope_reg);
 
         loop
         {
-            info!("Waiting xHC...");
+            info!("xhci: Waiting xHC...");
             let ope_reg = self.read_ope_reg().unwrap();
             if !ope_reg.usb_status().hchalted()
             {
@@ -444,72 +466,29 @@ impl XhcDriver
         let usb_status = self.read_ope_reg().unwrap().usb_status();
         if usb_status.hchalted()
         {
-            warn!("xHC is halted");
+            warn!("xhci: xHC is halted");
             failed_init_msg();
             return;
         }
 
         if usb_status.host_system_err()
         {
-            warn!("An error occured on the host system");
+            warn!("xhci: An error occured on the host system");
             failed_init_msg();
             return;
         }
 
         if usb_status.host_controller_err()
         {
-            warn!("An error occured on xHC");
+            warn!("xhci: An error occured on xHC");
             failed_init_msg();
             return;
         }
 
-        let mut noop_trb = TransferRequestBlock::new();
-        noop_trb.set_trb_type(TransferRequestBlockType::NoOpCommand);
-
-        if let Some(buf) = self.cmd_ring_buf.as_mut()
-        {
-            buf.push(noop_trb).unwrap();
-        }
-
-        let mut i = 0;
-
-        if let Some(ring_buf) = self.primary_event_ring_buf.as_mut()
-        {
-            loop
-            {
-                if let Some(trb) = ring_buf.read(i)
-                {
-                    println!("{} -> {:?}", i, trb);
-                    i += 1;
-                }
-                else
-                {
-                    break;
-                }
-            }
-        }
-
-        // for _ in 0..2
-        // {
-        //     let mut base_reg = self.read_intr_reg_sets(0).unwrap();
-        //     if let Some(ring_buf) = self.primary_event_ring_buf.as_mut()
-        //     {
-        //         let (trb, reg) = ring_buf.pop(base_reg).unwrap();
-        //         println!("{:?}", trb);
-        //         println!("{:?}", reg);
-        //         // println!(
-        //         //     "{} -> {}",
-        //         //     base_reg.event_ring_dequeue_ptr(),
-        //         //     reg.event_ring_dequeue_ptr()
-        //         // );
-        //         base_reg = reg;
-        //     }
-
-        //     self.write_intr_reg_sets(0, base_reg);
-        // }
+        info!("xhci: Available ports: {}", self.num_of_ports);
     }
 
-    pub fn scan_devices(&mut self)
+    pub fn scan_ports(&mut self)
     {
         if !self.is_init || !self.is_running()
         {
@@ -524,7 +503,7 @@ impl XhcDriver
             let mut sc_reg = port_reg_set.port_status_and_ctrl();
             if sc_reg.connect_status_change() && sc_reg.current_connect_status()
             {
-                info!("Detected USB device (port id: {})", i);
+                info!("xhci: Found connected port (port id: {})", i);
 
                 // reset port
                 sc_reg.set_port_reset(true);
@@ -539,9 +518,11 @@ impl XhcDriver
                     }
                 }
 
-                info!("Reset device (port id: {})", i);
+                info!("xhci: Reset port (port id: {})", i);
             }
         }
+
+        println!("{:?}", self.read_intr_reg_sets(0).unwrap());
     }
 
     pub fn is_init(&self) -> bool { return self.is_init; }

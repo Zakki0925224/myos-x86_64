@@ -47,7 +47,7 @@ pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> !
     SERIAL.lock().init(serial::IO_PORT_COM1);
     TERMINAL.lock().init();
     logger::init().unwrap();
-    info!("Initialized kernel terminal");
+    info!("terminal: Initialized kernel terminal");
 
     // initialize IDT
     idt::init();
@@ -65,7 +65,7 @@ pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> !
     {
         driver.init();
         driver.start();
-        driver.scan_devices();
+        driver.scan_ports();
     }
 
     env::print_info();

@@ -110,5 +110,5 @@ pub fn init()
     asm::set_ss(0);
     asm::set_cs(2 << 3);
 
-    info!("Initialized GDT (having todo)");
+    info!("gdt: Initialized GDT (having todo)");
 }
