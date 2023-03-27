@@ -1,3 +1,5 @@
+use core::mem::size_of;
+
 use common::mem_desc::{MemoryDescriptor, MemoryType, UEFI_PAGE_SIZE};
 use lazy_static::lazy_static;
 use log::info;
@@ -369,11 +371,12 @@ impl BitmapMemoryManager
 
     pub fn mem_clear(&self, mem_frame_info: &MemoryFrameInfo)
     {
-        let start_virt_addr = mem_frame_info.frame_start_virt_addr.get();
-        for i in start_virt_addr..start_virt_addr + mem_frame_info.frame_size as u64
+        let start_virt_addr = mem_frame_info.frame_start_virt_addr;
+        let mut offset = 0;
+        while offset < mem_frame_info.frame_size
         {
-            let addr = VirtualAddress::new(i);
-            addr.write_volatile::<u8>(0);
+            offset += size_of::<u64>();
+            start_virt_addr.offset(offset).write_volatile::<u64>(0);
         }
     }
 
