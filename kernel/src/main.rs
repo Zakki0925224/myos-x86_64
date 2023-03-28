@@ -65,7 +65,7 @@ pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> !
     {
         driver.init();
         driver.start();
-        driver.scan_ports();
+        //driver.scan_ports();
         //driver.alloc_slots();
     }
 

@@ -263,7 +263,7 @@ impl OperationalRegisters
 
     pub fn write(&self, base_addr: VirtualAddress)
     {
-        let data = unsafe { transmute::<OperationalRegisters, [u32; 15]>(*self) };
+        let data = unsafe { transmute::<Self, [u32; 15]>(*self) };
         for (i, field) in data.iter().enumerate()
         {
             base_addr.offset(i * 4).write_volatile(*field);
@@ -540,7 +540,15 @@ pub struct DoorbellRegister
 
 impl DoorbellRegister
 {
-    pub fn read(base_addr: VirtualAddress) -> Self { return base_addr.read_volatile(); }
+    pub fn read(base_addr: VirtualAddress) -> Self
+    {
+        let data = base_addr.read_volatile::<u32>();
+        return unsafe { transmute::<u32, Self>(data) };
+    }
 
-    pub fn write(&self, base_addr: VirtualAddress) { base_addr.write_volatile(*self); }
+    pub fn write(&self, base_addr: VirtualAddress)
+    {
+        let data = unsafe { transmute::<Self, u32>(*self) };
+        base_addr.write_volatile(data);
+    }
 }

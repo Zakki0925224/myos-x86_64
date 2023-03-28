@@ -375,12 +375,9 @@ impl XhcDriver
                 intr_reg_set_0
                     .set_event_ring_seg_table_base_addr(seg_table_virt_addr.get_phys_addr().get());
                 intr_reg_set_0.set_event_ring_seg_table_size(1);
-                intr_reg_set_0.set_event_ring_dequeue_ptr(
-                    self.primary_event_ring_virt_addr
-                        .offset(size_of::<TransferRequestBlock>())
-                        .get()
-                        >> 4,
-                );
+                intr_reg_set_0.set_dequeue_erst_seg_index(0);
+                intr_reg_set_0
+                    .set_event_ring_dequeue_ptr(self.primary_event_ring_virt_addr.get() >> 4);
                 intr_reg_set_0.set_int_mod_interval(4000);
                 intr_reg_set_0.set_int_pending(true);
                 intr_reg_set_0.set_int_enable(true);
@@ -468,10 +465,43 @@ impl XhcDriver
             return;
         }
 
-        // event ring test
-        println!("{:?}", self.pop_primary_event_ring());
-        println!("{:?}", self.pop_primary_event_ring());
-        println!("{:?}", self.pop_primary_event_ring());
+        //println!("{:?}", self.pop_primary_event_ring());
+        let mut noop_trb = TransferRequestBlock::new();
+        noop_trb.set_trb_type(TransferRequestBlockType::NoOpCommand);
+        self.push_cmd_ring(noop_trb).unwrap();
+
+        let mut noop_trb = TransferRequestBlock::new();
+        noop_trb.set_trb_type(TransferRequestBlockType::AddressDeviceCommand);
+        self.push_cmd_ring(noop_trb).unwrap();
+
+        let mut noop_trb = TransferRequestBlock::new();
+        noop_trb.set_trb_type(TransferRequestBlockType::ConfigureEndpointCommnad);
+        self.push_cmd_ring(noop_trb).unwrap();
+
+        let mut noop_trb = TransferRequestBlock::new();
+        noop_trb.set_trb_type(TransferRequestBlockType::EvaluateContextCommand);
+        self.push_cmd_ring(noop_trb).unwrap();
+
+        let mut noop_trb = TransferRequestBlock::new();
+        noop_trb.set_trb_type(TransferRequestBlockType::BandwithRequestEvent);
+        self.push_cmd_ring(noop_trb).unwrap();
+
+        let buf_len = if let Some(event_ring_buf) = self.primary_event_ring_buf.as_ref()
+        {
+            event_ring_buf.get_buf_len()
+        }
+        else
+        {
+            0
+        };
+
+        for i in 0..buf_len
+        {
+            if let Some(event_ring_buf) = self.primary_event_ring_buf.as_mut()
+            {
+                println!("{}: {:?}", i, event_ring_buf.read(i));
+            }
+        }
     }
 
     pub fn scan_ports(&mut self)
@@ -698,7 +728,11 @@ impl XhcDriver
     {
         if let Some(cmd_ring) = self.cmd_ring_buf.as_mut()
         {
-            return cmd_ring.push(trb);
+            let result = cmd_ring.push(trb);
+            // notice to added a TRB
+            println!("{:?}", self.read_doorbell_reg(0).unwrap());
+            self.write_doorbell_reg(0, DoorbellRegister::new());
+            return result;
         }
 
         return Err("Command ring buffer is not initialized");

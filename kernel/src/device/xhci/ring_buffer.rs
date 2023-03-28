@@ -20,7 +20,7 @@ pub struct RingBuffer
     buf_base_virt_addr: VirtualAddress,
     buf_len: usize,
     buf_type: RingBufferType,
-    pcs: bool,
+    cycle_state: bool,
 }
 
 impl RingBuffer
@@ -29,7 +29,7 @@ impl RingBuffer
         buf_base_mem_frame: MemoryFrameInfo,
         buf_len: usize,
         buf_type: RingBufferType,
-        pcs: bool,
+        cycle_state_bit: bool,
     ) -> Option<Self>
     {
         if !buf_base_mem_frame.is_allocated()
@@ -42,7 +42,7 @@ impl RingBuffer
             buf_base_virt_addr: buf_base_mem_frame.get_frame_start_virt_addr(),
             buf_len,
             buf_type,
-            pcs,
+            cycle_state: cycle_state_bit,
             is_init: false,
         });
     }
@@ -59,7 +59,7 @@ impl RingBuffer
         for i in 0..self.buf_len
         {
             let mut trb = TransferRequestBlock::new();
-            trb.set_cycle_bit(!self.pcs);
+            trb.set_cycle_bit(!self.cycle_state);
 
             if i == self.buf_len - 1
             {
@@ -71,6 +71,8 @@ impl RingBuffer
     }
 
     pub fn is_init(&self) -> bool { return self.is_init; }
+
+    pub fn get_buf_len(&self) -> usize { return self.buf_len; }
 
     pub fn push(&mut self, trb: TransferRequestBlock) -> Result<(), &'static str>
     {
@@ -85,7 +87,7 @@ impl RingBuffer
         }
 
         let mut trb = trb;
-        trb.set_cycle_bit(self.pcs);
+        trb.set_cycle_bit(self.cycle_state);
 
         let mut is_buf_end = false;
         for i in 0..self.buf_len
@@ -94,19 +96,21 @@ impl RingBuffer
 
             let read_trb = self.read(i).unwrap();
 
-            if read_trb.cycle_bit() == !self.pcs
+            if read_trb.cycle_bit() == !self.cycle_state
             {
                 self.write(i, trb).unwrap();
                 break;
             }
         }
 
+        // reverse cycle bit
         if is_buf_end
         {
-            let mut link_trb = self.read(self.buf_len - 1).unwrap();
+            let link_trb_index = self.buf_len - 1;
+            let mut link_trb = self.read(link_trb_index).unwrap();
             link_trb.set_cycle_bit(!link_trb.cycle_bit());
-            self.write(self.buf_len - 1, link_trb).unwrap();
-            self.pcs = !self.pcs;
+            self.write(link_trb_index, link_trb).unwrap();
+            self.cycle_state = !self.cycle_state;
         }
 
         return Ok(());
@@ -158,7 +162,7 @@ impl RingBuffer
             }
 
             trb = self.read(index).unwrap();
-            if trb.cycle_bit() == self.pcs
+            if trb.cycle_bit() == self.cycle_state
             {
                 break;
             }
@@ -168,7 +172,7 @@ impl RingBuffer
         }
 
         let tmp_trb = trb;
-        trb.set_cycle_bit(!self.pcs);
+        trb.set_cycle_bit(!self.cycle_state);
         self.write(index, trb).unwrap();
 
         dequeue_addr = dequeue_addr.offset(trb_size);
