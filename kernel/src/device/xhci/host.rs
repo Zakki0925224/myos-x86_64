@@ -1,6 +1,6 @@
 use core::mem::size_of;
 
-use crate::{arch::{addr::*, apic::local::read_local_apic_id, idt::VEC_XHCI_INT, register::msi::*}, bus::pci::{conf_space::*, device_id::*, PCI_DEVICE_MAN}, device::xhci::{port::Port, register::*, ring_buffer::*}, mem::bitmap::BITMAP_MEM_MAN, println};
+use crate::{arch::{addr::*, apic::local::read_local_apic_id, idt::VEC_XHCI_INT, register::msi::*}, bus::pci::{conf_space::*, device_id::*, PCI_DEVICE_MAN}, device::xhci::{port::Port, register::*, ring_buffer::*, trb::{TransferRequestBlock, TransferRequestBlockType}}, mem::bitmap::BITMAP_MEM_MAN, println};
 use alloc::vec::Vec;
 use log::{info, warn};
 
@@ -133,9 +133,8 @@ impl XhcDriver
             self.runtime_reg_virt_addr =
                 self.cap_reg_virt_addr.offset(cap_reg.runtime_reg_space_offset() as usize);
 
-            self.intr_reg_sets_virt_addr = self.cap_reg_virt_addr.offset(
-                cap_reg.runtime_reg_space_offset() as usize + size_of::<RuntimeRegitsers>(),
-            );
+            self.intr_reg_sets_virt_addr =
+                self.runtime_reg_virt_addr.offset(size_of::<RuntimeRegitsers>());
 
             self.port_reg_sets_virt_addr =
                 self.ope_reg_virt_addr.offset(PORT_REG_SETS_START_VIRT_ADDR_OFFSET);
@@ -178,30 +177,15 @@ impl XhcDriver
             // TODO: request host controller ownership
 
             // stop controller
-            let mut ope_reg = self.read_ope_reg().unwrap();
-            let mut usb_cmd = ope_reg.usb_cmd();
-            usb_cmd.set_intr_enable(false);
-            usb_cmd.set_host_system_err_enable(false);
-            usb_cmd.set_enable_wrap_event(false);
+            let ope_reg = self.read_ope_reg().unwrap();
 
             if !ope_reg.usb_status().hchalted()
             {
-                usb_cmd.set_run_stop(false);
+                //usb_cmd.set_run_stop(false);
+                warn!("xhci: xHC is not halted");
+                failed_init_msg();
+                return;
             }
-
-            ope_reg.set_usb_cmd(usb_cmd);
-            self.write_ope_reg(ope_reg);
-
-            loop
-            {
-                info!("xhci: Waiting xHC...");
-                let ope_reg = self.read_ope_reg().unwrap();
-                if ope_reg.usb_status().hchalted()
-                {
-                    break;
-                }
-            }
-            info!("xhci: Stopped xHC");
 
             // reset controller
             let mut ope_reg = self.read_ope_reg().unwrap();
@@ -230,44 +214,45 @@ impl XhcDriver
             conf_reg.set_max_device_slots_enabled(self.num_of_slots as u8);
             ope_reg.set_configure(conf_reg);
             self.write_ope_reg(ope_reg);
+            info!("xhci: Max ports: {}, Max slots: {}", self.num_of_ports, self.num_of_slots);
 
             // initialize scratchpad
-            let cap_reg = self.read_cap_reg().unwrap();
-            let sp2 = cap_reg.structural_params2();
-            let num_of_bufs =
-                (sp2.max_scratchpad_bufs_high() << 5 | sp2.max_scratchpad_bufs_low()) as usize;
-            let mut scratchpad_buf_arr_virt_addr = VirtualAddress::new(0);
-            if let Some(scratchpad_buf_arr_mem) = BITMAP_MEM_MAN.lock().alloc_single_mem_frame()
-            {
-                let virt_addr = scratchpad_buf_arr_mem.get_frame_start_virt_addr();
-                let arr: &mut [u64] = virt_addr.read_volatile();
+            // let cap_reg = self.read_cap_reg().unwrap();
+            // let sp2 = cap_reg.structural_params2();
+            // let num_of_bufs =
+            //     (sp2.max_scratchpad_bufs_high() << 5 | sp2.max_scratchpad_bufs_low()) as usize;
+            // let mut scratchpad_buf_arr_virt_addr = VirtualAddress::new(0);
+            // if let Some(scratchpad_buf_arr_mem) = BITMAP_MEM_MAN.lock().alloc_single_mem_frame()
+            // {
+            //     let virt_addr = scratchpad_buf_arr_mem.get_frame_start_virt_addr();
+            //     let arr: &mut [u64] = virt_addr.read_volatile();
 
-                for i in 0..num_of_bufs
-                {
-                    if let Some(mem_frame_info) = BITMAP_MEM_MAN.lock().alloc_single_mem_frame()
-                    {
-                        arr[i] = mem_frame_info.get_frame_start_virt_addr().get_phys_addr().get();
-                    }
-                    else
-                    {
-                        warn!(
-                            "xhci: Failed to allocate memory frame for scratchpad buffer(#{})",
-                            i
-                        );
-                        failed_init_msg();
-                        return;
-                    }
-                }
+            //     for i in 0..num_of_bufs
+            //     {
+            //         if let Some(mem_frame_info) = BITMAP_MEM_MAN.lock().alloc_single_mem_frame()
+            //         {
+            //             arr[i] = mem_frame_info.get_frame_start_virt_addr().get_phys_addr().get();
+            //         }
+            //         else
+            //         {
+            //             warn!(
+            //                 "xhci: Failed to allocate memory frame for scratchpad buffer(#{})",
+            //                 i
+            //             );
+            //             failed_init_msg();
+            //             return;
+            //         }
+            //     }
 
-                virt_addr.write_volatile(arr);
-                scratchpad_buf_arr_virt_addr = virt_addr;
-            }
-            else
-            {
-                warn!("xhci: Failed to allocate memory frame for scratchpad buffer array");
-                failed_init_msg();
-                return;
-            }
+            //     virt_addr.write_volatile(arr);
+            //     scratchpad_buf_arr_virt_addr = virt_addr;
+            // }
+            // else
+            // {
+            //     warn!("xhci: Failed to allocate memory frame for scratchpad buffer array");
+            //     failed_init_msg();
+            //     return;
+            // }
 
             // initialize device context
             if let Some(dev_context_mem_frame) = BITMAP_MEM_MAN.lock().alloc_single_mem_frame()
@@ -278,8 +263,9 @@ impl XhcDriver
                 // init device context array
                 for i in 0..(self.num_of_slots + 1)
                 {
-                    let entry =
-                        if i == 0 { scratchpad_buf_arr_virt_addr } else { VirtualAddress::new(0) };
+                    //let entry =
+                    //    if i == 0 { scratchpad_buf_arr_virt_addr } else { VirtualAddress::new(0) };
+                    let entry = VirtualAddress::new(0);
                     self.write_device_context_base_addr(i, entry);
                 }
 
@@ -371,19 +357,15 @@ impl XhcDriver
 
                 // init first interrupter register sets entry
                 let mut intr_reg_set_0 = self.read_intr_reg_sets(0).unwrap();
-                //println!("before: {:?}", intr_reg_set_0);
-                intr_reg_set_0
-                    .set_event_ring_seg_table_base_addr(seg_table_virt_addr.get_phys_addr().get());
+                intr_reg_set_0.set_event_ring_seg_table_base_addr(
+                    seg_table_virt_addr.get_phys_addr().get() >> 6,
+                );
                 intr_reg_set_0.set_event_ring_seg_table_size(1);
                 intr_reg_set_0.set_dequeue_erst_seg_index(0);
-                intr_reg_set_0
-                    .set_event_ring_dequeue_ptr(self.primary_event_ring_virt_addr.get() >> 4);
-                intr_reg_set_0.set_int_mod_interval(4000);
-                intr_reg_set_0.set_int_pending(true);
-                intr_reg_set_0.set_int_enable(true);
-                //println!("after: {:?}", intr_reg_set_0);
+                intr_reg_set_0.set_event_ring_dequeue_ptr(
+                    self.primary_event_ring_virt_addr.get_phys_addr().get() >> 4,
+                );
                 self.write_intr_reg_sets(0, intr_reg_set_0);
-                //println!("read: {:?}", self.read_intr_reg_sets(0).unwrap());
 
                 info!("xhci: Initialized event ring");
             }
@@ -395,6 +377,12 @@ impl XhcDriver
             }
 
             // enable interrupt
+            let mut intr_reg_set_0 = self.read_intr_reg_sets(0).unwrap();
+            intr_reg_set_0.set_int_mod_interval(4000);
+            intr_reg_set_0.set_int_pending(false);
+            intr_reg_set_0.set_int_enable(true);
+            self.write_intr_reg_sets(0, intr_reg_set_0);
+
             let mut ope_reg = self.read_ope_reg().unwrap();
             let mut usb_cmd = ope_reg.usb_cmd();
             usb_cmd.set_intr_enable(true);
@@ -465,43 +453,12 @@ impl XhcDriver
             return;
         }
 
-        //println!("{:?}", self.pop_primary_event_ring());
         let mut noop_trb = TransferRequestBlock::new();
         noop_trb.set_trb_type(TransferRequestBlockType::NoOpCommand);
         self.push_cmd_ring(noop_trb).unwrap();
-
-        let mut noop_trb = TransferRequestBlock::new();
-        noop_trb.set_trb_type(TransferRequestBlockType::AddressDeviceCommand);
-        self.push_cmd_ring(noop_trb).unwrap();
-
-        let mut noop_trb = TransferRequestBlock::new();
-        noop_trb.set_trb_type(TransferRequestBlockType::ConfigureEndpointCommnad);
-        self.push_cmd_ring(noop_trb).unwrap();
-
-        let mut noop_trb = TransferRequestBlock::new();
-        noop_trb.set_trb_type(TransferRequestBlockType::EvaluateContextCommand);
-        self.push_cmd_ring(noop_trb).unwrap();
-
-        let mut noop_trb = TransferRequestBlock::new();
-        noop_trb.set_trb_type(TransferRequestBlockType::BandwithRequestEvent);
-        self.push_cmd_ring(noop_trb).unwrap();
-
-        let buf_len = if let Some(event_ring_buf) = self.primary_event_ring_buf.as_ref()
-        {
-            event_ring_buf.get_buf_len()
-        }
-        else
-        {
-            0
-        };
-
-        for i in 0..buf_len
-        {
-            if let Some(event_ring_buf) = self.primary_event_ring_buf.as_mut()
-            {
-                println!("{}: {:?}", i, event_ring_buf.read(i));
-            }
-        }
+        self.pop_primary_event_ring();
+        self.pop_primary_event_ring();
+        self.pop_primary_event_ring();
     }
 
     pub fn scan_ports(&mut self)
@@ -555,7 +512,6 @@ impl XhcDriver
             let mut enable_slot_cmd = TransferRequestBlock::new();
             enable_slot_cmd.set_trb_type(TransferRequestBlockType::EnableSlotCommand);
             self.push_cmd_ring(enable_slot_cmd).unwrap();
-            println!("{:?}", self.pop_primary_event_ring());
         }
     }
 
@@ -593,6 +549,8 @@ impl XhcDriver
 
     fn write_ope_reg(&self, ope_reg: OperationalRegisters)
     {
+        let mut ope_reg = ope_reg;
+
         match self.ope_reg_virt_addr.get()
         {
             0 => return,
@@ -637,6 +595,8 @@ impl XhcDriver
             return;
         }
 
+        let mut intr_reg_set = intr_reg_set;
+
         let base_addr =
             self.intr_reg_sets_virt_addr.offset(index * size_of::<InterrupterRegisterSet>());
         intr_reg_set.write(base_addr);
@@ -660,6 +620,8 @@ impl XhcDriver
         {
             return;
         }
+
+        let mut port_reg_set = port_reg_set;
 
         let base_addr =
             self.port_reg_sets_virt_addr.offset((index - 1) * size_of::<PortRegisterSet>());
@@ -729,8 +691,7 @@ impl XhcDriver
         if let Some(cmd_ring) = self.cmd_ring_buf.as_mut()
         {
             let result = cmd_ring.push(trb);
-            // notice to added a TRB
-            println!("{:?}", self.read_doorbell_reg(0).unwrap());
+            // ring doorbell
             self.write_doorbell_reg(0, DoorbellRegister::new());
             return result;
         }

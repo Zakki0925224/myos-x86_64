@@ -1,9 +1,9 @@
-use log::warn;
+use log::{info, warn};
 
-use crate::{arch::addr::*, mem::bitmap::MemoryFrameInfo, println};
+use crate::{arch::addr::*, mem::bitmap::MemoryFrameInfo};
 use core::mem::size_of;
 
-use super::register::*;
+use super::{register::*, trb::{TransferRequestBlock, TransferRequestBlockType}};
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum RingBufferType
@@ -113,6 +113,8 @@ impl RingBuffer
             self.cycle_state = !self.cycle_state;
         }
 
+        info!("xhci: Pushed to ring buffer: {:?}", trb);
+
         return Ok(());
     }
 
@@ -141,17 +143,17 @@ impl RingBuffer
         let mut dequeue_addr =
             PhysicalAddress::new(int_reg_set.event_ring_dequeue_ptr() << 4).get_virt_addr();
 
-        let mut index =
-            (dequeue_addr.get() - self.buf_base_virt_addr.get()) as usize / trb_size - 1;
+        let mut index = (dequeue_addr.get() - self.buf_base_virt_addr.get()) as usize / trb_size;
 
         let mut trb = self.read(index).unwrap();
+        dequeue_addr = dequeue_addr.offset(trb_size);
 
         let mut skip_cnt = 0;
         loop
         {
             if skip_cnt == self.buf_len
             {
-                println!("valid TRB was not found");
+                warn!("xhci: Valid TRB was not found");
                 return None;
             }
 
@@ -175,10 +177,9 @@ impl RingBuffer
         trb.set_cycle_bit(!self.cycle_state);
         self.write(index, trb).unwrap();
 
-        dequeue_addr = dequeue_addr.offset(trb_size);
-
         int_reg_set.set_event_ring_dequeue_ptr(dequeue_addr.get_phys_addr().get() >> 4);
         int_reg_set.set_event_handler_busy(false);
+        info!("xhci: Poped to ring buffer: {:?} (index: {})", tmp_trb, index);
 
         return Some((tmp_trb, int_reg_set));
     }
