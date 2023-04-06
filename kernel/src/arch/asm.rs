@@ -1,4 +1,4 @@
-use core::arch::asm;
+use core::{arch::asm, mem::transmute};
 
 pub fn hlt() { unsafe { asm!("hlt") } }
 
@@ -41,49 +41,35 @@ pub fn set_ss(value: u16) { unsafe { asm!("mov ss, {}", in(reg) value) } }
 
 pub fn set_cs(value: u16) {}
 
-#[repr(C, packed)]
+#[repr(C, packed(2))]
+#[derive(Debug)]
 pub struct DescriptorTableArgs
 {
-    pub base: u64,
     pub limit: u16,
+    pub base: u64,
 }
 
 pub fn sidt() -> DescriptorTableArgs
 {
-    let mut args_buf: [u8; 10] = [0; 10]; // 8bytes: limit, 2bytes: offset
-    unsafe { asm!("sidt [{}]", in(reg) &mut args_buf) }
+    let mut data = [0; 10];
+    unsafe { asm!("sidt [{}]", in(reg) &mut data) }
+    return unsafe { transmute::<[u8; 10], DescriptorTableArgs>(data) };
+}
 
-    let mut args = DescriptorTableArgs { base: 0, limit: 0 };
-    args.base |= (args_buf[9] as u64) << 56;
-    args.base |= (args_buf[8] as u64) << 48;
-    args.base |= (args_buf[7] as u64) << 40;
-    args.base |= (args_buf[6] as u64) << 32;
-    args.base |= (args_buf[5] as u64) << 24;
-    args.base |= (args_buf[4] as u64) << 16;
-    args.base |= (args_buf[3] as u64) << 8;
-    args.base |= (args_buf[2] as u64) << 0;
-    args.limit = (args_buf[1] as u16) << 8 | args_buf[0] as u16;
-
-    return args;
+pub fn lidt(desc_table_args: &DescriptorTableArgs)
+{
+    cli();
+    unsafe {
+        asm!("lidt [{}]", in(reg) desc_table_args);
+    }
+    sti();
 }
 
 pub fn sgdt() -> DescriptorTableArgs
 {
-    let mut args_buf: [u8; 10] = [0; 10]; // 8bytes: limit, 2bytes: offset
-    unsafe { asm!("sgdt [{}]", in(reg) &mut args_buf) }
-
-    let mut args = DescriptorTableArgs { base: 0, limit: 0 };
-    args.base |= (args_buf[9] as u64) << 56;
-    args.base |= (args_buf[8] as u64) << 48;
-    args.base |= (args_buf[7] as u64) << 40;
-    args.base |= (args_buf[6] as u64) << 32;
-    args.base |= (args_buf[5] as u64) << 24;
-    args.base |= (args_buf[4] as u64) << 16;
-    args.base |= (args_buf[3] as u64) << 8;
-    args.base |= (args_buf[2] as u64) << 0;
-    args.limit = (args_buf[1] as u16) << 8 | args_buf[0] as u16;
-
-    return args;
+    let mut data = [0; 10];
+    unsafe { asm!("sgdt [{}]", in(reg) &mut data) }
+    return unsafe { transmute::<[u8; 10], DescriptorTableArgs>(data) };
 }
 
 pub fn read_cs() -> u16
