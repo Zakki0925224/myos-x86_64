@@ -191,9 +191,8 @@ impl PciDevice
 
             let mut msg_ctrl = MsiMessageControlField::new();
             msg_ctrl.set_is_enable(true);
-            msg_ctrl.set_multiple_msg_capable(0);
+            msg_ctrl.set_multiple_msg_enable(0);
             cap.set_msg_ctrl(msg_ctrl);
-
             cap.set_msg_addr_low(msg_addr);
             cap.set_msg_data(msg_data);
 
@@ -247,9 +246,9 @@ impl PciDevice
 
             let mut msg_ctrl = MsiMessageControlField::new();
             msg_ctrl.set_is_enable(true);
-            msg_ctrl.set_multiple_msg_capable(0);
-            cap.set_msg_ctrl(msg_ctrl);
+            msg_ctrl.set_multiple_msg_enable(0);
 
+            cap.set_msg_ctrl(msg_ctrl);
             cap.set_msg_addr_low(msg_addr);
             cap.set_msg_data(msg_data);
 

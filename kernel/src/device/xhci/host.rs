@@ -165,7 +165,7 @@ impl XhcDriver
             msg_data.set_delivery_mode(DeliveryMode::Fixed);
             msg_data.set_vector(VEC_XHCI_INT as u8);
 
-            if let Err(msg) = controller.set_msix_cap(msg_addr, msg_data)
+            if let Err(msg) = controller.set_msi_cap(msg_addr, msg_data)
             {
                 warn!("xhci: {}", msg);
             }
@@ -356,16 +356,16 @@ impl XhcDriver
                 }
 
                 // init first interrupter register sets entry
-                let mut intr_reg_set_0 = self.read_intr_reg_sets(0).unwrap();
-                intr_reg_set_0.set_event_ring_seg_table_base_addr(
+                let mut intr_reg_sets_0 = self.read_intr_reg_sets(0).unwrap();
+                intr_reg_sets_0.set_event_ring_seg_table_base_addr(
                     seg_table_virt_addr.get_phys_addr().get() >> 6,
                 );
-                intr_reg_set_0.set_event_ring_seg_table_size(1);
-                intr_reg_set_0.set_dequeue_erst_seg_index(0);
-                intr_reg_set_0.set_event_ring_dequeue_ptr(
+                intr_reg_sets_0.set_event_ring_seg_table_size(1);
+                intr_reg_sets_0.set_dequeue_erst_seg_index(0);
+                intr_reg_sets_0.set_event_ring_dequeue_ptr(
                     self.primary_event_ring_virt_addr.get_phys_addr().get() >> 4,
                 );
-                self.write_intr_reg_sets(0, intr_reg_set_0);
+                self.write_intr_reg_sets(0, intr_reg_sets_0);
 
                 info!("xhci: Initialized event ring");
             }
@@ -456,9 +456,19 @@ impl XhcDriver
         let mut noop_trb = TransferRequestBlock::new();
         noop_trb.set_trb_type(TransferRequestBlockType::NoOpCommand);
         self.push_cmd_ring(noop_trb).unwrap();
-        self.pop_primary_event_ring();
-        self.pop_primary_event_ring();
-        self.pop_primary_event_ring();
+
+        println!(
+            "{:?}",
+            PCI_DEVICE_MAN
+                .lock()
+                .find_by_bdf(
+                    self.controller_pci_bus,
+                    self.controller_pci_device,
+                    self.controller_pci_func,
+                )
+                .unwrap()
+                .read_caps_list()
+        );
     }
 
     pub fn scan_ports(&mut self)
@@ -703,8 +713,8 @@ impl XhcDriver
     {
         if let Some(event_ring) = &self.primary_event_ring_buf
         {
-            let intr_reg_set = self.read_intr_reg_sets(0).unwrap();
-            if let Some((trb, intr_reg_set)) = event_ring.pop(intr_reg_set)
+            let intr_reg_sets_0 = self.read_intr_reg_sets(0).unwrap();
+            if let Some((trb, intr_reg_set)) = event_ring.pop(intr_reg_sets_0)
             {
                 self.write_intr_reg_sets(0, intr_reg_set);
                 return Some(trb);

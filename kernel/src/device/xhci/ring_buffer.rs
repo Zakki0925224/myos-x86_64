@@ -74,6 +74,22 @@ impl RingBuffer
 
     pub fn get_buf_len(&self) -> usize { return self.buf_len; }
 
+    pub fn get_empty_buf_len(&self) -> usize
+    {
+        let mut cnt = 0;
+
+        for i in 0..self.buf_len
+        {
+            let trb = self.read(i).unwrap();
+            if trb.cycle_bit() != self.cycle_state
+            {
+                cnt += 1;
+            }
+        }
+
+        return cnt - 1;
+    }
+
     pub fn push(&mut self, trb: TransferRequestBlock) -> Result<(), &'static str>
     {
         if !self.is_init
@@ -109,11 +125,13 @@ impl RingBuffer
             let link_trb_index = self.buf_len - 1;
             let mut link_trb = self.read(link_trb_index).unwrap();
             link_trb.set_cycle_bit(!link_trb.cycle_bit());
+            // true -> toggle, false -> reset
+            link_trb.set_toggle_cycle(self.cycle_state).unwrap();
             self.write(link_trb_index, link_trb).unwrap();
             self.cycle_state = !self.cycle_state;
         }
 
-        info!("xhci: Pushed to ring buffer: {:?}", trb);
+        info!("xhci: Pushed to ring buffer: {:?} (empty len is {})", trb, self.get_empty_buf_len());
 
         return Ok(());
     }
@@ -146,7 +164,6 @@ impl RingBuffer
         let mut index = (dequeue_addr.get() - self.buf_base_virt_addr.get()) as usize / trb_size;
 
         let mut trb = self.read(index).unwrap();
-        dequeue_addr = dequeue_addr.offset(trb_size);
 
         let mut skip_cnt = 0;
         loop
@@ -160,7 +177,6 @@ impl RingBuffer
             if index >= self.buf_len
             {
                 index = 0;
-                dequeue_addr = self.buf_base_virt_addr;
             }
 
             trb = self.read(index).unwrap();
@@ -177,9 +193,10 @@ impl RingBuffer
         trb.set_cycle_bit(!self.cycle_state);
         self.write(index, trb).unwrap();
 
+        dequeue_addr = self.buf_base_virt_addr.offset(index * size_of::<TransferRequestBlock>());
         int_reg_set.set_event_ring_dequeue_ptr(dequeue_addr.get_phys_addr().get() >> 4);
         int_reg_set.set_event_handler_busy(false);
-        info!("xhci: Poped to ring buffer: {:?} (index: {})", tmp_trb, index);
+        info!("xhci: Poped from ring buffer: {:?} (index: {})", tmp_trb, index);
 
         return Some((tmp_trb, int_reg_set));
     }

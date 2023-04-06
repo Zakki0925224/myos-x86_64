@@ -96,3 +96,33 @@ pub struct TransferRequestBlock
     pub trb_type: TransferRequestBlockType,
     pub ctrl_regs: B16,
 }
+
+impl TransferRequestBlock
+{
+    // Link TRB
+    pub fn toggle_cycle(&self) -> Option<bool>
+    {
+        if self.trb_type() != TransferRequestBlockType::Link
+        {
+            return None;
+        }
+
+        let flags = self.other_flags();
+
+        return Some((flags & 0x1) != 0);
+    }
+
+    pub fn set_toggle_cycle(&mut self, new_val: bool) -> Result<(), &'static str>
+    {
+        if self.trb_type() != TransferRequestBlockType::Link
+        {
+            return Err("TRB type is not Link");
+        }
+
+        let toggle_cycle = if new_val { 1 } else { 0 };
+        let flags = (self.other_flags() & !0x1) | toggle_cycle;
+        self.set_other_flags(flags);
+
+        return Ok(());
+    }
+}

@@ -483,9 +483,12 @@ impl ConfigurationSpacePciToCardBusField
 pub struct MsiMessageControlField
 {
     pub is_enable: bool,
+    #[skip(setters)]
     pub multiple_msg_capable: B3,
     pub multiple_msg_enable: B3,
+    #[skip(setters)]
     pub is_64bit: bool,
+    #[skip(setters)]
     pub per_vec_masking: bool,
     #[skip]
     reserved: B7,
