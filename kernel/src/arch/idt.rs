@@ -87,7 +87,17 @@ fn set_handler(vec_num: usize, handler: Handler, gate_type: GateType)
 {
     let mut desc = GateDescriptor::new();
     desc.set_handler(handler, asm::read_cs(), gate_type);
-    unsafe { IDT[vec_num] = desc }
+    unsafe {
+        IDT[vec_num] = desc;
+    }
+}
+
+fn load_idt()
+{
+    let limit = (size_of::<[GateDescriptor; IDT_LEN]>() - 1) as u16;
+    let base = &unsafe { IDT } as *const _ as u64;
+    let args = DescriptorTableArgs { limit, base };
+    asm::lidt(&args);
 }
 
 fn notify_end_of_int()
@@ -124,9 +134,6 @@ pub fn init()
     set_handler(VEC_DOUBLE_FAULT, double_fault_handler, GateType::Interrupt);
     set_handler(VEC_XHCI_INT, xhc_primary_event_ring_handler, GateType::Interrupt);
 
-    let limit = (size_of::<[GateDescriptor; IDT_LEN]>() - 1) as u16;
-    let base = &unsafe { IDT } as *const _ as u64;
-    let args = DescriptorTableArgs { limit, base };
-    asm::lidt(&args);
+    load_idt();
     info!("idt: Initialized IDT");
 }

@@ -92,6 +92,8 @@ impl VirtualAddress
     pub fn write_volatile<T>(&self, data: T)
     {
         let ptr = self.get() as *mut T;
-        unsafe { write_volatile(ptr, data) };
+        unsafe {
+            write_volatile(ptr, data);
+        }
     }
 }
