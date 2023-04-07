@@ -3,7 +3,9 @@ use core::mem::size_of;
 use log::info;
 use modular_bitfield::{bitfield, specifiers::*, BitfieldSpecifier};
 
-use super::{addr::VirtualAddress, asm};
+use super::{addr::VirtualAddress, asm::{self, DescriptorTableArgs}, idt::GateDescriptor};
+
+static mut GDT: [SegmentDescriptor; GDT_LEN] = [SegmentDescriptor::new(); GDT_LEN];
 
 const GDT_LEN: usize = 8192;
 
@@ -65,48 +67,39 @@ impl SegmentDescriptor
     }
 }
 
-fn read_desc(vec_num: usize) -> Option<SegmentDescriptor>
+fn set_desc(vec_num: usize, desc: SegmentDescriptor)
 {
-    if vec_num >= GDT_LEN
-    {
-        return None;
+    unsafe {
+        GDT[vec_num] = desc;
     }
-
-    let addr =
-        VirtualAddress::new(asm::sgdt().base + (size_of::<SegmentDescriptor>() * vec_num) as u64);
-    return Some(addr.read_volatile());
 }
 
-fn write_desc(vec_num: usize, desc: SegmentDescriptor)
+fn load_gdt()
 {
-    if vec_num >= GDT_LEN
-    {
-        return;
-    }
-
-    let addr =
-        VirtualAddress::new(asm::sgdt().base + (size_of::<SegmentDescriptor>() * vec_num) as u64);
-    addr.write_volatile(desc);
+    let limit = (size_of::<[GateDescriptor; GDT_LEN]>() - 1) as u16;
+    let base = &unsafe { GDT } as *const _ as u64;
+    let args = DescriptorTableArgs { limit, base };
+    asm::lgdt(&args);
 }
 
 pub fn init()
 {
-    let gdt0 = SegmentDescriptor::new();
     let mut gdt1 = SegmentDescriptor::new();
     let mut gdt2 = SegmentDescriptor::new();
 
     gdt1.set_code_seg(SegmentType::ExecuteRead, 0, 0, 0xffff_f);
     gdt2.set_data_seg(SegmentType::ReadWrite, 0, 0, 0xffff_f);
 
-    write_desc(0, gdt0);
-    write_desc(1, gdt1);
-    write_desc(2, gdt2);
+    set_desc(1, gdt1);
+    set_desc(2, gdt2);
+
+    load_gdt();
 
     asm::set_ds(0);
     asm::set_es(0);
     asm::set_fs(0);
     asm::set_gs(0);
-    // TODO: how to set ss and cs register
+    //asm::set_ss(1 << 3);
     asm::set_ss(0);
     asm::set_cs(2 << 3);
 

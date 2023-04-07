@@ -1,4 +1,27 @@
-use core::{arch::asm, mem::transmute};
+use core::{arch::{asm, global_asm}, mem::transmute};
+
+// global_asm!(
+//     r#"
+//     .global set_cs_asm
+
+//     set_cs_asm:
+//         push rbp
+//         mov rbp, rsp
+//         push rdi
+//         mov rax, .next
+//         push rax
+//         o64 retf
+
+//     .next:
+//         mov rsp, rbp
+//         pop rbp
+//         ret
+//     "#
+// );
+
+// extern "C" {
+//     fn set_cs_asm(value: u16);
+// }
 
 pub fn hlt()
 {
@@ -95,7 +118,13 @@ pub fn set_ss(value: u16)
     }
 }
 
-pub fn set_cs(value: u16) {}
+pub fn set_cs(value: u16)
+{
+    // TODO
+    // unsafe {
+    //     set_cs_asm(value);
+    // }
+}
 
 #[repr(C, packed(2))]
 #[derive(Debug)]
