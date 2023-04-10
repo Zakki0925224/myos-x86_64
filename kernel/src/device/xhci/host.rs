@@ -74,10 +74,8 @@ impl XhcDriver
                 };
 
                 info!(
-                    "xhci: xHC device: {}.{}:{} - {}",
-                    device.bus,
-                    device.device,
-                    device.func,
+                    "xhci: xHC device: {:?} - {}",
+                    device.get_device_class(),
                     device.conf_space_header.get_device_name().unwrap()
                 );
 
@@ -151,27 +149,6 @@ impl XhcDriver
                 warn!("xhci: Some registers virtual address is 0");
                 failed_init_msg();
                 return;
-            }
-
-            // setting up msi
-            let mut msg_addr = MsiMessageAddressField::new();
-            msg_addr.set_destination_id(read_local_apic_id());
-            msg_addr.set_redirection_hint_indication(0);
-            msg_addr.set_destination_mode(0);
-
-            let mut msg_data = MsiMessageDataField::new();
-            msg_data.set_trigger_mode(TriggerMode::Level);
-            msg_data.set_level(Level::Assert);
-            msg_data.set_delivery_mode(DeliveryMode::Fixed);
-            msg_data.set_vector(VEC_XHCI_INT as u8);
-
-            if let Err(msg) = controller.set_msi_cap(msg_addr, msg_data)
-            {
-                warn!("xhci: {}", msg);
-            }
-            else
-            {
-                info!("xhci: Initialized MSI interrupt");
             }
 
             // TODO: request host controller ownership
@@ -376,10 +353,32 @@ impl XhcDriver
                 return;
             }
 
+            // setting up msi
+            let mut msg_addr = MsiMessageAddressField::new();
+            msg_addr.set_destination_id(read_local_apic_id());
+            msg_addr.set_redirection_hint_indication(0);
+            msg_addr.set_destination_mode(0);
+            msg_addr.set_const_0xfee(0xfee);
+
+            let mut msg_data = MsiMessageDataField::new();
+            msg_data.set_trigger_mode(TriggerMode::Level);
+            msg_data.set_level(Level::Assert);
+            msg_data.set_delivery_mode(DeliveryMode::Fixed);
+            msg_data.set_vector(VEC_XHCI_INT as u8);
+
+            if let Err(msg) = controller.set_msi_cap(msg_addr, msg_data)
+            {
+                warn!("xhci: {}", msg);
+            }
+            else
+            {
+                info!("xhci: Initialized MSI interrupt");
+            }
+
             // enable interrupt
             let mut intr_reg_set_0 = self.read_intr_reg_sets(0).unwrap();
             intr_reg_set_0.set_int_mod_interval(4000);
-            intr_reg_set_0.set_int_pending(false);
+            intr_reg_set_0.set_int_pending(true);
             intr_reg_set_0.set_int_enable(true);
             self.write_intr_reg_sets(0, intr_reg_set_0);
 
@@ -456,22 +455,9 @@ impl XhcDriver
         let mut noop_trb = TransferRequestBlock::new();
         noop_trb.set_trb_type(TransferRequestBlockType::NoOpCommand);
         self.push_cmd_ring(noop_trb).unwrap();
-
-        println!(
-            "{:?}",
-            PCI_DEVICE_MAN
-                .lock()
-                .find_by_bdf(
-                    self.controller_pci_bus,
-                    self.controller_pci_device,
-                    self.controller_pci_func,
-                )
-                .unwrap()
-                .read_caps_list()
-        );
     }
 
-    pub fn scan_ports(&mut self)
+    pub fn reset_ports(&mut self)
     {
         if !self.is_init || !self.is_running()
         {
@@ -507,6 +493,8 @@ impl XhcDriver
                 self.ports.push(Port::new(i));
             }
         }
+
+        //self.primary_event_ring_buf.as_ref().unwrap().debug();
     }
 
     pub fn alloc_slots(&mut self)
@@ -522,6 +510,7 @@ impl XhcDriver
             let mut enable_slot_cmd = TransferRequestBlock::new();
             enable_slot_cmd.set_trb_type(TransferRequestBlockType::EnableSlotCommand);
             self.push_cmd_ring(enable_slot_cmd).unwrap();
+            //self.primary_event_ring_buf.as_ref().unwrap().debug();
         }
     }
 
@@ -696,13 +685,17 @@ impl XhcDriver
             .write_volatile(base_addr.get_phys_addr().get());
     }
 
+    fn ring_doorbell(&self, index: usize)
+    {
+        self.write_doorbell_reg(index, DoorbellRegister::new());
+    }
+
     fn push_cmd_ring(&mut self, trb: TransferRequestBlock) -> Result<(), &'static str>
     {
         if let Some(cmd_ring) = self.cmd_ring_buf.as_mut()
         {
             let result = cmd_ring.push(trb);
-            // ring doorbell
-            self.write_doorbell_reg(0, DoorbellRegister::new());
+            self.ring_doorbell(0);
             return result;
         }
 

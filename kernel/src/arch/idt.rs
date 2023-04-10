@@ -106,30 +106,30 @@ fn notify_end_of_int()
     virt_addr.write_volatile(0);
 }
 
-extern "x86-interrupt" fn breakpint_handler()
+extern "x86-interrupt" fn breakpoint_handler()
 {
-    panic!("Exception: BREAKPOINT");
+    panic!("int: BREAKPOINT");
 }
 
 extern "x86-interrupt" fn page_fault_handler()
 {
-    panic!("Exception: PAGE FAULT, Accessed virtual address: 0x{:x}", Cr2::read().get());
+    panic!("int: PAGE FAULT, Accessed virtual address: 0x{:x}", Cr2::read().get());
 }
 
 extern "x86-interrupt" fn double_fault_handler()
 {
-    panic!("Exception: DOUBLE FAULT");
+    panic!("int: DOUBLE FAULT");
 }
 
 extern "x86-interrupt" fn xhc_primary_event_ring_handler()
 {
-    info!("Interrupt: XHC PRIMARY EVENT RING");
+    info!("int: XHC PRIMARY EVENT RING");
     notify_end_of_int();
 }
 
 pub fn init()
 {
-    set_handler(VEC_BREAKPOINT, breakpint_handler, GateType::Interrupt);
+    set_handler(VEC_BREAKPOINT, breakpoint_handler, GateType::Interrupt);
     set_handler(VEC_PAGE_FAULT, page_fault_handler, GateType::Interrupt);
     set_handler(VEC_DOUBLE_FAULT, double_fault_handler, GateType::Interrupt);
     set_handler(VEC_XHCI_INT, xhc_primary_event_ring_handler, GateType::Interrupt);

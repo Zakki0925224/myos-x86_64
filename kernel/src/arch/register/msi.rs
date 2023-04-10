@@ -11,7 +11,7 @@ pub struct MsiMessageAddressField
     #[skip]
     reserved: B8,
     pub destination_id: B8,
-    const_0xfee: B12,
+    pub const_0xfee: B12,
 }
 
 #[derive(BitfieldSpecifier, Debug, Clone, Copy)]
@@ -50,7 +50,9 @@ pub struct MsiMessageDataField
     pub vector: B8,
     pub delivery_mode: DeliveryMode,
     #[skip]
-    reserved: B3,
+    reserved0: B3,
     pub level: Level,
     pub trigger_mode: TriggerMode,
+    #[skip]
+    reserved1: B16,
 }

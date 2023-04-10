@@ -499,21 +499,22 @@ pub struct MsiMessageControlField
 #[repr(C)]
 pub struct MsiCapabilityField
 {
+    #[skip(setters)]
     pub cap_id: B8,
+    #[skip(setters)]
     pub next_ptr: B8,
     pub msg_ctrl: MsiMessageControlField,
     pub msg_addr_low: MsiMessageAddressField,
     pub msg_addr_high: B32,
     pub msg_data: MsiMessageDataField,
-    #[skip]
-    reserved: B16,
+    reserved: B64,
 }
 
 impl MsiCapabilityField
 {
     pub fn read(bus: usize, device: usize, func: usize, caps_ptr: usize) -> Option<Self>
     {
-        let mut data: [u32; 4] = [0; 4];
+        let mut data: [u32; 6] = [0; 6];
         for (i, elem) in data.iter_mut().enumerate()
         {
             if let Some(d) = read_conf_space(bus, device, func, caps_ptr + (i * 4))
@@ -526,7 +527,7 @@ impl MsiCapabilityField
             }
         }
 
-        return Some(unsafe { transmute::<[u32; 4], Self>(data) });
+        return Some(unsafe { transmute::<[u32; 6], Self>(data) });
     }
 
     pub fn write(
@@ -537,7 +538,7 @@ impl MsiCapabilityField
         caps_ptr: usize,
     ) -> Result<(), &'static str>
     {
-        let mut data = unsafe { transmute::<Self, [u32; 4]>(*self) };
+        let data = unsafe { transmute::<Self, [u32; 6]>(*self) };
         for (i, elem) in data.iter().enumerate()
         {
             if let Err(msg) = write_conf_space(bus, device, func, caps_ptr + (i * 4), *elem)

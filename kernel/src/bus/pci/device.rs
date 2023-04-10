@@ -4,6 +4,7 @@ use crate::{arch::register::msi::{MsiMessageAddressField, MsiMessageDataField}, 
 
 use super::conf_space::*;
 use alloc::vec::Vec;
+use log::info;
 
 #[derive(Debug)]
 pub struct PciDevice
@@ -108,6 +109,11 @@ impl PciDevice
 
     fn read_caps_ptr(&self) -> Option<u8>
     {
+        if !self.conf_space_header.status().caps_list_available()
+        {
+            return None;
+        }
+
         match self.conf_space_header.header_type()
         {
             ConfigurationSpaceHeaderType::NonBridge =>
@@ -164,7 +170,7 @@ impl PciDevice
         if let Some(caps_ptr) = self.read_caps_ptr()
         {
             let mut cap = MsiCapabilityField::new();
-            let mut caps_ptr = caps_ptr;
+            let mut caps_ptr = caps_ptr as usize;
             let caps_list = self.read_caps_list().unwrap();
             let caps_list_len = caps_list.len();
 
@@ -181,7 +187,7 @@ impl PciDevice
                     break;
                 }
 
-                caps_ptr = field.next_ptr();
+                caps_ptr = field.next_ptr() as usize;
 
                 if i == caps_list_len - 1
                 {
@@ -189,7 +195,7 @@ impl PciDevice
                 }
             }
 
-            let mut msg_ctrl = MsiMessageControlField::new();
+            let mut msg_ctrl = cap.msg_ctrl();
             msg_ctrl.set_is_enable(true);
             msg_ctrl.set_multiple_msg_enable(0);
             cap.set_msg_ctrl(msg_ctrl);
@@ -197,66 +203,12 @@ impl PciDevice
             cap.set_msg_data(msg_data);
 
             // write cap
-            if let Err(msg) = cap.write(self.bus, self.device, self.func, caps_ptr as usize)
+            if let Err(msg) = cap.write(self.bus, self.device, self.func, caps_ptr)
             {
                 return Err(msg);
             }
-        }
-        else
-        {
-            return Err("Failed to read MSI capability fields");
-        }
 
-        return Ok(());
-    }
-
-    pub fn set_msix_cap(
-        &self,
-        msg_addr: MsiMessageAddressField,
-        msg_data: MsiMessageDataField,
-    ) -> Result<(), &'static str>
-    {
-        if let Some(caps_ptr) = self.read_caps_ptr()
-        {
-            let mut cap = MsiCapabilityField::new();
-            let mut caps_ptr = caps_ptr;
-            let caps_list = self.read_caps_list().unwrap();
-            let caps_list_len = caps_list.len();
-
-            if caps_list_len == 0
-            {
-                return Err("MSI capability fields was not found");
-            }
-
-            for (i, field) in caps_list.iter().enumerate()
-            {
-                if field.cap_id() == 17
-                {
-                    cap = *field;
-                    break;
-                }
-
-                caps_ptr = field.next_ptr();
-
-                if i == caps_list_len - 1
-                {
-                    return Err("MSI-X capability field was not found");
-                }
-            }
-
-            let mut msg_ctrl = MsiMessageControlField::new();
-            msg_ctrl.set_is_enable(true);
-            msg_ctrl.set_multiple_msg_enable(0);
-
-            cap.set_msg_ctrl(msg_ctrl);
-            cap.set_msg_addr_low(msg_addr);
-            cap.set_msg_data(msg_data);
-
-            // write cap
-            if let Err(msg) = cap.write(self.bus, self.device, self.func, caps_ptr as usize)
-            {
-                return Err(msg);
-            }
+            info!("pci: {:?}: Set MSI capability: {:?}", self.get_device_class(), cap);
         }
         else
         {

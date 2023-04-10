@@ -1,6 +1,6 @@
 use log::{info, warn};
 
-use crate::{arch::addr::*, mem::bitmap::MemoryFrameInfo};
+use crate::{arch::addr::*, mem::bitmap::MemoryFrameInfo, println};
 use core::mem::size_of;
 
 use super::{register::*, trb::{TransferRequestBlock, TransferRequestBlockType}};
@@ -199,6 +199,15 @@ impl RingBuffer
         info!("xhci: Poped from ring buffer: {:?} (index: {})", tmp_trb, index);
 
         return Some((tmp_trb, int_reg_set));
+    }
+
+    pub fn debug(&self)
+    {
+        for i in 0..self.buf_len
+        {
+            let trb = self.read(i);
+            println!("{}: {:?}", i, trb);
+        }
     }
 
     pub fn read(&self, index: usize) -> Option<TransferRequestBlock>
