@@ -20,7 +20,7 @@ pub enum DeliveryMode
 {
     Fixed = 0,
     LowestPriority = 1,
-    Msi = 2,
+    Smi = 2,
     Nmi = 4,
     Init = 5,
     ExtInt = 7,

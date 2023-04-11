@@ -1,4 +1,4 @@
-use core::mem::size_of;
+use core::mem::{size_of, transmute};
 
 use crate::{arch::{addr::*, apic::local::read_local_apic_id, idt::VEC_XHCI_INT, register::msi::*}, bus::pci::{conf_space::*, device_id::*, PCI_DEVICE_MAN}, device::xhci::{port::Port, register::*, ring_buffer::*, trb::{TransferRequestBlock, TransferRequestBlockType}}, mem::bitmap::BITMAP_MEM_MAN, println};
 use alloc::vec::Vec;
@@ -452,9 +452,13 @@ impl XhcDriver
             return;
         }
 
+        self.ring_doorbell(0);
+
         let mut noop_trb = TransferRequestBlock::new();
         noop_trb.set_trb_type(TransferRequestBlockType::NoOpCommand);
+        self.primary_event_ring_buf.as_ref().unwrap().debug();
         self.push_cmd_ring(noop_trb).unwrap();
+        self.primary_event_ring_buf.as_ref().unwrap().debug();
     }
 
     pub fn reset_ports(&mut self)
@@ -493,8 +497,6 @@ impl XhcDriver
                 self.ports.push(Port::new(i));
             }
         }
-
-        //self.primary_event_ring_buf.as_ref().unwrap().debug();
     }
 
     pub fn alloc_slots(&mut self)

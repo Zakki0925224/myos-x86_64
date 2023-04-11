@@ -74,8 +74,8 @@ tasks:
     build-qemu:
         dir: ./{{$.THIRD_PARTY_DIR}}/{{$.QEMU_DIR}}
         cmds:
-            - if [ ! -f ./build/qemu-system-x86_64 ];then {{$.GIT_CHECKOUT_TO_LATEST_TAG}} ;fi
-            - if [ ! -f ./build/qemu-system-x86_64 ];then mkdir -p build && cd build && ../configure --target-list=x86_64-softmmu --enable-trace-backends=log --enable-sdl --extra-cflags="-DDEBUG_XHCI" && make -j$(nproc) ;fi
+            - "{{$.GIT_CHECKOUT_TO_LATEST_TAG}}"
+            - mkdir -p build && cd build && ../configure --target-list=x86_64-softmmu --enable-trace-backends=log --enable-sdl --extra-cflags="-DDEBUG_XHCI -DMSI_DEBUG -DDEBUG_PCI" && make -j$(nproc)
 
     build:
         cmds:
