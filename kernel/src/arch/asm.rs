@@ -1,27 +1,4 @@
-use core::{arch::{asm, global_asm}, mem::transmute};
-
-// global_asm!(
-//     r#"
-//     .global set_cs_asm
-
-//     set_cs_asm:
-//         push rbp
-//         mov rbp, rsp
-//         push rdi
-//         mov rax, .next
-//         push rax
-//         o64 retf
-
-//     .next:
-//         mov rsp, rbp
-//         pop rbp
-//         ret
-//     "#
-// );
-
-// extern "C" {
-//     fn set_cs_asm(value: u16);
-// }
+use core::{arch::asm, mem::transmute};
 
 pub fn hlt()
 {
@@ -121,9 +98,11 @@ pub fn set_ss(value: u16)
 pub fn set_cs(value: u16)
 {
     // TODO
-    // unsafe {
-    //     set_cs_asm(value);
-    // }
+    unsafe {
+        asm!("push {}", in(reg) value);
+        asm!("lea {tmp}, [1f + rip]", "push {tmp}", tmp = lateout(reg) _);
+        asm!("retfq", "1:");
+    }
 }
 
 #[repr(C, packed(2))]
@@ -145,11 +124,9 @@ pub fn sidt() -> DescriptorTableArgs
 
 pub fn lidt(desc_table_args: &DescriptorTableArgs)
 {
-    cli();
     unsafe {
         asm!("lidt [{}]", in(reg) desc_table_args);
     }
-    sti();
 }
 
 pub fn sgdt() -> DescriptorTableArgs

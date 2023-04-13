@@ -1,13 +1,16 @@
 use core::mem::size_of;
-
+use lazy_static::lazy_static;
 use log::info;
 use modular_bitfield::{bitfield, specifiers::*, BitfieldSpecifier};
+use spin::Mutex;
 
-use super::{addr::VirtualAddress, asm::{self, DescriptorTableArgs}, idt::GateDescriptor};
+use super::{asm::{self, DescriptorTableArgs}, idt::GateDescriptor};
 
-static mut GDT: [SegmentDescriptor; GDT_LEN] = [SegmentDescriptor::new(); GDT_LEN];
+lazy_static! {
+    static ref GDT: Mutex<GlobalDescriptorTable> = Mutex::new(GlobalDescriptorTable::new());
+}
 
-const GDT_LEN: usize = 8192;
+const GDT_LEN: usize = 3;
 
 #[derive(BitfieldSpecifier, Debug, Clone, Copy)]
 #[bits = 4]
@@ -19,13 +22,12 @@ pub enum SegmentType
 
 #[bitfield]
 #[derive(Debug, Clone, Copy)]
-#[repr(C)]
+#[repr(C, packed)]
 pub struct SegmentDescriptor
 {
     limit_low: B16,
     base_low: B16,
     base_mid: B8,
-    #[bits = 4]
     seg_type: SegmentType,
     is_not_system_seg: bool,
     dpl: B2,
@@ -67,19 +69,36 @@ impl SegmentDescriptor
     }
 }
 
-fn set_desc(vec_num: usize, desc: SegmentDescriptor)
+#[repr(C, align(8))]
+struct GlobalDescriptorTable
 {
-    unsafe {
-        GDT[vec_num] = desc;
-    }
+    entries: [SegmentDescriptor; GDT_LEN],
 }
 
-fn load_gdt()
+impl GlobalDescriptorTable
 {
-    let limit = (size_of::<[GateDescriptor; GDT_LEN]>() - 1) as u16;
-    let base = &unsafe { GDT } as *const _ as u64;
-    let args = DescriptorTableArgs { limit, base };
-    asm::lgdt(&args);
+    pub fn new() -> Self { return Self { entries: [SegmentDescriptor::new(); GDT_LEN] }; }
+
+    pub fn set_desc(&mut self, vec_num: usize, desc: SegmentDescriptor)
+    {
+        if vec_num >= GDT_LEN
+        {
+            return;
+        }
+
+        self.entries[vec_num] = desc;
+    }
+
+    pub fn load(&self)
+    {
+        let limit = (size_of::<[GateDescriptor; GDT_LEN]>() - 1) as u16;
+        let base = self.entries.as_ptr() as u64;
+
+        let args = DescriptorTableArgs { limit, base };
+        asm::lgdt(&args);
+
+        //info!("gdt: Loaded GDT: {:?}", args);
+    }
 }
 
 pub fn init()
@@ -90,18 +109,18 @@ pub fn init()
     gdt1.set_code_seg(SegmentType::ExecuteRead, 0, 0, 0xffff_f);
     gdt2.set_data_seg(SegmentType::ReadWrite, 0, 0, 0xffff_f);
 
-    set_desc(1, gdt1);
-    set_desc(2, gdt2);
-
-    load_gdt();
+    GDT.lock().set_desc(1, gdt1);
+    GDT.lock().set_desc(2, gdt2);
+    GDT.lock().load();
 
     asm::set_ds(0);
     asm::set_es(0);
     asm::set_fs(0);
     asm::set_gs(0);
     //asm::set_ss(1 << 3);
-    asm::set_ss(0);
-    asm::set_cs(2 << 3);
+    //asm::set_ss(0);
+    //asm::set_cs(2 << 3);
+    //asm::set_cs(0);
 
-    info!("gdt: Initialized GDT (having todo)");
+    info!("gdt: Initialized GDT");
 }

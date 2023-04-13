@@ -1,12 +1,16 @@
 use core::mem::size_of;
+use lazy_static::lazy_static;
 use log::info;
 use modular_bitfield::{bitfield, specifiers::*, BitfieldSpecifier};
+use spin::Mutex;
 
 use crate::arch::{asm::{self, DescriptorTableArgs}, register::control::Cr2};
 
 use super::addr::VirtualAddress;
 
-static mut IDT: [GateDescriptor; IDT_LEN] = [GateDescriptor::new(); IDT_LEN];
+lazy_static! {
+    static ref IDT: Mutex<InterruptDescriptorTable> = Mutex::new(InterruptDescriptorTable::new());
+}
 
 const IDT_LEN: usize = 256;
 const VEC_DIVIDE_ERR: usize = 0;
@@ -46,7 +50,7 @@ pub enum GateType
 
 #[bitfield]
 #[derive(Debug, Clone, Copy)]
-#[repr(C)]
+#[repr(C, packed)]
 pub struct GateDescriptor
 {
     handler_offset_low: B16,
@@ -55,7 +59,6 @@ pub struct GateDescriptor
     int_stack_table: B3,
     #[skip]
     reserved0: B5,
-    #[bits = 4]
     gate_type: GateType,
     #[skip]
     reserved1: B1,
@@ -72,7 +75,6 @@ impl GateDescriptor
 {
     pub fn set_handler(&mut self, handler: Handler, cs: u16, gate_type: GateType)
     {
-        // TODO: virt addr
         let handler_addr = handler as *const () as u64;
         self.set_handler_offset_low(handler_addr as u16);
         self.set_handler_offset_middle((handler_addr >> 16) as u16);
@@ -83,21 +85,38 @@ impl GateDescriptor
     }
 }
 
-fn set_handler(vec_num: usize, handler: Handler, gate_type: GateType)
+#[repr(C, align(16))]
+struct InterruptDescriptorTable
 {
-    let mut desc = GateDescriptor::new();
-    desc.set_handler(handler, asm::read_cs(), gate_type);
-    unsafe {
-        IDT[vec_num] = desc;
-    }
+    entries: [GateDescriptor; IDT_LEN],
 }
 
-fn load_idt()
+impl InterruptDescriptorTable
 {
-    let limit = (size_of::<[GateDescriptor; IDT_LEN]>() - 1) as u16;
-    let base = &unsafe { IDT } as *const _ as u64;
-    let args = DescriptorTableArgs { limit, base };
-    asm::lidt(&args);
+    pub fn new() -> Self { return Self { entries: [GateDescriptor::new(); IDT_LEN] }; }
+
+    pub fn set_handler(&mut self, vec_num: usize, handler: Handler, gate_type: GateType)
+    {
+        if vec_num >= IDT_LEN
+        {
+            return;
+        }
+
+        let mut desc = GateDescriptor::new();
+        desc.set_handler(handler, asm::read_cs(), gate_type);
+        self.entries[vec_num] = desc;
+    }
+
+    pub fn load(&self)
+    {
+        let limit = (size_of::<[GateDescriptor; IDT_LEN]>() - 1) as u16;
+        let base = self.entries.as_ptr() as u64;
+        let args = DescriptorTableArgs { limit, base };
+        asm::lidt(&args);
+
+        //info!("idt: Loaded IDT: {:?}", args);
+        asm::sti();
+    }
 }
 
 fn notify_end_of_int()
@@ -129,11 +148,10 @@ extern "x86-interrupt" fn xhc_primary_event_ring_handler()
 
 pub fn init()
 {
-    set_handler(VEC_BREAKPOINT, breakpoint_handler, GateType::Interrupt);
-    set_handler(VEC_PAGE_FAULT, page_fault_handler, GateType::Interrupt);
-    set_handler(VEC_DOUBLE_FAULT, double_fault_handler, GateType::Interrupt);
-    set_handler(VEC_XHCI_INT, xhc_primary_event_ring_handler, GateType::Interrupt);
-
-    load_idt();
+    IDT.lock().set_handler(VEC_BREAKPOINT, breakpoint_handler, GateType::Interrupt);
+    IDT.lock().set_handler(VEC_PAGE_FAULT, page_fault_handler, GateType::Interrupt);
+    IDT.lock().set_handler(VEC_DOUBLE_FAULT, double_fault_handler, GateType::Interrupt);
+    IDT.lock().set_handler(VEC_XHCI_INT, xhc_primary_event_ring_handler, GateType::Interrupt);
+    IDT.lock().load();
     info!("idt: Initialized IDT");
 }

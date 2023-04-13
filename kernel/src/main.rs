@@ -50,9 +50,10 @@ pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> !
     logger::init().unwrap();
     info!("terminal: Initialized kernel terminal");
 
+    // initialize GDT (TODO: not working correctry)
+    //gdt::init();
     // initialize IDT
     idt::init();
-    gdt::init();
 
     // initialize memory management
     mem::init(boot_info.get_mem_map());

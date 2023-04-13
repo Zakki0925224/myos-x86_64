@@ -1,9 +1,1 @@
-usb_xhci_unimplemented
-usb_xhci_reset
-usb_xhci_queue_event
-usb_xhci_exit
-usb_xhci_run
-usb_xhci_stop
-usb_xhci_irq_msi
-usb_xhci_doorbell_read
-usb_xhci_doorbell_write
+usb_xhci_*
