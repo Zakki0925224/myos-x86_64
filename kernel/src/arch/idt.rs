@@ -4,7 +4,7 @@ use log::info;
 use modular_bitfield::{bitfield, specifiers::*, BitfieldSpecifier};
 use spin::Mutex;
 
-use crate::arch::{asm::{self, DescriptorTableArgs}, register::control::Cr2};
+use crate::{arch::{asm::{self, DescriptorTableArgs}, register::control::Cr2}, device::xhc::XHC_DRIVER};
 
 use super::addr::VirtualAddress;
 
@@ -143,6 +143,7 @@ extern "x86-interrupt" fn double_fault_handler()
 extern "x86-interrupt" fn xhc_primary_event_ring_handler()
 {
     info!("int: XHC PRIMARY EVENT RING");
+    XHC_DRIVER.lock().as_ref().unwrap().on_updated_event_ring();
     notify_end_of_int();
 }
 

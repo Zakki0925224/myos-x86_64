@@ -12,6 +12,7 @@ mod device;
 mod env;
 mod graphics;
 mod mem;
+mod serial;
 mod terminal;
 mod util;
 
@@ -21,12 +22,11 @@ use alloc::alloc::Layout;
 use arch::asm;
 use common::boot_info::BootInfo;
 use core::panic::PanicInfo;
-use device::serial::{self, SERIAL};
 use graphics::GRAPHICS;
 use log::*;
 use terminal::TERMINAL;
 
-use crate::{arch::{gdt, idt}, device::xhci::host::XhcDriver, util::logger};
+use crate::{arch::{gdt, idt}, serial::SERIAL, util::logger};
 
 #[no_mangle]
 #[start]
@@ -61,15 +61,8 @@ pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> !
     // initialize pci
     bus::init();
 
-    // initialize devices
-    let mut xhci = XhcDriver::new();
-    if let Some(driver) = xhci.as_mut()
-    {
-        driver.init();
-        driver.start();
-        driver.reset_ports();
-        driver.alloc_slots();
-    }
+    // initialize device drivers
+    device::init_device_drivers();
 
     env::print_info();
 

@@ -1,4 +1,4 @@
-use crate::{device::serial::SERIAL, graphics::color::*};
+use crate::{graphics::color::*, serial::SERIAL};
 
 use super::graphics::GRAPHICS;
 use core::fmt::{self, Write};

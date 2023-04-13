@@ -1,6 +1,6 @@
-use core::mem::{size_of, transmute};
+use core::mem::size_of;
 
-use crate::{arch::{addr::*, apic::local::read_local_apic_id, idt::VEC_XHCI_INT, register::msi::*}, bus::pci::{conf_space::*, device_id::*, PCI_DEVICE_MAN}, device::xhci::{port::Port, register::*, ring_buffer::*, trb::{TransferRequestBlock, TransferRequestBlockType}}, mem::bitmap::BITMAP_MEM_MAN, println};
+use crate::{arch::{addr::*, apic::local::read_local_apic_id, idt::VEC_XHCI_INT, register::msi::*}, bus::pci::{conf_space::*, device_id::*, PCI_DEVICE_MAN}, device::xhc::{port::Port, register::*, ring_buffer::*, trb::{TransferRequestBlock, TransferRequestBlockType}}, mem::bitmap::BITMAP_MEM_MAN};
 use alloc::vec::Vec;
 use log::{info, warn};
 
@@ -456,9 +456,7 @@ impl XhcDriver
 
         let mut noop_trb = TransferRequestBlock::new();
         noop_trb.set_trb_type(TransferRequestBlockType::NoOpCommand);
-        self.primary_event_ring_buf.as_ref().unwrap().debug();
         self.push_cmd_ring(noop_trb).unwrap();
-        self.primary_event_ring_buf.as_ref().unwrap().debug();
     }
 
     pub fn reset_ports(&mut self)
@@ -512,9 +510,10 @@ impl XhcDriver
             let mut enable_slot_cmd = TransferRequestBlock::new();
             enable_slot_cmd.set_trb_type(TransferRequestBlockType::EnableSlotCommand);
             self.push_cmd_ring(enable_slot_cmd).unwrap();
-            //self.primary_event_ring_buf.as_ref().unwrap().debug();
         }
     }
+
+    pub fn on_updated_event_ring(&self) { let trb = self.pop_primary_event_ring(); }
 
     pub fn is_init(&self) -> bool { return self.is_init; }
 
