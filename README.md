@@ -1,24 +1,24 @@
 # myos-x86_64
 
-[myos](https://github.com/Zakki0925224/myos) の x86_64・UEFI 版自作 OS。
+**myos-x86_64** is a hobby operating system written in Rust.
+
+This is a replacement project for the previous **[myos](https://github.com/Zakki0925224/myos)**.
 
 ## Third party
 
-### UEFI firmware
-
 -   [EDK II](https://github.com/tianocore/edk2.git)
-
-### Console font
-
 -   [Cozette](https://github.com/slavfox/Cozette.git)
+-   [QEMU](https://gitlab.com/qemu-project/qemu.git) (for debugging)
 
 ## Features
 
--   [x] Written in Rust and Assembly
+-   [x] Written in Rust
 -   [x] My own UEFI boot loader by using [uefi-rs](https://github.com/rust-osdev/uefi-rs)
 -   [x] x86_64 kernel
 -   Device support
     -   [x] Serial connection (UART 16650A)
+    -   [x] PCI devices
+    -   [x] USB devices (xHC) (work in progress...)
 -   [x] GUI support by using Graphics Output Protocol
 
 ## How to build
