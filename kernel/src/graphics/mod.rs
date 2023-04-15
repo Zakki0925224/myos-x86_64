@@ -10,10 +10,10 @@ use crate::arch::addr::VirtualAddress;
 use self::{color::Color, font::PsfFont};
 
 lazy_static! {
-    pub static ref GRAPHICS: Mutex<Graphics> = Mutex::new(Graphics::new());
+    pub static ref FRAME_BUF: Mutex<FrameBuffer> = Mutex::new(FrameBuffer::new());
 }
 
-pub struct Graphics
+pub struct FrameBuffer
 {
     is_init: bool,
     resolution: (usize, usize),
@@ -24,7 +24,7 @@ pub struct Graphics
     font: PsfFont,
 }
 
-impl Graphics
+impl FrameBuffer
 {
     pub fn new() -> Self
     {

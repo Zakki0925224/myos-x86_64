@@ -38,14 +38,18 @@ impl Color for RGBColor
 {
     fn get_color_code(&self, pixel_format: PixelFormat) -> u32
     {
+        let r = self.r as u32;
+        let g = self.g as u32;
+        let b = self.b as u32;
+
         // only support bgr or rgb pixel format
         if pixel_format == PixelFormat::Bgr
         {
-            return (self.r as u32) << 16 | (self.g as u32) << 8 | (self.b as u32) << 0;
+            return r << 16 | g << 8 | b << 0;
         }
         else
         {
-            return (self.b as u32) << 16 | (self.g as u32) << 8 | (self.r as u32) << 0;
+            return b << 16 | g << 8 | r << 0;
         }
     }
 }

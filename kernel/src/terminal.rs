@@ -1,6 +1,6 @@
 use crate::{graphics::color::*, serial::SERIAL};
 
-use super::graphics::GRAPHICS;
+use super::graphics::FRAME_BUF;
 use core::fmt::{self, Write};
 use lazy_static::lazy_static;
 use spin::Mutex;
@@ -49,37 +49,37 @@ impl Terminal
 
     pub fn init(&mut self)
     {
-        if !GRAPHICS.lock().is_init()
+        if !FRAME_BUF.lock().is_init()
         {
             panic!("Graphics is not initialized");
         }
 
-        let (glyph_size_width, _) = GRAPHICS.lock().get_font_glyph_size();
+        let (glyph_size_width, _) = FRAME_BUF.lock().get_font_glyph_size();
         self.font_glyph_size = (glyph_size_width, 16);
 
-        self.max_x_res = GRAPHICS.lock().get_stride();
-        self.max_y_res = GRAPHICS.lock().get_resolution().1;
+        self.max_x_res = FRAME_BUF.lock().get_stride();
+        self.max_y_res = FRAME_BUF.lock().get_resolution().1;
         self.char_max_x_len = self.max_x_res / self.font_glyph_size.0 - 1;
         self.char_max_y_len = self.max_y_res / self.font_glyph_size.1 - 1;
         self.cursor_x = 0;
         self.cursor_y = 2;
 
-        GRAPHICS.lock().clear(&self.back_color);
-        GRAPHICS.lock().draw_rect(0, 0, 20, 20, &COLOR_WHITE);
-        GRAPHICS.lock().draw_rect(20, 0, 20, 20, &COLOR_OLIVE);
-        GRAPHICS.lock().draw_rect(40, 0, 20, 20, &COLOR_YELLOW);
-        GRAPHICS.lock().draw_rect(60, 0, 20, 20, &COLOR_FUCHSIA);
-        GRAPHICS.lock().draw_rect(80, 0, 20, 20, &COLOR_SILVER);
-        GRAPHICS.lock().draw_rect(100, 0, 20, 20, &COLOR_CYAN);
-        GRAPHICS.lock().draw_rect(120, 0, 20, 20, &COLOR_GREEN);
-        GRAPHICS.lock().draw_rect(140, 0, 20, 20, &COLOR_RED);
-        GRAPHICS.lock().draw_rect(160, 0, 20, 20, &COLOR_GRAY);
-        GRAPHICS.lock().draw_rect(180, 0, 20, 20, &COLOR_BLUE);
-        GRAPHICS.lock().draw_rect(200, 0, 20, 20, &COLOR_PURPLE);
-        GRAPHICS.lock().draw_rect(220, 0, 20, 20, &COLOR_BLACK);
-        GRAPHICS.lock().draw_rect(240, 0, 20, 20, &COLOR_NAVY);
-        GRAPHICS.lock().draw_rect(260, 0, 20, 20, &COLOR_TEAL);
-        GRAPHICS.lock().draw_rect(280, 0, 20, 20, &COLOR_MAROON);
+        FRAME_BUF.lock().clear(&self.back_color);
+        FRAME_BUF.lock().draw_rect(0, 0, 20, 20, &COLOR_WHITE);
+        FRAME_BUF.lock().draw_rect(20, 0, 20, 20, &COLOR_OLIVE);
+        FRAME_BUF.lock().draw_rect(40, 0, 20, 20, &COLOR_YELLOW);
+        FRAME_BUF.lock().draw_rect(60, 0, 20, 20, &COLOR_FUCHSIA);
+        FRAME_BUF.lock().draw_rect(80, 0, 20, 20, &COLOR_SILVER);
+        FRAME_BUF.lock().draw_rect(100, 0, 20, 20, &COLOR_CYAN);
+        FRAME_BUF.lock().draw_rect(120, 0, 20, 20, &COLOR_GREEN);
+        FRAME_BUF.lock().draw_rect(140, 0, 20, 20, &COLOR_RED);
+        FRAME_BUF.lock().draw_rect(160, 0, 20, 20, &COLOR_GRAY);
+        FRAME_BUF.lock().draw_rect(180, 0, 20, 20, &COLOR_BLUE);
+        FRAME_BUF.lock().draw_rect(200, 0, 20, 20, &COLOR_PURPLE);
+        FRAME_BUF.lock().draw_rect(220, 0, 20, 20, &COLOR_BLACK);
+        FRAME_BUF.lock().draw_rect(240, 0, 20, 20, &COLOR_NAVY);
+        FRAME_BUF.lock().draw_rect(260, 0, 20, 20, &COLOR_TEAL);
+        FRAME_BUF.lock().draw_rect(280, 0, 20, 20, &COLOR_MAROON);
 
         self.is_init = true;
     }
@@ -110,7 +110,7 @@ impl Terminal
             _ => (),
         }
 
-        GRAPHICS.lock().draw_font(
+        FRAME_BUF.lock().draw_font(
             self.cursor_x * self.font_glyph_size.0,
             self.cursor_y * self.font_glyph_size.1,
             c,
@@ -183,7 +183,7 @@ impl Terminal
         {
             for x in 0..self.max_x_res
             {
-                GRAPHICS.lock().copy_pixel(x, y, x, y - font_glyph_size_y);
+                FRAME_BUF.lock().copy_pixel(x, y, x, y - font_glyph_size_y);
             }
         }
 
@@ -191,7 +191,7 @@ impl Terminal
         {
             for x in 0..self.max_x_res
             {
-                GRAPHICS.lock().set_color(x, y, &self.back_color);
+                FRAME_BUF.lock().set_color(x, y, &self.back_color);
             }
         }
     }

@@ -22,7 +22,7 @@ use alloc::alloc::Layout;
 use arch::asm;
 use common::boot_info::BootInfo;
 use core::panic::PanicInfo;
-use graphics::GRAPHICS;
+use graphics::FRAME_BUF;
 use log::*;
 use terminal::TERMINAL;
 
@@ -34,9 +34,9 @@ pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> !
 {
     let boot_info = unsafe { boot_info.read() };
 
-    // initialize graphics
+    // initialize frame buffer
     let graphic_info = &boot_info.graphic_info;
-    GRAPHICS.lock().init(
+    FRAME_BUF.lock().init(
         (graphic_info.resolution.0 as usize, graphic_info.resolution.1 as usize),
         graphic_info.format,
         graphic_info.framebuf_addr,
