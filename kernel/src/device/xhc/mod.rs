@@ -3,6 +3,7 @@ use spin::Mutex;
 
 use crate::device::xhc::host::XhcDriver;
 
+pub mod context;
 pub mod host;
 pub mod port;
 pub mod register;

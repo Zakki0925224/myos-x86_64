@@ -125,4 +125,15 @@ impl TransferRequestBlock
 
         return Ok(());
     }
+
+    // Command Completion Event TRB
+    pub fn slot_id(&self) -> Option<usize>
+    {
+        if self.trb_type() != TransferRequestBlockType::CommandCompletionEvent
+        {
+            return None;
+        }
+
+        return Some((self.ctrl_regs() >> 8) as usize);
+    }
 }

@@ -1,11 +1,12 @@
 use core::mem::size_of;
 
-use crate::{arch::{addr::*, apic::local::read_local_apic_id, idt::VEC_XHCI_INT, register::msi::*}, bus::pci::{conf_space::*, device_id::*, PCI_DEVICE_MAN}, device::xhc::{port::Port, register::*, ring_buffer::*, trb::{TransferRequestBlock, TransferRequestBlockType}}, mem::bitmap::BITMAP_MEM_MAN};
+use crate::{arch::{addr::*, apic::local::read_local_apic_id, idt::VEC_XHCI_INT, register::msi::*}, bus::pci::{conf_space::*, device_id::*, PCI_DEVICE_MAN}, device::xhc::{port::Port, register::*, ring_buffer::*, trb::{TransferRequestBlock, TransferRequestBlockType}}, mem::bitmap::BITMAP_MEM_MAN, println};
 use alloc::vec::Vec;
 use log::{info, warn};
 
 const PORT_REG_SETS_START_VIRT_ADDR_OFFSET: usize = 1024;
 const RING_BUF_LEN: usize = 16;
+const INPUT_CONTEXT_ARR_LEN: usize = 33;
 
 #[derive(Debug)]
 pub struct XhcDriver
@@ -23,6 +24,7 @@ pub struct XhcDriver
     cmd_ring_virt_addr: VirtualAddress,
     primary_event_ring_virt_addr: VirtualAddress,
     device_context_arr_virt_addr: VirtualAddress,
+    input_context_arr_virt_addr: VirtualAddress,
     num_of_ports: usize,
     num_of_slots: usize,
     transfer_ring_buf: Option<RingBuffer>,
@@ -64,6 +66,7 @@ impl XhcDriver
                     doorbell_reg_virt_addr: VirtualAddress::new(0),
                     cmd_ring_virt_addr: VirtualAddress::new(0),
                     device_context_arr_virt_addr: VirtualAddress::new(0),
+                    input_context_arr_virt_addr: VirtualAddress::new(0),
                     primary_event_ring_virt_addr: VirtualAddress::new(0),
                     num_of_ports: 0,
                     num_of_slots: 0,
@@ -194,42 +197,42 @@ impl XhcDriver
             info!("xhci: Max ports: {}, Max slots: {}", self.num_of_ports, self.num_of_slots);
 
             // initialize scratchpad
-            // let cap_reg = self.read_cap_reg().unwrap();
-            // let sp2 = cap_reg.structural_params2();
-            // let num_of_bufs =
-            //     (sp2.max_scratchpad_bufs_high() << 5 | sp2.max_scratchpad_bufs_low()) as usize;
-            // let mut scratchpad_buf_arr_virt_addr = VirtualAddress::new(0);
-            // if let Some(scratchpad_buf_arr_mem) = BITMAP_MEM_MAN.lock().alloc_single_mem_frame()
-            // {
-            //     let virt_addr = scratchpad_buf_arr_mem.get_frame_start_virt_addr();
-            //     let arr: &mut [u64] = virt_addr.read_volatile();
+            let cap_reg = self.read_cap_reg().unwrap();
+            let sp2 = cap_reg.structural_params2();
+            let num_of_bufs =
+                (sp2.max_scratchpad_bufs_high() << 5 | sp2.max_scratchpad_bufs_low()) as usize;
+            let mut scratchpad_buf_arr_virt_addr = VirtualAddress::new(0);
+            if let Some(scratchpad_buf_arr_mem) = BITMAP_MEM_MAN.lock().alloc_single_mem_frame()
+            {
+                let virt_addr = scratchpad_buf_arr_mem.get_frame_start_virt_addr();
+                let arr: &mut [u64] = virt_addr.read_volatile();
 
-            //     for i in 0..num_of_bufs
-            //     {
-            //         if let Some(mem_frame_info) = BITMAP_MEM_MAN.lock().alloc_single_mem_frame()
-            //         {
-            //             arr[i] = mem_frame_info.get_frame_start_virt_addr().get_phys_addr().get();
-            //         }
-            //         else
-            //         {
-            //             warn!(
-            //                 "xhci: Failed to allocate memory frame for scratchpad buffer(#{})",
-            //                 i
-            //             );
-            //             failed_init_msg();
-            //             return;
-            //         }
-            //     }
+                for i in 0..num_of_bufs
+                {
+                    if let Some(mem_frame_info) = BITMAP_MEM_MAN.lock().alloc_single_mem_frame()
+                    {
+                        arr[i] = mem_frame_info.get_frame_start_virt_addr().get_phys_addr().get();
+                    }
+                    else
+                    {
+                        warn!(
+                            "xhci: Failed to allocate memory frame for scratchpad buffer(#{})",
+                            i
+                        );
+                        failed_init_msg();
+                        return;
+                    }
+                }
 
-            //     virt_addr.write_volatile(arr);
-            //     scratchpad_buf_arr_virt_addr = virt_addr;
-            // }
-            // else
-            // {
-            //     warn!("xhci: Failed to allocate memory frame for scratchpad buffer array");
-            //     failed_init_msg();
-            //     return;
-            // }
+                virt_addr.write_volatile(arr);
+                scratchpad_buf_arr_virt_addr = virt_addr;
+            }
+            else
+            {
+                warn!("xhci: Failed to allocate memory frame for scratchpad buffer array");
+                failed_init_msg();
+                return;
+            }
 
             // initialize device context
             if let Some(dev_context_mem_frame) = BITMAP_MEM_MAN.lock().alloc_single_mem_frame()
@@ -240,9 +243,9 @@ impl XhcDriver
                 // init device context array
                 for i in 0..(self.num_of_slots + 1)
                 {
-                    //let entry =
-                    //    if i == 0 { scratchpad_buf_arr_virt_addr } else { VirtualAddress::new(0) };
-                    let entry = VirtualAddress::new(0);
+                    let entry =
+                        if i == 0 { scratchpad_buf_arr_virt_addr } else { VirtualAddress::new(0) };
+                    //let entry = VirtualAddress::new(0);
                     self.write_device_context_base_addr(i, entry);
                 }
 
@@ -256,6 +259,19 @@ impl XhcDriver
             else
             {
                 warn!("xhci: Failed to allocate memory frame for device context");
+                failed_init_msg();
+                return;
+            }
+
+            // initialize input context
+            if let Some(input_context_mem_frame) = BITMAP_MEM_MAN.lock().alloc_single_mem_frame()
+            {
+                self.input_context_arr_virt_addr =
+                    input_context_mem_frame.get_frame_start_virt_addr();
+            }
+            else
+            {
+                warn!("xhci: Failed to allocate memory frame for input context");
                 failed_init_msg();
                 return;
             }
@@ -513,7 +529,48 @@ impl XhcDriver
         }
     }
 
-    pub fn on_updated_event_ring(&self) { let trb = self.pop_primary_event_ring(); }
+    pub fn on_updated_event_ring(&self)
+    {
+        loop
+        {
+            if let Some(trb) = self.pop_primary_event_ring()
+            {
+                match trb.trb_type()
+                {
+                    TransferRequestBlockType::CommandCompletionEvent =>
+                    {
+                        let slot_id = trb.slot_id().unwrap();
+
+                        if slot_id == 0
+                        {
+                            return;
+                        }
+
+                        if let Some(mem_frame_info) = BITMAP_MEM_MAN.lock().alloc_single_mem_frame()
+                        {
+                            self.write_device_context_base_addr(
+                                slot_id,
+                                mem_frame_info.get_frame_start_virt_addr(),
+                            );
+                        }
+                        else
+                        {
+                            warn!(
+                                "xhci: Failed to allocate memory frame for device context #{}",
+                                slot_id
+                            );
+                            return;
+                        }
+                    }
+                    _ => (),
+                }
+            }
+            else
+            {
+                break;
+            }
+        }
+    }
 
     pub fn is_init(&self) -> bool { return self.is_init; }
 
