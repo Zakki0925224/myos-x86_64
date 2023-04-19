@@ -131,7 +131,7 @@ impl RingBuffer
             self.cycle_state = !self.cycle_state;
         }
 
-        info!("xhci: Pushed to ring buffer: {:?} (empty len is {})", trb, self.get_empty_buf_len());
+        //info!("xhci: Pushed to ring buffer: {:?} (empty len is {})", trb, self.get_empty_buf_len());
 
         return Ok(());
     }

@@ -1,3 +1,5 @@
+use core::mem::transmute;
+
 use modular_bitfield::{bitfield, specifiers::*, BitfieldSpecifier};
 
 #[derive(BitfieldSpecifier, Debug, Clone, Copy, Eq, PartialEq)]
@@ -43,7 +45,7 @@ pub enum TransferRequestBlockType
 
 #[derive(BitfieldSpecifier, Debug, Clone, Copy, Eq, PartialEq)]
 #[bits = 8]
-pub enum TransferRequestBlockCompletionCode
+pub enum CompletionCode
 {
     Invalid = 0,
     Success = 1,
@@ -129,11 +131,46 @@ impl TransferRequestBlock
     // Command Completion Event TRB
     pub fn slot_id(&self) -> Option<usize>
     {
+        let slot_id = (self.ctrl_regs() >> 8) as usize;
+
         if self.trb_type() != TransferRequestBlockType::CommandCompletionEvent
         {
             return None;
         }
 
-        return Some((self.ctrl_regs() >> 8) as usize);
+        if slot_id == 0
+        {
+            return None;
+        }
+
+        return Some(slot_id);
+    }
+
+    pub fn port_id(&self) -> Option<usize>
+    {
+        if self.trb_type() != TransferRequestBlockType::PortStatusChangeEvent
+        {
+            return None;
+        }
+
+        return Some((self.param() >> 24) as usize);
+    }
+
+    pub fn completion_code(&self) -> Option<CompletionCode>
+    {
+        match self.trb_type()
+        {
+            TransferRequestBlockType::TransferEvent => (),
+            TransferRequestBlockType::CommandCompletionEvent => (),
+            TransferRequestBlockType::PortStatusChangeEvent => (),
+            TransferRequestBlockType::BandwithRequestEvent => (),
+            TransferRequestBlockType::DoorbellEvent => (),
+            TransferRequestBlockType::HostControllerEvent => (),
+            TransferRequestBlockType::DeviceNotificationEvent => (),
+            TransferRequestBlockType::MfIndexWrapEvent => (),
+            _ => return None,
+        }
+
+        return Some(unsafe { transmute::<u8, CompletionCode>((self.status() >> 24) as u8) });
     }
 }

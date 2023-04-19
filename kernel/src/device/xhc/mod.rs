@@ -8,6 +8,7 @@ pub mod host;
 pub mod port;
 pub mod register;
 pub mod ring_buffer;
+pub mod slot;
 pub mod trb;
 
 lazy_static! {

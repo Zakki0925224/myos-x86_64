@@ -453,6 +453,16 @@ pub enum PortIndicatorControl
     Undefined = 3,
 }
 
+#[derive(BitfieldSpecifier, Debug, Clone, Copy)]
+#[bits = 4]
+pub enum PortSpeedIdValue
+{
+    FullSpeed = 1,
+    LowSpeed = 2,
+    HighSpeed = 3,
+    SuperSpeed = 4,
+}
+
 #[bitfield]
 #[derive(BitfieldSpecifier, Debug, Clone, Copy)]
 #[repr(C)]
@@ -469,7 +479,7 @@ pub struct PortStatusAndControlRegister
     pub port_link_state: B4,
     pub port_power: bool,
     #[skip(setters)]
-    pub port_speed: B4,
+    pub port_speed: PortSpeedIdValue,
     pub port_indicator_ctrl: PortIndicatorControl,
     pub port_link_state_write_strobe: bool,
     pub connect_status_change: bool,

@@ -62,7 +62,7 @@ pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> !
     bus::init();
 
     // initialize device drivers
-    device::init_device_drivers();
+    device::init();
 
     env::print_info();
 

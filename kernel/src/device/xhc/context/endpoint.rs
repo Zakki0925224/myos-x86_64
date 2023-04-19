@@ -36,7 +36,7 @@ pub struct EndpointContext
     pub mult: B2,
     pub max_primary_streams: B5,
     pub linear_stream_array: bool,
-    pub internal: B8,
+    pub interval: B8,
     pub max_endpoint_service_time_interval_payload_high: B8,
 
     #[skip]

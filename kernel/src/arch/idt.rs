@@ -143,7 +143,7 @@ extern "x86-interrupt" fn double_fault_handler()
 extern "x86-interrupt" fn xhc_primary_event_ring_handler()
 {
     info!("int: XHC PRIMARY EVENT RING");
-    XHC_DRIVER.lock().as_ref().unwrap().on_updated_event_ring();
+    XHC_DRIVER.lock().as_mut().unwrap().on_updated_event_ring();
     notify_end_of_int();
 }
 
