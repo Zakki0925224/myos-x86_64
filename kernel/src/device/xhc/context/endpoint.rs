@@ -26,7 +26,7 @@ pub enum EndpointType
 }
 
 #[bitfield]
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct EndpointContext
 {

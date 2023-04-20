@@ -1,9 +1,11 @@
 use modular_bitfield::{bitfield, specifiers::*};
 
+use super::device::DeviceContext;
+
 #[bitfield]
 #[derive(Debug)]
 #[repr(C)]
-pub struct InputContext
+pub struct InputControlContext
 {
     drop_context_flags: B32,
     add_context_flags: B32,
@@ -24,7 +26,7 @@ pub struct InputContext
     reserved6: B8,
 }
 
-impl InputContext
+impl InputControlContext
 {
     pub fn drop_context_flag(&self, index: usize) -> Option<bool>
     {
@@ -72,5 +74,24 @@ impl InputContext
         self.set_add_context_flags(flags);
 
         return Ok(());
+    }
+}
+
+#[derive(Debug)]
+#[repr(C)]
+pub struct InputContext
+{
+    pub input_ctrl_context: InputControlContext,
+    pub device_context: DeviceContext,
+}
+
+impl InputContext
+{
+    pub fn new() -> Self
+    {
+        return Self {
+            input_ctrl_context: InputControlContext::new(),
+            device_context: DeviceContext::new(),
+        };
     }
 }

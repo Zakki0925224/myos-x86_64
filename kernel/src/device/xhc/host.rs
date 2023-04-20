@@ -1,14 +1,13 @@
 use core::{any::Any, mem::size_of};
 
-use crate::{arch::{addr::*, apic::local::read_local_apic_id, idt::VEC_XHCI_INT, register::msi::*}, bus::pci::{conf_space::*, device_id::*, PCI_DEVICE_MAN}, device::xhc::{context::{endpoint::{EndpointContext, EndpointType}, input::InputContext, slot::SlotContext}, port::Port, register::*, ring_buffer::*, trb::{TransferRequestBlock, TransferRequestBlockType}}, mem::bitmap::BITMAP_MEM_MAN, println};
+use crate::{arch::{addr::*, apic::local::read_local_apic_id, idt::VEC_XHCI_INT, register::msi::*}, bus::pci::{conf_space::*, device_id::*, PCI_DEVICE_MAN}, device::xhc::{context::{endpoint::*, input::*, slot::*}, port::Port, register::*, ring_buffer::*, trb::*}, mem::bitmap::BITMAP_MEM_MAN, println};
 use alloc::vec::Vec;
 use log::{info, warn};
 
-use super::{port::ConfigState, slot::Slot, trb::CompletionCode};
+use super::{context::device::DeviceContext, port::ConfigState, slot::Slot, trb::CompletionCode};
 
 const PORT_REG_SETS_START_VIRT_ADDR_OFFSET: usize = 1024;
 const RING_BUF_LEN: usize = 16;
-const INPUT_CONTEXT_ARR_LEN: usize = 33;
 const MAX_PORT_LEN: usize = 256;
 
 #[derive(Debug)]
@@ -27,7 +26,6 @@ pub struct XhcDriver
     cmd_ring_virt_addr: VirtualAddress,
     primary_event_ring_virt_addr: VirtualAddress,
     device_context_arr_virt_addr: VirtualAddress,
-    input_context_arr_virt_addr: VirtualAddress,
     num_of_ports: usize,
     num_of_slots: usize,
     transfer_ring_buf: Option<RingBuffer>,
@@ -39,8 +37,6 @@ pub struct XhcDriver
 
     configuring_port_id: Option<usize>,
     root_hub_port_id: Option<usize>,
-
-    is_set_endpoint_context: bool,
 }
 
 impl XhcDriver
@@ -75,7 +71,6 @@ impl XhcDriver
                     doorbell_reg_virt_addr: VirtualAddress::new(0),
                     cmd_ring_virt_addr: VirtualAddress::new(0),
                     device_context_arr_virt_addr: VirtualAddress::new(0),
-                    input_context_arr_virt_addr: VirtualAddress::new(0),
                     primary_event_ring_virt_addr: VirtualAddress::new(0),
                     num_of_ports: 0,
                     num_of_slots: 0,
@@ -86,7 +81,6 @@ impl XhcDriver
                     slots: Vec::new(),
                     configuring_port_id: None,
                     root_hub_port_id: None,
-                    is_set_endpoint_context: false,
                 };
 
                 info!(
@@ -255,7 +249,6 @@ impl XhcDriver
                 {
                     let entry =
                         if i == 0 { scratchpad_buf_arr_virt_addr } else { VirtualAddress::new(0) };
-                    //let entry = VirtualAddress::new(0);
                     self.write_device_context_base_addr(i, entry);
                 }
 
@@ -269,26 +262,6 @@ impl XhcDriver
             else
             {
                 warn!("xhc: Failed to allocate memory frame for device context");
-                failed_init_msg();
-                return;
-            }
-
-            // initialize input context
-            if let Some(input_context_mem_frame) = BITMAP_MEM_MAN.lock().alloc_single_mem_frame()
-            {
-                self.input_context_arr_virt_addr =
-                    input_context_mem_frame.get_frame_start_virt_addr();
-
-                // initialize input control context
-                let mut input_ctrl_context: InputContext =
-                    self.input_context_arr_virt_addr.read_volatile();
-                input_ctrl_context.set_add_context_flag(0, true).unwrap(); // for slot context
-                input_ctrl_context.set_add_context_flag(1, true).unwrap(); // for endpoint context
-                self.input_context_arr_virt_addr.write_volatile(input_ctrl_context);
-            }
-            else
-            {
-                warn!("xhc: Failed to allocate memory frame for input context");
                 failed_init_msg();
                 return;
             }
@@ -554,12 +527,61 @@ impl XhcDriver
 
             self.configuring_port_id = Some(port_id);
 
-            let mut trb = TransferRequestBlock::new();
-            trb.set_trb_type(TransferRequestBlockType::AddressDeviceCommand);
-            trb.set_param(self.input_context_arr_virt_addr.get_phys_addr().get());
-            trb.set_ctrl_regs((port.slot_id as u16) << 8);
-            println!("{:?}", trb);
-            self.push_cmd_ring(trb).unwrap();
+            // init input context
+            if let Some(input_context_mem_frame) = BITMAP_MEM_MAN.lock().alloc_single_mem_frame()
+            {
+                let base_addr = input_context_mem_frame.get_frame_start_virt_addr();
+
+                // initialize input control context
+                let mut input_context = InputContext::new();
+                input_context.input_ctrl_context.set_add_context_flag(0, true).unwrap();
+                input_context.input_ctrl_context.set_add_context_flag(1, true).unwrap();
+
+                let port_speed = self
+                    .read_port_reg_set(self.root_hub_port_id.unwrap())
+                    .unwrap()
+                    .port_status_and_ctrl()
+                    .port_speed();
+
+                let max_packet_size = match port_speed
+                {
+                    PortSpeedIdValue::FullSpeed => 8, // or 16, 32, 64
+                    PortSpeedIdValue::LowSpeed => 8,
+                    PortSpeedIdValue::HighSpeed => 64,
+                    PortSpeedIdValue::SuperSpeed => 512,
+                };
+
+                let mut slot_context = SlotContext::new();
+                slot_context.set_speed(port_speed);
+                slot_context.set_context_entries(1);
+                slot_context.set_root_hub_port_num(self.root_hub_port_id.unwrap() as u8);
+
+                input_context.device_context.slot_context = slot_context;
+
+                let mut endpoint_context_0 = EndpointContext::new();
+                endpoint_context_0.set_endpoint_type(EndpointType::ControlBidirectional);
+                endpoint_context_0.set_max_packet_size(max_packet_size);
+                endpoint_context_0.set_max_burst_size(0);
+                endpoint_context_0.set_dequeue_cycle_state(true);
+                endpoint_context_0.set_interval(0);
+                endpoint_context_0.set_max_primary_streams(0);
+                endpoint_context_0.set_mult(0);
+                endpoint_context_0.set_error_cnt(3);
+
+                input_context.device_context.endpoint_contexts[0] = endpoint_context_0;
+
+                base_addr.write_volatile(input_context);
+
+                let mut trb = TransferRequestBlock::new();
+                trb.set_trb_type(TransferRequestBlockType::AddressDeviceCommand);
+                trb.set_param(base_addr.get_phys_addr().get());
+                trb.set_ctrl_regs((port.slot_id as u16) << 8);
+                self.push_cmd_ring(trb).unwrap();
+            }
+            else
+            {
+                warn!("xhc: Failed to allocate memory frame for input context");
+            }
         }
     }
 
@@ -599,13 +621,17 @@ impl XhcDriver
 
                     if let Some(port_id) = self.configuring_port_id
                     {
-                        if let Some(slot_id) = trb.slot_id()
+                        match self.read_port(port_id).unwrap().config_state
                         {
-                            self.alloc_slot(port_id, slot_id);
-                            self.configuring_port_id = None;
-                        }
-                        else
-                        {
+                            ConfigState::Reset =>
+                            {
+                                if let Some(slot_id) = trb.slot_id()
+                                {
+                                    self.alloc_slot(port_id, slot_id);
+                                    self.configuring_port_id = None;
+                                }
+                            }
+                            _ => (),
                         }
                     }
                 }
@@ -651,45 +677,6 @@ impl XhcDriver
             }
 
             info!("xhc: Allocated slot: {} (port id: {})", slot_id, port_id);
-        }
-    }
-
-    fn set_endpoint_context(&mut self, slot_id: usize)
-    {
-        if self.is_set_endpoint_context
-        {
-            return;
-        }
-
-        if let Some(root_hub_port_id) = self.root_hub_port_id
-        {
-            let port_speed = self
-                .read_port_reg_set(root_hub_port_id)
-                .unwrap()
-                .port_status_and_ctrl()
-                .port_speed();
-
-            let max_packet_size = match port_speed
-            {
-                PortSpeedIdValue::FullSpeed => 8, // or 16, 32, 64
-                PortSpeedIdValue::LowSpeed => 8,
-                PortSpeedIdValue::HighSpeed => 64,
-                PortSpeedIdValue::SuperSpeed => 512,
-            };
-
-            let mut endpoint_context_0 = self.read_endpoint_context_0().unwrap();
-            endpoint_context_0.set_endpoint_type(EndpointType::ControlBidirectional);
-            endpoint_context_0.set_max_packet_size(max_packet_size);
-            endpoint_context_0.set_max_burst_size(0);
-            endpoint_context_0.set_dequeue_cycle_state(true);
-            endpoint_context_0.set_interval(0);
-            endpoint_context_0.set_max_primary_streams(0);
-            endpoint_context_0.set_mult(0);
-            endpoint_context_0.set_error_cnt(3);
-            self.write_endpoint_context_0(endpoint_context_0);
-            self.is_set_endpoint_context = true;
-
-            info!("xhc: Set endpoint context");
         }
     }
 
@@ -863,6 +850,16 @@ impl XhcDriver
             .write_volatile(base_addr.get_phys_addr().get());
     }
 
+    fn read_device_context(&self, index: usize) -> Option<DeviceContext>
+    {
+        if let Some(base_addr) = self.read_device_context_base_addr(index)
+        {
+            return Some(base_addr.read_volatile());
+        }
+
+        return None;
+    }
+
     fn ring_doorbell(&self, index: usize)
     {
         self.write_doorbell_reg(index, DoorbellRegister::new());
@@ -895,53 +892,5 @@ impl XhcDriver
         }
 
         return None;
-    }
-
-    fn read_slot_context(&self) -> Option<SlotContext>
-    {
-        if self.input_context_arr_virt_addr.get() == 0
-        {
-            return None;
-        }
-
-        let virt_addr = self.input_context_arr_virt_addr.offset(size_of::<InputContext>());
-        return Some(virt_addr.read_volatile());
-    }
-
-    fn write_slot_context(&self, slot_context: SlotContext)
-    {
-        if self.input_context_arr_virt_addr.get() == 0
-        {
-            return;
-        }
-
-        let virt_addr = self.input_context_arr_virt_addr.offset(size_of::<InputContext>());
-        virt_addr.write_volatile(slot_context);
-    }
-
-    fn read_endpoint_context_0(&self) -> Option<EndpointContext>
-    {
-        if self.input_context_arr_virt_addr.get() == 0
-        {
-            return None;
-        }
-
-        let virt_addr = self
-            .input_context_arr_virt_addr
-            .offset(size_of::<InputContext>() + size_of::<SlotContext>());
-        return Some(virt_addr.read_volatile());
-    }
-
-    fn write_endpoint_context_0(&self, endpoint_context: EndpointContext)
-    {
-        if self.input_context_arr_virt_addr.get() == 0
-        {
-            return;
-        }
-
-        let virt_addr = self
-            .input_context_arr_virt_addr
-            .offset(size_of::<InputContext>() + size_of::<SlotContext>());
-        virt_addr.write_volatile(endpoint_context);
     }
 }

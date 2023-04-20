@@ -1,5 +1,7 @@
 use modular_bitfield::{bitfield, specifiers::*, BitfieldSpecifier};
 
+use crate::device::xhc::register::PortSpeedIdValue;
+
 #[derive(BitfieldSpecifier, Debug, Clone, Copy)]
 #[bits = 2]
 pub enum TtThinkTime
@@ -26,7 +28,7 @@ pub enum SlotState
 pub struct SlotContext
 {
     pub route_string: B20,
-    pub speed: B4,
+    pub speed: PortSpeedIdValue,
     #[skip]
     reserved0: B1,
     pub multi_tt: bool,
