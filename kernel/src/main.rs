@@ -35,14 +35,7 @@ pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> !
     let boot_info = unsafe { boot_info.read() };
 
     // initialize frame buffer
-    let graphic_info = &boot_info.graphic_info;
-    FRAME_BUF.lock().init(
-        (graphic_info.resolution.0 as usize, graphic_info.resolution.1 as usize),
-        graphic_info.format,
-        graphic_info.framebuf_addr,
-        graphic_info.framebuf_size as usize,
-        graphic_info.stride as usize,
-    );
+    FRAME_BUF.lock().init(boot_info.graphic_info);
 
     // initialize kerenl terminal
     SERIAL.lock().init(serial::IO_PORT_COM1);

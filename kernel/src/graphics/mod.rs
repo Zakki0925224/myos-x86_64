@@ -1,7 +1,7 @@
 pub mod color;
 pub mod font;
 
-use common::graphic_info::PixelFormat;
+use common::graphic_info::{GraphicInfo, PixelFormat};
 use lazy_static::lazy_static;
 use spin::Mutex;
 
@@ -39,20 +39,13 @@ impl FrameBuffer
         };
     }
 
-    pub fn init(
-        &mut self,
-        resolution: (usize, usize),
-        format: PixelFormat,
-        framebuf_addr: u64,
-        framebuf_size: usize,
-        stride: usize,
-    )
+    pub fn init(&mut self, graphic_info: GraphicInfo)
     {
-        self.resolution = resolution;
-        self.format = format;
-        self.framebuf_addr = framebuf_addr;
-        self.framebuf_size = framebuf_size;
-        self.stride = stride;
+        self.resolution = (graphic_info.resolution.0 as usize, graphic_info.resolution.1 as usize);
+        self.format = graphic_info.format;
+        self.framebuf_addr = graphic_info.framebuf_addr;
+        self.framebuf_size = graphic_info.framebuf_size as usize;
+        self.stride = graphic_info.stride as usize;
         self.is_init = true;
     }
 

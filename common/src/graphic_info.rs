@@ -5,7 +5,7 @@ pub enum PixelFormat
     Bgr,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct GraphicInfo
 {
