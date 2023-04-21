@@ -463,6 +463,20 @@ pub enum PortSpeedIdValue
     SuperSpeed = 4,
 }
 
+impl PortSpeedIdValue
+{
+    pub fn get_max_packet_size(&self) -> u16
+    {
+        return match self
+        {
+            Self::FullSpeed => 8, // or 16, 32, 64
+            Self::LowSpeed => 8,
+            Self::HighSpeed => 64,
+            Self::SuperSpeed => 512,
+        };
+    }
+}
+
 #[bitfield]
 #[derive(BitfieldSpecifier, Debug, Clone, Copy)]
 #[repr(C)]

@@ -1,3 +1,5 @@
+use crate::arch::addr::VirtualAddress;
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ConfigState
 {
@@ -16,13 +18,19 @@ pub struct Port
     port_id: usize,
     pub slot_id: usize,
     pub config_state: ConfigState,
+    pub input_context_base_virt_addr: VirtualAddress,
 }
 
 impl Port
 {
     pub fn new(port_id: usize) -> Self
     {
-        return Self { port_id, slot_id: 0, config_state: ConfigState::NotConnected };
+        return Self {
+            port_id,
+            slot_id: 0,
+            config_state: ConfigState::NotConnected,
+            input_context_base_virt_addr: VirtualAddress::new(0),
+        };
     }
 
     pub fn port_id(&self) -> usize { return self.port_id; }

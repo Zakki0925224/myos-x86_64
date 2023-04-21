@@ -1,4 +1,4 @@
-use core::{any::Any, mem::size_of};
+use core::mem::size_of;
 
 use crate::{arch::{addr::*, apic::local::read_local_apic_id, idt::VEC_XHCI_INT, register::msi::*}, bus::pci::{conf_space::*, device_id::*, PCI_DEVICE_MAN}, device::xhc::{context::{endpoint::*, input::*, slot::*}, port::Port, register::*, ring_buffer::*, trb::*}, mem::bitmap::BITMAP_MEM_MAN, println};
 use alloc::vec::Vec;
@@ -521,16 +521,17 @@ impl XhcDriver
                 return;
             }
 
-            let mut port = port.clone();
-            port.config_state = ConfigState::AddressingDevice;
-            self.write_port(port);
-
-            self.configuring_port_id = Some(port_id);
-
             // init input context
             if let Some(input_context_mem_frame) = BITMAP_MEM_MAN.lock().alloc_single_mem_frame()
             {
                 let base_addr = input_context_mem_frame.get_frame_start_virt_addr();
+
+                let mut port = port.clone();
+                port.config_state = ConfigState::AddressingDevice;
+                port.input_context_base_virt_addr = base_addr;
+                self.write_port(port);
+
+                self.configuring_port_id = Some(port_id);
 
                 // initialize input control context
                 let mut input_context = InputContext::new();
@@ -543,13 +544,7 @@ impl XhcDriver
                     .port_status_and_ctrl()
                     .port_speed();
 
-                let max_packet_size = match port_speed
-                {
-                    PortSpeedIdValue::FullSpeed => 8, // or 16, 32, 64
-                    PortSpeedIdValue::LowSpeed => 8,
-                    PortSpeedIdValue::HighSpeed => 64,
-                    PortSpeedIdValue::SuperSpeed => 512,
-                };
+                let max_packet_size = port_speed.get_max_packet_size();
 
                 let mut slot_context = SlotContext::new();
                 slot_context.set_speed(port_speed);
