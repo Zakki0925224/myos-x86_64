@@ -1,6 +1,6 @@
 use log::{Level, LevelFilter, Record, SetLoggerError};
 
-use crate::{graphics::color::*, print, terminal::TERMINAL};
+use crate::{graphics::{color::*, TERMINAL}, print};
 
 const LOG_COLOR_ERROR: RGBColor = COLOR_RED;
 const LOG_COLOR_WARN: RGBColor = RGBColor { r: 253, g: 126, b: 0 }; // orange

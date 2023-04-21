@@ -13,7 +13,6 @@ mod env;
 mod graphics;
 mod mem;
 mod serial;
-mod terminal;
 mod util;
 
 extern crate alloc;
@@ -24,9 +23,8 @@ use common::boot_info::BootInfo;
 use core::panic::PanicInfo;
 use graphics::FRAME_BUF;
 use log::*;
-use terminal::TERMINAL;
 
-use crate::{arch::{gdt, idt}, serial::SERIAL, util::logger};
+use crate::{arch::{gdt, idt}, graphics::TERMINAL, serial::SERIAL, util::logger};
 
 #[no_mangle]
 #[start]
