@@ -61,7 +61,7 @@ impl Allocator
     pub fn init(&self)
     {
         // allocate for heap area
-        if let Some(mem_frame_info) =
+        if let Ok(mem_frame_info) =
             BITMAP_MEM_MAN.lock().alloc_multi_mem_frame(HEAP_SIZE / UEFI_PAGE_SIZE)
         {
             let virt_addr = mem_frame_info.get_frame_start_virt_addr();

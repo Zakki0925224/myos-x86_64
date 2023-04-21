@@ -123,7 +123,7 @@ impl Paging
     // TODO: not working yet
     pub fn create_new_page_table(&mut self)
     {
-        if let Some(mem_info) = BITMAP_MEM_MAN.lock().alloc_single_mem_frame()
+        if let Ok(mem_info) = BITMAP_MEM_MAN.lock().alloc_single_mem_frame()
         {
             self.pml4_table_addr =
                 self.calc_phys_addr(&mem_info.get_frame_start_virt_addr(), true).unwrap();
@@ -191,7 +191,7 @@ impl Paging
 
         if !entry.is_used()
         {
-            if let Some(mem_info) = BITMAP_MEM_MAN.lock().alloc_single_mem_frame()
+            if let Ok(mem_info) = BITMAP_MEM_MAN.lock().alloc_single_mem_frame()
             {
                 let addr = mem_info.get_frame_start_virt_addr();
                 // cannot use addr.get_phys_addr() at here
@@ -222,7 +222,7 @@ impl Paging
 
         if !entry.is_used()
         {
-            if let Some(mem_info) = BITMAP_MEM_MAN.lock().alloc_single_mem_frame()
+            if let Ok(mem_info) = BITMAP_MEM_MAN.lock().alloc_single_mem_frame()
             {
                 let mut addr =
                     self.calc_phys_addr(&mem_info.get_frame_start_virt_addr(), true).unwrap();
@@ -267,7 +267,7 @@ impl Paging
 
         if !entry.is_used()
         {
-            if let Some(mem_info) = BITMAP_MEM_MAN.lock().alloc_single_mem_frame()
+            if let Ok(mem_info) = BITMAP_MEM_MAN.lock().alloc_single_mem_frame()
             {
                 let mut addr =
                     self.calc_phys_addr(&mem_info.get_frame_start_virt_addr(), true).unwrap();

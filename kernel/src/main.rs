@@ -21,10 +21,9 @@ use alloc::alloc::Layout;
 use arch::asm;
 use common::boot_info::BootInfo;
 use core::panic::PanicInfo;
-use graphics::FRAME_BUF;
 use log::*;
 
-use crate::{arch::{gdt, idt}, graphics::TERMINAL, serial::SERIAL, util::logger};
+use crate::arch::{gdt, idt};
 
 #[no_mangle]
 #[start]
@@ -32,14 +31,8 @@ pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> !
 {
     let boot_info = unsafe { boot_info.read() };
 
-    // initialize frame buffer
-    FRAME_BUF.lock().init(boot_info.graphic_info);
-
-    // initialize kerenl terminal
-    SERIAL.lock().init(serial::IO_PORT_COM1);
-    TERMINAL.lock().init();
-    logger::init().unwrap();
-    info!("terminal: Initialized kernel terminal");
+    // initialize frame buffer, serial, terminal, logger
+    graphics::init(boot_info.graphic_info);
 
     // initialize GDT (TODO: not working correctry)
     //gdt::init();

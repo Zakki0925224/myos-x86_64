@@ -105,6 +105,20 @@ impl Bitmap
 }
 
 #[derive(Debug)]
+pub enum BitmapMemoryManagerError
+{
+    NotInitialized,
+    AllocateMemoryForBitmapError,
+    FailedToReadBitmapError,
+    FreeMemoryFrameWasNotFoundError,
+    MemoryFrameIndexOutOfBoundsError(usize), // memory frame index
+    MemoryMapOffsetOutOfBounds(usize),       // memory map offset
+    MemoryFrameWasAlreadyAllocatedError(usize), // memory frame index,
+    MemoryFrameWasAlreadyDeallocatedError(usize), // memory frame index,
+    InvalidMemoryFrameLengthError(usize),    // memory frame length
+}
+
+#[derive(Debug)]
 pub struct BitmapMemoryManager
 {
     is_init: bool,
@@ -131,7 +145,7 @@ impl BitmapMemoryManager
         };
     }
 
-    pub fn init(&mut self, mem_map: &[MemoryDescriptor])
+    pub fn init(&mut self, mem_map: &[MemoryDescriptor]) -> Result<(), BitmapMemoryManagerError>
     {
         // TODO: boot services data/code
         // get total page count (a page=4096B)
@@ -156,7 +170,7 @@ impl BitmapMemoryManager
 
         if bitmap_virt_addr.get() == 0
         {
-            panic!("Failed to find available memory area for bitmap");
+            return Err(BitmapMemoryManagerError::AllocateMemoryForBitmapError);
         }
 
         self.bitmap_virt_addr = bitmap_virt_addr;
@@ -169,7 +183,10 @@ impl BitmapMemoryManager
         self.is_init = true;
 
         // clear all bitmap
-        self.clear_bitmap();
+        if let Err(err) = self.clear_bitmap()
+        {
+            return Err(err);
+        }
 
         // allocate no conventional memory frame
         let mut frame_index = 0;
@@ -184,7 +201,10 @@ impl BitmapMemoryManager
 
             for _ in 0..d.page_cnt
             {
-                self.alloc_frame(frame_index);
+                if let Err(err) = self.alloc_frame(frame_index)
+                {
+                    return Err(err);
+                }
                 frame_index += 1;
             }
         }
@@ -194,7 +214,10 @@ impl BitmapMemoryManager
         let end = self.get_mem_frame_index(self.bitmap_virt_addr.offset(self.bitmap_len));
         for i in start..=end
         {
-            self.alloc_frame(i);
+            if let Err(err) = self.alloc_frame(i)
+            {
+                return Err(err);
+            }
         }
 
         // allocate less 1MB memory space
@@ -202,10 +225,15 @@ impl BitmapMemoryManager
         let end = self.get_mem_frame_index(VirtualAddress::new(1024 * 1024));
         for i in start..=end
         {
-            self.alloc_frame(i);
+            if let Err(err) = self.alloc_frame(i)
+            {
+                return Err(err);
+            }
         }
 
         info!("mem: Initialized bitmap memory manager");
+
+        return Ok(());
     }
 
     pub fn is_init(&self) -> bool { return self.is_init; }
@@ -225,68 +253,89 @@ impl BitmapMemoryManager
 
         let bitmap_offset = frame_index / BITMAP_SIZE;
         let bitmap_pos = frame_index % BITMAP_SIZE; // 0 ~ 7
-        let bitmap = self.read_bitmap(bitmap_offset);
+        if let Some(bitmap) = self.read_bitmap(bitmap_offset)
+        {
+            return Some(MemoryFrameInfo {
+                frame_start_virt_addr: VirtualAddress::new((frame_index * self.frame_size) as u64),
+                frame_size: self.frame_size,
+                frame_index,
+                is_allocated: bitmap.get_map()[bitmap_pos],
+            });
+        }
 
-        return Some(MemoryFrameInfo {
-            frame_start_virt_addr: VirtualAddress::new((frame_index * self.frame_size) as u64),
-            frame_size: self.frame_size,
-            frame_index,
-            is_allocated: bitmap.get_map()[bitmap_pos],
-        });
+        return None;
     }
 
-    pub fn alloc_single_mem_frame(&mut self) -> Option<MemoryFrameInfo>
+    pub fn alloc_single_mem_frame(&mut self) -> Result<MemoryFrameInfo, BitmapMemoryManagerError>
     {
+        if !self.is_init
+        {
+            return Err(BitmapMemoryManagerError::NotInitialized);
+        }
+
         if self.free_frame_len == 0
         {
-            return None;
+            return Err(BitmapMemoryManagerError::FreeMemoryFrameWasNotFoundError);
         }
 
         let mut found_mem_frame_index = None;
         'outer: for i in 0..self.bitmap_len
         {
-            let bitmap = self.read_bitmap(i);
-
-            if bitmap.is_allocated_all()
+            if let Some(bitmap) = self.read_bitmap(i)
             {
-                continue;
-            }
-
-            for j in 0..BITMAP_SIZE
-            {
-                if !bitmap.get_map()[j]
+                if bitmap.is_allocated_all()
                 {
-                    found_mem_frame_index = Some(i * BITMAP_SIZE + j);
-                    break 'outer;
+                    continue;
                 }
+
+                for j in 0..BITMAP_SIZE
+                {
+                    if !bitmap.get_map()[j]
+                    {
+                        found_mem_frame_index = Some(i * BITMAP_SIZE + j);
+                        break 'outer;
+                    }
+                }
+            }
+            else
+            {
+                return Err(BitmapMemoryManagerError::FailedToReadBitmapError);
             }
         }
 
         if let None = found_mem_frame_index
         {
-            return None;
+            return Err(BitmapMemoryManagerError::FreeMemoryFrameWasNotFoundError);
         }
+
+        let found_mem_frame_index = found_mem_frame_index.unwrap();
 
         let mem_frame_info = MemoryFrameInfo {
             frame_start_virt_addr: VirtualAddress::new(
-                (found_mem_frame_index.unwrap() * self.frame_size) as u64,
+                (found_mem_frame_index * self.frame_size) as u64,
             ),
             frame_size: self.frame_size,
-            frame_index: found_mem_frame_index.unwrap(),
+            frame_index: found_mem_frame_index,
             is_allocated: true,
         };
 
-        self.alloc_frame(found_mem_frame_index.unwrap());
+        if let Err(err) = self.alloc_frame(found_mem_frame_index)
+        {
+            return Err(err);
+        }
         self.mem_clear(&mem_frame_info);
 
-        return Some(mem_frame_info);
+        return Ok(mem_frame_info);
     }
 
-    pub fn alloc_multi_mem_frame(&mut self, len: usize) -> Option<MemoryFrameInfo>
+    pub fn alloc_multi_mem_frame(
+        &mut self,
+        len: usize,
+    ) -> Result<MemoryFrameInfo, BitmapMemoryManagerError>
     {
-        if len == 0 || self.free_frame_len < len
+        if len == 0
         {
-            return None;
+            return Err(BitmapMemoryManagerError::InvalidMemoryFrameLengthError(len));
         }
 
         if len == 1
@@ -300,53 +349,58 @@ impl BitmapMemoryManager
 
         'outer: while i < self.bitmap_len
         {
-            let bitmap = self.read_bitmap(i);
-
-            let map = bitmap.get_map();
-            for j in 0..BITMAP_SIZE
+            if let Some(bitmap) = self.read_bitmap(i)
             {
-                if start != None && count == len
+                let map = bitmap.get_map();
+                for j in 0..BITMAP_SIZE
                 {
-                    break 'outer;
-                }
-
-                if len - count > BITMAP_SIZE && bitmap.is_free_all() && start != None
-                {
-                    count += BITMAP_SIZE;
-                    break;
-                }
-
-                if len - count > BITMAP_SIZE && bitmap.is_allocated_all()
-                {
-                    start = None;
-                    count = 0;
-                    break;
-                }
-
-                // free
-                if !map[j]
-                {
-                    count += 1;
-
-                    if start.is_none()
+                    if start != None && count == len
                     {
-                        start = Some((i, j));
+                        break 'outer;
+                    }
+
+                    if len - count > BITMAP_SIZE && bitmap.is_free_all() && start != None
+                    {
+                        count += BITMAP_SIZE;
+                        break;
+                    }
+
+                    if len - count > BITMAP_SIZE && bitmap.is_allocated_all()
+                    {
+                        start = None;
+                        count = 0;
+                        break;
+                    }
+
+                    // free
+                    if !map[j]
+                    {
+                        count += 1;
+
+                        if start.is_none()
+                        {
+                            start = Some((i, j));
+                        }
+                    }
+                    // already allocated
+                    else
+                    {
+                        start = None;
+                        count = 0;
                     }
                 }
-                // already allocated
-                else
-                {
-                    start = None;
-                    count = 0;
-                }
-            }
 
-            i += 1;
+                i += 1;
+            }
+            else
+            {
+                return Err(BitmapMemoryManagerError::FailedToReadBitmapError);
+            }
         }
 
         if start.is_none() || count != len
         {
-            return None;
+            return Err(BitmapMemoryManagerError::FreeMemoryFrameWasNotFoundError);
         }
 
         let (frame_index, bitmap_pos) = start.unwrap();
@@ -366,7 +420,7 @@ impl BitmapMemoryManager
             is_allocated: true,
         };
 
-        return Some(mem_frame_info);
+        return Ok(mem_frame_info);
     }
 
     pub fn mem_clear(&self, mem_frame_info: &MemoryFrameInfo)
@@ -380,20 +434,28 @@ impl BitmapMemoryManager
         }
     }
 
-    pub fn dealloc_mem_frame(&mut self, mem_frame_info: MemoryFrameInfo)
+    pub fn dealloc_mem_frame(
+        &mut self,
+        mem_frame_info: MemoryFrameInfo,
+    ) -> Result<(), BitmapMemoryManagerError>
     {
-        let frame_size = mem_frame_info.frame_size;
-        if frame_size == self.frame_size
+        if !self.is_init
         {
-            self.dealloc_frame(mem_frame_info.frame_index);
-            return;
+            return Err(BitmapMemoryManagerError::NotInitialized);
         }
 
+        let frame_size = mem_frame_info.frame_size;
         let frame_index = mem_frame_info.frame_index;
+
         for i in frame_index..frame_index + (frame_size + self.frame_size - 1) / self.frame_size
         {
-            self.dealloc_frame(i);
+            if let Err(err) = self.dealloc_frame(i)
+            {
+                return Err(err);
+            }
         }
+
+        return Ok(());
     }
 
     fn get_mem_frame_index(&self, virt_addr: VirtualAddress) -> usize
@@ -403,97 +465,132 @@ impl BitmapMemoryManager
         return index;
     }
 
-    fn read_bitmap(&self, offset: usize) -> Bitmap
+    fn read_bitmap(&self, offset: usize) -> Option<Bitmap>
     {
         if !self.is_init
         {
-            panic!("Bitmap memory manager was not initialized");
+            return None;
         }
 
         if offset >= self.bitmap_len
         {
-            panic!("Memory map offset out of bounds");
+            return None;
         }
 
         let addr = VirtualAddress::new(self.bitmap_virt_addr.get() + offset as u64);
-        return Bitmap::new(addr.read_volatile());
+        return Some(Bitmap::new(addr.read_volatile()));
     }
 
-    fn write_bitmap(&self, offset: usize, bitmap: Bitmap)
+    fn write_bitmap(&self, offset: usize, bitmap: Bitmap) -> Result<(), BitmapMemoryManagerError>
     {
         if !self.is_init
         {
-            panic!("Bitmap memory manager was not initialized");
+            return Err(BitmapMemoryManagerError::NotInitialized);
         }
 
         if offset >= self.bitmap_len
         {
-            panic!("Memory map offset out of bounds");
+            return Err(BitmapMemoryManagerError::MemoryMapOffsetOutOfBounds(offset));
         }
 
         let addr = VirtualAddress::new(self.bitmap_virt_addr.get() + offset as u64);
         addr.write_volatile(bitmap.0);
+
+        return Ok(());
     }
 
-    fn clear_bitmap(&self)
+    fn clear_bitmap(&self) -> Result<(), BitmapMemoryManagerError>
     {
+        if !self.is_init
+        {
+            return Err(BitmapMemoryManagerError::NotInitialized);
+        }
+
         for i in 0..self.bitmap_len
         {
             let addr = VirtualAddress::new(self.bitmap_virt_addr.get() + i as u64);
             addr.write_volatile::<u8>(0);
         }
+
+        return Ok(());
     }
 
-    fn alloc_frame(&mut self, frame_index: usize)
+    fn alloc_frame(&mut self, frame_index: usize) -> Result<(), BitmapMemoryManagerError>
     {
         if frame_index >= self.frame_len
         {
-            panic!("Memory frame index out of bounds");
+            return Err(BitmapMemoryManagerError::MemoryFrameIndexOutOfBoundsError(frame_index));
         }
 
         let bitmap_offset = frame_index / BITMAP_SIZE;
         let bitmap_pos = frame_index % BITMAP_SIZE; // 0 ~ 7
 
-        let mut bitmap = self.read_bitmap(bitmap_offset);
-        let mut map = bitmap.get_map();
-
-        // already allocated
-        if map[bitmap_pos]
+        if let Some(bitmap) = self.read_bitmap(bitmap_offset)
         {
-            return;
+            let mut bitmap = bitmap;
+
+            let mut map = bitmap.get_map();
+
+            // already allocated
+            if map[bitmap_pos]
+            {
+                return Err(BitmapMemoryManagerError::MemoryFrameWasAlreadyAllocatedError(
+                    frame_index,
+                ));
+            }
+
+            map[bitmap_pos] = true;
+            bitmap.set_map(map);
+            if let Err(err) = self.write_bitmap(bitmap_offset, bitmap)
+            {
+                return Err(err);
+            }
+
+            self.allocated_frame_len += 1;
+            self.free_frame_len -= 1;
+
+            return Ok(());
         }
 
-        map[bitmap_pos] = true;
-        bitmap.set_map(map);
-        self.write_bitmap(bitmap_offset, bitmap);
-
-        self.allocated_frame_len += 1;
-        self.free_frame_len -= 1;
+        return Err(BitmapMemoryManagerError::FailedToReadBitmapError);
     }
 
-    fn dealloc_frame(&mut self, frame_index: usize)
+    fn dealloc_frame(&mut self, frame_index: usize) -> Result<(), BitmapMemoryManagerError>
     {
         if frame_index >= self.frame_len
         {
-            panic!("Memory frame index out of bounds");
+            return Err(BitmapMemoryManagerError::MemoryFrameIndexOutOfBoundsError(frame_index));
         }
 
         let bitmap_offset = frame_index / BITMAP_SIZE;
         let bitmap_pos = frame_index % BITMAP_SIZE; // 0 ~ 7
 
-        let mut bitmap = self.read_bitmap(bitmap_offset);
-
-        if !bitmap.get_map()[bitmap_pos]
+        if let Some(bitmap) = self.read_bitmap(bitmap_offset)
         {
-            panic!("This memory frame was already deallocated");
+            let mut bitmap = bitmap;
+
+            // already deallocated
+            if !bitmap.get_map()[bitmap_pos]
+            {
+                return Err(BitmapMemoryManagerError::MemoryFrameWasAlreadyDeallocatedError(
+                    frame_index,
+                ));
+            }
+
+            let mut map = bitmap.get_map();
+            map[bitmap_pos] = false;
+            bitmap.set_map(map);
+            if let Err(err) = self.write_bitmap(bitmap_offset, bitmap)
+            {
+                return Err(err);
+            }
+
+            self.allocated_frame_len -= 1;
+            self.free_frame_len += 1;
+
+            return Ok(());
         }
 
-        let mut map = bitmap.get_map();
-        map[bitmap_pos] = false;
-        bitmap.set_map(map);
-        self.write_bitmap(bitmap_offset, bitmap);
-
-        self.allocated_frame_len -= 1;
-        self.free_frame_len += 1;
+        return Err(BitmapMemoryManagerError::FailedToReadBitmapError);
     }
 }

@@ -209,14 +209,14 @@ impl XhcDriver
             let num_of_bufs =
                 (sp2.max_scratchpad_bufs_high() << 5 | sp2.max_scratchpad_bufs_low()) as usize;
             let mut scratchpad_buf_arr_virt_addr = VirtualAddress::new(0);
-            if let Some(scratchpad_buf_arr_mem) = BITMAP_MEM_MAN.lock().alloc_single_mem_frame()
+            if let Ok(scratchpad_buf_arr_mem) = BITMAP_MEM_MAN.lock().alloc_single_mem_frame()
             {
                 let virt_addr = scratchpad_buf_arr_mem.get_frame_start_virt_addr();
                 let arr: &mut [u64] = virt_addr.read_volatile();
 
                 for i in 0..num_of_bufs
                 {
-                    if let Some(mem_frame_info) = BITMAP_MEM_MAN.lock().alloc_single_mem_frame()
+                    if let Ok(mem_frame_info) = BITMAP_MEM_MAN.lock().alloc_single_mem_frame()
                     {
                         arr[i] = mem_frame_info.get_frame_start_virt_addr().get_phys_addr().get();
                     }
@@ -239,7 +239,7 @@ impl XhcDriver
             }
 
             // initialize device context
-            if let Some(dev_context_mem_frame) = BITMAP_MEM_MAN.lock().alloc_single_mem_frame()
+            if let Ok(dev_context_mem_frame) = BITMAP_MEM_MAN.lock().alloc_single_mem_frame()
             {
                 self.device_context_arr_virt_addr =
                     dev_context_mem_frame.get_frame_start_virt_addr();
@@ -269,7 +269,7 @@ impl XhcDriver
             let pcs = true;
 
             // register command ring
-            if let Some(cmd_ring_mem) = BITMAP_MEM_MAN.lock().alloc_single_mem_frame()
+            if let Ok(cmd_ring_mem) = BITMAP_MEM_MAN.lock().alloc_single_mem_frame()
             {
                 self.cmd_ring_virt_addr = cmd_ring_mem.get_frame_start_virt_addr();
                 self.cmd_ring_buf =
@@ -309,7 +309,7 @@ impl XhcDriver
             // register event ring (primary)
             let event_ring_seg_table_mem = BITMAP_MEM_MAN.lock().alloc_single_mem_frame();
             let event_ring_seg_mem = BITMAP_MEM_MAN.lock().alloc_single_mem_frame();
-            if let (Some(seg_table_mem_info), Some(seg_mem_info)) =
+            if let (Ok(seg_table_mem_info), Ok(seg_mem_info)) =
                 (event_ring_seg_table_mem, event_ring_seg_mem)
             {
                 self.primary_event_ring_virt_addr = seg_mem_info.get_frame_start_virt_addr();
@@ -522,7 +522,7 @@ impl XhcDriver
             }
 
             // init input context
-            if let Some(input_context_mem_frame) = BITMAP_MEM_MAN.lock().alloc_single_mem_frame()
+            if let Ok(input_context_mem_frame) = BITMAP_MEM_MAN.lock().alloc_single_mem_frame()
             {
                 let base_addr = input_context_mem_frame.get_frame_start_virt_addr();
 
@@ -658,7 +658,7 @@ impl XhcDriver
             port.config_state = ConfigState::Enabled;
             self.write_port(port);
 
-            if let Some(mem_frame_info) = BITMAP_MEM_MAN.lock().alloc_single_mem_frame()
+            if let Ok(mem_frame_info) = BITMAP_MEM_MAN.lock().alloc_single_mem_frame()
             {
                 self.write_device_context_base_addr(
                     slot_id,
