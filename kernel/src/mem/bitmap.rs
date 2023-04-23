@@ -225,9 +225,10 @@ impl BitmapMemoryManager
         let end = self.get_mem_frame_index(VirtualAddress::new(1024 * 1024));
         for i in start..=end
         {
-            if let Err(err) = self.alloc_frame(i)
+            if let Err(_) = self.alloc_frame(i)
             {
-                return Err(err);
+                // already allocated
+                continue;
             }
         }
 

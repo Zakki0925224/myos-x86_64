@@ -74,7 +74,7 @@ impl Allocator
         }
         else
         {
-            panic!("Failed to allocate heap area");
+            panic!("mem: Failed to allocate heap area");
         }
     }
 }

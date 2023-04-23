@@ -1,4 +1,4 @@
-use crate::{graphics::{color::*, frame_buffer::FrameBufferError}, serial::{SerialPortError, SERIAL}};
+use crate::{graphics::{color::*, frame_buffer::FrameBufferError}, serial::SERIAL};
 use core::fmt::{self, Write};
 
 use super::{FRAME_BUF, TERMINAL};
@@ -10,7 +10,6 @@ pub enum TerminalError
 {
     NotInitialized,
     FrameBufferError(FrameBufferError),
-    SerialPortError(SerialPortError),
 }
 
 pub struct Terminal
@@ -116,10 +115,7 @@ impl Terminal
         }
 
         // TODO: send Terminal color code
-        if let Err(err) = SERIAL.lock().send_data(c as u8)
-        {
-            return Err(TerminalError::SerialPortError(err));
-        }
+        SERIAL.lock().send_data(c as u8);
 
         return self.inc_cursor();
     }
@@ -175,10 +171,7 @@ impl Terminal
             }
         }
 
-        if let Err(err) = SERIAL.lock().send_data(b'\t')
-        {
-            return Err(TerminalError::SerialPortError(err));
-        }
+        SERIAL.lock().send_data(b'\t');
 
         return Ok(());
     }
@@ -197,10 +190,7 @@ impl Terminal
             self.cursor_y = self.char_max_y_len;
         }
 
-        if let Err(err) = SERIAL.lock().send_data(b'\n')
-        {
-            return Err(TerminalError::SerialPortError(err));
-        }
+        SERIAL.lock().send_data(b'\n');
 
         return Ok(());
     }

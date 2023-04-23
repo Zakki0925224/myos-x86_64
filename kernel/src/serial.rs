@@ -15,12 +15,6 @@ lazy_static! {
     pub static ref SERIAL: Mutex<SerialPort> = Mutex::new(SerialPort::new());
 }
 
-#[derive(Debug)]
-pub enum SerialPortError
-{
-    NotInitialized,
-}
-
 pub struct SerialPort
 {
     io_port: u16,
@@ -75,18 +69,17 @@ impl SerialPort
         return Some(asm::in8(self.io_port));
     }
 
-    pub fn send_data(&self, data: u8) -> Result<(), SerialPortError>
+    pub fn send_data(&self, data: u8)
     {
+        // skip send data
         if !self.is_init
         {
-            return Err(SerialPortError::NotInitialized);
+            return;
         }
 
         while self.is_transmit_empty() == 0
         {}
         asm::out8(self.io_port, data);
-
-        return Ok(());
     }
 
     fn is_transmit_empty(&self) -> u8 { return asm::in8(self.io_port + 5) & 0x20; }
