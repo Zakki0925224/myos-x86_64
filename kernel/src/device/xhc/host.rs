@@ -4,11 +4,10 @@ use crate::{arch::{addr::*, apic::local::read_local_apic_id, idt::VEC_XHCI_INT, 
 use alloc::vec::Vec;
 use log::{info, warn};
 
-use super::{context::device::DeviceContext, port::ConfigState, slot::Slot, trb::CompletionCode};
+use super::{context::device::DeviceContext, device::Device, port::ConfigState, trb::CompletionCode};
 
 const PORT_REG_SETS_START_VIRT_ADDR_OFFSET: usize = 1024;
 const RING_BUF_LEN: usize = 16;
-const MAX_PORT_LEN: usize = 256;
 
 #[derive(Debug)]
 pub struct XhcDriver
@@ -33,7 +32,7 @@ pub struct XhcDriver
     cmd_ring_buf: Option<RingBuffer>,
 
     ports: Vec<Port>,
-    slots: Vec<Slot>,
+    devices: Vec<Device>,
 
     configuring_port_id: Option<usize>,
     root_hub_port_id: Option<usize>,
@@ -78,7 +77,7 @@ impl XhcDriver
                     primary_event_ring_buf: None,
                     cmd_ring_buf: None,
                     ports: Vec::new(),
-                    slots: Vec::new(),
+                    devices: Vec::new(),
                     configuring_port_id: None,
                     root_hub_port_id: None,
                 };
@@ -570,7 +569,7 @@ impl XhcDriver
                 let mut trb = TransferRequestBlock::new();
                 trb.set_trb_type(TransferRequestBlockType::AddressDeviceCommand);
                 trb.set_param(base_addr.get_phys_addr().get());
-                trb.set_ctrl_regs((port.slot_id as u16) << 8);
+                trb.set_ctrl_regs((port.slot_id.unwrap() as u16) << 8);
                 self.push_cmd_ring(trb).unwrap();
             }
             else
@@ -614,17 +613,20 @@ impl XhcDriver
                         return;
                     }
 
-                    if let Some(port_id) = self.configuring_port_id
+                    if let (Some(port_id), Some(slot_id)) =
+                        (self.configuring_port_id, trb.slot_id())
                     {
                         match self.read_port(port_id).unwrap().config_state
                         {
                             ConfigState::Reset =>
                             {
-                                if let Some(slot_id) = trb.slot_id()
-                                {
-                                    self.alloc_slot(port_id, slot_id);
-                                    self.configuring_port_id = None;
-                                }
+                                self.alloc_slot(port_id, slot_id);
+                                self.configuring_port_id = None;
+                            }
+                            ConfigState::AddressingDevice =>
+                            {
+                                // TODO
+                                self.devices.push(Device::new(slot_id));
                             }
                             _ => (),
                         }
@@ -654,7 +656,7 @@ impl XhcDriver
         if let Some(port) = self.read_port(port_id)
         {
             let mut port = port.clone();
-            port.slot_id = slot_id;
+            port.slot_id = Some(slot_id);
             port.config_state = ConfigState::Enabled;
             self.write_port(port);
 
