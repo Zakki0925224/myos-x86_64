@@ -1,10 +1,7 @@
-use core::mem::size_of;
-
 use crate::{arch::register::msi::{MsiMessageAddressField, MsiMessageDataField}, println};
 
 use super::conf_space::*;
 use alloc::vec::Vec;
-use log::info;
 
 #[derive(Debug)]
 pub struct PciDevice
@@ -207,8 +204,6 @@ impl PciDevice
             {
                 return Err(msg);
             }
-
-            info!("pci: {:?}: Set MSI capability: {:?}", self.get_device_class(), cap);
         }
         else
         {
