@@ -4,7 +4,7 @@ use log::info;
 use modular_bitfield::{bitfield, specifiers::*, BitfieldSpecifier};
 use spin::Mutex;
 
-use crate::{arch::{asm::{self, DescriptorTableArgs}, register::control::Cr2}, device::xhc::XHC_DRIVER};
+use crate::{arch::{asm::{self, DescriptorTableArgs}, register::control::Cr2}, device::usb::xhc::XHC_DRIVER};
 
 use super::addr::VirtualAddress;
 
