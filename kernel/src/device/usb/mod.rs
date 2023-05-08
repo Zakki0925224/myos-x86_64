@@ -1,10 +1,10 @@
+use alloc::vec::Vec;
 use lazy_static::lazy_static;
-use log::warn;
 use spin::Mutex;
 
-use crate::arch::asm;
+use crate::{arch::asm, println};
 
-use self::xhc::XHC_DRIVER;
+use self::xhc::*;
 
 pub mod xhc;
 
@@ -13,60 +13,96 @@ lazy_static! {
 }
 
 #[derive(Debug)]
+pub enum UsbDriverError
+{
+    NotInitialized,
+    XhcDriverError(XhcDriverError),
+}
+
+#[derive(Debug)]
 pub struct UsbDriver;
 
 impl UsbDriver
 {
     pub fn new() -> Self { return Self {}; }
-}
 
-pub fn init()
-{
-    asm::cli();
-
-    if let Some(xhc_driver) = XHC_DRIVER.lock().as_mut()
+    pub fn init(&self) -> Result<(), UsbDriverError>
     {
-        if let Err(err) = xhc_driver.init()
+        asm::cli();
+
+        if let Some(xhc_driver) = XHC_DRIVER.lock().as_mut()
         {
-            warn!("xhc: {:?}", err);
+            if let Err(err) = xhc_driver.init()
+            {
+                return Err(UsbDriverError::XhcDriverError(err));
+            }
+
+            if let Err(err) = xhc_driver.start()
+            {
+                return Err(UsbDriverError::XhcDriverError(err));
+            }
+        }
+        else
+        {
+            return Err(UsbDriverError::XhcDriverError(XhcDriverError::NotInitialized));
         }
 
-        if let Err(err) = xhc_driver.start()
+        asm::sti();
+
+        let mut port_ids = Vec::new();
+
+        asm::cli();
+
+        if let Some(xhc_driver) = XHC_DRIVER.lock().as_mut()
         {
-            warn!("xhc: {:?}", err);
+            match xhc_driver.scan_ports()
+            {
+                Ok(ids) => port_ids = ids,
+                Err(err) => return Err(UsbDriverError::XhcDriverError(err)),
+            }
         }
+
+        asm::sti();
+
+        for port_id in port_ids
+        {
+            asm::cli();
+
+            if let Some(xhc_driver) = XHC_DRIVER.lock().as_mut()
+            {
+                if let Err(err) = xhc_driver.reset_port(port_id)
+                {
+                    return Err(UsbDriverError::XhcDriverError(err));
+                }
+            }
+
+            asm::sti();
+
+            asm::cli();
+
+            if let Some(xhc_driver) = XHC_DRIVER.lock().as_mut()
+            {
+                if let Err(err) = xhc_driver.alloc_address_to_device(port_id)
+                {
+                    return Err(UsbDriverError::XhcDriverError(err));
+                }
+            }
+
+            asm::sti();
+        }
+
+        println!("{:?}", XHC_DRIVER.lock().as_ref().unwrap().ports);
+
+        return Ok(());
     }
 
-    asm::sti();
-
-    asm::cli();
-
-    if let Some(xhc_driver) = XHC_DRIVER.lock().as_mut()
+    pub fn is_init() -> bool
     {
-        if let Err(err) = xhc_driver.scan_ports()
+        if let Some(xhc_driver) = XHC_DRIVER.lock().as_ref()
         {
-            warn!("xhc: {:?}", err);
+            return xhc_driver.is_init();
         }
 
-        if let Err(err) = xhc_driver.reset_port(5)
-        {
-            warn!("xhc: {:?}", err);
-        }
-
-        //xhc_driver.reset_port(6);
+        return false;
     }
-
-    asm::sti();
-
-    asm::cli();
-
-    if let Some(xhc_driver) = XHC_DRIVER.lock().as_mut()
-    {
-        if let Err(err) = xhc_driver.alloc_address_to_device(5)
-        {
-            warn!("xhc: {:?}", err);
-        }
-    }
-
-    asm::sti();
 }
