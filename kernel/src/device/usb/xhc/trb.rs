@@ -2,6 +2,8 @@ use core::mem::transmute;
 
 use modular_bitfield::{bitfield, specifiers::*, BitfieldSpecifier};
 
+use crate::device::usb::setup_trb::*;
+
 #[derive(BitfieldSpecifier, Debug, Clone, Copy, Eq, PartialEq)]
 #[bits = 6]
 pub enum TransferRequestBlockType
@@ -114,18 +116,16 @@ impl TransferRequestBlock
         return Some((flags & 0x1) != 0);
     }
 
-    pub fn set_toggle_cycle(&mut self, new_val: bool) -> Result<(), &'static str>
+    pub fn set_toggle_cycle(&mut self, new_val: bool)
     {
         if self.trb_type() != TransferRequestBlockType::Link
         {
-            return Err("TRB type is not Link");
+            return;
         }
 
         let toggle_cycle = if new_val { 1 } else { 0 };
         let flags = (self.other_flags() & !0x1) | toggle_cycle;
         self.set_other_flags(flags);
-
-        return Ok(());
     }
 
     // Command Completion Event TRB
@@ -146,6 +146,7 @@ impl TransferRequestBlock
         return Some(slot_id);
     }
 
+    // Port Status Change Event TRB
     pub fn port_id(&self) -> Option<usize>
     {
         if self.trb_type() != TransferRequestBlockType::PortStatusChangeEvent
@@ -154,6 +155,113 @@ impl TransferRequestBlock
         }
 
         return Some((self.param() >> 24) as usize);
+    }
+
+    // Setup Stage TRB
+    pub fn set_setup_request_type(&mut self, new_val: SetupRequestType)
+    {
+        if self.trb_type() != TransferRequestBlockType::SetupStage
+        {
+            return;
+        }
+
+        let param =
+            (self.param() & !0xff) | unsafe { transmute::<SetupRequestType, u8>(new_val) } as u64;
+        self.set_param(param);
+    }
+
+    pub fn setup_request_type(&self) -> Option<SetupRequestType>
+    {
+        if self.trb_type() != TransferRequestBlockType::SetupStage
+        {
+            return None;
+        }
+
+        return Some(unsafe { transmute::<u8, SetupRequestType>(self.param() as u8) });
+    }
+
+    pub fn set_setup_request(&mut self, new_val: SetupRequest)
+    {
+        if self.trb_type() != TransferRequestBlockType::SetupStage
+        {
+            return;
+        }
+
+        let param = (self.param() & !0xff00) | ((new_val as u64) << 8);
+        self.set_param(param);
+    }
+
+    pub fn setup_request(&self) -> Option<SetupRequest>
+    {
+        if self.trb_type() != TransferRequestBlockType::SetupStage
+        {
+            return None;
+        }
+
+        return Some(unsafe { transmute::<u8, SetupRequest>((self.param() >> 8) as u8) });
+    }
+
+    pub fn set_setup_value(&mut self, new_val: u16)
+    {
+        if self.trb_type() != TransferRequestBlockType::SetupStage
+        {
+            return;
+        }
+
+        let param = (self.param() & !0xffff0000) | ((new_val as u64) << 16);
+        self.set_param(param);
+    }
+
+    pub fn setup_value(&self) -> Option<u16>
+    {
+        if self.trb_type() != TransferRequestBlockType::SetupStage
+        {
+            return None;
+        }
+
+        return Some((self.param() >> 16) as u16);
+    }
+
+    pub fn set_setup_index(&mut self, new_val: u16)
+    {
+        if self.trb_type() != TransferRequestBlockType::SetupStage
+        {
+            return;
+        }
+
+        let param = (self.param() & !0xffff00000000) | ((new_val as u64) << 32);
+        self.set_param(param);
+    }
+
+    pub fn setup_index(&self) -> Option<u16>
+    {
+        if self.trb_type() != TransferRequestBlockType::SetupStage
+        {
+            return None;
+        }
+
+        return Some((self.param() >> 32) as u16);
+    }
+
+    pub fn set_setup_length(&mut self, new_val: u16)
+    {
+        if self.trb_type() != TransferRequestBlockType::SetupStage
+        {
+            return;
+        }
+
+        let param = (self.param() & !0xffff000000000000) | ((new_val as u64) << 48);
+        self.set_param(param);
+    }
+
+    pub fn setup_length(&self) -> Option<u16>
+    {
+        if self.trb_type() != TransferRequestBlockType::SetupStage
+        {
+            return None;
+        }
+
+        return Some((self.param() >> 48) as u16);
     }
 
     pub fn completion_code(&self) -> Option<CompletionCode>

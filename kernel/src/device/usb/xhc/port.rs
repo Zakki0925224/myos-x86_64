@@ -1,7 +1,5 @@
 use crate::arch::addr::VirtualAddress;
 
-use super::device::Device;
-
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ConfigState
 {
@@ -18,7 +16,7 @@ pub enum ConfigState
 pub struct Port
 {
     port_id: usize,
-    pub device: Option<Device>,
+    pub slot_id: Option<usize>,
     pub config_state: ConfigState,
     pub input_context_base_virt_addr: VirtualAddress,
 }
@@ -29,7 +27,7 @@ impl Port
     {
         return Self {
             port_id,
-            device: None,
+            slot_id: None,
             config_state: ConfigState::NotConnected,
             input_context_base_virt_addr: VirtualAddress::new(0),
         };

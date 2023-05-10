@@ -7,10 +7,11 @@ use spin::Mutex;
 
 use crate::{arch::{addr::*, apic::local::read_local_apic_id, idt::VEC_XHCI_INT, register::msi::*}, bus::pci::{conf_space::BaseAddress, device_id::PCI_USB_XHCI_ID, PCI_DEVICE_MAN}, device::usb::xhc::{port::ConfigState, register::*}, mem::bitmap::*};
 
-use self::{context::{device::DeviceContext, endpoint::*, input::InputContext, slot::SlotContext}, device::Device, port::Port, register::*, ring_buffer::*, trb::*};
+use self::{context::{device::DeviceContext, endpoint::*, input::InputContext, slot::SlotContext}, port::Port, ring_buffer::*, trb::*};
+
+use super::device::{UsbDevice, UsbDeviceError};
 
 pub mod context;
-pub mod device;
 pub mod port;
 pub mod register;
 pub mod ring_buffer;
@@ -47,6 +48,8 @@ pub enum XhcDriverError
     NotInitialized,
     NotRunning,
     PortWasNotFoundError(usize),
+    PortIsNotEnabledError(usize),
+    UsbDeviceError(UsbDeviceError),
 }
 
 #[derive(Debug)]
@@ -67,11 +70,10 @@ pub struct XhcDriver
     device_context_arr_virt_addr: VirtualAddress,
     num_of_ports: usize,
     num_of_slots: usize,
-    transfer_ring_buf: Option<RingBuffer>,
     primary_event_ring_buf: Option<RingBuffer>,
     cmd_ring_buf: Option<RingBuffer>,
 
-    pub ports: Vec<Port>,
+    ports: Vec<Port>,
 
     configuring_port_id: Option<usize>,
     root_hub_port_id: Option<usize>,
@@ -112,7 +114,6 @@ impl XhcDriver
                     primary_event_ring_virt_addr: VirtualAddress::new(0),
                     num_of_ports: 0,
                     num_of_slots: 0,
-                    transfer_ring_buf: None,
                     primary_event_ring_buf: None,
                     cmd_ring_buf: None,
                     ports: Vec::new(),
@@ -444,7 +445,7 @@ impl XhcDriver
             return Err(XhcDriverError::OtherError("An error occured on xHC"));
         }
 
-        self.ring_doorbell(0);
+        self.ring_doorbell(0, 0);
 
         return Ok(());
     }
@@ -524,7 +525,7 @@ impl XhcDriver
         return Ok(());
     }
 
-    pub fn alloc_address_to_device(&mut self, port_id: usize) -> Result<(), XhcDriverError>
+    pub fn alloc_address_to_device(&mut self, port_id: usize) -> Result<UsbDevice, XhcDriverError>
     {
         if !self.is_init
         {
@@ -544,8 +545,10 @@ impl XhcDriver
 
         if port.config_state != ConfigState::Enabled
         {
-            return Ok(());
+            return Err(XhcDriverError::PortIsNotEnabledError(port_id));
         }
+
+        let slot_id = port.slot_id.unwrap();
 
         let input_context_base_virt_addr = match BITMAP_MEM_MAN.lock().alloc_single_mem_frame()
         {
@@ -591,6 +594,16 @@ impl XhcDriver
         endpoint_context_0.set_mult(0);
         endpoint_context_0.set_error_cnt(3);
 
+        let trnasfer_ring_mem_info = match BITMAP_MEM_MAN.lock().alloc_single_mem_frame()
+        {
+            Ok(mem_info) => mem_info,
+            Err(err) => return Err(XhcDriverError::BitmapMemoryManagerError(err)),
+        };
+
+        endpoint_context_0.set_tr_dequeue_ptr(
+            trnasfer_ring_mem_info.get_frame_start_virt_addr().get_phys_addr().get() >> 1,
+        );
+
         input_context.device_context.endpoint_contexts[0] = endpoint_context_0;
 
         input_context_base_virt_addr.write_volatile(input_context);
@@ -598,10 +611,14 @@ impl XhcDriver
         let mut trb = TransferRequestBlock::new();
         trb.set_trb_type(TransferRequestBlockType::AddressDeviceCommand);
         trb.set_param(input_context_base_virt_addr.get_phys_addr().get());
-        trb.set_ctrl_regs((port.device.unwrap().slot_id() as u16) << 8);
+        trb.set_ctrl_regs((slot_id as u16) << 8);
         self.push_cmd_ring(trb).unwrap();
 
-        return Ok(());
+        return match UsbDevice::new(slot_id, trnasfer_ring_mem_info)
+        {
+            Ok(device) => Ok(device),
+            Err(err) => Err(XhcDriverError::UsbDeviceError(err)),
+        };
     }
 
     pub fn on_updated_event_ring(&mut self)
@@ -657,16 +674,17 @@ impl XhcDriver
                         }
                         ConfigState::AddressingDevice =>
                         {
-                            // TODO: initialize device
-                            info!(
-                                "TODO initializing device (port: {}, slot: {})",
-                                port_id, slot_id
-                            );
-                            self.request_device_descriptor(slot_id);
+                            let mut port = self.read_port(port_id).unwrap().clone();
+                            port.config_state = ConfigState::InitializingDevice;
+                            self.write_port(port);
                         }
                         _ => (),
                     }
                 }
+            }
+            TransferRequestBlockType::TransferEvent =>
+            {
+                info!("xhc: Received Transfer Event");
             }
             _ => (),
         }
@@ -692,7 +710,7 @@ impl XhcDriver
         .get_frame_start_virt_addr();
 
         let mut port = port.clone();
-        port.device = Some(Device::new(slot_id));
+        port.slot_id = Some(slot_id);
         port.config_state = ConfigState::Enabled;
         self.write_port(port);
 
@@ -707,12 +725,7 @@ impl XhcDriver
         return Ok(());
     }
 
-    fn request_device_descriptor(&mut self, slot_id: usize) -> Result<(), XhcDriverError>
-    {
-        return Ok(());
-    }
-
-    fn read_port(&self, port_id: usize) -> Option<&Port>
+    pub fn read_port(&self, port_id: usize) -> Option<&Port>
     {
         return self.ports.iter().find(|p| p.port_id() == port_id);
     }
@@ -884,16 +897,18 @@ impl XhcDriver
         return None;
     }
 
-    fn ring_doorbell(&self, index: usize)
+    pub fn ring_doorbell(&self, index: usize, value: u8)
     {
-        self.write_doorbell_reg(index, DoorbellRegister::new()).unwrap();
+        let mut doorbell_reg = DoorbellRegister::new();
+        doorbell_reg.set_db_target(value);
+        self.write_doorbell_reg(index, doorbell_reg).unwrap();
     }
 
     fn push_cmd_ring(&mut self, trb: TransferRequestBlock) -> Result<(), XhcDriverError>
     {
         match self.cmd_ring_buf.as_mut().unwrap().push(trb)
         {
-            Ok(_) => self.ring_doorbell(0),
+            Ok(_) => self.ring_doorbell(0, 0),
             Err(err) => return Err(XhcDriverError::RingBufferError(err)),
         }
 

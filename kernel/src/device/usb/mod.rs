@@ -4,8 +4,11 @@ use spin::Mutex;
 
 use crate::{arch::asm, println};
 
-use self::xhc::*;
+use self::{device::*, xhc::*};
 
+pub mod descriptor;
+pub mod device;
+pub mod setup_trb;
 pub mod xhc;
 
 lazy_static! {
@@ -16,18 +19,24 @@ lazy_static! {
 pub enum UsbDriverError
 {
     NotInitialized,
+    UsbDeviceError(usize, UsbDeviceError), // slot id
     XhcDriverError(XhcDriverError),
 }
 
 #[derive(Debug)]
-pub struct UsbDriver;
+pub struct UsbDriver
+{
+    devices: Vec<UsbDevice>,
+}
 
 impl UsbDriver
 {
-    pub fn new() -> Self { return Self {}; }
+    pub fn new() -> Self { return Self { devices: Vec::new() }; }
 
-    pub fn init(&self) -> Result<(), UsbDriverError>
+    pub fn init(&mut self) -> Result<(), UsbDriverError>
     {
+        self.devices = Vec::new();
+
         asm::cli();
 
         if let Some(xhc_driver) = XHC_DRIVER.lock().as_mut()
@@ -82,16 +91,21 @@ impl UsbDriver
 
             if let Some(xhc_driver) = XHC_DRIVER.lock().as_mut()
             {
-                if let Err(err) = xhc_driver.alloc_address_to_device(port_id)
+                match xhc_driver.alloc_address_to_device(port_id)
                 {
-                    return Err(UsbDriverError::XhcDriverError(err));
+                    Ok(device) => self.devices.push(device),
+                    Err(err) => return Err(UsbDriverError::XhcDriverError(err)),
                 }
             }
 
             asm::sti();
         }
 
-        println!("{:?}", XHC_DRIVER.lock().as_ref().unwrap().ports);
+        for device in self.devices.iter_mut()
+        {
+            device.init();
+            println!("{:?}", device);
+        }
 
         return Ok(());
     }

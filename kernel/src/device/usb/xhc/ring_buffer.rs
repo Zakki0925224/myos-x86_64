@@ -1,7 +1,7 @@
 use crate::{arch::addr::*, mem::bitmap::MemoryFrameInfo, println};
 use core::mem::size_of;
 
-use super::{register::*, trb::{TransferRequestBlock, TransferRequestBlockType}};
+use super::{register::*, trb::*};
 
 #[derive(Debug)]
 pub enum RingBufferError
@@ -152,7 +152,7 @@ impl RingBuffer
             };
             link_trb.set_cycle_bit(!link_trb.cycle_bit());
             // true -> toggle, false -> reset
-            link_trb.set_toggle_cycle(self.cycle_state).unwrap();
+            link_trb.set_toggle_cycle(self.cycle_state);
             match self.write(link_trb_index, link_trb)
             {
                 Err(err) => return Err(err),
