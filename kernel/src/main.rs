@@ -34,7 +34,7 @@ pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> !
     // initialize frame buffer, serial, terminal, logger
     graphics::init(boot_info.graphic_info);
 
-    // initialize GDT (TODO: not working correctry)
+    // initialize GDT (TODO: not working correctly)
     //gdt::init();
     // initialize IDT
     idt::init();

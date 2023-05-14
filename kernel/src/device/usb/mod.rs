@@ -103,8 +103,10 @@ impl UsbDriver
 
         for device in self.devices.iter_mut()
         {
+            asm::cli();
             device.init();
-            println!("{:?}", device);
+            asm::sti();
+            println!("{:?}", device.get_desc());
         }
 
         return Ok(());

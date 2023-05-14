@@ -9,7 +9,7 @@ use crate::{arch::{addr::*, apic::local::read_local_apic_id, idt::VEC_XHCI_INT, 
 
 use self::{context::{device::DeviceContext, endpoint::*, input::InputContext, slot::SlotContext}, port::Port, ring_buffer::*, trb::*};
 
-use super::device::{UsbDevice, UsbDeviceError};
+use super::device::*;
 
 pub mod context;
 pub mod port;
@@ -677,6 +677,7 @@ impl XhcDriver
                             let mut port = self.read_port(port_id).unwrap().clone();
                             port.config_state = ConfigState::InitializingDevice;
                             self.write_port(port);
+                            self.configuring_port_id = None;
                         }
                         _ => (),
                     }

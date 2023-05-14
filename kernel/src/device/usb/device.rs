@@ -1,6 +1,10 @@
+use core::mem::size_of;
+
+use log::warn;
+
 use crate::{mem::bitmap::*, println};
 
-use super::{descriptor::DescriptorType, setup_trb::*, xhc::{ring_buffer::*, trb::*, XHC_DRIVER}};
+use super::{descriptor::{DescriptorType, DeviceDescriptor}, setup_trb::*, xhc::{ring_buffer::*, trb::*, XHC_DRIVER}};
 
 const RING_BUF_LEN: usize = 16;
 
@@ -16,6 +20,7 @@ pub struct UsbDevice
 {
     slot_id: usize,
     transfer_ring_buf: RingBuffer,
+    desc_buf_mem_info: MemoryFrameInfo,
 }
 
 impl UsbDevice
@@ -25,35 +30,46 @@ impl UsbDevice
         transfer_ring_mem_info: MemoryFrameInfo,
     ) -> Result<Self, UsbDeviceError>
     {
-        match RingBuffer::new(
+        let ring_buf = match RingBuffer::new(
             transfer_ring_mem_info,
             RING_BUF_LEN,
             RingBufferType::TransferRing,
             true,
         )
         {
-            Ok(transfer_ring_buf) => return Ok(Self { slot_id, transfer_ring_buf }),
+            Ok(transfer_ring_buf) => transfer_ring_buf,
             Err(err) => return Err(UsbDeviceError::RingBufferError(err)),
-        }
-    }
+        };
 
-    pub fn init(&mut self)
-    {
-        self.transfer_ring_buf.init();
-
-        self.get_desc(DescriptorType::Device);
-    }
-
-    pub fn slot_id(&self) -> usize { return self.slot_id; }
-
-    fn get_desc(&mut self, desc_type: DescriptorType) -> Result<(), UsbDeviceError>
-    {
         let desc_buf_mem_info = match BITMAP_MEM_MAN.lock().alloc_single_mem_frame()
         {
             Ok(mem_info) => mem_info,
             Err(err) => return Err(UsbDeviceError::BitmapMemoryManagerError(err)),
         };
 
+        let dev = Self { slot_id, transfer_ring_buf: ring_buf, desc_buf_mem_info };
+        return Ok(dev);
+    }
+
+    pub fn init(&mut self)
+    {
+        self.transfer_ring_buf.init();
+
+        if let Err(err) = self.request_get_desc(DescriptorType::Device)
+        {
+            warn!("{:?}", err);
+        }
+    }
+
+    pub fn slot_id(&self) -> usize { return self.slot_id; }
+
+    pub fn get_desc(&self) -> DeviceDescriptor
+    {
+        return self.desc_buf_mem_info.get_frame_start_virt_addr().read_volatile();
+    }
+
+    fn request_get_desc(&mut self, desc_type: DescriptorType) -> Result<(), UsbDeviceError>
+    {
         let mut setup_stage_trb = TransferRequestBlock::new();
         setup_stage_trb.set_trb_type(TransferRequestBlockType::SetupStage);
 
@@ -65,21 +81,24 @@ impl UsbDevice
         setup_stage_trb.set_setup_request_type(request_type);
         setup_stage_trb.set_setup_request(SetupRequest::GetDescriptor);
         setup_stage_trb.set_setup_index(0);
-        setup_stage_trb.set_setup_value((desc_type as u16) << 8);
-        setup_stage_trb.set_setup_length(desc_buf_mem_info.get_frame_size() as u16);
-        setup_stage_trb.set_status(8);
-        setup_stage_trb.set_ctrl_regs(3);
+        setup_stage_trb.set_setup_value((desc_type as u16) << 8 | 0);
+        setup_stage_trb.set_setup_length(size_of::<DeviceDescriptor>() as u16); // size of device descriptor
+        setup_stage_trb.set_status(8); // TRB transfer length
+        setup_stage_trb.set_ctrl_regs(3); // TRT bits
+        setup_stage_trb.set_other_flags(3 << 4); // IOC bit and IDT bit
 
         let mut data_stage_trb = TransferRequestBlock::new();
-        data_stage_trb.set_trb_type(TransferRequestBlockType::BandwithRequestEvent); // Data Stage with DIR bit
+        data_stage_trb.set_trb_type(TransferRequestBlockType::DataStage); // Data Stage
 
         data_stage_trb
-            .set_param(desc_buf_mem_info.get_frame_start_virt_addr().get_phys_addr().get());
-        data_stage_trb.set_status(desc_buf_mem_info.get_frame_size() as u32);
-        data_stage_trb.set_other_flags(1 << 4);
+            .set_param(self.desc_buf_mem_info.get_frame_start_virt_addr().get_phys_addr().get());
+        data_stage_trb.set_status(size_of::<DeviceDescriptor>() as u32);
+        data_stage_trb.set_other_flags(1 << 4); // IOC bit
+        data_stage_trb.set_ctrl_regs(1); // DIR bit
 
         let mut status_stage_trb = TransferRequestBlock::new();
         status_stage_trb.set_trb_type(TransferRequestBlockType::StatusStage);
+        status_stage_trb.set_other_flags(1 << 4); // IOC bit
 
         if let Err(err) = self.transfer_ring_buf.push(setup_stage_trb)
         {
@@ -100,7 +119,6 @@ impl UsbDevice
         {
             xhc_driver.ring_doorbell(self.slot_id, 1);
         }
-
         return Ok(());
     }
 }
