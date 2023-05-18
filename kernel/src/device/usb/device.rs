@@ -51,14 +51,16 @@ impl UsbDevice
         return Ok(dev);
     }
 
-    pub fn init(&mut self)
+    pub fn init(&mut self) -> Result<(), UsbDeviceError>
     {
         self.transfer_ring_buf.init();
 
         if let Err(err) = self.request_get_desc(DescriptorType::Device)
         {
-            warn!("{:?}", err);
+            return Err(err);
         }
+
+        return Ok(());
     }
 
     pub fn slot_id(&self) -> usize { return self.slot_id; }

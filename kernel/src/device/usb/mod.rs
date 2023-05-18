@@ -1,5 +1,6 @@
 use alloc::vec::Vec;
 use lazy_static::lazy_static;
+use log::warn;
 use spin::Mutex;
 
 use crate::{arch::asm, println};
@@ -104,7 +105,10 @@ impl UsbDriver
         for device in self.devices.iter_mut()
         {
             asm::cli();
-            device.init();
+            if let Err(err) = device.init()
+            {
+                warn!("usb: {:?}", err);
+            }
             asm::sti();
             println!("{:?}", device.get_desc());
         }

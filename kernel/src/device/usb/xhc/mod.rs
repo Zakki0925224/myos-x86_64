@@ -5,7 +5,7 @@ use lazy_static::lazy_static;
 use log::{info, warn};
 use spin::Mutex;
 
-use crate::{arch::{addr::*, apic::local::read_local_apic_id, idt::VEC_XHCI_INT, register::msi::*}, bus::pci::{conf_space::BaseAddress, device_id::PCI_USB_XHCI_ID, PCI_DEVICE_MAN}, device::usb::xhc::{port::ConfigState, register::*}, mem::bitmap::*};
+use crate::{arch::{addr::*, apic::local::read_local_apic_id, idt::VEC_XHCI_INT, register::msi::*}, bus::pci::{conf_space::BaseAddress, device_id::PCI_USB_XHCI_ID, PCI_DEVICE_MAN}, device::usb::xhc::{port::ConfigState, register::*}, mem::bitmap::*, println};
 
 use self::{context::{device::DeviceContext, endpoint::*, input::InputContext, slot::SlotContext}, port::Port, ring_buffer::*, trb::*};
 
@@ -331,8 +331,7 @@ impl XhcDriver
         self.primary_event_ring_virt_addr = primary_event_ring_mem_info.get_frame_start_virt_addr();
 
         // initialize event ring segment table entry
-        let mut seg_table_entry =
-            primary_event_ring_seg_table_virt_addr.read_volatile::<EventRingSegmentTableEntry>();
+        let mut seg_table_entry = EventRingSegmentTableEntry::new();
         seg_table_entry
             .set_ring_seg_base_addr(self.primary_event_ring_virt_addr.get_phys_addr().get());
         seg_table_entry.set_ring_seg_size(RING_BUF_LEN as u16);
@@ -387,7 +386,7 @@ impl XhcDriver
         // enable interrupt
         let mut intr_reg_set_0 = self.read_intr_reg_sets(0).unwrap();
         intr_reg_set_0.set_int_mod_interval(4000);
-        intr_reg_set_0.set_int_pending(true);
+        intr_reg_set_0.set_int_pending(false);
         intr_reg_set_0.set_int_enable(true);
         self.write_intr_reg_sets(0, intr_reg_set_0).unwrap();
 
@@ -916,14 +915,15 @@ impl XhcDriver
         return Ok(());
     }
 
-    fn pop_primary_event_ring(&self) -> Option<TransferRequestBlock>
+    fn pop_primary_event_ring(&mut self) -> Option<TransferRequestBlock>
     {
         let intr_reg_sets_0 = self.read_intr_reg_sets(0).unwrap();
-        return match self.primary_event_ring_buf.as_ref().as_mut().unwrap().pop(intr_reg_sets_0)
+        return match self.primary_event_ring_buf.as_mut().unwrap().pop(intr_reg_sets_0)
         {
             Ok((trb, intr_reg_set)) =>
             {
                 self.write_intr_reg_sets(0, intr_reg_set).unwrap();
+                println!("read: {:?}", self.read_intr_reg_sets(0).unwrap());
                 info!("xhc: Poped from event ring: {:?}", trb);
                 Some(trb)
             }

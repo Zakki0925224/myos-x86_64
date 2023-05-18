@@ -3,7 +3,7 @@ use core::mem::transmute;
 use log::info;
 use modular_bitfield::{bitfield, specifiers::*, BitfieldSpecifier};
 
-use crate::arch::addr::VirtualAddress;
+use crate::{arch::addr::VirtualAddress, println};
 
 pub const DOORBELL_REG_MAX_LEN: usize = 256;
 pub const INTR_REG_SET_MAX_LEN: usize = 1024;
@@ -401,6 +401,8 @@ impl InterrupterRegisterSet
     {
         self.set_int_pending(!self.int_pending());
         self.set_event_handler_busy(!self.event_handler_busy());
+
+        println!("writing: {:?}", self);
 
         let data = unsafe { transmute::<Self, [u32; 8]>(*self) };
 

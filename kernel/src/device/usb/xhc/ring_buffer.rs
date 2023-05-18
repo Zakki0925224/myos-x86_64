@@ -10,8 +10,8 @@ pub enum RingBufferError
     InvalidMemoryFrameInfoError(MemoryFrameInfo),
     UnsupportedRingBufferTypeError(RingBufferType),
     InvalidRingBufferIndexError(usize),
-    UnsupportedEventRingSetmentTableLengthError,
-    ValidTransferRequestBlockWasNotFoundError,
+    UnsupportedEventRingSegmentTableLengthError,
+    InvalidTransferRequestBlockError(usize),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -166,7 +166,7 @@ impl RingBuffer
     }
 
     pub fn pop(
-        &self,
+        &mut self,
         mut int_reg_set: InterrupterRegisterSet,
     ) -> Result<(TransferRequestBlock, InterrupterRegisterSet), RingBufferError>
     {
@@ -182,62 +182,47 @@ impl RingBuffer
 
         if int_reg_set.event_ring_seg_table_size() != 1 || int_reg_set.dequeue_erst_seg_index() != 0
         {
-            return Err(RingBufferError::UnsupportedEventRingSetmentTableLengthError);
+            return Err(RingBufferError::UnsupportedEventRingSegmentTableLengthError);
         }
 
+        println!("er: {:?}", int_reg_set);
+
         let trb_size = size_of::<TransferRequestBlock>();
-        let mut dequeue_addr =
+        let mut dequeue_ptr =
             PhysicalAddress::new(int_reg_set.event_ring_dequeue_ptr() << 4).get_virt_addr();
 
-        let mut index = (dequeue_addr.get() - self.buf_base_virt_addr.get()) as usize / trb_size;
+        let mut index = (dequeue_ptr.get() - self.buf_base_virt_addr.get()) as usize / trb_size;
 
-        let mut trb = match self.read(index)
+        //self.debug();
+        println!("0x{:x} (index: {})", dequeue_ptr.get(), index);
+
+        let trb = match self.read(index)
         {
             Some(trb) => trb,
             None => return Err(RingBufferError::InvalidRingBufferIndexError(index)),
         };
 
-        let mut skip_cnt = 0;
-        loop
+        if trb.cycle_bit() != self.cycle_state
         {
-            if skip_cnt == self.buf_len
-            {
-                return Err(RingBufferError::ValidTransferRequestBlockWasNotFoundError);
-            }
-
-            if index >= self.buf_len
-            {
-                index = 0;
-            }
-
-            trb = match self.read(index)
-            {
-                Some(trb) => trb,
-                None => return Err(RingBufferError::InvalidRingBufferIndexError(index)),
-            };
-
-            if trb.cycle_bit() == self.cycle_state
-            {
-                break;
-            }
-
-            index += 1;
-            skip_cnt += 1;
+            return Err(RingBufferError::InvalidTransferRequestBlockError(index));
         }
 
-        let tmp_trb = trb;
-        trb.set_cycle_bit(!self.cycle_state);
-        match self.write(index, trb)
-        {
-            Err(err) => return Err(err),
-            _ => (),
-        };
+        index += 1;
 
-        dequeue_addr = self.buf_base_virt_addr.offset(index * size_of::<TransferRequestBlock>());
-        int_reg_set.set_event_ring_dequeue_ptr(dequeue_addr.get_phys_addr().get() >> 4);
+        if index == self.buf_len - 1
+        {
+            index = 0;
+            self.cycle_state = !self.cycle_state;
+        }
+
+        // TODO: dequeue pointer is not updated by qemu
+        dequeue_ptr = self.buf_base_virt_addr.offset(index * size_of::<TransferRequestBlock>());
+        int_reg_set.set_event_ring_dequeue_ptr(dequeue_ptr.get_phys_addr().get() >> 4);
         int_reg_set.set_event_handler_busy(false);
 
-        return Ok((tmp_trb, int_reg_set));
+        println!("er: {:?}", int_reg_set);
+
+        return Ok((trb, int_reg_set));
     }
 
     pub fn debug(&self)
