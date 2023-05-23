@@ -110,7 +110,8 @@ impl UsbDriver
                 warn!("usb: {:?}", err);
             }
             asm::sti();
-            println!("{:?}", device.get_desc());
+            println!("{:?}", device.get_dev_desc());
+            println!("{:?}", device.get_conf_desc());
         }
 
         return Ok(());

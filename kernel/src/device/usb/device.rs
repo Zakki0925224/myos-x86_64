@@ -1,10 +1,8 @@
 use core::mem::size_of;
 
-use log::warn;
+use crate::mem::bitmap::*;
 
-use crate::{mem::bitmap::*, println};
-
-use super::{descriptor::{DescriptorType, DeviceDescriptor}, setup_trb::*, xhc::{ring_buffer::*, trb::*, XHC_DRIVER}};
+use super::{descriptor::{config::ConfigurationDescriptor, device::DeviceDescriptor, DescriptorType}, setup_trb::*, xhc::{ring_buffer::*, trb::*, XHC_DRIVER}};
 
 const RING_BUF_LEN: usize = 16;
 
@@ -20,7 +18,8 @@ pub struct UsbDevice
 {
     slot_id: usize,
     transfer_ring_buf: RingBuffer,
-    desc_buf_mem_info: MemoryFrameInfo,
+    dev_desc_buf_mem_info: MemoryFrameInfo,
+    conf_desc_buf_mem_info: MemoryFrameInfo,
 }
 
 impl UsbDevice
@@ -41,13 +40,24 @@ impl UsbDevice
             Err(err) => return Err(UsbDeviceError::RingBufferError(err)),
         };
 
-        let desc_buf_mem_info = match BITMAP_MEM_MAN.lock().alloc_single_mem_frame()
+        let dev_desc_buf_mem_info = match BITMAP_MEM_MAN.lock().alloc_single_mem_frame()
         {
             Ok(mem_info) => mem_info,
             Err(err) => return Err(UsbDeviceError::BitmapMemoryManagerError(err)),
         };
 
-        let dev = Self { slot_id, transfer_ring_buf: ring_buf, desc_buf_mem_info };
+        let conf_desc_buf_mem_info = match BITMAP_MEM_MAN.lock().alloc_single_mem_frame()
+        {
+            Ok(mem_info) => mem_info,
+            Err(err) => return Err(UsbDeviceError::BitmapMemoryManagerError(err)),
+        };
+
+        let dev = Self {
+            slot_id,
+            transfer_ring_buf: ring_buf,
+            dev_desc_buf_mem_info,
+            conf_desc_buf_mem_info,
+        };
         return Ok(dev);
     }
 
@@ -55,7 +65,12 @@ impl UsbDevice
     {
         self.transfer_ring_buf.init();
 
-        if let Err(err) = self.request_get_desc(DescriptorType::Device)
+        if let Err(err) = self.request_get_desc(DescriptorType::Device, 0)
+        {
+            return Err(err);
+        }
+
+        if let Err(err) = self.request_get_desc(DescriptorType::Configration, 0)
         {
             return Err(err);
         }
@@ -65,12 +80,21 @@ impl UsbDevice
 
     pub fn slot_id(&self) -> usize { return self.slot_id; }
 
-    pub fn get_desc(&self) -> DeviceDescriptor
+    pub fn get_dev_desc(&self) -> DeviceDescriptor
     {
-        return self.desc_buf_mem_info.get_frame_start_virt_addr().read_volatile();
+        return self.dev_desc_buf_mem_info.get_frame_start_virt_addr().read_volatile();
     }
 
-    fn request_get_desc(&mut self, desc_type: DescriptorType) -> Result<(), UsbDeviceError>
+    pub fn get_conf_desc(&self) -> ConfigurationDescriptor
+    {
+        return self.conf_desc_buf_mem_info.get_frame_start_virt_addr().read_volatile();
+    }
+
+    fn request_get_desc(
+        &mut self,
+        desc_type: DescriptorType,
+        desc_num: usize,
+    ) -> Result<(), UsbDeviceError>
     {
         let mut setup_stage_trb = TransferRequestBlock::new();
         setup_stage_trb.set_trb_type(TransferRequestBlockType::SetupStage);
@@ -83,7 +107,7 @@ impl UsbDevice
         setup_stage_trb.set_setup_request_type(request_type);
         setup_stage_trb.set_setup_request(SetupRequest::GetDescriptor);
         setup_stage_trb.set_setup_index(0);
-        setup_stage_trb.set_setup_value((desc_type as u16) << 8 | 0);
+        setup_stage_trb.set_setup_value((desc_type as u16) << 8 | desc_num as u16);
         setup_stage_trb.set_setup_length(size_of::<DeviceDescriptor>() as u16); // size of device descriptor
         setup_stage_trb.set_status(8); // TRB transfer length
         setup_stage_trb.set_ctrl_regs(3); // TRT bits
@@ -92,8 +116,9 @@ impl UsbDevice
         let mut data_stage_trb = TransferRequestBlock::new();
         data_stage_trb.set_trb_type(TransferRequestBlockType::DataStage); // Data Stage
 
-        data_stage_trb
-            .set_param(self.desc_buf_mem_info.get_frame_start_virt_addr().get_phys_addr().get());
+        data_stage_trb.set_param(
+            self.dev_desc_buf_mem_info.get_frame_start_virt_addr().get_phys_addr().get(),
+        );
         data_stage_trb.set_status(size_of::<DeviceDescriptor>() as u32);
         data_stage_trb.set_other_flags(1 << 4); // IOC bit
         data_stage_trb.set_ctrl_regs(1); // DIR bit

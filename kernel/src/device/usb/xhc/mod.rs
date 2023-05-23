@@ -684,7 +684,12 @@ impl XhcDriver
             }
             TransferRequestBlockType::TransferEvent =>
             {
-                info!("xhc: Received Transfer Event");
+                let comp_code = trb.completion_code().unwrap();
+                if comp_code != CompletionCode::Success
+                {
+                    warn!("xhc: Failed to process command (completion code: {:?})", comp_code);
+                    return;
+                }
             }
             _ => (),
         }
