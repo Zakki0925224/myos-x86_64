@@ -5,7 +5,7 @@ use lazy_static::lazy_static;
 use log::{info, warn};
 use spin::Mutex;
 
-use crate::{arch::{addr::*, apic::local::read_local_apic_id, idt::VEC_XHCI_INT, register::msi::*}, bus::pci::{conf_space::BaseAddress, device_id::PCI_USB_XHCI_ID, PCI_DEVICE_MAN}, device::usb::xhc::{port::ConfigState, register::*}, mem::bitmap::*, println};
+use crate::{arch::{addr::*, apic::local::read_local_apic_id, idt::VEC_XHCI_INT, register::msi::*}, bus::pci::{conf_space::BaseAddress, device_id::PCI_USB_XHCI_ID, PCI_DEVICE_MAN}, device::usb::xhc::{port::ConfigState, register::*}, mem::bitmap::*};
 
 use self::{context::{device::DeviceContext, endpoint::*, input::InputContext, slot::SlotContext}, port::Port, ring_buffer::*, trb::*};
 
@@ -786,11 +786,16 @@ impl XhcDriver
             return Err(XhcDriverError::InvalidInterrupterRegisterSetIndexError(index));
         }
 
+        let read = self.read_intr_reg_sets(index).unwrap();
+        let update_seg_table =
+            intr_reg_set.event_ring_seg_table_base_addr() != read.event_ring_seg_table_base_addr();
+
         let mut intr_reg_set = intr_reg_set;
 
         let base_addr =
             self.intr_reg_sets_virt_addr.offset(index * size_of::<InterrupterRegisterSet>());
-        intr_reg_set.write(base_addr);
+
+        intr_reg_set.write(base_addr, update_seg_table);
 
         return Ok(());
     }
@@ -923,7 +928,6 @@ impl XhcDriver
             Ok((trb, intr_reg_set)) =>
             {
                 self.write_intr_reg_sets(0, intr_reg_set).unwrap();
-                println!("read: {:?}", self.read_intr_reg_sets(0).unwrap());
                 info!("xhc: Poped from event ring: {:?}", trb);
                 Some(trb)
             }

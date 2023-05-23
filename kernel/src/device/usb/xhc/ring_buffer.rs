@@ -185,16 +185,11 @@ impl RingBuffer
             return Err(RingBufferError::UnsupportedEventRingSegmentTableLengthError);
         }
 
-        println!("er: {:?}", int_reg_set);
-
         let trb_size = size_of::<TransferRequestBlock>();
         let mut dequeue_ptr =
             PhysicalAddress::new(int_reg_set.event_ring_dequeue_ptr() << 4).get_virt_addr();
 
         let mut index = (dequeue_ptr.get() - self.buf_base_virt_addr.get()) as usize / trb_size;
-
-        //self.debug();
-        println!("0x{:x} (index: {})", dequeue_ptr.get(), index);
 
         let trb = match self.read(index)
         {
@@ -215,12 +210,9 @@ impl RingBuffer
             self.cycle_state = !self.cycle_state;
         }
 
-        // TODO: dequeue pointer is not updated by qemu
-        dequeue_ptr = self.buf_base_virt_addr.offset(index * size_of::<TransferRequestBlock>());
+        dequeue_ptr = self.buf_base_virt_addr.offset(index * trb_size);
         int_reg_set.set_event_ring_dequeue_ptr(dequeue_ptr.get_phys_addr().get() >> 4);
         int_reg_set.set_event_handler_busy(false);
-
-        println!("er: {:?}", int_reg_set);
 
         return Ok((trb, int_reg_set));
     }

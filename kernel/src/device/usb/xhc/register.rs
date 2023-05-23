@@ -1,9 +1,8 @@
 use core::mem::transmute;
 
-use log::info;
 use modular_bitfield::{bitfield, specifiers::*, BitfieldSpecifier};
 
-use crate::{arch::addr::VirtualAddress, println};
+use crate::arch::addr::VirtualAddress;
 
 pub const DOORBELL_REG_MAX_LEN: usize = 256;
 pub const INTR_REG_SET_MAX_LEN: usize = 1024;
@@ -397,12 +396,10 @@ impl InterrupterRegisterSet
         return unsafe { transmute::<[u32; 8], Self>(data) };
     }
 
-    pub fn write(&mut self, base_addr: VirtualAddress)
+    pub fn write(&mut self, base_addr: VirtualAddress, update_seg_table: bool)
     {
         self.set_int_pending(!self.int_pending());
         self.set_event_handler_busy(!self.event_handler_busy());
-
-        println!("writing: {:?}", self);
 
         let data = unsafe { transmute::<Self, [u32; 8]>(*self) };
 
@@ -415,6 +412,11 @@ impl InterrupterRegisterSet
 
             if i == 4 || i == 6
             {
+                if i == 4 && !update_seg_table
+                {
+                    continue;
+                }
+
                 let qword_field = data[i] as u64 | ((data[i + 1] as u64) << 32);
                 base_addr.offset(i * 4).write_volatile(qword_field);
 
