@@ -5,7 +5,7 @@ use spin::Mutex;
 
 use crate::{arch::asm, println};
 
-use self::{device::*, xhc::*};
+use self::{descriptor::DescriptorType, device::*, xhc::*};
 
 pub mod descriptor;
 pub mod device;
@@ -110,8 +110,27 @@ impl UsbDriver
                 warn!("usb: {:?}", err);
             }
             asm::sti();
-            println!("{:?}", device.get_dev_desc());
-            println!("{:?}", device.get_conf_desc());
+
+            asm::cli();
+            if let Err(err) = device.request_get_desc(DescriptorType::Device, 0)
+            {
+                warn!("usb: {:?}", err);
+            }
+            asm::sti();
+
+            let dev_desc = device.get_dev_desc();
+            println!("{:?}", dev_desc);
+            let num_configs = dev_desc.num_configs() as usize;
+
+            asm::cli();
+            if let Err(err) = device.request_get_desc(DescriptorType::Configration, 0)
+            {
+                warn!("usb: {:?}", err);
+            }
+            asm::sti();
+
+            let conf_desc = device.get_conf_desc();
+            println!("{:?}", conf_desc);
         }
 
         return Ok(());

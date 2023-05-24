@@ -1,5 +1,7 @@
 use crate::arch::addr::VirtualAddress;
 
+use super::context::input::InputContext;
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ConfigState
 {
@@ -34,4 +36,14 @@ impl Port
     }
 
     pub fn port_id(&self) -> usize { return self.port_id; }
+
+    pub fn read_input_context(&self) -> InputContext
+    {
+        return self.input_context_base_virt_addr.read_volatile();
+    }
+
+    pub fn write_input_context(&self, input_context: InputContext)
+    {
+        self.input_context_base_virt_addr.write_volatile(input_context);
+    }
 }

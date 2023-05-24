@@ -1,8 +1,8 @@
 use core::mem::size_of;
 
-use crate::mem::bitmap::*;
+use crate::{mem::bitmap::*, println};
 
-use super::{descriptor::{config::ConfigurationDescriptor, device::DeviceDescriptor, DescriptorType}, setup_trb::*, xhc::{ring_buffer::*, trb::*, XHC_DRIVER}};
+use super::{descriptor::{config::ConfigurationDescriptor, device::DeviceDescriptor, DescriptorHeader, DescriptorType}, setup_trb::*, xhc::{ring_buffer::*, trb::*, XHC_DRIVER}};
 
 const RING_BUF_LEN: usize = 16;
 
@@ -11,6 +11,8 @@ pub enum UsbDeviceError
 {
     RingBufferError(RingBufferError),
     BitmapMemoryManagerError(BitmapMemoryManagerError),
+    XhcPortNotFoundError,
+    XhcDriverWasNotInitializedError,
 }
 
 #[derive(Debug)]
@@ -65,16 +67,6 @@ impl UsbDevice
     {
         self.transfer_ring_buf.init();
 
-        if let Err(err) = self.request_get_desc(DescriptorType::Device, 0)
-        {
-            return Err(err);
-        }
-
-        if let Err(err) = self.request_get_desc(DescriptorType::Configration, 0)
-        {
-            return Err(err);
-        }
-
         return Ok(());
     }
 
@@ -90,12 +82,26 @@ impl UsbDevice
         return self.conf_desc_buf_mem_info.get_frame_start_virt_addr().read_volatile();
     }
 
-    fn request_get_desc(
+    pub fn request_get_desc(
         &mut self,
         desc_type: DescriptorType,
         desc_num: usize,
     ) -> Result<(), UsbDeviceError>
     {
+        let buf_mem_info = match desc_type
+        {
+            DescriptorType::Device => self.dev_desc_buf_mem_info,
+            DescriptorType::Configration => self.conf_desc_buf_mem_info,
+            _ => unimplemented!(),
+        };
+
+        let buf_size = match desc_type
+        {
+            DescriptorType::Device => size_of::<DeviceDescriptor>(),
+            DescriptorType::Configration => size_of::<ConfigurationDescriptor>(),
+            _ => unimplemented!(),
+        };
+
         let mut setup_stage_trb = TransferRequestBlock::new();
         setup_stage_trb.set_trb_type(TransferRequestBlockType::SetupStage);
 
@@ -108,18 +114,16 @@ impl UsbDevice
         setup_stage_trb.set_setup_request(SetupRequest::GetDescriptor);
         setup_stage_trb.set_setup_index(0);
         setup_stage_trb.set_setup_value((desc_type as u16) << 8 | desc_num as u16);
-        setup_stage_trb.set_setup_length(size_of::<DeviceDescriptor>() as u16); // size of device descriptor
+        setup_stage_trb.set_setup_length(buf_size as u16);
         setup_stage_trb.set_status(8); // TRB transfer length
         setup_stage_trb.set_ctrl_regs(3); // TRT bits
-        setup_stage_trb.set_other_flags(3 << 4); // IOC bit and IDT bit
+        setup_stage_trb.set_other_flags(3 << 4); // IOC and IDT bit
 
         let mut data_stage_trb = TransferRequestBlock::new();
         data_stage_trb.set_trb_type(TransferRequestBlockType::DataStage); // Data Stage
 
-        data_stage_trb.set_param(
-            self.dev_desc_buf_mem_info.get_frame_start_virt_addr().get_phys_addr().get(),
-        );
-        data_stage_trb.set_status(size_of::<DeviceDescriptor>() as u32);
+        data_stage_trb.set_param(buf_mem_info.get_frame_start_virt_addr().get_phys_addr().get());
+        data_stage_trb.set_status(buf_size as u32);
         data_stage_trb.set_other_flags(1 << 4); // IOC bit
         data_stage_trb.set_ctrl_regs(1); // DIR bit
 
@@ -146,6 +150,7 @@ impl UsbDevice
         {
             xhc_driver.ring_doorbell(self.slot_id, 1);
         }
+
         return Ok(());
     }
 }

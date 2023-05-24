@@ -2,6 +2,8 @@ use modular_bitfield::{bitfield, specifiers::*, BitfieldSpecifier};
 
 pub mod config;
 pub mod device;
+pub mod endpoint;
+pub mod interface;
 
 #[derive(BitfieldSpecifier, Debug)]
 #[bits = 8]
@@ -27,6 +29,6 @@ pub enum DescriptorType
 #[repr(C)]
 pub struct DescriptorHeader
 {
-    length: B8, // bytes
-    ty: DescriptorType,
+    pub length: B8, // bytes
+    pub ty: DescriptorType,
 }

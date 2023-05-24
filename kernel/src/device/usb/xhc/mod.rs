@@ -699,6 +699,26 @@ impl XhcDriver
 
     pub fn is_running(&self) -> bool { return !self.read_ope_reg().usb_status().hchalted(); }
 
+    pub fn find_port_by_slot_id(&self, slot_id: usize) -> Option<&Port>
+    {
+        for port in self.ports.iter()
+        {
+            match port.slot_id
+            {
+                Some(id) =>
+                {
+                    if id == slot_id
+                    {
+                        return Some(port);
+                    }
+                }
+                None => continue,
+            }
+        }
+
+        return None;
+    }
+
     fn alloc_slot(&mut self, port_id: usize, slot_id: usize) -> Result<(), XhcDriverError>
     {
         let port = match self.read_port(port_id)
@@ -730,7 +750,7 @@ impl XhcDriver
         return Ok(());
     }
 
-    pub fn read_port(&self, port_id: usize) -> Option<&Port>
+    fn read_port(&self, port_id: usize) -> Option<&Port>
     {
         return self.ports.iter().find(|p| p.port_id() == port_id);
     }

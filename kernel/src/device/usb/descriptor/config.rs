@@ -7,11 +7,11 @@ use super::DescriptorHeader;
 #[repr(C)]
 pub struct ConfigurationDescriptor
 {
-    header: DescriptorHeader,
-    cap_type: B8,
-    bcd_version: B16,
-    class: B8,
-    sub_class: B8,
-    protocol: B8,
-    conf_count: B8,
+    pub header: DescriptorHeader,
+    pub total_length: B16,
+    pub num_interfaces: B8,
+    pub conf_value: B8,
+    pub conf_index: B8,
+    pub bitmap_attrs: B8,
+    pub max_power: B8,
 }
