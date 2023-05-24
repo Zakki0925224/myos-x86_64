@@ -204,7 +204,7 @@ impl RingBuffer
 
         index += 1;
 
-        if index == self.buf_len - 1
+        if index == self.buf_len
         {
             index = 0;
             self.cycle_state = !self.cycle_state;
