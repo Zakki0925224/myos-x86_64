@@ -1,27 +1,48 @@
 use modular_bitfield::{bitfield, specifiers::*, BitfieldSpecifier};
 
+use self::{config::ConfigurationDescriptor, device::DeviceDescriptor, endpoint::EndpointDescriptor, interface::InterfaceDescriptor};
+
 pub mod config;
 pub mod device;
 pub mod endpoint;
 pub mod interface;
 
+#[derive(Debug)]
+pub enum Descriptor
+{
+    Device(DeviceDescriptor),
+    Configuration(ConfigurationDescriptor),
+    Endpoint(EndpointDescriptor),
+    Interface(InterfaceDescriptor),
+    Unsupported(DescriptorType),
+}
+
 #[derive(BitfieldSpecifier, Debug)]
 #[bits = 8]
 pub enum DescriptorType
 {
-    Device = 1,
-    Configration = 2,
-    String = 3,
-    Interface = 4,
-    Endpoint = 5,
-    InterfacePower = 8,
-    Otg = 9,
-    Debug = 10,
-    InterfaceAssociation = 11,
-    Bos = 15,
-    DeviceCapability = 16,
-    SuperspeedUsbEndpointCompanion = 48,
-    SuperspeedIsochronousEndpointCompanion = 49,
+    Device = 0x1,
+    Configration = 0x2,
+    String = 0x3,
+    Interface = 0x4,
+    Endpoint = 0x5,
+    DeviceQualifier = 0x6,
+    OtherSpeedConfiguration = 0x7,
+    InterfacePower = 0x8,
+    Otg = 0x9,
+    Debug = 0xa,
+    InterfaceAssociation = 0xb,
+    BinaryDeviceObjectStore = 0xf,
+    DeviceCapability = 0x10,
+    SuperspeedUsbEndpointCompanion = 0x30,
+    SuperspeedIsochronousEndpointCompanion = 0x31,
+
+    // HID
+    Hid = 0x21,
+    Report = 0x22,
+    Physical = 0x23,
+
+    UsbHub = 0x29,
 }
 
 #[bitfield]

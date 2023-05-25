@@ -119,18 +119,19 @@ impl UsbDriver
             asm::sti();
 
             let dev_desc = device.get_dev_desc();
-            println!("{:?}", dev_desc);
             let num_configs = dev_desc.num_configs() as usize;
 
-            asm::cli();
-            if let Err(err) = device.request_get_desc(DescriptorType::Configration, 0)
+            for i in 0..num_configs
             {
-                warn!("usb: {:?}", err);
-            }
-            asm::sti();
+                asm::cli();
+                if let Err(err) = device.request_get_desc(DescriptorType::Configration, i)
+                {
+                    warn!("usb: {:?}", err);
+                }
+                asm::sti();
 
-            let conf_desc = device.get_conf_desc();
-            println!("{:?}", conf_desc);
+                let conf_descs = device.get_conf_descs();
+            }
         }
 
         return Ok(());

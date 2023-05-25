@@ -1,8 +1,10 @@
 use core::mem::size_of;
 
+use alloc::vec::Vec;
+
 use crate::{mem::bitmap::*, println};
 
-use super::{descriptor::{config::ConfigurationDescriptor, device::DeviceDescriptor, DescriptorHeader, DescriptorType}, setup_trb::*, xhc::{ring_buffer::*, trb::*, XHC_DRIVER}};
+use super::{descriptor::{config::ConfigurationDescriptor, device::DeviceDescriptor, Descriptor, DescriptorHeader, DescriptorType}, setup_trb::*, xhc::{ring_buffer::*, trb::*, XHC_DRIVER}};
 
 const RING_BUF_LEN: usize = 16;
 
@@ -77,15 +79,45 @@ impl UsbDevice
         return self.dev_desc_buf_mem_info.get_frame_start_virt_addr().read_volatile();
     }
 
-    pub fn get_conf_desc(&self) -> ConfigurationDescriptor
+    pub fn get_conf_descs(&self) -> Vec<Descriptor>
     {
-        return self.conf_desc_buf_mem_info.get_frame_start_virt_addr().read_volatile();
+        let conf_desc: ConfigurationDescriptor =
+            self.conf_desc_buf_mem_info.get_frame_start_virt_addr().read_volatile();
+
+        let mut descs = Vec::new();
+        let mut offset = conf_desc.header().length() as usize;
+
+        loop
+        {
+            let addr = self.conf_desc_buf_mem_info.get_frame_start_virt_addr().offset(offset);
+            let desc_header = addr.read_volatile::<DescriptorHeader>();
+
+            if desc_header.length() == 0
+            {
+                break;
+            }
+
+            offset += desc_header.length() as usize;
+
+            let desc = match desc_header.ty()
+            {
+                DescriptorType::Device => Descriptor::Device(addr.read_volatile()),
+                DescriptorType::Configration => Descriptor::Configuration(addr.read_volatile()),
+                DescriptorType::Endpoint => Descriptor::Endpoint(addr.read_volatile()),
+                DescriptorType::Interface => Descriptor::Interface(addr.read_volatile()),
+                other => Descriptor::Unsupported(other),
+            };
+
+            descs.push(desc);
+        }
+
+        return descs;
     }
 
     pub fn request_get_desc(
         &mut self,
         desc_type: DescriptorType,
-        desc_num: usize,
+        desc_index: usize,
     ) -> Result<(), UsbDeviceError>
     {
         let buf_mem_info = match desc_type
@@ -97,8 +129,8 @@ impl UsbDevice
 
         let buf_size = match desc_type
         {
-            DescriptorType::Device => size_of::<DeviceDescriptor>(),
-            DescriptorType::Configration => size_of::<ConfigurationDescriptor>(),
+            DescriptorType::Device => self.dev_desc_buf_mem_info.get_frame_size(),
+            DescriptorType::Configration => self.dev_desc_buf_mem_info.get_frame_size(),
             _ => unimplemented!(),
         };
 
@@ -113,7 +145,7 @@ impl UsbDevice
         setup_stage_trb.set_setup_request_type(request_type);
         setup_stage_trb.set_setup_request(SetupRequest::GetDescriptor);
         setup_stage_trb.set_setup_index(0);
-        setup_stage_trb.set_setup_value((desc_type as u16) << 8 | desc_num as u16);
+        setup_stage_trb.set_setup_value((desc_type as u16) << 8 | desc_index as u16);
         setup_stage_trb.set_setup_length(buf_size as u16);
         setup_stage_trb.set_status(8); // TRB transfer length
         setup_stage_trb.set_ctrl_regs(3); // TRT bits

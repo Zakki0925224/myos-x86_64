@@ -687,7 +687,10 @@ impl XhcDriver
                 let comp_code = trb.completion_code().unwrap();
                 if comp_code != CompletionCode::Success
                 {
-                    warn!("xhc: Failed to process command (completion code: {:?})", comp_code);
+                    warn!(
+                        "xhc: Might have been failed to process command (completion code: {:?})",
+                        comp_code
+                    );
                     return;
                 }
             }

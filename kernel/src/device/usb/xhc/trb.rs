@@ -281,4 +281,15 @@ impl TransferRequestBlock
 
         return Some(unsafe { transmute::<u8, CompletionCode>((self.status() >> 24) as u8) });
     }
+
+    // transfer event TRB
+    pub fn trb_transfer_length(&self) -> Option<usize>
+    {
+        if self.trb_type() != TransferRequestBlockType::TransferEvent
+        {
+            return None;
+        }
+
+        return Some((self.status() & 0xfff) as usize);
+    }
 }
