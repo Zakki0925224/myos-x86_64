@@ -1,10 +1,12 @@
+use alloc::vec::Vec;
 use modular_bitfield::{bitfield, specifiers::*, BitfieldSpecifier};
 
-use self::{config::ConfigurationDescriptor, device::DeviceDescriptor, endpoint::EndpointDescriptor, interface::InterfaceDescriptor};
+use self::{config::ConfigurationDescriptor, device::DeviceDescriptor, endpoint::EndpointDescriptor, hid::HumanInterfaceDeviceDescriptor, interface::InterfaceDescriptor};
 
 pub mod config;
 pub mod device;
 pub mod endpoint;
+pub mod hid;
 pub mod interface;
 
 #[derive(Debug)]
@@ -14,6 +16,7 @@ pub enum Descriptor
     Configuration(ConfigurationDescriptor),
     Endpoint(EndpointDescriptor),
     Interface(InterfaceDescriptor),
+    HumanInterfaceDevice(HumanInterfaceDeviceDescriptor, Vec<DescriptorHeader>),
     Unsupported(DescriptorType),
 }
 
@@ -38,7 +41,7 @@ pub enum DescriptorType
     SuperspeedIsochronousEndpointCompanion = 0x31,
 
     // HID
-    Hid = 0x21,
+    HumanInterfaceDevice = 0x21,
     Report = 0x22,
     Physical = 0x23,
 

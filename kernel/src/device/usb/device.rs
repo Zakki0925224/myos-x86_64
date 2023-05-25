@@ -2,9 +2,9 @@ use core::mem::size_of;
 
 use alloc::vec::Vec;
 
-use crate::{mem::bitmap::*, println};
+use crate::mem::bitmap::*;
 
-use super::{descriptor::{config::ConfigurationDescriptor, device::DeviceDescriptor, Descriptor, DescriptorHeader, DescriptorType}, setup_trb::*, xhc::{ring_buffer::*, trb::*, XHC_DRIVER}};
+use super::{descriptor::{config::ConfigurationDescriptor, device::DeviceDescriptor, hid::HumanInterfaceDeviceDescriptor, Descriptor, DescriptorHeader, DescriptorType}, setup_trb::*, xhc::{ring_buffer::*, trb::*, XHC_DRIVER}};
 
 const RING_BUF_LEN: usize = 16;
 
@@ -69,6 +69,12 @@ impl UsbDevice
     {
         self.transfer_ring_buf.init();
 
+        match self.request_get_desc(DescriptorType::Device, 0)
+        {
+            Ok(_) => (),
+            Err(err) => return Err(err),
+        }
+
         return Ok(());
     }
 
@@ -86,6 +92,8 @@ impl UsbDevice
 
         let mut descs = Vec::new();
         let mut offset = conf_desc.header().length() as usize;
+
+        descs.push(Descriptor::Configuration(conf_desc));
 
         loop
         {
@@ -105,6 +113,20 @@ impl UsbDevice
                 DescriptorType::Configration => Descriptor::Configuration(addr.read_volatile()),
                 DescriptorType::Endpoint => Descriptor::Endpoint(addr.read_volatile()),
                 DescriptorType::Interface => Descriptor::Interface(addr.read_volatile()),
+                DescriptorType::HumanInterfaceDevice =>
+                {
+                    let hid_desc: HumanInterfaceDeviceDescriptor = addr.read_volatile();
+                    let num_descs = hid_desc.num_descs() as usize;
+                    let mut class_desc_headers = Vec::new();
+
+                    for i in 0..num_descs
+                    {
+                        let addr = addr.offset(size_of::<DescriptorHeader>() * i);
+                        class_desc_headers.push(addr.read_volatile());
+                    }
+
+                    Descriptor::HumanInterfaceDevice(hid_desc, class_desc_headers)
+                }
                 other => Descriptor::Unsupported(other),
             };
 
@@ -163,24 +185,28 @@ impl UsbDevice
         status_stage_trb.set_trb_type(TransferRequestBlockType::StatusStage);
         status_stage_trb.set_other_flags(1 << 4); // IOC bit
 
-        if let Err(err) = self.transfer_ring_buf.push(setup_stage_trb)
+        match self.transfer_ring_buf.push(setup_stage_trb)
         {
-            return Err(UsbDeviceError::RingBufferError(err));
+            Ok(_) => (),
+            Err(err) => return Err(UsbDeviceError::RingBufferError(err)),
         }
 
-        if let Err(err) = self.transfer_ring_buf.push(data_stage_trb)
+        match self.transfer_ring_buf.push(data_stage_trb)
         {
-            return Err(UsbDeviceError::RingBufferError(err));
+            Ok(_) => (),
+            Err(err) => return Err(UsbDeviceError::RingBufferError(err)),
         }
 
-        if let Err(err) = self.transfer_ring_buf.push(status_stage_trb)
+        match self.transfer_ring_buf.push(status_stage_trb)
         {
-            return Err(UsbDeviceError::RingBufferError(err));
+            Ok(_) => (),
+            Err(err) => return Err(UsbDeviceError::RingBufferError(err)),
         }
 
-        if let Some(xhc_driver) = XHC_DRIVER.lock().as_ref()
+        match XHC_DRIVER.lock().as_ref()
         {
-            xhc_driver.ring_doorbell(self.slot_id, 1);
+            Some(xhc_driver) => xhc_driver.ring_doorbell(self.slot_id, 1),
+            None => return Err(UsbDeviceError::XhcDriverWasNotInitializedError),
         }
 
         return Ok(());

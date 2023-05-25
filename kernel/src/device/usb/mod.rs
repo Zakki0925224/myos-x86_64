@@ -1,6 +1,5 @@
 use alloc::vec::Vec;
 use lazy_static::lazy_static;
-use log::warn;
 use spin::Mutex;
 
 use crate::{arch::asm, println};
@@ -42,14 +41,16 @@ impl UsbDriver
 
         if let Some(xhc_driver) = XHC_DRIVER.lock().as_mut()
         {
-            if let Err(err) = xhc_driver.init()
+            match xhc_driver.init()
             {
-                return Err(UsbDriverError::XhcDriverError(err));
+                Ok(_) => (),
+                Err(err) => return Err(UsbDriverError::XhcDriverError(err)),
             }
 
-            if let Err(err) = xhc_driver.start()
+            match xhc_driver.start()
             {
-                return Err(UsbDriverError::XhcDriverError(err));
+                Ok(_) => (),
+                Err(err) => return Err(UsbDriverError::XhcDriverError(err)),
             }
         }
         else
@@ -63,6 +64,7 @@ impl UsbDriver
 
         asm::cli();
 
+        // always return some()
         if let Some(xhc_driver) = XHC_DRIVER.lock().as_mut()
         {
             match xhc_driver.scan_ports()
@@ -80,9 +82,10 @@ impl UsbDriver
 
             if let Some(xhc_driver) = XHC_DRIVER.lock().as_mut()
             {
-                if let Err(err) = xhc_driver.reset_port(port_id)
+                match xhc_driver.reset_port(port_id)
                 {
-                    return Err(UsbDriverError::XhcDriverError(err));
+                    Ok(_) => (),
+                    Err(err) => return Err(UsbDriverError::XhcDriverError(err)),
                 }
             }
 
@@ -104,33 +107,32 @@ impl UsbDriver
 
         for device in self.devices.iter_mut()
         {
-            asm::cli();
-            if let Err(err) = device.init()
-            {
-                warn!("usb: {:?}", err);
-            }
-            asm::sti();
+            let slot_id = device.slot_id();
 
             asm::cli();
-            if let Err(err) = device.request_get_desc(DescriptorType::Device, 0)
+            match device.init()
             {
-                warn!("usb: {:?}", err);
+                Ok(_) => (),
+                Err(err) => return Err(UsbDriverError::UsbDeviceError(slot_id, err)),
             }
             asm::sti();
 
             let dev_desc = device.get_dev_desc();
+            println!("{:?}", dev_desc);
             let num_configs = dev_desc.num_configs() as usize;
 
             for i in 0..num_configs
             {
                 asm::cli();
-                if let Err(err) = device.request_get_desc(DescriptorType::Configration, i)
+                match device.request_get_desc(DescriptorType::Configration, i)
                 {
-                    warn!("usb: {:?}", err);
+                    Ok(_) => (),
+                    Err(err) => return Err(UsbDriverError::UsbDeviceError(slot_id, err)),
                 }
                 asm::sti();
 
                 let conf_descs = device.get_conf_descs();
+                println!("{:?}", conf_descs);
             }
         }
 
@@ -139,11 +141,10 @@ impl UsbDriver
 
     pub fn is_init() -> bool
     {
-        if let Some(xhc_driver) = XHC_DRIVER.lock().as_ref()
+        return match XHC_DRIVER.lock().as_ref()
         {
-            return xhc_driver.is_init();
-        }
-
-        return false;
+            Some(xhc_driver) => xhc_driver.is_init(),
+            None => false,
+        };
     }
 }
