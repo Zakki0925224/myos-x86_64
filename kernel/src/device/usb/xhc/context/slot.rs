@@ -23,7 +23,7 @@ pub enum SlotState
 }
 
 #[bitfield]
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct SlotContext
 {

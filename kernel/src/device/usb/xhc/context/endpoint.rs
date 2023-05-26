@@ -15,7 +15,6 @@ pub enum EndpointState
 #[bits = 3]
 pub enum EndpointType
 {
-    NotValid = 0,
     IsochOut = 1,
     BulkOut = 2,
     InterruptOut = 3,
@@ -23,6 +22,26 @@ pub enum EndpointType
     IsochIn = 5,
     BulkIn = 6,
     InterruptIn = 7,
+}
+
+impl EndpointType
+{
+    pub fn new(endpoint_addr: u8, bitmap_attrs: u8) -> Self
+    {
+        let addr_bit7 = endpoint_addr >> 7;
+        let bitmap_bit0to1 = bitmap_attrs & 0x3;
+
+        return match (addr_bit7, bitmap_bit0to1)
+        {
+            (0, 1) => Self::IsochOut,
+            (0, 2) => Self::BulkOut,
+            (0, 3) => Self::InterruptOut,
+            (_, 0) => Self::ControlBidirectional,
+            (1, 1) => Self::IsochIn,
+            (1, 2) => Self::BulkIn,
+            _ => Self::InterruptOut,
+        };
+    }
 }
 
 #[bitfield]

@@ -68,3 +68,9 @@ pub enum SetupRequest
     SetSel = 48,
     SetIsochDelay = 49,
 }
+
+impl SetupRequest
+{
+    pub const GET_REPORT: Self = Self::ClearFeature;
+    pub const SET_PROTOCOL: Self = Self::SetInterface;
+}

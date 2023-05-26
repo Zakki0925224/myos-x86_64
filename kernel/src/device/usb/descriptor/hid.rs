@@ -3,7 +3,7 @@ use modular_bitfield::{bitfield, specifiers::*};
 use super::*;
 
 #[bitfield]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[repr(C)]
 pub struct HumanInterfaceDeviceDescriptor
 {

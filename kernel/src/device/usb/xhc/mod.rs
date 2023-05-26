@@ -693,6 +693,12 @@ impl XhcDriver
                     );
                     return;
                 }
+
+                info!(
+                    "xhc: TransferEvent: slot: {:?}, endpoint: {:?}",
+                    trb.slot_id(),
+                    trb.endpoint_id()
+                );
             }
             _ => (),
         }
@@ -920,9 +926,9 @@ impl XhcDriver
         return Ok(());
     }
 
-    fn read_device_context(&self, index: usize) -> Option<DeviceContext>
+    pub fn read_device_context(&self, slot_id: usize) -> Option<DeviceContext>
     {
-        if let Some(base_addr) = self.read_device_context_base_addr(index)
+        if let Some(base_addr) = self.read_device_context_base_addr(slot_id)
         {
             return Some(base_addr.read_volatile());
         }
@@ -937,7 +943,7 @@ impl XhcDriver
         self.write_doorbell_reg(index, doorbell_reg).unwrap();
     }
 
-    fn push_cmd_ring(&mut self, trb: TransferRequestBlock) -> Result<(), XhcDriverError>
+    pub fn push_cmd_ring(&mut self, trb: TransferRequestBlock) -> Result<(), XhcDriverError>
     {
         match self.cmd_ring_buf.as_mut().unwrap().push(trb)
         {

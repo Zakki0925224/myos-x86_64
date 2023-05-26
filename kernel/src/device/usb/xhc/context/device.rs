@@ -1,6 +1,6 @@
 use super::{endpoint::EndpointContext, slot::SlotContext};
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct DeviceContext
 {

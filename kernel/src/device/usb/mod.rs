@@ -1,5 +1,6 @@
 use alloc::vec::Vec;
 use lazy_static::lazy_static;
+use log::info;
 use spin::Mutex;
 
 use crate::{arch::asm, println};
@@ -18,7 +19,6 @@ lazy_static! {
 #[derive(Debug)]
 pub enum UsbDriverError
 {
-    NotInitialized,
     UsbDeviceError(usize, UsbDeviceError), // slot id
     XhcDriverError(XhcDriverError),
 }
@@ -118,22 +118,43 @@ impl UsbDriver
             asm::sti();
 
             let dev_desc = device.get_dev_desc();
-            println!("{:?}", dev_desc);
             let num_configs = dev_desc.num_configs() as usize;
 
             for i in 0..num_configs
             {
                 asm::cli();
-                match device.request_get_desc(DescriptorType::Configration, i)
+                match device.request_to_get_desc(DescriptorType::Configration, i)
                 {
                     Ok(_) => (),
                     Err(err) => return Err(UsbDriverError::UsbDeviceError(slot_id, err)),
                 }
                 asm::sti();
 
-                let conf_descs = device.get_conf_descs();
-                println!("{:?}", conf_descs);
+                asm::cli();
+                match device.configure_endpoint()
+                {
+                    Ok(_) => (),
+                    Err(err) => return Err(UsbDriverError::UsbDeviceError(slot_id, err)),
+                }
+                asm::sti();
+                info!("usb: Configured endpoint");
             }
+
+            asm::cli();
+            match device.request_to_use_boot_protocol()
+            {
+                Ok(_) => (),
+                Err(err) => return Err(UsbDriverError::UsbDeviceError(slot_id, err)),
+            }
+            asm::sti();
+
+            asm::cli();
+            match device.configure_to_get_data_by_default_ctrl_pipe()
+            {
+                Ok(_) => (),
+                Err(err) => return Err(UsbDriverError::UsbDeviceError(slot_id, err)),
+            }
+            asm::sti();
         }
 
         return Ok(());

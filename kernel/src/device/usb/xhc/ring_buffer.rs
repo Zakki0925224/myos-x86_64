@@ -104,6 +104,8 @@ impl RingBuffer
         return cnt - 1;
     }
 
+    pub fn get_buf_base_virt_addr(&self) -> VirtualAddress { return self.buf_base_virt_addr; }
+
     pub fn push(&mut self, trb: TransferRequestBlock) -> Result<(), RingBufferError>
     {
         if !self.is_init

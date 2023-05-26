@@ -9,7 +9,7 @@ pub mod endpoint;
 pub mod hid;
 pub mod interface;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Descriptor
 {
     Device(DeviceDescriptor),
@@ -20,7 +20,7 @@ pub enum Descriptor
     Unsupported(DescriptorType),
 }
 
-#[derive(BitfieldSpecifier, Debug)]
+#[derive(BitfieldSpecifier, Debug, Clone)]
 #[bits = 8]
 pub enum DescriptorType
 {
@@ -49,7 +49,7 @@ pub enum DescriptorType
 }
 
 #[bitfield]
-#[derive(BitfieldSpecifier, Debug)]
+#[derive(BitfieldSpecifier, Debug, Clone)]
 #[repr(C)]
 pub struct DescriptorHeader
 {

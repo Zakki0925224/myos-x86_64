@@ -3,7 +3,7 @@ use modular_bitfield::{bitfield, specifiers::*};
 use super::device::DeviceContext;
 
 #[bitfield]
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct InputControlContext
 {
@@ -77,7 +77,7 @@ impl InputControlContext
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct InputContext
 {

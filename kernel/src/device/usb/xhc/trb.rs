@@ -134,6 +134,7 @@ impl TransferRequestBlock
         let slot_id = (self.ctrl_regs() >> 8) as usize;
 
         if self.trb_type() != TransferRequestBlockType::CommandCompletionEvent
+            && self.trb_type() != TransferRequestBlockType::TransferEvent
         {
             return None;
         }
@@ -291,5 +292,15 @@ impl TransferRequestBlock
         }
 
         return Some((self.status() & 0xfff) as usize);
+    }
+
+    pub fn endpoint_id(&self) -> Option<usize>
+    {
+        if self.trb_type() != TransferRequestBlockType::TransferEvent
+        {
+            return None;
+        }
+
+        return Some((self.ctrl_regs() & 0x1f) as usize);
     }
 }
