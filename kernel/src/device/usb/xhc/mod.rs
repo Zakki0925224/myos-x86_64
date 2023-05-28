@@ -613,7 +613,7 @@ impl XhcDriver
         trb.set_ctrl_regs((slot_id as u16) << 8);
         self.push_cmd_ring(trb).unwrap();
 
-        return match UsbDevice::new(slot_id, trnasfer_ring_mem_info)
+        return match UsbDevice::new(slot_id, trnasfer_ring_mem_info, max_packet_size, port_speed)
         {
             Ok(device) => Ok(device),
             Err(err) => Err(XhcDriverError::UsbDeviceError(err)),
@@ -746,6 +746,7 @@ impl XhcDriver
         let mut port = port.clone();
         port.slot_id = Some(slot_id);
         port.config_state = ConfigState::Enabled;
+        port.output_context_base_virt_addr = device_context_base_virt_addr;
         self.write_port(port);
 
         if let Err(err) =

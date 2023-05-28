@@ -2,9 +2,9 @@ use core::mem::size_of;
 
 use alloc::vec::Vec;
 
-use crate::{arch::addr::PhysicalAddress, mem::bitmap::*, println};
+use crate::{arch::addr::PhysicalAddress, device::usb::xhc::context::input::InputControlContext, mem::bitmap::*, println};
 
-use super::{descriptor::{config::ConfigurationDescriptor, device::DeviceDescriptor, hid::HumanInterfaceDeviceDescriptor, Descriptor, DescriptorHeader, DescriptorType}, setup_trb::*, xhc::{context::{endpoint::{EndpointContext, EndpointType}, input::InputContext}, ring_buffer::*, trb::*, XHC_DRIVER}};
+use super::{descriptor::{config::ConfigurationDescriptor, device::DeviceDescriptor, hid::HumanInterfaceDeviceDescriptor, Descriptor, DescriptorHeader, DescriptorType}, setup_trb::*, xhc::{context::endpoint::*, register::PortSpeedIdValue, ring_buffer::*, trb::*, XHC_DRIVER}};
 
 const RING_BUF_LEN: usize = 8;
 const DEFAULT_CONTROL_PIPE_ID: u8 = 1;
@@ -23,13 +23,13 @@ pub enum UsbDeviceError
 pub struct UsbDevice
 {
     slot_id: usize,
-    transfer_ring_bufs: Vec<RingBuffer>, // DCP ring buffer
+    transfer_ring_bufs: [Option<RingBuffer>; 32],
     data_buf_mem_info: MemoryFrameInfo,
     dev_desc_buf_mem_info: MemoryFrameInfo,
     conf_desc_buf_mem_info: MemoryFrameInfo,
 
-    // interrupt in
-    input_context_buf_mem_info: MemoryFrameInfo,
+    max_packet_size: u16,
+    port_speed: PortSpeedIdValue,
 }
 
 impl UsbDevice
@@ -37,9 +37,11 @@ impl UsbDevice
     pub fn new(
         slot_id: usize,
         transfer_ring_mem_info: MemoryFrameInfo,
+        max_packet_size: u16,
+        port_speed: PortSpeedIdValue,
     ) -> Result<Self, UsbDeviceError>
     {
-        let dcp_ring_buf = match RingBuffer::new(
+        let mut dcp_ring_buf = match RingBuffer::new(
             transfer_ring_mem_info,
             RING_BUF_LEN,
             RingBufferType::TransferRing,
@@ -50,30 +52,7 @@ impl UsbDevice
             Err(err) => return Err(UsbDeviceError::RingBufferError(err)),
         };
 
-        let mut transfer_ring_bufs = Vec::new();
-        transfer_ring_bufs.push(dcp_ring_buf);
-
-        for _ in 0..15
-        {
-            let ring_buf_mem_info = match BITMAP_MEM_MAN.lock().alloc_single_mem_frame()
-            {
-                Ok(mem_info) => mem_info,
-                Err(err) => return Err(UsbDeviceError::BitmapMemoryManagerError(err)),
-            };
-
-            let ring_buf = match RingBuffer::new(
-                ring_buf_mem_info,
-                RING_BUF_LEN,
-                RingBufferType::TransferRing,
-                true,
-            )
-            {
-                Ok(transfer_ring_buf) => transfer_ring_buf,
-                Err(err) => return Err(UsbDeviceError::RingBufferError(err)),
-            };
-
-            transfer_ring_bufs.push(ring_buf);
-        }
+        dcp_ring_buf.init();
 
         let data_buf_mem_info = match BITMAP_MEM_MAN.lock().alloc_single_mem_frame()
         {
@@ -93,11 +72,8 @@ impl UsbDevice
             Err(err) => return Err(UsbDeviceError::BitmapMemoryManagerError(err)),
         };
 
-        let input_context_buf_mem_info = match BITMAP_MEM_MAN.lock().alloc_single_mem_frame()
-        {
-            Ok(mem_info) => mem_info,
-            Err(err) => return Err(UsbDeviceError::BitmapMemoryManagerError(err)),
-        };
+        let mut transfer_ring_bufs = [None; 32];
+        transfer_ring_bufs[1] = Some(dcp_ring_buf);
 
         let dev = Self {
             slot_id,
@@ -105,7 +81,8 @@ impl UsbDevice
             data_buf_mem_info,
             dev_desc_buf_mem_info,
             conf_desc_buf_mem_info,
-            input_context_buf_mem_info,
+            max_packet_size,
+            port_speed,
         };
 
         return Ok(dev);
@@ -113,11 +90,6 @@ impl UsbDevice
 
     pub fn init(&mut self) -> Result<(), UsbDeviceError>
     {
-        for transfer_ring in self.transfer_ring_bufs.iter_mut()
-        {
-            transfer_ring.init();
-        }
-
         match self.request_to_get_desc(DescriptorType::Device, 0)
         {
             Ok(_) => (),
@@ -221,19 +193,45 @@ impl UsbDevice
         );
     }
 
-    // TODO: input ep1.1 context must not be 0
     pub fn configure_endpoint(&mut self) -> Result<(), UsbDeviceError>
     {
         if let Some(xhc_driver) = XHC_DRIVER.lock().as_mut()
         {
+            let port = xhc_driver.find_port_by_slot_id(self.slot_id).unwrap();
+            println!(
+                "input context: 0x{:x}, output context: 0x{:x}",
+                port.input_context_base_virt_addr.get(),
+                port.output_context_base_virt_addr.get()
+            );
             let device_context = xhc_driver.read_device_context(self.slot_id).unwrap();
-            let mut input_context = InputContext::new();
+            let mut input_context = port.read_input_context();
             input_context.device_context.slot_context = device_context.slot_context;
-            input_context.input_ctrl_context.set_add_context_flag(0, true).unwrap();
+            let mut input_ctrl_context = InputControlContext::new();
+            input_ctrl_context.set_add_context_flag(0, true).unwrap();
 
             let conf_descs = self.get_conf_descs();
             for desc in conf_descs.iter().filter(|d| matches!(**d, Descriptor::Endpoint(_)))
             {
+                let transfer_ring_buf_mem_info =
+                    match BITMAP_MEM_MAN.lock().alloc_single_mem_frame()
+                    {
+                        Ok(mem_info) => mem_info,
+                        Err(err) => return Err(UsbDeviceError::BitmapMemoryManagerError(err)),
+                    };
+
+                let mut transfer_ring_buf = match RingBuffer::new(
+                    transfer_ring_buf_mem_info,
+                    RING_BUF_LEN,
+                    RingBufferType::TransferRing,
+                    true,
+                )
+                {
+                    Ok(ring_buf) => ring_buf,
+                    Err(err) => return Err(UsbDeviceError::RingBufferError(err)),
+                };
+
+                transfer_ring_buf.init();
+
                 let endpoint_desc = match desc
                 {
                     Descriptor::Endpoint(desc) => desc,
@@ -242,19 +240,19 @@ impl UsbDevice
 
                 let endpoint_addr = endpoint_desc.endpoint_addr();
                 let dci = endpoint_desc.dci();
-                let max_packet_size = endpoint_desc.max_packet_size();
 
                 let mut endpoint_context = EndpointContext::new();
                 endpoint_context.set_endpoint_type(EndpointType::new(
                     endpoint_addr,
                     endpoint_desc.bitmap_attrs(),
                 ));
-                endpoint_context.set_max_packet_size(max_packet_size);
-                endpoint_context.set_max_endpoint_service_interval_payload_low(max_packet_size);
+                endpoint_context.set_max_packet_size(self.max_packet_size);
+                endpoint_context
+                    .set_max_endpoint_service_interval_payload_low(self.max_packet_size);
                 endpoint_context.set_max_burst_size(0);
                 endpoint_context.set_dequeue_cycle_state(true);
                 endpoint_context.set_tr_dequeue_ptr(
-                    self.transfer_ring_bufs[dci].get_buf_base_virt_addr().get_phys_addr().get()
+                    transfer_ring_buf_mem_info.get_frame_start_virt_addr().get_phys_addr().get()
                         << 1,
                 );
                 endpoint_context.set_interval(endpoint_desc.interval());
@@ -263,22 +261,20 @@ impl UsbDevice
                 endpoint_context.set_error_cnt(3);
                 endpoint_context.set_average_trb_len(8);
 
-                println!("{:?}", endpoint_context);
+                input_context.device_context.endpoint_contexts[dci - 1] = endpoint_context;
+                input_ctrl_context.set_add_context_flag(dci, true).unwrap();
 
-                input_context.device_context.endpoint_contexts[dci] = endpoint_context;
-                input_context.input_ctrl_context.set_add_context_flag(dci, true).unwrap();
+                self.transfer_ring_bufs[dci] = Some(transfer_ring_buf);
             }
 
-            self.input_context_buf_mem_info
-                .get_frame_start_virt_addr()
-                .write_volatile(input_context);
+            input_context.input_ctrl_context = input_ctrl_context;
+
+            port.write_input_context(input_context);
 
             let mut config_endpoint_trb = TransferRequestBlock::new();
             config_endpoint_trb.set_trb_type(TransferRequestBlockType::ConfigureEndpointCommnad);
             config_endpoint_trb.set_ctrl_regs((self.slot_id as u16) << 8);
-            config_endpoint_trb.set_param(
-                self.input_context_buf_mem_info.get_frame_start_virt_addr().get_phys_addr().get(),
-            );
+            config_endpoint_trb.set_param(port.input_context_base_virt_addr.get_phys_addr().get());
 
             return match xhc_driver.push_cmd_ring(config_endpoint_trb)
             {
@@ -434,7 +430,9 @@ impl UsbDevice
         doorbell_value: u8,
     ) -> Result<(), UsbDeviceError>
     {
-        match self.transfer_ring_bufs[0].push(setup_stage_trb)
+        let dcp_transfer_ring = self.transfer_ring_bufs[1].as_mut().unwrap();
+
+        match dcp_transfer_ring.push(setup_stage_trb)
         {
             Ok(_) => (),
             Err(err) => return Err(UsbDeviceError::RingBufferError(err)),
@@ -442,7 +440,7 @@ impl UsbDevice
 
         if let Some(data_stage_trb) = data_stage_trb
         {
-            match self.transfer_ring_bufs[0].push(data_stage_trb)
+            match dcp_transfer_ring.push(data_stage_trb)
             {
                 Ok(_) => (),
                 Err(err) => return Err(UsbDeviceError::RingBufferError(err)),
@@ -451,7 +449,7 @@ impl UsbDevice
 
         if let Some(status_stage_trb) = status_stage_trb
         {
-            match self.transfer_ring_bufs[0].push(status_stage_trb)
+            match dcp_transfer_ring.push(status_stage_trb)
             {
                 Ok(_) => (),
                 Err(err) => return Err(UsbDeviceError::RingBufferError(err)),
