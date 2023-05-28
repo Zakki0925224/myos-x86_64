@@ -39,7 +39,7 @@ impl EndpointType
             (_, 0) => Self::ControlBidirectional,
             (1, 1) => Self::IsochIn,
             (1, 2) => Self::BulkIn,
-            _ => Self::InterruptOut,
+            _ => Self::InterruptIn,
         };
     }
 }

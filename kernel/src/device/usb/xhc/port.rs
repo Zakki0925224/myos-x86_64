@@ -1,7 +1,5 @@
 use crate::arch::addr::VirtualAddress;
 
-use super::context::input::InputContext;
-
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ConfigState
 {

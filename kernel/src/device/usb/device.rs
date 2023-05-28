@@ -2,11 +2,12 @@ use core::mem::size_of;
 
 use alloc::vec::Vec;
 
-use crate::{arch::addr::PhysicalAddress, mem::bitmap::*};
+use crate::{arch::addr::PhysicalAddress, mem::bitmap::*, println};
 
 use super::{descriptor::{config::ConfigurationDescriptor, device::DeviceDescriptor, hid::HumanInterfaceDeviceDescriptor, Descriptor, DescriptorHeader, DescriptorType}, setup_trb::*, xhc::{context::{endpoint::{EndpointContext, EndpointType}, input::InputContext}, ring_buffer::*, trb::*, XHC_DRIVER}};
 
-const RING_BUF_LEN: usize = 16;
+const RING_BUF_LEN: usize = 8;
+const DEFAULT_CONTROL_PIPE_ID: u8 = 1;
 
 #[derive(Debug)]
 pub enum UsbDeviceError
@@ -216,9 +217,11 @@ impl UsbDevice
             buf_mem_info.get_frame_start_virt_addr().get_phys_addr(),
             buf_size as u32,
             true,
+            DEFAULT_CONTROL_PIPE_ID,
         );
     }
 
+    // TODO: input ep1.1 context must not be 0
     pub fn configure_endpoint(&mut self) -> Result<(), UsbDeviceError>
     {
         if let Some(xhc_driver) = XHC_DRIVER.lock().as_mut()
@@ -239,13 +242,15 @@ impl UsbDevice
 
                 let endpoint_addr = endpoint_desc.endpoint_addr();
                 let dci = endpoint_desc.dci();
+                let max_packet_size = endpoint_desc.max_packet_size();
 
                 let mut endpoint_context = EndpointContext::new();
                 endpoint_context.set_endpoint_type(EndpointType::new(
                     endpoint_addr,
                     endpoint_desc.bitmap_attrs(),
                 ));
-                endpoint_context.set_max_packet_size(endpoint_desc.max_packet_size());
+                endpoint_context.set_max_packet_size(max_packet_size);
+                endpoint_context.set_max_endpoint_service_interval_payload_low(max_packet_size);
                 endpoint_context.set_max_burst_size(0);
                 endpoint_context.set_dequeue_cycle_state(true);
                 endpoint_context.set_tr_dequeue_ptr(
@@ -256,6 +261,9 @@ impl UsbDevice
                 endpoint_context.set_max_primary_streams(0);
                 endpoint_context.set_mult(0);
                 endpoint_context.set_error_cnt(3);
+                endpoint_context.set_average_trb_len(8);
+
+                println!("{:?}", endpoint_context);
 
                 input_context.device_context.endpoint_contexts[dci] = endpoint_context;
                 input_context.input_ctrl_context.set_add_context_flag(dci, true).unwrap();
@@ -286,10 +294,26 @@ impl UsbDevice
 
     pub fn request_to_use_boot_protocol(&mut self) -> Result<(), UsbDeviceError>
     {
+        let conf_descs = self.get_conf_descs();
+        let interface_desc =
+            match conf_descs.iter().find(|d| matches!(**d, Descriptor::Interface(_)))
+            {
+                Some(desc) => match desc
+                {
+                    Descriptor::Interface(desc) => desc,
+                    _ => unreachable!(),
+                },
+                None => return Err(UsbDeviceError::DescriptorWasNotFoundError),
+            };
+
         return self.ctrl_out(
             RequestType::Class,
             RequestTypeRecipient::Interface,
             SetupRequest::SET_PROTOCOL,
+            0,
+            interface_desc.interface_num() as u16,
+            0,
+            DEFAULT_CONTROL_PIPE_ID,
         );
     }
 
@@ -317,6 +341,7 @@ impl UsbDevice
             self.data_buf_mem_info.get_frame_start_virt_addr().get_phys_addr(),
             self.data_buf_mem_info.get_frame_size() as u32,
             false,
+            DEFAULT_CONTROL_PIPE_ID,
         );
     }
 
@@ -325,20 +350,12 @@ impl UsbDevice
         req_type: RequestType,
         req_type_recipient: RequestTypeRecipient,
         setup_req: SetupRequest,
+        setup_value: u16,
+        setup_index: u16,
+        setup_length: u16,
+        doorbell_target: u8,
     ) -> Result<(), UsbDeviceError>
     {
-        let conf_descs = self.get_conf_descs();
-        let interface_desc =
-            match conf_descs.iter().find(|d| matches!(**d, Descriptor::Interface(_)))
-            {
-                Some(desc) => match desc
-                {
-                    Descriptor::Interface(desc) => desc,
-                    _ => unreachable!(),
-                },
-                None => return Err(UsbDeviceError::DescriptorWasNotFoundError),
-            };
-
         let mut setup_stage_trb = TransferRequestBlock::new();
         setup_stage_trb.set_trb_type(TransferRequestBlockType::SetupStage);
 
@@ -349,14 +366,14 @@ impl UsbDevice
 
         setup_stage_trb.set_setup_request_type(setup_req_type);
         setup_stage_trb.set_setup_request(setup_req);
-        setup_stage_trb.set_setup_index(interface_desc.interface_num() as u16);
-        setup_stage_trb.set_setup_value(0);
-        setup_stage_trb.set_setup_value(0);
+        setup_stage_trb.set_setup_index(setup_index);
+        setup_stage_trb.set_setup_value(setup_value);
+        setup_stage_trb.set_setup_length(setup_length);
         setup_stage_trb.set_status(8); // TRB transfer length
         setup_stage_trb.set_ctrl_regs(0); // TRT bits
         setup_stage_trb.set_other_flags(3 << 4); // IOC and IDT bit
 
-        return self.send_to_dcp_transfer_ring(setup_stage_trb, None, None, 1);
+        return self.send_to_dcp_transfer_ring(setup_stage_trb, None, None, doorbell_target);
     }
 
     fn ctrl_in(
@@ -370,6 +387,7 @@ impl UsbDevice
         data_buf_phys_addr: PhysicalAddress,
         buf_size: u32,
         dir_bit: bool,
+        doorbell_target: u8,
     ) -> Result<(), UsbDeviceError>
     {
         let mut setup_stage_trb = TransferRequestBlock::new();
@@ -404,7 +422,7 @@ impl UsbDevice
             setup_stage_trb,
             Some(data_stage_trb),
             Some(status_stage_trb),
-            1,
+            doorbell_target as u8,
         );
     }
 

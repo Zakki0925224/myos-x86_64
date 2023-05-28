@@ -695,9 +695,9 @@ impl XhcDriver
                 }
 
                 info!(
-                    "xhc: TransferEvent: slot: {:?}, endpoint: {:?}",
-                    trb.slot_id(),
-                    trb.endpoint_id()
+                    "xhc: TransferEvent: slot: {}, endpoint: {}",
+                    trb.slot_id().unwrap(),
+                    trb.endpoint_id().unwrap()
                 );
             }
             _ => (),
