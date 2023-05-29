@@ -1,6 +1,7 @@
 use core::mem::size_of;
 
 use alloc::vec::Vec;
+use log::info;
 
 use crate::{arch::addr::PhysicalAddress, device::usb::xhc::context::input::InputControlContext, mem::bitmap::*, println};
 
@@ -17,6 +18,7 @@ pub enum UsbDeviceError
     XhcPortNotFoundError,
     XhcDriverWasNotInitializedError,
     DescriptorWasNotFoundError,
+    InvalidTransferRequestBlockTypeError,
 }
 
 #[derive(Debug)]
@@ -188,7 +190,6 @@ impl UsbDevice
             buf_size as u16,
             buf_mem_info.get_frame_start_virt_addr().get_phys_addr(),
             buf_size as u32,
-            true,
             DEFAULT_CONTROL_PIPE_ID,
         );
     }
@@ -197,7 +198,12 @@ impl UsbDevice
     {
         if let Some(xhc_driver) = XHC_DRIVER.lock().as_mut()
         {
-            let port = xhc_driver.find_port_by_slot_id(self.slot_id).unwrap();
+            let port = match xhc_driver.find_port_by_slot_id(self.slot_id)
+            {
+                Some(port) => port,
+                None => return Err(UsbDeviceError::XhcPortNotFoundError),
+            };
+
             println!(
                 "input context: 0x{:x}, output context: 0x{:x}",
                 port.input_context_base_virt_addr.get(),
@@ -288,6 +294,31 @@ impl UsbDevice
         }
     }
 
+    pub fn request_to_set_interface(&mut self) -> Result<(), UsbDeviceError>
+    {
+        let conf_descs = self.get_conf_descs();
+        let interface_desc =
+            match conf_descs.iter().find(|d| matches!(**d, Descriptor::Interface(_)))
+            {
+                Some(desc) => match desc
+                {
+                    Descriptor::Interface(desc) => desc,
+                    _ => unreachable!(),
+                },
+                None => return Err(UsbDeviceError::DescriptorWasNotFoundError),
+            };
+
+        return self.ctrl_out(
+            RequestType::Standard,
+            RequestTypeRecipient::Interface,
+            SetupRequest::SetInterface,
+            interface_desc.alternate_setting() as u16,
+            interface_desc.interface_num() as u16,
+            0,
+            DEFAULT_CONTROL_PIPE_ID,
+        );
+    }
+
     pub fn request_to_use_boot_protocol(&mut self) -> Result<(), UsbDeviceError>
     {
         let conf_descs = self.get_conf_descs();
@@ -306,7 +337,7 @@ impl UsbDevice
             RequestType::Class,
             RequestTypeRecipient::Interface,
             SetupRequest::SET_PROTOCOL,
-            0,
+            0, // boot protocol
             interface_desc.interface_num() as u16,
             0,
             DEFAULT_CONTROL_PIPE_ID,
@@ -336,7 +367,6 @@ impl UsbDevice
             8,
             self.data_buf_mem_info.get_frame_start_virt_addr().get_phys_addr(),
             self.data_buf_mem_info.get_frame_size() as u32,
-            false,
             DEFAULT_CONTROL_PIPE_ID,
         );
     }
@@ -369,7 +399,20 @@ impl UsbDevice
         setup_stage_trb.set_ctrl_regs(0); // TRT bits
         setup_stage_trb.set_other_flags(3 << 4); // IOC and IDT bit
 
-        return self.send_to_dcp_transfer_ring(setup_stage_trb, None, None, doorbell_target);
+        let mut data_stage_trb = TransferRequestBlock::new();
+        data_stage_trb.set_trb_type(TransferRequestBlockType::DataStage);
+        data_stage_trb.set_ctrl_regs(0); // DIR bit
+
+        let mut status_stage_trb = TransferRequestBlock::new();
+        status_stage_trb.set_trb_type(TransferRequestBlockType::StatusStage);
+        status_stage_trb.set_ctrl_regs(1); // DIR bit
+
+        return self.send_to_dcp_transfer_ring(
+            setup_stage_trb,
+            data_stage_trb,
+            status_stage_trb,
+            doorbell_target,
+        );
     }
 
     fn ctrl_in(
@@ -382,7 +425,6 @@ impl UsbDevice
         setup_length: u16,
         data_buf_phys_addr: PhysicalAddress,
         buf_size: u32,
-        dir_bit: bool,
         doorbell_target: u8,
     ) -> Result<(), UsbDeviceError>
     {
@@ -408,16 +450,17 @@ impl UsbDevice
         data_stage_trb.set_param(data_buf_phys_addr.get());
         data_stage_trb.set_status(buf_size);
         data_stage_trb.set_other_flags(1 << 4); // IOC bit
-        data_stage_trb.set_ctrl_regs(if dir_bit { 1 } else { 0 }); // DIR bit
+        data_stage_trb.set_ctrl_regs(1); // DIR bit
 
         let mut status_stage_trb = TransferRequestBlock::new();
         status_stage_trb.set_trb_type(TransferRequestBlockType::StatusStage);
         status_stage_trb.set_other_flags(1 << 4); // IOC bit
+        status_stage_trb.set_ctrl_regs(0); // DIR bit
 
         return self.send_to_dcp_transfer_ring(
             setup_stage_trb,
-            Some(data_stage_trb),
-            Some(status_stage_trb),
+            data_stage_trb,
+            status_stage_trb,
             doorbell_target as u8,
         );
     }
@@ -425,11 +468,18 @@ impl UsbDevice
     fn send_to_dcp_transfer_ring(
         &mut self,
         setup_stage_trb: TransferRequestBlock,
-        data_stage_trb: Option<TransferRequestBlock>,
-        status_stage_trb: Option<TransferRequestBlock>,
+        data_stage_trb: TransferRequestBlock,
+        status_stage_trb: TransferRequestBlock,
         doorbell_value: u8,
     ) -> Result<(), UsbDeviceError>
     {
+        if setup_stage_trb.trb_type() != TransferRequestBlockType::SetupStage
+            || data_stage_trb.trb_type() != TransferRequestBlockType::DataStage
+            || status_stage_trb.trb_type() != TransferRequestBlockType::StatusStage
+        {
+            return Err(UsbDeviceError::InvalidTransferRequestBlockTypeError);
+        }
+
         let dcp_transfer_ring = self.transfer_ring_bufs[1].as_mut().unwrap();
 
         match dcp_transfer_ring.push(setup_stage_trb)
@@ -438,22 +488,16 @@ impl UsbDevice
             Err(err) => return Err(UsbDeviceError::RingBufferError(err)),
         }
 
-        if let Some(data_stage_trb) = data_stage_trb
+        match dcp_transfer_ring.push(data_stage_trb)
         {
-            match dcp_transfer_ring.push(data_stage_trb)
-            {
-                Ok(_) => (),
-                Err(err) => return Err(UsbDeviceError::RingBufferError(err)),
-            }
+            Ok(_) => (),
+            Err(err) => return Err(UsbDeviceError::RingBufferError(err)),
         }
 
-        if let Some(status_stage_trb) = status_stage_trb
+        match dcp_transfer_ring.push(status_stage_trb)
         {
-            match dcp_transfer_ring.push(status_stage_trb)
-            {
-                Ok(_) => (),
-                Err(err) => return Err(UsbDeviceError::RingBufferError(err)),
-            }
+            Ok(_) => (),
+            Err(err) => return Err(UsbDeviceError::RingBufferError(err)),
         }
 
         match XHC_DRIVER.lock().as_ref()

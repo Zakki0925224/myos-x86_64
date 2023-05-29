@@ -73,6 +73,7 @@ impl RingBuffer
             if i == self.buf_len - 1
             {
                 trb.set_trb_type(TransferRequestBlockType::Link);
+                trb.set_param(self.buf_base_virt_addr.get_phys_addr().get());
             }
 
             self.write(i, trb).unwrap();

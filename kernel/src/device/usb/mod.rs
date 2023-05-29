@@ -3,7 +3,7 @@ use lazy_static::lazy_static;
 use log::info;
 use spin::Mutex;
 
-use crate::{arch::asm, println};
+use crate::arch::asm;
 
 use self::{descriptor::DescriptorType, device::*, xhc::*};
 
@@ -137,24 +137,34 @@ impl UsbDriver
                     Err(err) => return Err(UsbDriverError::UsbDeviceError(slot_id, err)),
                 }
                 asm::sti();
+
+                asm::cli();
+                match device.request_to_set_interface()
+                {
+                    Ok(_) => (),
+                    Err(err) => return Err(UsbDriverError::UsbDeviceError(slot_id, err)),
+                }
+                asm::sti();
                 info!("usb: Configured endpoint");
+
+                // fill ring?
             }
 
-            // asm::cli();
-            // match device.request_to_use_boot_protocol()
-            // {
-            //     Ok(_) => (),
-            //     Err(err) => return Err(UsbDriverError::UsbDeviceError(slot_id, err)),
-            // }
-            // asm::sti();
+            asm::cli();
+            match device.request_to_use_boot_protocol()
+            {
+                Ok(_) => (),
+                Err(err) => return Err(UsbDriverError::UsbDeviceError(slot_id, err)),
+            }
+            asm::sti();
 
-            // asm::cli();
-            // match device.configure_to_get_data_by_default_ctrl_pipe()
-            // {
-            //     Ok(_) => (),
-            //     Err(err) => return Err(UsbDriverError::UsbDeviceError(slot_id, err)),
-            // }
-            // asm::sti();
+            asm::cli();
+            match device.configure_to_get_data_by_default_ctrl_pipe()
+            {
+                Ok(_) => (),
+                Err(err) => return Err(UsbDriverError::UsbDeviceError(slot_id, err)),
+            }
+            asm::sti();
         }
 
         return Ok(());
