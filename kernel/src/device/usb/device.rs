@@ -401,6 +401,7 @@ impl UsbDevice
 
         let mut data_stage_trb = TransferRequestBlock::new();
         data_stage_trb.set_trb_type(TransferRequestBlockType::DataStage);
+        data_stage_trb.set_other_flags(1 << 4); // IOC bit
         data_stage_trb.set_ctrl_regs(0); // DIR bit
 
         let mut status_stage_trb = TransferRequestBlock::new();
