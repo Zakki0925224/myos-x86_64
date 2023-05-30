@@ -180,4 +180,9 @@ impl UsbDriver
             None => false,
         };
     }
+
+    pub fn find_device_by_slot_id(&mut self, slot_id: usize) -> Option<&mut UsbDevice>
+    {
+        return self.devices.iter_mut().find(|d| d.slot_id() == slot_id);
+    }
 }

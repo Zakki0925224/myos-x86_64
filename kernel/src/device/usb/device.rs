@@ -2,7 +2,7 @@ use core::mem::size_of;
 
 use alloc::vec::Vec;
 
-use crate::{arch::addr::PhysicalAddress, device::usb::xhc::context::input::InputControlContext, mem::bitmap::*};
+use crate::{arch::addr::{PhysicalAddress, VirtualAddress}, device::usb::xhc::context::input::InputControlContext, mem::bitmap::*, println};
 
 use super::{descriptor::{config::ConfigurationDescriptor, device::DeviceDescriptor, hid::HumanInterfaceDeviceDescriptor, Descriptor, DescriptorHeader, DescriptorType}, setup_trb::*, xhc::{context::endpoint::*, register::PortSpeedIdValue, ring_buffer::*, trb::*, XHC_DRIVER}};
 
@@ -18,6 +18,7 @@ pub enum UsbDeviceError
     XhcDriverWasNotInitializedError,
     DescriptorWasNotFoundError,
     InvalidTransferRequestBlockTypeError,
+    InvalidEndpointId(usize),
 }
 
 #[derive(Debug)]
@@ -31,6 +32,8 @@ pub struct UsbDevice
 
     max_packet_size: u16,
     port_speed: PortSpeedIdValue,
+
+    configured_endpoint_dci: Vec<(usize, VirtualAddress)>,
 }
 
 impl UsbDevice
@@ -84,6 +87,7 @@ impl UsbDevice
             conf_desc_buf_mem_info,
             max_packet_size,
             port_speed,
+            configured_endpoint_dci: Vec::new(),
         };
 
         return Ok(dev);
@@ -270,6 +274,8 @@ impl UsbDevice
                 input_ctrl_context.set_add_context_flag(dci, true).unwrap();
 
                 self.transfer_ring_bufs[dci] = Some(transfer_ring_buf);
+                self.configured_endpoint_dci
+                    .push((dci, transfer_ring_buf_mem_info.get_frame_start_virt_addr()));
             }
 
             input_context.input_ctrl_context = input_ctrl_context;
@@ -370,6 +376,29 @@ impl UsbDevice
         );
     }
 
+    pub fn get_dequeue_ptr_of_endpoint_trnasfer_ring_buf(
+        &self,
+        endpoint_id: usize,
+    ) -> Result<u64, UsbDeviceError>
+    {
+        if let Some((_, buf_base_virt_addr)) =
+            self.configured_endpoint_dci.iter().find(|(id, _)| *id == endpoint_id)
+        {
+            return Ok(buf_base_virt_addr.get_phys_addr().get());
+        }
+
+        return Err(UsbDeviceError::InvalidEndpointId(endpoint_id));
+    }
+
+    pub fn debug(&mut self, endpoint_id: usize)
+    {
+        let mut trb = TransferRequestBlock::new();
+        //trb.set_trb_type(TransferRequestBlockType::NoOp);
+        trb.set_other_flags(1 << 4); // IOC bit
+        self.transfer_ring_bufs[endpoint_id].as_mut().unwrap().push(trb).unwrap();
+        self.transfer_ring_bufs[endpoint_id].as_mut().unwrap().debug();
+    }
+
     fn ctrl_out(
         &mut self,
         req_type: RequestType,
@@ -454,7 +483,6 @@ impl UsbDevice
 
         let mut status_stage_trb = TransferRequestBlock::new();
         status_stage_trb.set_trb_type(TransferRequestBlockType::StatusStage);
-        status_stage_trb.set_other_flags(1 << 4); // IOC bit
         status_stage_trb.set_ctrl_regs(0); // DIR bit
 
         return self.send_to_dcp_transfer_ring(

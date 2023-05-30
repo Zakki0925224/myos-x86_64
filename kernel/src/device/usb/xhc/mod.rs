@@ -5,7 +5,7 @@ use lazy_static::lazy_static;
 use log::{info, warn};
 use spin::Mutex;
 
-use crate::{arch::{addr::*, apic::local::read_local_apic_id, idt::VEC_XHCI_INT, register::msi::*}, bus::pci::{conf_space::BaseAddress, device_id::PCI_USB_XHCI_ID, PCI_DEVICE_MAN}, device::usb::xhc::{port::ConfigState, register::*}, mem::bitmap::*};
+use crate::{arch::{addr::*, apic::local::read_local_apic_id, idt::VEC_XHCI_INT, register::msi::*}, bus::pci::{conf_space::BaseAddress, device_id::PCI_USB_XHCI_ID, PCI_DEVICE_MAN}, device::usb::{xhc::{port::ConfigState, register::*}, USB_DRIVER}, mem::bitmap::*, println};
 
 use self::{context::{device::DeviceContext, endpoint::*, input::InputContext, slot::SlotContext}, port::Port, ring_buffer::*, trb::*};
 
@@ -694,11 +694,42 @@ impl XhcDriver
                     return;
                 }
 
-                info!(
-                    "xhc: TransferEvent: slot: {}, endpoint: {}",
-                    trb.slot_id().unwrap(),
-                    trb.endpoint_id().unwrap()
-                );
+                let slot_id = trb.slot_id().unwrap();
+                let endpoint_id = trb.endpoint_id().unwrap();
+
+                let port = match self.find_port_by_slot_id(slot_id)
+                {
+                    Some(port) => port,
+                    None => return,
+                };
+
+                if USB_DRIVER.is_locked()
+                {
+                    return;
+                }
+
+                if let Some(device) = USB_DRIVER.lock().find_device_by_slot_id(slot_id)
+                {
+                    // let dequeue_ptr = match device
+                    //     .get_dequeue_ptr_of_endpoint_trnasfer_ring_buf(endpoint_id)
+                    // {
+                    //     Ok(ptr) => ptr,
+                    //     Err(err) =>
+                    //     {
+                    //         warn!("xhc: {:?}", err);
+                    //         return;
+                    //     }
+                    // };
+
+                    // let mut input_context = port.read_input_context();
+                    // input_context.device_context.endpoint_contexts[endpoint_id]
+                    //     .set_tr_dequeue_ptr(dequeue_ptr);
+
+                    // port.write_input_context(input_context);
+
+                    device.debug(endpoint_id);
+                    self.ring_doorbell(slot_id, endpoint_id as u8);
+                };
             }
             _ => (),
         }
