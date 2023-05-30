@@ -19,7 +19,11 @@ lazy_static! {
 #[derive(Debug)]
 pub enum UsbDriverError
 {
-    UsbDeviceError(usize, UsbDeviceError), // slot id
+    UsbDeviceError
+    {
+        slot_id: usize,
+        error: UsbDeviceError,
+    },
     XhcDriverError(XhcDriverError),
 }
 
@@ -113,7 +117,7 @@ impl UsbDriver
             match device.init()
             {
                 Ok(_) => (),
-                Err(err) => return Err(UsbDriverError::UsbDeviceError(slot_id, err)),
+                Err(error) => return Err(UsbDriverError::UsbDeviceError { slot_id, error }),
             }
             asm::sti();
 
@@ -126,35 +130,33 @@ impl UsbDriver
                 match device.request_to_get_desc(DescriptorType::Configration, i)
                 {
                     Ok(_) => (),
-                    Err(err) => return Err(UsbDriverError::UsbDeviceError(slot_id, err)),
+                    Err(error) => return Err(UsbDriverError::UsbDeviceError { slot_id, error }),
                 }
                 asm::sti();
-
-                asm::cli();
-                match device.configure_endpoint()
-                {
-                    Ok(_) => (),
-                    Err(err) => return Err(UsbDriverError::UsbDeviceError(slot_id, err)),
-                }
-                asm::sti();
-
-                asm::cli();
-                match device.request_to_set_interface()
-                {
-                    Ok(_) => (),
-                    Err(err) => return Err(UsbDriverError::UsbDeviceError(slot_id, err)),
-                }
-                asm::sti();
-                info!("usb: Configured endpoint");
-
-                // fill ring?
             }
+
+            asm::cli();
+            match device.configure_endpoint()
+            {
+                Ok(_) => (),
+                Err(error) => return Err(UsbDriverError::UsbDeviceError { slot_id, error }),
+            }
+            asm::sti();
+
+            asm::cli();
+            match device.request_to_set_interface()
+            {
+                Ok(_) => (),
+                Err(error) => return Err(UsbDriverError::UsbDeviceError { slot_id, error }),
+            }
+            asm::sti();
+            info!("usb: Configured endpoint");
 
             asm::cli();
             match device.request_to_use_boot_protocol()
             {
                 Ok(_) => (),
-                Err(err) => return Err(UsbDriverError::UsbDeviceError(slot_id, err)),
+                Err(error) => return Err(UsbDriverError::UsbDeviceError { slot_id, error }),
             }
             asm::sti();
 
@@ -162,7 +164,7 @@ impl UsbDriver
             match device.configure_to_get_data_by_default_ctrl_pipe()
             {
                 Ok(_) => (),
-                Err(err) => return Err(UsbDriverError::UsbDeviceError(slot_id, err)),
+                Err(error) => return Err(UsbDriverError::UsbDeviceError { slot_id, error }),
             }
             asm::sti();
         }

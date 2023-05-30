@@ -1,9 +1,8 @@
 use core::mem::size_of;
 
 use alloc::vec::Vec;
-use log::info;
 
-use crate::{arch::addr::PhysicalAddress, device::usb::xhc::context::input::InputControlContext, mem::bitmap::*, println};
+use crate::{arch::addr::PhysicalAddress, device::usb::xhc::context::input::InputControlContext, mem::bitmap::*};
 
 use super::{descriptor::{config::ConfigurationDescriptor, device::DeviceDescriptor, hid::HumanInterfaceDeviceDescriptor, Descriptor, DescriptorHeader, DescriptorType}, setup_trb::*, xhc::{context::endpoint::*, register::PortSpeedIdValue, ring_buffer::*, trb::*, XHC_DRIVER}};
 
@@ -204,11 +203,6 @@ impl UsbDevice
                 None => return Err(UsbDeviceError::XhcPortNotFoundError),
             };
 
-            println!(
-                "input context: 0x{:x}, output context: 0x{:x}",
-                port.input_context_base_virt_addr.get(),
-                port.output_context_base_virt_addr.get()
-            );
             let device_context = xhc_driver.read_device_context(self.slot_id).unwrap();
             let mut input_context = port.read_input_context();
             input_context.device_context.slot_context = device_context.slot_context;
@@ -237,6 +231,11 @@ impl UsbDevice
                 };
 
                 transfer_ring_buf.init();
+                match transfer_ring_buf.fill()
+                {
+                    Ok(_) => (),
+                    Err(err) => return Err(UsbDeviceError::RingBufferError(err)),
+                }
 
                 let endpoint_desc = match desc
                 {
@@ -259,7 +258,7 @@ impl UsbDevice
                 endpoint_context.set_dequeue_cycle_state(true);
                 endpoint_context.set_tr_dequeue_ptr(
                     transfer_ring_buf_mem_info.get_frame_start_virt_addr().get_phys_addr().get()
-                        << 1,
+                        >> 1,
                 );
                 endpoint_context.set_interval(endpoint_desc.interval());
                 endpoint_context.set_max_primary_streams(0);

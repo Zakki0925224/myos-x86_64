@@ -867,17 +867,6 @@ impl XhcDriver
         return Ok(());
     }
 
-    fn read_doorbell_reg(&self, index: usize) -> Option<DoorbellRegister>
-    {
-        if index > DOORBELL_REG_MAX_LEN
-        {
-            return None;
-        }
-
-        let base_addr = self.doorbell_reg_virt_addr.offset(index * size_of::<DoorbellRegister>());
-        return Some(DoorbellRegister::read(base_addr));
-    }
-
     fn write_doorbell_reg(
         &self,
         index: usize,

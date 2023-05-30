@@ -1,4 +1,4 @@
-use crate::{arch::addr::*, mem::bitmap::MemoryFrameInfo, println};
+use crate::{arch::addr::*, mem::bitmap::MemoryFrameInfo};
 use core::mem::size_of;
 
 use super::{register::*, trb::*};
@@ -68,7 +68,6 @@ impl RingBuffer
         for i in 0..self.buf_len
         {
             let mut trb = TransferRequestBlock::new();
-            trb.set_cycle_bit(!self.cycle_state);
 
             if i == self.buf_len - 1
             {
@@ -84,25 +83,32 @@ impl RingBuffer
 
     pub fn get_buf_len(&self) -> usize { return self.buf_len; }
 
-    pub fn get_empty_buf_len(&self) -> usize
+    pub fn fill(&mut self) -> Result<(), RingBufferError>
     {
-        let mut cnt = 0;
-
-        for i in 0..self.buf_len
+        if !self.is_init
         {
-            let trb = match self.read(i)
-            {
-                Some(trb) => trb,
-                None => break,
-            };
+            return Err(RingBufferError::NotInitialized);
+        }
 
-            if trb.cycle_bit() != self.cycle_state
+        for i in 0..self.buf_len - 1
+        {
+            let mut trb = self.read(i).unwrap();
+            trb.set_cycle_bit(self.cycle_state);
+
+            if i == 0
             {
-                cnt += 1;
+                trb.set_trb_type(TransferRequestBlockType::NoOp);
+                trb.set_other_flags(1 << 4); // IOC bit
+            }
+
+            match self.write(i, trb)
+            {
+                Ok(_) => (),
+                Err(err) => return Err(err),
             }
         }
 
-        return cnt - 1;
+        return Ok(());
     }
 
     pub fn push(&mut self, trb: TransferRequestBlock) -> Result<(), RingBufferError>
@@ -216,15 +222,6 @@ impl RingBuffer
         int_reg_set.set_event_handler_busy(false);
 
         return Ok((trb, int_reg_set));
-    }
-
-    pub fn debug(&self)
-    {
-        for i in 0..self.buf_len
-        {
-            let trb = self.read(i);
-            println!("{}: {:?}", i, trb);
-        }
     }
 
     pub fn read(&self, index: usize) -> Option<TransferRequestBlock>
