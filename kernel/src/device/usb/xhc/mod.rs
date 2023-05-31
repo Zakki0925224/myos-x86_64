@@ -731,6 +731,18 @@ impl XhcDriver
                     self.ring_doorbell(slot_id, endpoint_id as u8);
                 };
             }
+            TransferRequestBlockType::HostControllerEvent =>
+            {
+                let comp_code = trb.completion_code().unwrap();
+                if comp_code != CompletionCode::Success
+                {
+                    warn!(
+                        "xhc: Might have been failed to process command (completion code: {:?})",
+                        comp_code
+                    );
+                    return;
+                }
+            }
             _ => (),
         }
     }

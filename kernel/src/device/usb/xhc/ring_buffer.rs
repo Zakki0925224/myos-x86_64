@@ -99,7 +99,7 @@ impl RingBuffer
         {
             let mut trb = TransferRequestBlock::new();
 
-            trb.set_trb_type(TransferRequestBlockType::NoOp);
+            trb.set_trb_type(TransferRequestBlockType::Normal);
             trb.set_other_flags(1 << 4); // IOC bit
 
             match self.push(trb)

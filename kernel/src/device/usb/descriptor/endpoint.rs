@@ -3,7 +3,7 @@ use modular_bitfield::{bitfield, specifiers::*};
 use super::DescriptorHeader;
 
 #[bitfield]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct EndpointDescriptor
 {

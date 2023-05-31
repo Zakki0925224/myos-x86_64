@@ -20,7 +20,7 @@ pub enum Descriptor
     Unsupported(DescriptorType),
 }
 
-#[derive(BitfieldSpecifier, Debug, Clone)]
+#[derive(BitfieldSpecifier, Debug, Clone, Copy)]
 #[bits = 8]
 pub enum DescriptorType
 {
