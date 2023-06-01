@@ -1,9 +1,9 @@
 use alloc::vec::Vec;
 use lazy_static::lazy_static;
-use log::{info, warn};
+use log::warn;
 use spin::Mutex;
 
-use crate::{arch::asm, println};
+use crate::arch::asm;
 
 use self::{descriptor::{Descriptor, DescriptorType}, device::*, xhc::*};
 
@@ -139,7 +139,6 @@ impl UsbDriver
 
                 for interface_desc in device.get_interface_descs()
                 {
-                    // TODO
                     if interface_desc.class() == 3
                         && interface_desc.sub_class() == 1
                         && interface_desc.protocol() == 1
@@ -169,17 +168,17 @@ impl UsbDriver
 
             if !set_interface
             {
-                warn!("Unsupported device (slot id: {})", slot_id);
+                warn!("Unsupported device, skip configuring... (slot id: {})", slot_id);
                 continue;
             }
 
-            // asm::cli();
-            // match device.configure_endpoint()
-            // {
-            //     Ok(_) => (),
-            //     Err(error) => return Err(UsbDriverError::UsbDeviceError { slot_id, error }),
-            // }
-            // asm::sti();
+            asm::cli();
+            match device.configure_endpoint()
+            {
+                Ok(_) => (),
+                Err(error) => return Err(UsbDriverError::UsbDeviceError { slot_id, error }),
+            }
+            asm::sti();
 
             // asm::cli();
             // match device.request_to_set_interface()
@@ -188,23 +187,22 @@ impl UsbDriver
             //     Err(error) => return Err(UsbDriverError::UsbDeviceError { slot_id, error }),
             // }
             // asm::sti();
-            // info!("usb: Configured endpoint");
 
-            // asm::cli();
-            // match device.request_to_use_boot_protocol()
-            // {
-            //     Ok(_) => (),
-            //     Err(error) => return Err(UsbDriverError::UsbDeviceError { slot_id, error }),
-            // }
-            // asm::sti();
+            asm::cli();
+            match device.request_to_use_boot_protocol()
+            {
+                Ok(_) => (),
+                Err(error) => return Err(UsbDriverError::UsbDeviceError { slot_id, error }),
+            }
+            asm::sti();
 
-            // asm::cli();
-            // match device.configure_to_get_data_by_default_ctrl_pipe()
-            // {
-            //     Ok(_) => (),
-            //     Err(error) => return Err(UsbDriverError::UsbDeviceError { slot_id, error }),
-            // }
-            // asm::sti();
+            asm::cli();
+            match device.configure_to_get_data_by_default_ctrl_pipe()
+            {
+                Ok(_) => (),
+                Err(error) => return Err(UsbDriverError::UsbDeviceError { slot_id, error }),
+            }
+            asm::sti();
         }
 
         return Ok(());

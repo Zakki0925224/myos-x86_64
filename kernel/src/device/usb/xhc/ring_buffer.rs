@@ -7,7 +7,11 @@ use super::{register::*, trb::*};
 pub enum RingBufferError
 {
     NotInitialized,
-    InvalidMemoryFrameInfoError(MemoryFrameInfo),
+    InvalidMemoryError
+    {
+        mem_frame_info: MemoryFrameInfo,
+        buf_len: usize,
+    },
     UnsupportedRingBufferTypeError(RingBufferType),
     InvalidRingBufferIndexError(usize),
     UnsupportedEventRingSegmentTableLengthError,
@@ -46,7 +50,10 @@ impl RingBuffer
             || (buf_base_mem_info.get_frame_size() / size_of::<TransferRequestBlock>()) < buf_len
             || buf_len < 2
         {
-            return Err(RingBufferError::InvalidMemoryFrameInfoError(buf_base_mem_info));
+            return Err(RingBufferError::InvalidMemoryError {
+                mem_frame_info: buf_base_mem_info,
+                buf_len,
+            });
         }
 
         return Ok(Self {
@@ -68,25 +75,17 @@ impl RingBuffer
             return;
         }
 
-        for i in 0..self.buf_len
-        {
-            let mut trb = TransferRequestBlock::new();
+        // set Link TRB
+        let mut trb = TransferRequestBlock::new();
+        trb.set_trb_type(TransferRequestBlockType::Link);
+        trb.set_param(self.buf_base_virt_addr.get_phys_addr().get());
 
-            if i == self.buf_len - 1
-            {
-                trb.set_trb_type(TransferRequestBlockType::Link);
-                trb.set_param(self.buf_base_virt_addr.get_phys_addr().get());
-            }
-
-            self.write(i, trb).unwrap();
-        }
+        self.write(self.buf_len - 1, trb).unwrap();
     }
 
     pub fn is_init(&self) -> bool { return self.is_init; }
 
     pub fn get_buf_len(&self) -> usize { return self.buf_len; }
-
-    pub fn get_buf_base_virt_addr(&self) -> VirtualAddress { return self.buf_base_virt_addr; }
 
     pub fn fill(&mut self) -> Result<(), RingBufferError>
     {
@@ -95,19 +94,29 @@ impl RingBuffer
             return Err(RingBufferError::NotInitialized);
         }
 
-        for i in 0..self.buf_len - 4
+        for i in 0..self.buf_len - 1
         {
             let mut trb = TransferRequestBlock::new();
 
             trb.set_trb_type(TransferRequestBlockType::Normal);
-            trb.set_other_flags(1 << 4); // IOC bit
+            trb.set_param(
+                self.buf_base_virt_addr.get_phys_addr().get()
+                    - (size_of::<TransferRequestBlock>() * i) as u64,
+            );
+            trb.set_cycle_bit(self.cycle_state);
+            trb.set_status(8); // TRB Transfer Lenght
+            trb.set_other_flags(0x112); // BEI, IOC, ISP bit
 
-            match self.push(trb)
+            match self.write(i, trb)
             {
                 Ok(_) => (),
                 Err(err) => return Err(err),
             }
+
+            self.current_index += 1;
         }
+
+        self.debug();
 
         return Ok(());
     }
@@ -156,17 +165,6 @@ impl RingBuffer
             return Err(RingBufferError::UnsupportedRingBufferTypeError(self.buf_type));
         }
 
-        let mut trb = trb;
-        trb.set_cycle_bit(self.cycle_state);
-
-        match self.write(self.current_index, trb)
-        {
-            Err(err) => return Err(err),
-            _ => (),
-        }
-
-        self.current_index += 1;
-
         if self.current_index == self.buf_len - 1
         {
             match self.toggle_cycle()
@@ -177,6 +175,17 @@ impl RingBuffer
 
             self.current_index = 0;
         }
+
+        let mut trb = trb;
+        trb.set_cycle_bit(self.cycle_state);
+
+        match self.write(self.current_index, trb)
+        {
+            Err(err) => return Err(err),
+            _ => (),
+        }
+
+        self.current_index += 1;
 
         return Ok(());
     }

@@ -2,7 +2,7 @@ use core::mem::size_of;
 
 use alloc::vec::Vec;
 
-use crate::{arch::addr::{PhysicalAddress, VirtualAddress}, device::usb::xhc::context::input::InputControlContext, mem::bitmap::*, println};
+use crate::{arch::addr::{PhysicalAddress, VirtualAddress}, device::usb::xhc::context::input::InputControlContext, mem::bitmap::*};
 
 use super::{descriptor::{config::ConfigurationDescriptor, device::DeviceDescriptor, endpoint::EndpointDescriptor, hid::HumanInterfaceDeviceDescriptor, interface::InterfaceDescriptor, Descriptor, DescriptorHeader, DescriptorType}, setup_trb::*, xhc::{context::endpoint::*, register::PortSpeedIdValue, ring_buffer::*, trb::*, XHC_DRIVER}};
 
@@ -18,7 +18,6 @@ pub enum UsbDeviceError
     XhcDriverWasNotInitializedError,
     InterfaceDescriptorWasNotFoundError(usize),
     InvalidTransferRequestBlockTypeError,
-    InvalidEndpointId(usize),
 }
 
 #[derive(Debug)]
@@ -286,17 +285,16 @@ impl UsbDevice
                 None => return Err(UsbDeviceError::XhcPortNotFoundError),
             };
 
+            let mut transfer_ring_bufs = self.transfer_ring_bufs;
+            let mut configured_endpoint_dci = self.configured_endpoint_dci.clone();
+
             let device_context = xhc_driver.read_device_context(self.slot_id).unwrap();
             let mut input_context = port.read_input_context();
             input_context.device_context.slot_context = device_context.slot_context;
             let mut input_ctrl_context = InputControlContext::new();
             input_ctrl_context.set_add_context_flag(0, true).unwrap();
 
-            let endpoint_descs: Vec<EndpointDescriptor> =
-                self.get_endpoint_descs().iter().map(|d| *d.clone()).collect();
-
-            // TODO: panic
-            for endpoint_desc in endpoint_descs
+            for endpoint_desc in self.get_endpoint_descs()
             {
                 let transfer_ring_buf_mem_info =
                     match BITMAP_MEM_MAN.lock().alloc_single_mem_frame()
@@ -344,19 +342,21 @@ impl UsbDevice
                 endpoint_context.set_max_primary_streams(0);
                 endpoint_context.set_mult(0);
                 endpoint_context.set_error_cnt(3);
-                endpoint_context.set_average_trb_len(8);
+                endpoint_context.set_average_trb_len(1);
 
                 input_context.device_context.endpoint_contexts[dci - 1] = endpoint_context;
                 input_ctrl_context.set_add_context_flag(dci, true).unwrap();
 
-                self.transfer_ring_bufs[dci] = Some(transfer_ring_buf);
-                self.configured_endpoint_dci
+                transfer_ring_bufs[dci] = Some(transfer_ring_buf);
+                configured_endpoint_dci
                     .push((dci, transfer_ring_buf_mem_info.get_frame_start_virt_addr()));
             }
 
             input_context.input_ctrl_context = input_ctrl_context;
-
             port.write_input_context(input_context);
+
+            self.transfer_ring_bufs = transfer_ring_bufs;
+            self.configured_endpoint_dci = configured_endpoint_dci;
 
             let mut config_endpoint_trb = TransferRequestBlock::new();
             config_endpoint_trb.set_trb_type(TransferRequestBlockType::ConfigureEndpointCommnad);
@@ -448,11 +448,19 @@ impl UsbDevice
 
     pub fn debug(&mut self, endpoint_id: usize)
     {
-        // let mut trb = TransferRequestBlock::new();
-        // trb.set_trb_type(TransferRequestBlockType::Normal);
-        // trb.set_other_flags(1 << 4); // IOC bit
-        // self.transfer_ring_bufs[endpoint_id].as_mut().unwrap().push(trb).unwrap();
-        self.transfer_ring_bufs[endpoint_id].as_mut().unwrap().debug();
+        // update cycle state
+
+        if let Some(ring_buf) = self.transfer_ring_bufs[endpoint_id].as_mut()
+        {
+            let mut trb = TransferRequestBlock::new();
+
+            trb.set_trb_type(TransferRequestBlockType::Normal);
+            trb.set_status(8); // TRB Transfer Lenght
+            trb.set_other_flags(0x112); // BEI, IOC, ISP bit
+            ring_buf.push(trb).unwrap();
+
+            ring_buf.debug();
+        }
     }
 
     fn ctrl_out(
