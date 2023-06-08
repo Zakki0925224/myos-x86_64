@@ -24,6 +24,7 @@ pub enum MemoryType
 }
 
 bitflags! {
+    #[derive(Debug, Clone, Copy)]
     pub struct MemoryAttribute: u64
     {
         const UNCACHEABLE = 0x1;

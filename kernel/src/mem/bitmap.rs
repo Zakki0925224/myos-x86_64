@@ -5,7 +5,7 @@ use lazy_static::lazy_static;
 use log::info;
 use spin::Mutex;
 
-use crate::arch::addr::VirtualAddress;
+use crate::{arch::addr::VirtualAddress, println};
 
 lazy_static! {
     pub static ref BITMAP_MEM_MAN: Mutex<BitmapMemoryManager> =
@@ -151,7 +151,12 @@ impl BitmapMemoryManager
         // get total page count (a page=4096B)
         let total_page_cnt = mem_map.into_iter().map(|d| d.page_cnt as usize).sum();
         // get bitmap len
-        let bitmap_len = total_page_cnt / BITMAP_SIZE;
+        let mut bitmap_len = total_page_cnt / BITMAP_SIZE;
+
+        if total_page_cnt % BITMAP_SIZE != 0
+        {
+            bitmap_len += 1;
+        }
 
         // find available memory area for bitmap
         let mut bitmap_virt_addr = VirtualAddress::new(0);

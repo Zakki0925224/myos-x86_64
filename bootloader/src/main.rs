@@ -1,6 +1,5 @@
 #![no_std]
 #![no_main]
-#![feature(abi_efiapi)]
 
 mod config;
 
@@ -13,7 +12,7 @@ extern crate alloc;
 use alloc::{boxed::Box, vec::Vec};
 use common::{boot_info::BootInfo, graphic_info::{self, GraphicInfo}, mem_desc::{self, UEFI_PAGE_SIZE}};
 use core::{mem, slice::from_raw_parts_mut};
-use uefi::{prelude::*, proto::{console::gop::{GraphicsOutput, PixelFormat}, media::file::*}, table::boot::*, CStr16};
+use uefi::{prelude::*, proto::{console::gop::{GraphicsOutput, PixelFormat}, media::{file::*, fs::SimpleFileSystem}}, table::boot::*, CStr16};
 use xmas_elf::{program, ElfFile};
 
 use crate::config::DEFAULT_BOOT_CONFIG;
@@ -37,17 +36,13 @@ fn efi_main(handle: Handle, mut st: SystemTable<Boot>) -> Status
     let kernel_entry_point_addr = load_elf(bs, handle, config.kernel_path);
     info!("Kernel entry point: 0x{:x}", kernel_entry_point_addr);
 
-    // get memory map
-    let mmap_size = bs.memory_map_size().map_size;
-    let mmap_buf = Box::leak(vec![0; mmap_size * 2].into_boxed_slice());
-
-    // exit boot service
+    // exit boot service and get memory map
     info!("Exit boot services");
     let mut mem_map = Vec::with_capacity(128);
 
-    let (_rt, mmap_iter) = st.exit_boot_services(handle, mmap_buf).unwrap();
+    let (_, map) = st.exit_boot_services();
 
-    for desc in mmap_iter
+    for desc in map.entries()
     {
         let ty = convert_mem_type(desc.ty);
         let phys_start = desc.phys_start;
@@ -70,8 +65,9 @@ fn load_elf(bs: &BootServices, image: Handle, path: &str) -> u64
 {
     // open file
     info!("Opening file: \"{}\"", path);
-    let root = bs.get_image_file_system(image).unwrap();
-    let mut root = unsafe { &mut *root.interface.get() }.open_volume().unwrap();
+    let sfs_handle = bs.get_handle_for_protocol::<SimpleFileSystem>().unwrap();
+    let mut root =
+        bs.open_protocol_exclusive::<SimpleFileSystem>(sfs_handle).unwrap().open_volume().unwrap();
     let mut buf = [0; 256];
     let path = CStr16::from_str_with_buf(path, &mut buf).unwrap();
     let file =
@@ -84,6 +80,7 @@ fn load_elf(bs: &BootServices, image: Handle, path: &str) -> u64
     };
 
     let file_info = file.get_boxed_info::<FileInfo>().unwrap();
+
     let file_size = file_info.file_size() as usize;
     let mut buf = vec![0; file_size];
 
@@ -107,7 +104,8 @@ fn load_elf(bs: &BootServices, image: Handle, path: &str) -> u64
     }
 
     let pages = (dest_end - dest_start + UEFI_PAGE_SIZE - 1) / UEFI_PAGE_SIZE;
-    bs.allocate_pages(AllocateType::Address(dest_start), MemoryType::LOADER_DATA, pages).unwrap();
+    bs.allocate_pages(AllocateType::Address(dest_start as u64), MemoryType::LOADER_DATA, pages)
+        .unwrap();
 
     for p in elf.program_iter()
     {
@@ -130,8 +128,8 @@ fn load_elf(bs: &BootServices, image: Handle, path: &str) -> u64
 
 fn init_graphic(bs: &BootServices, resolution: Option<(usize, usize)>) -> GraphicInfo
 {
-    let gop = bs.locate_protocol::<GraphicsOutput>().unwrap();
-    let gop = unsafe { &mut *gop.get() };
+    let gop_handle = bs.get_handle_for_protocol::<GraphicsOutput>().unwrap();
+    let mut gop = bs.open_protocol_exclusive::<GraphicsOutput>(gop_handle).unwrap();
 
     if let Some(resolution) = resolution
     {
