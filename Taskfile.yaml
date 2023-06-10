@@ -20,7 +20,6 @@ vars:
     COZETTE_FILE: cozette.psf
     OVMF_CODE_FILE: OVMF_CODE.fd
     OVMF_VARS_FILE: OVMF_VARS.fd
-    GDB_FILE: gdb.scr
     QEMU_TRACE_FILE: qemu_trace
 
     GIT_CHECKOUT_TO_LATEST_TAG: git submodule update --init --recursive && git fetch --tags && latestTag=$(git describe --tags `git rev-list --tags --max-count=1`) &&git checkout $latestTag && git gc
@@ -139,7 +138,7 @@ tasks:
 
     gdb:
         cmds:
-            - "rust-gdb -x gdb.scr"
+            - 'rust-gdb {{$.OUTPUT_DIR}}/{{$.KERNEL_FILE}} -ex "target remote :3333"'
 
     dump:
         cmds:

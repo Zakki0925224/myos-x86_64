@@ -18,4 +18,9 @@ version = "1.4.0"
 features = ["spin_no_std"]
 
 [profile.dev]
+opt-level = 0
 debug = true
+
+[profile.release]
+opt-level = 3
+debug = false

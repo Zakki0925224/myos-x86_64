@@ -12,4 +12,9 @@ log = "*"
 xmas-elf = "*"
 
 [profile.dev]
+opt-level = 0
 debug = true
+
+[profile.release]
+opt-level = 3
+debug = false
