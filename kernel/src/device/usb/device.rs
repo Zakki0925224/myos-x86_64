@@ -4,7 +4,7 @@ use alloc::vec::Vec;
 
 use crate::{arch::addr::{PhysicalAddress, VirtualAddress}, device::usb::xhc::context::input::InputControlContext, mem::bitmap::*};
 
-use super::{descriptor::{config::ConfigurationDescriptor, device::DeviceDescriptor, endpoint::EndpointDescriptor, hid::HumanInterfaceDeviceDescriptor, interface::InterfaceDescriptor, Descriptor, DescriptorHeader, DescriptorType}, setup_trb::*, xhc::{context::endpoint::*, register::PortSpeedIdValue, ring_buffer::*, trb::*, XHC_DRIVER}};
+use super::{descriptor::{config::ConfigurationDescriptor, device::DeviceDescriptor, endpoint::EndpointDescriptor, hid::HumanInterfaceDeviceDescriptor, interface::InterfaceDescriptor, Descriptor, DescriptorHeader, DescriptorType}, setup_trb::*, xhc::{context::endpoint::*, ring_buffer::*, trb::*, XHC_DRIVER}};
 
 const RING_BUF_LEN: usize = 8;
 const DEFAULT_CONTROL_PIPE_ID: u8 = 1;
@@ -25,12 +25,10 @@ pub struct UsbDevice
 {
     slot_id: usize,
     transfer_ring_bufs: [Option<RingBuffer>; 32],
-    data_buf_mem_info: MemoryFrameInfo,
     dev_desc_buf_mem_info: MemoryFrameInfo,
     conf_desc_buf_mem_info: MemoryFrameInfo,
 
     max_packet_size: u16,
-    port_speed: PortSpeedIdValue,
 
     configured_endpoint_dci: Vec<(usize, VirtualAddress)>,
     using_interface_desc_index: usize,
@@ -45,7 +43,6 @@ impl UsbDevice
         slot_id: usize,
         transfer_ring_mem_info: MemoryFrameInfo,
         max_packet_size: u16,
-        port_speed: PortSpeedIdValue,
     ) -> Result<Self, UsbDeviceError>
     {
         let mut dcp_ring_buf = match RingBuffer::new(
@@ -60,12 +57,6 @@ impl UsbDevice
         };
 
         dcp_ring_buf.init();
-
-        let data_buf_mem_info = match BITMAP_MEM_MAN.lock().alloc_single_mem_frame()
-        {
-            Ok(mem_info) => mem_info,
-            Err(err) => return Err(UsbDeviceError::BitmapMemoryManagerError(err)),
-        };
 
         let dev_desc_buf_mem_info = match BITMAP_MEM_MAN.lock().alloc_single_mem_frame()
         {
@@ -85,11 +76,9 @@ impl UsbDevice
         let dev = Self {
             slot_id,
             transfer_ring_bufs,
-            data_buf_mem_info,
             dev_desc_buf_mem_info,
             conf_desc_buf_mem_info,
             max_packet_size,
-            port_speed,
             configured_endpoint_dci: Vec::new(),
             using_interface_desc_index: 0,
             current_conf_index: 0,
@@ -421,40 +410,21 @@ impl UsbDevice
         );
     }
 
-    pub fn configure_to_get_data_by_default_ctrl_pipe(&mut self) -> Result<(), UsbDeviceError>
+    pub fn update(&mut self, endpoint_id: usize)
     {
-        let interface_desc = match self.get_using_interface_desc()
-        {
-            Some(desc) => desc,
-            None =>
-            {
-                return Err(UsbDeviceError::InterfaceDescriptorWasNotFoundError(
-                    self.using_interface_desc_index,
-                ))
-            }
-        };
-
-        return self.ctrl_in(
-            RequestType::Class,
-            RequestTypeRecipient::Interface,
-            SetupRequest::GET_REPORT,
-            0x100,
-            interface_desc.interface_num() as u16,
-            8,
-            self.data_buf_mem_info.get_frame_start_virt_addr().get_phys_addr(),
-            self.data_buf_mem_info.get_frame_size() as u32,
-        );
-    }
-
-    pub fn debug(&mut self, endpoint_id: usize)
-    {
-        // update cycle state
-
         if let Some(ring_buf) = self.transfer_ring_bufs[endpoint_id].as_mut()
         {
+            let data_buf_phys_addr = BITMAP_MEM_MAN
+                .lock()
+                .alloc_single_mem_frame()
+                .unwrap()
+                .get_frame_start_virt_addr()
+                .get_phys_addr();
+
             let mut trb = TransferRequestBlock::new();
 
             trb.set_trb_type(TransferRequestBlockType::Normal);
+            trb.set_param(data_buf_phys_addr.get());
             trb.set_status(8); // TRB Transfer Lenght
             trb.set_other_flags(0x112); // BEI, IOC, ISP bit
             ring_buf.push(trb).unwrap();

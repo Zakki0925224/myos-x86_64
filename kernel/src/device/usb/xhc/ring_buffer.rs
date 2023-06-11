@@ -1,4 +1,4 @@
-use crate::{arch::addr::*, mem::bitmap::MemoryFrameInfo, print, println};
+use crate::{arch::addr::*, mem::bitmap::{MemoryFrameInfo, BITMAP_MEM_MAN}, println};
 use core::mem::size_of;
 
 use super::{register::*, trb::*};
@@ -87,6 +87,8 @@ impl RingBuffer
 
     pub fn get_buf_len(&self) -> usize { return self.buf_len; }
 
+    pub fn get_current_index(&self) -> usize { return self.current_index; }
+
     pub fn fill(&mut self) -> Result<(), RingBufferError>
     {
         if !self.is_init
@@ -94,17 +96,27 @@ impl RingBuffer
             return Err(RingBufferError::NotInitialized);
         }
 
+        if self.buf_type != RingBufferType::TransferRing
+        {
+            return Err(RingBufferError::UnsupportedRingBufferTypeError(self.buf_type));
+        }
+
         for i in 0..self.buf_len - 1
         {
+            // TODO: error handring
+            let data_buf_phys_addr = BITMAP_MEM_MAN
+                .lock()
+                .alloc_single_mem_frame()
+                .unwrap()
+                .get_frame_start_virt_addr()
+                .get_phys_addr();
+
             let mut trb = TransferRequestBlock::new();
 
             trb.set_trb_type(TransferRequestBlockType::Normal);
-            trb.set_param(
-                self.buf_base_virt_addr.get_phys_addr().get()
-                    - (size_of::<TransferRequestBlock>() * i) as u64,
-            );
-            trb.set_cycle_bit(self.cycle_state);
+            trb.set_param(data_buf_phys_addr.get());
             trb.set_status(8); // TRB Transfer Lenght
+            trb.set_cycle_bit(self.cycle_state);
             trb.set_other_flags(0x112); // BEI, IOC, ISP bit
 
             match self.write(i, trb)
@@ -121,7 +133,7 @@ impl RingBuffer
         return Ok(());
     }
 
-    pub fn toggle_cycle(&mut self) -> Result<(), RingBufferError>
+    fn toggle_cycle(&mut self) -> Result<(), RingBufferError>
     {
         if !self.is_init
         {
@@ -244,11 +256,17 @@ impl RingBuffer
 
     pub fn debug(&self)
     {
-        print!("{:?}:, ci: {}, state: ", self.buf_type, self.current_index);
+        println!(
+            "{:?}:, current: {}, start: 0x{:x}",
+            self.buf_type,
+            self.current_index,
+            self.buf_base_virt_addr.get()
+        );
         for i in 0..self.buf_len
         {
             let trb = self.read(i).unwrap();
-            print!("{}", trb.cycle_bit() as u8);
+            //print!("{}", trb.cycle_bit() as u8);
+            println!("{}: param: 0x{:x} cb: {:?}", i, trb.param(), trb.cycle_bit());
         }
 
         println!();

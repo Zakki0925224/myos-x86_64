@@ -3,7 +3,7 @@ name = "kernel"
 version = "0.1.0"
 edition = "2021"
 authors = ["Zakki <zakki0925224@gmail.com>"]
-description = "This is my os in Rust"
+description = "A hobby operating system written in Rust."
 
 [dependencies]
 common = { path = "../common" }

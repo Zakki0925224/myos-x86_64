@@ -613,7 +613,7 @@ impl XhcDriver
         trb.set_ctrl_regs((slot_id as u16) << 8);
         self.push_cmd_ring(trb).unwrap();
 
-        return match UsbDevice::new(slot_id, trnasfer_ring_mem_info, max_packet_size, port_speed)
+        return match UsbDevice::new(slot_id, trnasfer_ring_mem_info, max_packet_size)
         {
             Ok(device) => Ok(device),
             Err(err) => Err(XhcDriverError::UsbDeviceError(err)),
@@ -699,12 +699,6 @@ impl XhcDriver
 
                 info!("slot id: {}, endpoint id: {}", slot_id, endpoint_id);
 
-                let port = match self.find_port_by_slot_id(slot_id)
-                {
-                    Some(port) => port,
-                    None => return,
-                };
-
                 if USB_DRIVER.is_locked()
                 {
                     return;
@@ -712,8 +706,8 @@ impl XhcDriver
 
                 if let Some(device) = USB_DRIVER.lock().find_device_by_slot_id(slot_id)
                 {
-                    device.debug(endpoint_id);
-                    //self.ring_doorbell(slot_id, endpoint_id as u8);
+                    device.update(endpoint_id);
+                    self.ring_doorbell(slot_id, endpoint_id as u8);
                 };
             }
             TransferRequestBlockType::HostControllerEvent =>

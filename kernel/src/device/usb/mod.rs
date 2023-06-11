@@ -195,14 +195,6 @@ impl UsbDriver
                 Err(error) => return Err(UsbDriverError::UsbDeviceError { slot_id, error }),
             }
             asm::sti();
-
-            asm::cli();
-            match device.configure_to_get_data_by_default_ctrl_pipe()
-            {
-                Ok(_) => (),
-                Err(error) => return Err(UsbDriverError::UsbDeviceError { slot_id, error }),
-            }
-            asm::sti();
         }
 
         return Ok(());
