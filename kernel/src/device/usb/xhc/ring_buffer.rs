@@ -272,7 +272,7 @@ impl RingBuffer
         println!();
     }
 
-    fn read(&self, index: usize) -> Option<TransferRequestBlock>
+    pub fn read(&self, index: usize) -> Option<TransferRequestBlock>
     {
         if index >= self.buf_len
         {

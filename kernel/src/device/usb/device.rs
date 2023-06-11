@@ -2,7 +2,7 @@ use core::mem::size_of;
 
 use alloc::vec::Vec;
 
-use crate::{arch::addr::{PhysicalAddress, VirtualAddress}, device::usb::xhc::context::input::InputControlContext, mem::bitmap::*};
+use crate::{arch::addr::{PhysicalAddress, VirtualAddress}, device::usb::xhc::context::input::InputControlContext, mem::bitmap::*, println};
 
 use super::{descriptor::{config::ConfigurationDescriptor, device::DeviceDescriptor, endpoint::EndpointDescriptor, hid::HumanInterfaceDeviceDescriptor, interface::InterfaceDescriptor, Descriptor, DescriptorHeader, DescriptorType}, setup_trb::*, xhc::{context::endpoint::*, ring_buffer::*, trb::*, XHC_DRIVER}};
 
@@ -414,6 +414,11 @@ impl UsbDevice
     {
         if let Some(ring_buf) = self.transfer_ring_bufs[endpoint_id].as_mut()
         {
+            let trb = ring_buf.read(ring_buf.get_current_index() - 1).unwrap();
+            let data_buf_virt_addr = PhysicalAddress::new(trb.param()).get_virt_addr();
+            let data: u64 = data_buf_virt_addr.read_volatile();
+            println!("data: 0x{:x}", data);
+
             let data_buf_phys_addr = BITMAP_MEM_MAN
                 .lock()
                 .alloc_single_mem_frame()
