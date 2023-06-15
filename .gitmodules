@@ -4,5 +4,4 @@
     ignore = dirty
 [submodule "third-party/qemu"]
 	path = third-party/qemu
-	url = https://github.com/qemu/qemu.git
-	ignore = dirty
+	url = https://gitlab.com/qemu-project/qemu.git
