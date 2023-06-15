@@ -2,10 +2,6 @@
 	path = third-party/cozette
 	url = https://github.com/slavfox/Cozette.git
     ignore = dirty
-[submodule "third-party/edk2"]
-	path = third-party/edk2
-	url = https://github.com/tianocore/edk2.git
-    ignore = dirty
 [submodule "third-party/qemu"]
 	path = third-party/qemu
 	url = https://github.com/qemu/qemu.git

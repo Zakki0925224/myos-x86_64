@@ -9,7 +9,6 @@ vars:
     DUMP_DIR: dump
     THIRD_PARTY_DIR: third-party
     COZETTE_DIR: cozette
-    EDK2_DIR: edk2
     QEMU_DIR: qemu
 
     BOOTLOADER_FILE: bootx64.efi
@@ -61,15 +60,6 @@ tasks:
             - if [ ! -f ../{{$.COZETTE_FILE}} ];then pipenv install --python 3 && pipenv run python3 ./build.py fonts ;fi
             - if [ ! -f ../{{$.COZETTE_FILE}} ];then bdf2psf --fb ./build/cozette.bdf /usr/share/bdf2psf/standard.equivalents /usr/share/bdf2psf/fontsets/Uni2.512 512 ../{{$.COZETTE_FILE}} ;fi
 
-    build-edk2:
-        dir: ./{{$.THIRD_PARTY_DIR}}/{{$.EDK2_DIR}}
-        cmds:
-            - if [ ! -f ../{{$.OVMF_CODE_FILE}} ] || [ ! -f ../{{$.OVMF_VARS_FILE}} ];then {{$.GIT_CHECKOUT_TO_LATEST_TAG}} ;fi
-            - if [ ! -f ../{{$.OVMF_CODE_FILE}} ] || [ ! -f ../{{$.OVMF_VARS_FILE}} ];then make -C ./BaseTools/Source/C ;fi
-            - if [ ! -f ../{{$.OVMF_CODE_FILE}} ] || [ ! -f ../{{$.OVMF_VARS_FILE}} ];then ./OvmfPkg/build.sh -a X64 -b RELEASE -n 4 ;fi
-            - if [ ! -f ../{{$.OVMF_CODE_FILE}} ];then cp ./Build/OvmfX64/RELEASE_GCC5/FV/OVMF_CODE.fd ../{{$.OVMF_CODE_FILE}} ;fi
-            - if [ ! -f ../{{$.OVMF_VARS_FILE}} ];then cp ./Build/OvmfX64/RELEASE_GCC5/FV/OVMF_VARS.fd ../{{$.OVMF_VARS_FILE}} ;fi
-
     build-qemu:
         dir: ./{{$.THIRD_PARTY_DIR}}/{{$.QEMU_DIR}}
         cmds:
@@ -80,7 +70,6 @@ tasks:
         cmds:
             - task: clear
             - task: build-cozette
-            - task: build-edk2
             - task: build-qemu
             - task: build-bootloader
             - task: build-kernel

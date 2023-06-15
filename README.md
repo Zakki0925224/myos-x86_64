@@ -6,7 +6,7 @@ This is a replacement project for the previous **[myos](https://github.com/Zakki
 
 ## Third party
 
--   [EDK II](https://github.com/tianocore/edk2.git)
+-   OVMF from [EDK II](https://github.com/tianocore/edk2.git) (included)
 -   [Cozette](https://github.com/slavfox/Cozette.git)
 -   [QEMU](https://gitlab.com/qemu-project/qemu.git) (for debugging)
 
@@ -36,11 +36,6 @@ This is a replacement project for the previous **[myos](https://github.com/Zakki
 -   [pipenv](https://pypi.org/project/pipenv/)
 -   [fontforge](https://github.com/fontforge/fontforge)
 -   bdf2psf
-
-#### edk2
-
--   uuid-dev
--   nasm
 
 ```bash
 $ git clone https://github.com/Zakki0925224/myos-x86_64.git --recursive

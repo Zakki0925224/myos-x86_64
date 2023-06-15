@@ -1,4 +1,4 @@
 build
 dump
 qemu_debug.log
-third-party/*.*
+third-party/cozette.psf
