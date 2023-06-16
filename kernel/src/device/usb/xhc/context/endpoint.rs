@@ -11,7 +11,7 @@ pub enum EndpointState
     Error = 4,
 }
 
-#[derive(BitfieldSpecifier, Debug, Clone, Copy)]
+#[derive(BitfieldSpecifier, Debug, Clone, Copy, PartialEq)]
 #[bits = 3]
 pub enum EndpointType
 {

@@ -1,11 +1,11 @@
 use alloc::vec::Vec;
 use lazy_static::lazy_static;
-use log::warn;
+use log::{info, warn};
 use spin::Mutex;
 
 use crate::arch::asm;
 
-use self::{descriptor::{Descriptor, DescriptorType}, device::*, xhc::*};
+use self::{descriptor::{Descriptor, DescriptorType}, device::*, xhc::{context::endpoint::EndpointType, *}};
 
 pub mod descriptor;
 pub mod device;
@@ -123,78 +123,79 @@ impl UsbDriver
 
             device.read_dev_desc();
 
-            let mut set_interface = false;
-
-            for i in 0..device.get_num_confs()
-            {
-                asm::cli();
-                match device.request_to_get_desc(DescriptorType::Configration, i)
-                {
-                    Ok(_) => (),
-                    Err(error) => return Err(UsbDriverError::UsbDeviceError { slot_id, error }),
-                }
-                asm::sti();
-
-                device.read_conf_descs();
-
-                for interface_desc in device.get_interface_descs()
-                {
-                    if interface_desc.class() == 3
-                        && interface_desc.sub_class() == 1
-                        && interface_desc.protocol() == 1
-                    {
-                        let conf_desc = match &device.get_conf_descs()[0]
-                        {
-                            Descriptor::Configuration(desc) => desc,
-                            _ => unreachable!(),
-                        };
-
-                        asm::cli();
-                        match device.request_to_set_conf(conf_desc.conf_value())
-                        {
-                            Ok(_) => (),
-                            Err(error) =>
-                            {
-                                return Err(UsbDriverError::UsbDeviceError { slot_id, error })
-                            }
-                        }
-                        asm::sti();
-
-                        set_interface = true;
-                        break;
-                    }
-                }
-            }
-
-            if !set_interface
-            {
-                warn!("Unsupported device, skip configuring... (slot id: {})", slot_id);
-                continue;
-            }
-
             asm::cli();
-            match device.configure_endpoint()
+            match device.request_to_get_desc(DescriptorType::Configration, 0)
             {
                 Ok(_) => (),
                 Err(error) => return Err(UsbDriverError::UsbDeviceError { slot_id, error }),
             }
             asm::sti();
 
-            // asm::cli();
-            // match device.request_to_set_interface()
-            // {
-            //     Ok(_) => (),
-            //     Err(error) => return Err(UsbDriverError::UsbDeviceError { slot_id, error }),
-            // }
-            // asm::sti();
+            device.read_conf_descs();
+
+            let boot_interface = match device
+                .get_interface_descs()
+                .iter()
+                .find(|d| d.class() == 3 && d.sub_class() == 1 && d.protocol() == 1)
+            {
+                Some(d) => **d,
+                None =>
+                {
+                    warn!("usb: Unsupported device, skip configuring... (slot id: {})", slot_id);
+                    continue;
+                }
+            };
+
+            let conf_desc = match device.get_conf_descs()[0].clone()
+            {
+                Descriptor::Configuration(desc) => desc,
+                _ => unreachable!(),
+            };
 
             asm::cli();
-            match device.request_to_use_boot_protocol()
+            match device.request_to_set_conf(conf_desc.conf_value())
             {
                 Ok(_) => (),
                 Err(error) => return Err(UsbDriverError::UsbDeviceError { slot_id, error }),
             }
             asm::sti();
+
+            asm::cli();
+            match device.configure_endpoint(EndpointType::InterruptIn)
+            {
+                Ok(_) => (),
+                Err(error) => return Err(UsbDriverError::UsbDeviceError { slot_id, error }),
+            }
+            asm::sti();
+
+            asm::cli();
+            match device.request_to_set_conf(conf_desc.conf_value())
+            {
+                Ok(_) => (),
+                Err(error) => return Err(UsbDriverError::UsbDeviceError { slot_id, error }),
+            }
+            asm::sti();
+
+            // TODO: not working
+            asm::cli();
+            match device.request_to_set_interface(boot_interface)
+            {
+                Ok(_) => (),
+                Err(error) => return Err(UsbDriverError::UsbDeviceError { slot_id, error }),
+            }
+            asm::sti();
+
+            // TODO: not working
+            asm::cli();
+            match device.request_to_set_protocol(boot_interface, 0) // 0 is boot protocol
+            {
+                Ok(_) => (),
+                Err(error) => return Err(UsbDriverError::UsbDeviceError { slot_id, error }),
+            }
+            asm::sti();
+
+            device.is_configured = true;
+            info!("usb: Configured device (slot id: {})", slot_id);
         }
 
         return Ok(());
