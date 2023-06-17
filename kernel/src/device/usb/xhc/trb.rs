@@ -159,6 +159,28 @@ impl TransferRequestBlock
     }
 
     // Setup Stage TRB
+    pub fn set_transfer_type(&mut self, new_val: TransferType)
+    {
+        if self.trb_type() != TransferRequestBlockType::SetupStage
+        {
+            return;
+        }
+
+        let ctrl_regs =
+            (self.ctrl_regs() & !0x3) | unsafe { transmute::<TransferType, u8>(new_val) } as u16;
+        self.set_ctrl_regs(ctrl_regs);
+    }
+
+    pub fn transfer_type(&self) -> Option<TransferType>
+    {
+        if self.trb_type() != TransferRequestBlockType::SetupStage
+        {
+            return None;
+        }
+
+        return Some(unsafe { transmute::<u8, TransferType>((self.ctrl_regs() & 0x3) as u8) });
+    }
+
     pub fn set_setup_request_type(&mut self, new_val: SetupRequestType)
     {
         if self.trb_type() != TransferRequestBlockType::SetupStage

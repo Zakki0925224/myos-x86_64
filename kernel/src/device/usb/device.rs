@@ -17,6 +17,7 @@ pub enum UsbDeviceError
     XhcPortNotFoundError,
     XhcDriverWasNotInitializedError,
     InvalidTransferRequestBlockTypeError,
+    InvalidRequestError,
 }
 
 #[derive(Debug)]
@@ -197,20 +198,20 @@ impl UsbDevice
             setup_value,
             0,
             buf_size as u16,
-            buf_mem_info.get_frame_start_virt_addr().get_phys_addr(),
-            buf_size as u32,
+            Some((buf_mem_info.get_frame_start_virt_addr().get_phys_addr(), buf_size as u32)),
         );
     }
 
     pub fn request_to_set_conf(&mut self, conf_value: u8) -> Result<(), UsbDeviceError>
     {
-        return self.ctrl_out(
+        return self.ctrl_in(
             RequestType::Standard,
             RequestTypeRecipient::Device,
             SetupRequest::SetConfiguration,
             conf_value as u16,
             0,
             0,
+            None,
         );
     }
 
@@ -354,13 +355,14 @@ impl UsbDevice
         interface_desc: InterfaceDescriptor,
     ) -> Result<(), UsbDeviceError>
     {
-        return self.ctrl_out(
+        return self.ctrl_in(
             RequestType::Standard,
             RequestTypeRecipient::Interface,
             SetupRequest::SetInterface,
             interface_desc.alternate_setting() as u16,
             interface_desc.interface_num() as u16,
             0,
+            None,
         );
     }
 
@@ -370,13 +372,14 @@ impl UsbDevice
         protocol: u8,
     ) -> Result<(), UsbDeviceError>
     {
-        return self.ctrl_out(
+        return self.ctrl_in(
             RequestType::Class,
             RequestTypeRecipient::Interface,
             SetupRequest::SET_PROTOCOL,
             protocol as u16,
             interface_desc.interface_num() as u16,
             0,
+            None,
         );
     }
 
@@ -400,7 +403,7 @@ impl UsbDevice
 
             // trb.set_trb_type(TransferRequestBlockType::Normal);
             // trb.set_param(data_buf_phys_addr.get());
-            // trb.set_status(8); // TRB Transfer Lenght
+            // trb.set_status(8); // TRB Transfer Lengh
             // trb.set_other_flags(0x112); // BEI, IOC, ISP bit
             // ring_buf.push(trb).unwrap();
 
@@ -416,8 +419,14 @@ impl UsbDevice
         setup_value: u16,
         setup_index: u16,
         setup_length: u16,
+        data: Option<(PhysicalAddress, u32)>, // buf addr, buf size
     ) -> Result<(), UsbDeviceError>
     {
+        if (setup_length > 0 && data == None) || (setup_length == 0 && data != None)
+        {
+            return Err(UsbDeviceError::InvalidRequestError);
+        }
+
         let mut setup_stage_trb = TransferRequestBlock::new();
         setup_stage_trb.set_trb_type(TransferRequestBlockType::SetupStage);
 
@@ -432,13 +441,28 @@ impl UsbDevice
         setup_stage_trb.set_setup_value(setup_value);
         setup_stage_trb.set_setup_length(setup_length);
         setup_stage_trb.set_status(8); // TRB transfer length
-        setup_stage_trb.set_ctrl_regs(0); // TRT bits
-        setup_stage_trb.set_other_flags(3 << 4); // IOC and IDT bit
+        setup_stage_trb.set_other_flags(1 << 5); // IDT bit
 
-        let mut data_stage_trb = TransferRequestBlock::new();
-        data_stage_trb.set_trb_type(TransferRequestBlockType::DataStage);
-        data_stage_trb.set_other_flags(1 << 4); // IOC bit
-        data_stage_trb.set_ctrl_regs(0); // DIR bit
+        let data_stage_trb = match data
+        {
+            Some((buf_phys_addr, buf_size)) =>
+            {
+                setup_stage_trb.set_transfer_type(TransferType::OutDataStage);
+                let mut trb = TransferRequestBlock::new();
+                trb.set_trb_type(TransferRequestBlockType::DataStage);
+                trb.set_param(buf_phys_addr.get());
+                trb.set_status(buf_size);
+                trb.set_other_flags(1 << 4); // IOC bit
+                trb.set_ctrl_regs(0); // DIR bit
+                Some(trb)
+            }
+            None =>
+            {
+                setup_stage_trb.set_transfer_type(TransferType::NoDataStage);
+                setup_stage_trb.set_other_flags(setup_stage_trb.other_flags() | 1 << 4); // IOC bit
+                None
+            }
+        };
 
         let mut status_stage_trb = TransferRequestBlock::new();
         status_stage_trb.set_trb_type(TransferRequestBlockType::StatusStage);
@@ -446,7 +470,7 @@ impl UsbDevice
 
         return self.send_to_dcp_transfer_ring(
             setup_stage_trb,
-            Some(data_stage_trb),
+            data_stage_trb,
             Some(status_stage_trb),
         );
     }
@@ -459,41 +483,65 @@ impl UsbDevice
         setup_value: u16,
         setup_index: u16,
         setup_length: u16,
-        data_buf_phys_addr: PhysicalAddress,
-        buf_size: u32,
+        data: Option<(PhysicalAddress, u32)>, // buf addr, buf size
     ) -> Result<(), UsbDeviceError>
     {
+        if (setup_length > 0 && data == None) || (setup_length == 0 && data != None)
+        {
+            return Err(UsbDeviceError::InvalidRequestError);
+        }
+
         let mut setup_stage_trb = TransferRequestBlock::new();
         setup_stage_trb.set_trb_type(TransferRequestBlockType::SetupStage);
 
-        let mut request_type = SetupRequestType::new();
-        request_type.set_direction(RequestTypeDirection::In);
-        request_type.set_ty(req_type);
-        request_type.set_recipient(req_type_recipient);
+        let mut setup_req_type = SetupRequestType::new();
+        setup_req_type.set_direction(RequestTypeDirection::In);
+        setup_req_type.set_ty(req_type);
+        setup_req_type.set_recipient(req_type_recipient);
 
-        setup_stage_trb.set_setup_request_type(request_type);
+        setup_stage_trb.set_setup_request_type(setup_req_type);
         setup_stage_trb.set_setup_request(setup_req);
         setup_stage_trb.set_setup_index(setup_index);
         setup_stage_trb.set_setup_value(setup_value);
         setup_stage_trb.set_setup_length(setup_length);
         setup_stage_trb.set_status(8); // TRB transfer length
-        setup_stage_trb.set_ctrl_regs(3); // TRT bits
-        setup_stage_trb.set_other_flags(3 << 4); // IOC and IDT bit
+        setup_stage_trb.set_other_flags(1 << 5); // IDT bit
 
-        let mut data_stage_trb = TransferRequestBlock::new();
-        data_stage_trb.set_trb_type(TransferRequestBlockType::DataStage);
-        data_stage_trb.set_param(data_buf_phys_addr.get());
-        data_stage_trb.set_status(buf_size);
-        data_stage_trb.set_other_flags(1 << 4); // IOC bit
-        data_stage_trb.set_ctrl_regs(1); // DIR bit
+        let data_stage_trb = match data
+        {
+            Some((buf_phys_addr, buf_size)) =>
+            {
+                setup_stage_trb.set_transfer_type(TransferType::InDataStage);
+                let mut trb = TransferRequestBlock::new();
+                trb.set_trb_type(TransferRequestBlockType::DataStage);
+                trb.set_param(buf_phys_addr.get());
+                trb.set_status(buf_size);
+                trb.set_other_flags(1 << 4); // IOC bit
+                trb.set_ctrl_regs(1); // DIR bit
+                Some(trb)
+            }
+            None =>
+            {
+                setup_stage_trb.set_transfer_type(TransferType::NoDataStage);
+                setup_stage_trb.set_other_flags(setup_stage_trb.other_flags() | 1 << 4); // IOC bit
+                None
+            }
+        };
 
         let mut status_stage_trb = TransferRequestBlock::new();
         status_stage_trb.set_trb_type(TransferRequestBlockType::StatusStage);
-        status_stage_trb.set_ctrl_regs(0); // DIR bit
+
+        let ctrl_regs = match data_stage_trb
+        {
+            Some(_) => 0,
+            None => 1,
+        };
+
+        status_stage_trb.set_ctrl_regs(ctrl_regs); // DIR bit
 
         return self.send_to_dcp_transfer_ring(
             setup_stage_trb,
-            Some(data_stage_trb),
+            data_stage_trb,
             Some(status_stage_trb),
         );
     }
@@ -522,26 +570,22 @@ impl UsbDevice
             Err(err) => return Err(UsbDeviceError::RingBufferError(err)),
         }
 
-        if data_stage_trb.is_none()
+        if let Some(trb) = data_stage_trb
         {
-            return Ok(());
+            match dcp_transfer_ring.push(trb)
+            {
+                Ok(_) => (),
+                Err(err) => return Err(UsbDeviceError::RingBufferError(err)),
+            }
         }
 
-        match dcp_transfer_ring.push(data_stage_trb.unwrap())
+        if let Some(trb) = status_stage_trb
         {
-            Ok(_) => (),
-            Err(err) => return Err(UsbDeviceError::RingBufferError(err)),
-        }
-
-        if status_stage_trb.is_none()
-        {
-            return Ok(());
-        }
-
-        match dcp_transfer_ring.push(status_stage_trb.unwrap())
-        {
-            Ok(_) => (),
-            Err(err) => return Err(UsbDeviceError::RingBufferError(err)),
+            match dcp_transfer_ring.push(trb)
+            {
+                Ok(_) => (),
+                Err(err) => return Err(UsbDeviceError::RingBufferError(err)),
+            }
         }
 
         match XHC_DRIVER.lock().as_ref()

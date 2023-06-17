@@ -74,3 +74,12 @@ impl SetupRequest
     pub const GET_REPORT: Self = Self::ClearFeature;
     pub const SET_PROTOCOL: Self = Self::SetInterface;
 }
+
+#[derive(Debug)]
+#[repr(u8)]
+pub enum TransferType
+{
+    NoDataStage = 0,
+    OutDataStage = 2,
+    InDataStage = 3,
+}
