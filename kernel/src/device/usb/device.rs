@@ -204,7 +204,7 @@ impl UsbDevice
 
     pub fn request_to_set_conf(&mut self, conf_value: u8) -> Result<(), UsbDeviceError>
     {
-        return self.ctrl_in(
+        return self.ctrl_out(
             RequestType::Standard,
             RequestTypeRecipient::Device,
             SetupRequest::SetConfiguration,
@@ -355,7 +355,7 @@ impl UsbDevice
         interface_desc: InterfaceDescriptor,
     ) -> Result<(), UsbDeviceError>
     {
-        return self.ctrl_in(
+        return self.ctrl_out(
             RequestType::Standard,
             RequestTypeRecipient::Interface,
             SetupRequest::SetInterface,
@@ -372,7 +372,7 @@ impl UsbDevice
         protocol: u8,
     ) -> Result<(), UsbDeviceError>
     {
-        return self.ctrl_in(
+        return self.ctrl_out(
             RequestType::Class,
             RequestTypeRecipient::Interface,
             SetupRequest::SET_PROTOCOL,

@@ -167,9 +167,7 @@ impl UsbDriver
                 Err(error) => return Err(UsbDriverError::UsbDeviceError { slot_id, error }),
             }
             asm::sti();
-            info!("Configured endpoint");
 
-            // TODO: not working (ep halted)
             asm::cli();
             match device.request_to_set_conf(conf_desc.conf_value())
             {
@@ -177,9 +175,7 @@ impl UsbDriver
                 Err(error) => return Err(UsbDriverError::UsbDeviceError { slot_id, error }),
             }
             asm::sti();
-            info!("Set configuration");
 
-            // TODO: not working
             asm::cli();
             match device.request_to_set_interface(boot_interface)
             {
@@ -187,9 +183,7 @@ impl UsbDriver
                 Err(error) => return Err(UsbDriverError::UsbDeviceError { slot_id, error }),
             }
             asm::sti();
-            info!("Set interface");
 
-            // TODO: not working
             asm::cli();
             match device.request_to_set_protocol(boot_interface, 0) // 0 is boot protocol
             {
@@ -197,7 +191,6 @@ impl UsbDriver
                 Err(error) => return Err(UsbDriverError::UsbDeviceError { slot_id, error }),
             }
             asm::sti();
-            info!("Set protocol");
 
             device.is_configured = true;
             info!("usb: Configured device (slot id: {})", slot_id);
