@@ -1,11 +1,11 @@
 use core::mem::size_of;
 
-use common::mem_desc::{MemoryDescriptor, MemoryType, UEFI_PAGE_SIZE};
+use common::mem_desc::*;
 use lazy_static::lazy_static;
 use log::info;
 use spin::Mutex;
 
-use crate::{arch::addr::VirtualAddress, println};
+use crate::arch::addr::*;
 
 lazy_static! {
     pub static ref BITMAP_MEM_MAN: Mutex<BitmapMemoryManager> =
@@ -24,6 +24,11 @@ pub struct MemoryFrameInfo
 impl MemoryFrameInfo
 {
     pub fn get_frame_start_virt_addr(&self) -> VirtualAddress { return self.frame_start_virt_addr; }
+
+    pub fn get_frame_start_phys_addr(&self) -> PhysicalAddress
+    {
+        return self.frame_start_virt_addr.get_phys_addr();
+    }
 
     pub fn get_frame_size(&self) -> usize { return self.frame_size; }
 

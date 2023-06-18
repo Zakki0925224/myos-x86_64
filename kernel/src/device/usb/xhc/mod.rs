@@ -250,7 +250,7 @@ impl XhcDriver
                 Err(err) => return Err(XhcDriverError::BitmapMemoryManagerError(err)),
             };
 
-            arr[i] = mem_frame_info.get_frame_start_virt_addr().get_phys_addr().get();
+            arr[i] = mem_frame_info.get_frame_start_phys_addr().get();
         }
 
         scratchpad_buf_arr_mem_virt_addr.write_volatile(arr);
@@ -301,9 +301,7 @@ impl XhcDriver
         self.cmd_ring_buf.as_mut().unwrap().init();
 
         let mut crcr = CommandRingControlRegister::new();
-        crcr.set_cmd_ring_ptr(
-            cmd_ring_mem_info.get_frame_start_virt_addr().get_phys_addr().get() >> 6,
-        );
+        crcr.set_cmd_ring_ptr(cmd_ring_mem_info.get_frame_start_phys_addr().get() >> 6);
         crcr.set_ring_cycle_state(pcs);
         crcr.set_cmd_stop(false);
         crcr.set_cmd_abort(false);
@@ -599,9 +597,8 @@ impl XhcDriver
             Err(err) => return Err(XhcDriverError::BitmapMemoryManagerError(err)),
         };
 
-        endpoint_context_0.set_tr_dequeue_ptr(
-            trnasfer_ring_mem_info.get_frame_start_virt_addr().get_phys_addr().get() >> 1,
-        );
+        endpoint_context_0
+            .set_tr_dequeue_ptr(trnasfer_ring_mem_info.get_frame_start_phys_addr().get() >> 1);
 
         input_context.device_context.endpoint_contexts[0] = endpoint_context_0;
 

@@ -222,7 +222,7 @@ impl UsbDevice
             setup_value,
             0,
             buf_size as u16,
-            Some((buf_mem_info.get_frame_start_virt_addr().get_phys_addr(), buf_size as u32)),
+            Some((buf_mem_info.get_frame_start_phys_addr(), buf_size as u32)),
         );
     }
 
@@ -335,8 +335,7 @@ impl UsbDevice
                 endpoint_context.set_max_burst_size(0);
                 endpoint_context.set_dequeue_cycle_state(true);
                 endpoint_context.set_tr_dequeue_ptr(
-                    transfer_ring_buf_mem_info.get_frame_start_virt_addr().get_phys_addr().get()
-                        >> 1,
+                    transfer_ring_buf_mem_info.get_frame_start_phys_addr().get() >> 1,
                 );
                 endpoint_context.set_interval(endpoint_desc.interval());
                 endpoint_context.set_max_primary_streams(0);
