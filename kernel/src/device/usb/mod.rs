@@ -9,6 +9,7 @@ use self::{descriptor::{Descriptor, DescriptorType}, device::*, xhc::{context::e
 
 pub mod descriptor;
 pub mod device;
+pub mod hid_keyboard;
 pub mod setup_trb;
 pub mod xhc;
 
@@ -191,6 +192,8 @@ impl UsbDriver
                 Err(error) => return Err(UsbDriverError::UsbDeviceError { slot_id, error }),
             }
             asm::sti();
+
+            device.configure_endpoint_transfer_ring();
 
             device.is_configured = true;
             info!("usb: Configured device (slot id: {})", slot_id);

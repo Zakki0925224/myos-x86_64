@@ -2,7 +2,7 @@ use core::mem::size_of;
 
 use alloc::vec::Vec;
 
-use crate::{arch::addr::{PhysicalAddress, VirtualAddress}, device::usb::xhc::context::input::InputControlContext, mem::bitmap::*, println};
+use crate::{arch::addr::*, device::usb::{hid_keyboard::InputData, xhc::context::input::InputControlContext}, mem::bitmap::*, println};
 
 use super::{descriptor::{config::ConfigurationDescriptor, device::DeviceDescriptor, endpoint::EndpointDescriptor, hid::HumanInterfaceDeviceDescriptor, interface::InterfaceDescriptor, Descriptor, DescriptorHeader, DescriptorType}, setup_trb::*, xhc::{context::endpoint::*, ring_buffer::*, trb::*, XHC_DRIVER}};
 
@@ -32,7 +32,7 @@ pub struct UsbDevice
 
     max_packet_size: u16,
 
-    configured_endpoint_dci: Vec<(usize, VirtualAddress)>,
+    configured_endpoint_dci: Vec<(usize, VirtualAddress)>, // dci, data_buf_virt_addr
     current_conf_index: usize,
     dev_desc: DeviceDescriptor,
     conf_descs: Vec<Descriptor>,
@@ -99,6 +99,30 @@ impl UsbDevice
         }
 
         return Ok(());
+    }
+
+    pub fn configure_endpoint_transfer_ring(&mut self)
+    {
+        for (endpoint_id, data_buf_virt_addr) in &self.configured_endpoint_dci
+        {
+            if let Some(ring_buf) = self.transfer_ring_bufs[*endpoint_id].as_mut()
+            {
+                let data_buf_phys_addr = data_buf_virt_addr.get_phys_addr();
+
+                let mut trb = TransferRequestBlock::new();
+                trb.set_trb_type(TransferRequestBlockType::Normal);
+                trb.set_param(data_buf_phys_addr.get());
+                trb.set_status(8); // TRB Transfer Length
+                trb.set_other_flags(0x12); // IOC, ISP bit
+                ring_buf.push(trb).unwrap();
+
+                match XHC_DRIVER.lock().as_ref()
+                {
+                    Some(xhc_driver) => xhc_driver.ring_doorbell(self.slot_id, *endpoint_id as u8),
+                    None => (),
+                }
+            }
+        }
     }
 
     pub fn slot_id(&self) -> usize { return self.slot_id; }
@@ -278,6 +302,12 @@ impl UsbDevice
                     continue;
                 }
 
+                let data_buf_mem_info = match BITMAP_MEM_MAN.lock().alloc_single_mem_frame()
+                {
+                    Ok(mem_info) => mem_info,
+                    Err(err) => return Err(UsbDeviceError::BitmapMemoryManagerError(err)),
+                };
+
                 let transfer_ring_buf_mem_info =
                     match BITMAP_MEM_MAN.lock().alloc_single_mem_frame()
                     {
@@ -297,11 +327,6 @@ impl UsbDevice
                 };
 
                 transfer_ring_buf.init();
-                match transfer_ring_buf.fill()
-                {
-                    Ok(_) => (),
-                    Err(err) => return Err(UsbDeviceError::RingBufferError(err)),
-                }
 
                 endpoint_context.set_endpoint_type(endpoint_type);
                 endpoint_context.set_max_packet_size(self.max_packet_size);
@@ -323,8 +348,7 @@ impl UsbDevice
                 input_ctrl_context.set_add_context_flag(dci, true).unwrap();
 
                 transfer_ring_bufs[dci] = Some(transfer_ring_buf);
-                configured_endpoint_dci
-                    .push((dci, transfer_ring_buf_mem_info.get_frame_start_virt_addr()));
+                configured_endpoint_dci.push((dci, data_buf_mem_info.get_frame_start_virt_addr()));
             }
 
             input_context.input_ctrl_context = input_ctrl_context;
@@ -389,25 +413,11 @@ impl UsbDevice
         {
             let trb = ring_buf.read(ring_buf.get_current_index() - 1).unwrap();
             let data_buf_virt_addr = PhysicalAddress::new(trb.param()).get_virt_addr();
-            let data: u64 = data_buf_virt_addr.read_volatile();
-            println!("data: 0x{:x}", data);
 
-            // let data_buf_phys_addr = BITMAP_MEM_MAN
-            //     .lock()
-            //     .alloc_single_mem_frame()
-            //     .unwrap()
-            //     .get_frame_start_virt_addr()
-            //     .get_phys_addr();
+            let data: InputData = data_buf_virt_addr.read_volatile();
+            println!("{:?}", data);
 
-            // let mut trb = TransferRequestBlock::new();
-
-            // trb.set_trb_type(TransferRequestBlockType::Normal);
-            // trb.set_param(data_buf_phys_addr.get());
-            // trb.set_status(8); // TRB Transfer Lengh
-            // trb.set_other_flags(0x112); // BEI, IOC, ISP bit
-            // ring_buf.push(trb).unwrap();
-
-            // ring_buf.debug();
+            ring_buf.push(trb).unwrap();
         }
     }
 

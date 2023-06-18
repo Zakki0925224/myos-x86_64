@@ -89,50 +89,6 @@ impl RingBuffer
 
     pub fn get_current_index(&self) -> usize { return self.current_index; }
 
-    pub fn fill(&mut self) -> Result<(), RingBufferError>
-    {
-        if !self.is_init
-        {
-            return Err(RingBufferError::NotInitialized);
-        }
-
-        if self.buf_type != RingBufferType::TransferRing
-        {
-            return Err(RingBufferError::UnsupportedRingBufferTypeError(self.buf_type));
-        }
-
-        for i in 0..self.buf_len - 1
-        {
-            // TODO: error handring
-            let data_buf_phys_addr = BITMAP_MEM_MAN
-                .lock()
-                .alloc_single_mem_frame()
-                .unwrap()
-                .get_frame_start_virt_addr()
-                .get_phys_addr();
-
-            let mut trb = TransferRequestBlock::new();
-
-            trb.set_trb_type(TransferRequestBlockType::Normal);
-            trb.set_param(data_buf_phys_addr.get());
-            trb.set_status(8); // TRB Transfer Lenght
-            trb.set_cycle_bit(self.cycle_state);
-            trb.set_other_flags(0x112); // BEI, IOC, ISP bit
-
-            match self.write(i, trb)
-            {
-                Ok(_) => (),
-                Err(err) => return Err(err),
-            }
-
-            self.current_index += 1;
-        }
-
-        self.debug();
-
-        return Ok(());
-    }
-
     fn toggle_cycle(&mut self) -> Result<(), RingBufferError>
     {
         if !self.is_init
