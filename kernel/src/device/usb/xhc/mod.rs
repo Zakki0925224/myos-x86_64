@@ -703,6 +703,11 @@ impl XhcDriver
 
                 if let Some(device) = USB_DRIVER.lock().find_device_by_slot_id(slot_id)
                 {
+                    if !device.is_configured
+                    {
+                        return;
+                    }
+
                     device.update(endpoint_id);
                     self.ring_doorbell(slot_id, endpoint_id as u8);
                 };

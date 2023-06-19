@@ -221,11 +221,8 @@ impl RingBuffer
         for i in 0..self.buf_len
         {
             let trb = self.read(i).unwrap();
-            //print!("{}", trb.cycle_bit() as u8);
             println!("{}: param: 0x{:x} cb: {:?}", i, trb.param(), trb.cycle_bit());
         }
-
-        println!();
     }
 
     pub fn read(&self, index: usize) -> Option<TransferRequestBlock>

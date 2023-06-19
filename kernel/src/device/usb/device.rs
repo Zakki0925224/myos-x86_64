@@ -410,6 +410,8 @@ impl UsbDevice
     {
         if let Some(ring_buf) = self.transfer_ring_bufs[endpoint_id].as_mut()
         {
+            ring_buf.debug();
+
             let trb = ring_buf.read(ring_buf.get_current_index() - 1).unwrap();
             let data_buf_virt_addr = PhysicalAddress::new(trb.param()).get_virt_addr();
 
