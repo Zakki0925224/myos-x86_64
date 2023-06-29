@@ -708,7 +708,7 @@ impl XhcDriver
                         return;
                     }
 
-                    device.update(endpoint_id);
+                    device.update(endpoint_id, trb);
                     self.ring_doorbell(slot_id, endpoint_id as u8);
                 };
             }

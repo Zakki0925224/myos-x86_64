@@ -1,4 +1,4 @@
-use crate::{arch::addr::*, mem::bitmap::{MemoryFrameInfo, BITMAP_MEM_MAN}, println};
+use crate::{arch::addr::*, mem::bitmap::MemoryFrameInfo, println};
 use core::mem::size_of;
 
 use super::{register::*, trb::*};
@@ -16,6 +16,7 @@ pub enum RingBufferError
     InvalidRingBufferIndexError(usize),
     UnsupportedEventRingSegmentTableLengthError,
     InvalidTransferRequestBlockError(usize),
+    RingBufferSizeIsTooSmallError(usize),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -34,7 +35,7 @@ pub struct RingBuffer
     buf_len: usize,
     buf_type: RingBufferType,
     cycle_state: bool,
-    current_index: usize,
+    enqueue_index: usize,
 }
 
 impl RingBuffer
@@ -48,12 +49,16 @@ impl RingBuffer
     {
         if !buf_base_mem_info.is_allocated()
             || (buf_base_mem_info.get_frame_size() / size_of::<TransferRequestBlock>()) < buf_len
-            || buf_len < 2
         {
             return Err(RingBufferError::InvalidMemoryError {
                 mem_frame_info: buf_base_mem_info,
                 buf_len,
             });
+        }
+
+        if buf_len < 2
+        {
+            return Err(RingBufferError::RingBufferSizeIsTooSmallError(buf_len));
         }
 
         return Ok(Self {
@@ -62,7 +67,7 @@ impl RingBuffer
             buf_type,
             cycle_state: cycle_state_bit,
             is_init: false,
-            current_index: 0,
+            enqueue_index: 0,
         });
     }
 
@@ -87,7 +92,7 @@ impl RingBuffer
 
     pub fn get_buf_len(&self) -> usize { return self.buf_len; }
 
-    pub fn get_current_index(&self) -> usize { return self.current_index; }
+    pub fn get_enqueue_index(&self) -> usize { return self.enqueue_index; }
 
     fn toggle_cycle(&mut self) -> Result<(), RingBufferError>
     {
@@ -133,7 +138,7 @@ impl RingBuffer
             return Err(RingBufferError::UnsupportedRingBufferTypeError(self.buf_type));
         }
 
-        if self.current_index == self.buf_len - 1
+        if self.enqueue_index == self.buf_len - 1
         {
             match self.toggle_cycle()
             {
@@ -141,19 +146,19 @@ impl RingBuffer
                 _ => (),
             }
 
-            self.current_index = 0;
+            self.enqueue_index = 0;
         }
 
         let mut trb = trb;
         trb.set_cycle_bit(self.cycle_state);
 
-        match self.write(self.current_index, trb)
+        match self.write(self.enqueue_index, trb)
         {
             Err(err) => return Err(err),
             _ => (),
         }
 
-        self.current_index += 1;
+        self.enqueue_index += 1;
 
         return Ok(());
     }
@@ -210,12 +215,45 @@ impl RingBuffer
         return Ok((trb, int_reg_set));
     }
 
+    pub fn fill(&mut self, fill_trb: TransferRequestBlock) -> Result<(), RingBufferError>
+    {
+        if !self.is_init
+        {
+            return Err(RingBufferError::NotInitialized);
+        }
+
+        if self.buf_type != RingBufferType::TransferRing
+        {
+            return Err(RingBufferError::UnsupportedRingBufferTypeError(self.buf_type));
+        }
+
+        if self.buf_len < 3
+        {
+            return Err(RingBufferError::RingBufferSizeIsTooSmallError(self.buf_len));
+        }
+
+        for i in 0..self.buf_len - 1
+        {
+            let mut trb = fill_trb;
+            trb.set_cycle_bit(if i < 1 { self.cycle_state } else { !self.cycle_state });
+
+            if let Err(err) = self.write(i, trb)
+            {
+                return Err(err);
+            }
+        }
+
+        self.enqueue_index = 1;
+
+        return Ok(());
+    }
+
     pub fn debug(&self)
     {
         println!(
             "{:?}:, current: {}, start: 0x{:x}",
             self.buf_type,
-            self.current_index,
+            self.enqueue_index,
             self.buf_base_virt_addr.get()
         );
         for i in 0..self.buf_len
@@ -225,7 +263,7 @@ impl RingBuffer
         }
     }
 
-    pub fn read(&self, index: usize) -> Option<TransferRequestBlock>
+    fn read(&self, index: usize) -> Option<TransferRequestBlock>
     {
         if index >= self.buf_len
         {

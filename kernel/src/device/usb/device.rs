@@ -114,7 +114,9 @@ impl UsbDevice
                 trb.set_param(data_buf_phys_addr.get());
                 trb.set_status(8); // TRB Transfer Length
                 trb.set_other_flags(0x12); // IOC, ISP bit
-                ring_buf.push(trb).unwrap();
+
+                ring_buf.fill(trb).unwrap();
+                ring_buf.debug();
 
                 match XHC_DRIVER.lock().as_ref()
                 {
@@ -406,19 +408,22 @@ impl UsbDevice
         );
     }
 
-    pub fn update(&mut self, endpoint_id: usize)
+    pub fn update(&mut self, endpoint_id: usize, transfer_event_trb: TransferRequestBlock)
     {
         if let Some(ring_buf) = self.transfer_ring_bufs[endpoint_id].as_mut()
         {
             ring_buf.debug();
 
-            let trb = ring_buf.read(ring_buf.get_current_index() - 1).unwrap();
-            let data_buf_virt_addr = PhysicalAddress::new(trb.param()).get_virt_addr();
+            let target_trb_virt_addr =
+                PhysicalAddress::new(transfer_event_trb.param()).get_virt_addr();
+            let target_trb: TransferRequestBlock = target_trb_virt_addr.read_volatile();
 
-            let data: InputData = data_buf_virt_addr.read_volatile();
+            let data: InputData =
+                PhysicalAddress::new(target_trb.param()).get_virt_addr().read_volatile();
+            println!("target trb addr: 0x{:x}", target_trb_virt_addr.get());
             println!("{:?}", data);
 
-            ring_buf.push(trb).unwrap();
+            ring_buf.push(target_trb).unwrap();
         }
     }
 
