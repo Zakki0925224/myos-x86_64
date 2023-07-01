@@ -154,14 +154,6 @@ impl UsbDriver
             };
 
             asm::cli();
-            match device.request_to_set_conf(conf_desc.conf_value())
-            {
-                Ok(_) => (),
-                Err(error) => return Err(UsbDriverError::UsbDeviceError { slot_id, error }),
-            }
-            asm::sti();
-
-            asm::cli();
             match device.configure_endpoint(EndpointType::InterruptIn)
             {
                 Ok(_) => (),
@@ -193,7 +185,11 @@ impl UsbDriver
             }
             asm::sti();
 
-            device.configure_endpoint_transfer_ring();
+            match device.configure_endpoint_transfer_ring()
+            {
+                Ok(_) => (),
+                Err(error) => return Err(UsbDriverError::UsbDeviceError { slot_id, error }),
+            }
 
             device.is_configured = true;
             info!("usb: Configured device (slot id: {})", slot_id);

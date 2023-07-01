@@ -32,7 +32,7 @@ pub struct UsbDevice
 
     max_packet_size: u16,
 
-    configured_endpoint_dci: Vec<(usize, VirtualAddress)>, // dci, data_buf_virt_addr
+    configured_endpoint_dci: Vec<usize>, // dci, data_buf_virt_addr
     current_conf_index: usize,
     dev_desc: DeviceDescriptor,
     conf_descs: Vec<Descriptor>,
@@ -101,21 +101,23 @@ impl UsbDevice
         return Ok(());
     }
 
-    pub fn configure_endpoint_transfer_ring(&mut self)
+    pub fn configure_endpoint_transfer_ring(&mut self) -> Result<(), UsbDeviceError>
     {
-        for (endpoint_id, data_buf_virt_addr) in &self.configured_endpoint_dci
+        for endpoint_id in &self.configured_endpoint_dci
         {
             if let Some(ring_buf) = self.transfer_ring_bufs[*endpoint_id].as_mut()
             {
-                let data_buf_phys_addr = data_buf_virt_addr.get_phys_addr();
-
                 let mut trb = TransferRequestBlock::new();
                 trb.set_trb_type(TransferRequestBlockType::Normal);
-                trb.set_param(data_buf_phys_addr.get());
+                trb.set_param(0);
                 trb.set_status(8); // TRB Transfer Length
                 trb.set_other_flags(0x12); // IOC, ISP bit
 
-                ring_buf.fill(trb).unwrap();
+                if let Err(err) = ring_buf.fill(trb)
+                {
+                    return Err(UsbDeviceError::RingBufferError(err));
+                }
+
                 ring_buf.debug();
 
                 match XHC_DRIVER.lock().as_ref()
@@ -125,6 +127,8 @@ impl UsbDevice
                 }
             }
         }
+
+        return Ok(());
     }
 
     pub fn slot_id(&self) -> usize { return self.slot_id; }
@@ -304,12 +308,6 @@ impl UsbDevice
                     continue;
                 }
 
-                let data_buf_mem_info = match BITMAP_MEM_MAN.lock().alloc_single_mem_frame()
-                {
-                    Ok(mem_info) => mem_info,
-                    Err(err) => return Err(UsbDeviceError::BitmapMemoryManagerError(err)),
-                };
-
                 let transfer_ring_buf_mem_info =
                     match BITMAP_MEM_MAN.lock().alloc_single_mem_frame()
                     {
@@ -335,7 +333,7 @@ impl UsbDevice
                 endpoint_context
                     .set_max_endpoint_service_interval_payload_low(self.max_packet_size);
                 endpoint_context.set_max_burst_size(0);
-                endpoint_context.set_dequeue_cycle_state(true);
+                endpoint_context.set_dequeue_cycle_state(true); // initial cycle state of transfer ring buffer
                 endpoint_context.set_tr_dequeue_ptr(
                     transfer_ring_buf_mem_info.get_frame_start_phys_addr().get() >> 1,
                 );
@@ -349,7 +347,7 @@ impl UsbDevice
                 input_ctrl_context.set_add_context_flag(dci, true).unwrap();
 
                 transfer_ring_bufs[dci] = Some(transfer_ring_buf);
-                configured_endpoint_dci.push((dci, data_buf_mem_info.get_frame_start_virt_addr()));
+                configured_endpoint_dci.push(dci);
             }
 
             input_context.input_ctrl_context = input_ctrl_context;
@@ -423,7 +421,7 @@ impl UsbDevice
             println!("target trb addr: 0x{:x}", target_trb_virt_addr.get());
             println!("{:?}", data);
 
-            ring_buf.push(target_trb).unwrap();
+            ring_buf.enqueue().unwrap();
         }
     }
 

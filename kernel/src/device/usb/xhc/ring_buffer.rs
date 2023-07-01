@@ -1,4 +1,4 @@
-use crate::{arch::addr::*, mem::bitmap::MemoryFrameInfo, println};
+use crate::{arch::addr::*, mem::bitmap::{MemoryFrameInfo, BITMAP_MEM_MAN}, println};
 use core::mem::size_of;
 
 use super::{register::*, trb::*};
@@ -94,34 +94,44 @@ impl RingBuffer
 
     pub fn get_enqueue_index(&self) -> usize { return self.enqueue_index; }
 
-    fn toggle_cycle(&mut self) -> Result<(), RingBufferError>
+    pub fn enqueue(&mut self) -> Result<(), RingBufferError>
     {
         if !self.is_init
         {
             return Err(RingBufferError::NotInitialized);
         }
 
-        if self.buf_type == RingBufferType::EventRing
+        if self.buf_type != RingBufferType::TransferRing
         {
             return Err(RingBufferError::UnsupportedRingBufferTypeError(self.buf_type));
         }
 
-        let link_trb_index = self.buf_len - 1;
-        let mut link_trb = match self.read(link_trb_index)
+        if self.enqueue_index == self.buf_len - 1
+        {
+            match self.toggle_cycle()
+            {
+                Err(err) => return Err(err),
+                _ => (),
+            }
+
+            self.enqueue_index = 0;
+        }
+
+        let mut trb = match self.read(self.enqueue_index)
         {
             Some(trb) => trb,
-            None => return Err(RingBufferError::InvalidRingBufferIndexError(link_trb_index)),
+            None => return Err(RingBufferError::InvalidRingBufferIndexError(self.enqueue_index)),
         };
-        link_trb.set_cycle_bit(!link_trb.cycle_bit());
-        // true -> toggle, false -> reset
-        link_trb.set_toggle_cycle(self.cycle_state);
-        match self.write(link_trb_index, link_trb)
+
+        trb.set_cycle_bit(!trb.cycle_bit());
+
+        match self.write(self.enqueue_index, trb)
         {
             Err(err) => return Err(err),
             _ => (),
-        };
+        }
 
-        self.cycle_state = !self.cycle_state;
+        self.enqueue_index += 1;
 
         return Ok(());
     }
@@ -234,8 +244,14 @@ impl RingBuffer
 
         for i in 0..self.buf_len - 1
         {
+            let data_buf_phys_addr =
+                BITMAP_MEM_MAN.lock().alloc_single_mem_frame().unwrap().get_frame_start_phys_addr();
+
             let mut trb = fill_trb;
-            trb.set_cycle_bit(if i < 1 { self.cycle_state } else { !self.cycle_state });
+            trb.set_param(data_buf_phys_addr.get());
+            trb.set_cycle_bit(
+                if i < self.buf_len - 3 { self.cycle_state } else { !self.cycle_state },
+            );
 
             if let Err(err) = self.write(i, trb)
             {
@@ -243,7 +259,7 @@ impl RingBuffer
             }
         }
 
-        self.enqueue_index = 1;
+        self.enqueue_index = self.buf_len - 3;
 
         return Ok(());
     }
@@ -261,6 +277,38 @@ impl RingBuffer
             let trb = self.read(i).unwrap();
             println!("{}: param: 0x{:x} cb: {:?}", i, trb.param(), trb.cycle_bit());
         }
+    }
+
+    fn toggle_cycle(&mut self) -> Result<(), RingBufferError>
+    {
+        if !self.is_init
+        {
+            return Err(RingBufferError::NotInitialized);
+        }
+
+        if self.buf_type == RingBufferType::EventRing
+        {
+            return Err(RingBufferError::UnsupportedRingBufferTypeError(self.buf_type));
+        }
+
+        let link_trb_index = self.buf_len - 1;
+        let mut link_trb = match self.read(link_trb_index)
+        {
+            Some(trb) => trb,
+            None => return Err(RingBufferError::InvalidRingBufferIndexError(link_trb_index)),
+        };
+        link_trb.set_cycle_bit(!link_trb.cycle_bit());
+        // true -> toggle, false -> reset
+        link_trb.set_toggle_cycle(self.cycle_state);
+        match self.write(link_trb_index, link_trb)
+        {
+            Err(err) => return Err(err),
+            _ => (),
+        };
+
+        self.cycle_state = !self.cycle_state;
+
+        return Ok(());
     }
 
     fn read(&self, index: usize) -> Option<TransferRequestBlock>
