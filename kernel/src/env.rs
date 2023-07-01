@@ -10,8 +10,7 @@ pub const ENV_VERSION_MINOR: &str = env!("CARGO_PKG_VERSION_MINOR");
 pub const ENV_VERSION_PATCH: &str = env!("CARGO_PKG_VERSION_PATCH");
 pub const ENV_VERSION_PRE: &str = env!("CARGO_PKG_VERSION_PRE");
 
-pub fn print_info()
-{
+pub fn print_info() {
     println!("myos");
     println!("Version: {}", ENV_VERSION);
     println!("Authors: {}", ENV_AUTHORS);

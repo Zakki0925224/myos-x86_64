@@ -16,8 +16,7 @@ const PCI_CONF_UNIQUE_FIELD_OFFSET: usize = 16;
 
 #[derive(BitfieldSpecifier, Debug, Clone, Copy)]
 #[bits = 1]
-pub enum ConfigurationSpaceParityErrorResponse
-{
+pub enum ConfigurationSpaceParityErrorResponse {
     Normal = 0x0,
     SetDetectedParityErrorStatus = 0x1,
 }
@@ -25,8 +24,7 @@ pub enum ConfigurationSpaceParityErrorResponse
 #[bitfield]
 #[derive(BitfieldSpecifier, Debug, Clone, Copy)]
 #[repr(C)]
-pub struct ConfigurationSpaceCommandRegister
-{
+pub struct ConfigurationSpaceCommandRegister {
     pub io_space: bool,
     pub mem_space: bool,
     pub bus_master: bool,
@@ -45,8 +43,7 @@ pub struct ConfigurationSpaceCommandRegister
 
 #[derive(BitfieldSpecifier, Debug, Clone, Copy)]
 #[bits = 2]
-pub enum ConfigurationSpaceDevselTiming
-{
+pub enum ConfigurationSpaceDevselTiming {
     Fast = 0x0,
     Medium = 0x1,
     Slow = 0x2,
@@ -54,8 +51,7 @@ pub enum ConfigurationSpaceDevselTiming
 
 #[derive(BitfieldSpecifier, Debug, Clone, Copy)]
 #[bits = 1]
-pub enum ConfigurationSpaceOperatingFrequency
-{
+pub enum ConfigurationSpaceOperatingFrequency {
     Capable33Mhz = 0x0,
     Capable66Mhz = 0x1,
 }
@@ -63,8 +59,7 @@ pub enum ConfigurationSpaceOperatingFrequency
 #[bitfield]
 #[derive(BitfieldSpecifier, Debug, Clone, Copy)]
 #[repr(C)]
-pub struct ConfigurationSpaceStatusRegister
-{
+pub struct ConfigurationSpaceStatusRegister {
     #[skip]
     reserved1: B3,
     pub interrupt_status_enable: bool,
@@ -84,8 +79,7 @@ pub struct ConfigurationSpaceStatusRegister
 
 #[derive(BitfieldSpecifier, Debug, Clone, Copy)]
 #[bits = 8]
-pub enum ConfigurationSpaceHeaderType
-{
+pub enum ConfigurationSpaceHeaderType {
     NonBridge = 0x0,
     PciToPciBridge = 0x1,
     PciToCardBusBridge = 0x2,
@@ -95,8 +89,7 @@ pub enum ConfigurationSpaceHeaderType
 #[bitfield]
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
-pub struct ConfigurationSpaceCommonHeaderField
-{
+pub struct ConfigurationSpaceCommonHeaderField {
     #[skip(setters)]
     pub vendor_id: B16,
     #[skip(setters)]
@@ -117,19 +110,13 @@ pub struct ConfigurationSpaceCommonHeaderField
     bist: B8,
 }
 
-impl ConfigurationSpaceCommonHeaderField
-{
-    pub fn read(bus: usize, device: usize, func: usize) -> Option<Self>
-    {
+impl ConfigurationSpaceCommonHeaderField {
+    pub fn read(bus: usize, device: usize, func: usize) -> Option<Self> {
         let mut data: [u32; 4] = [0; 4];
-        for (i, elem) in data.iter_mut().enumerate()
-        {
-            if let Some(d) = read_conf_space(bus, device, func, i * 4)
-            {
+        for (i, elem) in data.iter_mut().enumerate() {
+            if let Some(d) = read_conf_space(bus, device, func, i * 4) {
                 *elem = d;
-            }
-            else
-            {
+            } else {
                 return None;
             }
         }
@@ -137,84 +124,82 @@ impl ConfigurationSpaceCommonHeaderField
         return Some(unsafe { transmute::<[u32; 4], Self>(data) });
     }
 
-    pub fn is_exist(&self) -> bool { return self.vendor_id() != PCI_DEVICE_NON_EXIST; }
+    pub fn is_exist(&self) -> bool {
+        return self.vendor_id() != PCI_DEVICE_NON_EXIST;
+    }
 
-    pub fn get_device_name(&self) -> Option<&str>
-    {
+    pub fn get_device_name(&self) -> Option<&str> {
         let vendor = self.get_vendor();
-        if !self.is_exist() || vendor.is_none()
-        {
+        if !self.is_exist() || vendor.is_none() {
             return None;
         }
 
         let device = self.get_device(&vendor.unwrap());
-        return if device.is_some() { Some(device.unwrap().name()) } else { None };
+        return if device.is_some() {
+            Some(device.unwrap().name())
+        } else {
+            None
+        };
     }
 
-    pub fn get_vendor_name(&self) -> Option<&str>
-    {
-        if !self.is_exist()
-        {
+    pub fn get_vendor_name(&self) -> Option<&str> {
+        if !self.is_exist() {
             return None;
         }
 
         let vendor = self.get_vendor();
-        return if vendor.is_some() { Some(vendor.unwrap().name()) } else { None };
+        return if vendor.is_some() {
+            Some(vendor.unwrap().name())
+        } else {
+            None
+        };
     }
 
-    pub fn get_class_name(&self) -> Option<&str>
-    {
-        if !self.is_exist()
-        {
+    pub fn get_class_name(&self) -> Option<&str> {
+        if !self.is_exist() {
             return None;
         }
 
         let class = self.get_class();
-        return if class.is_some() { Some(class.unwrap().name()) } else { None };
+        return if class.is_some() {
+            Some(class.unwrap().name())
+        } else {
+            None
+        };
     }
 
-    pub fn get_subclass_name(&self) -> Option<&str>
-    {
+    pub fn get_subclass_name(&self) -> Option<&str> {
         let subclass = self.get_subclass();
-        if !self.is_exist() || subclass.is_none()
-        {
+        if !self.is_exist() || subclass.is_none() {
             return None;
         }
 
         return Some(subclass.unwrap().name());
     }
 
-    fn get_vendor(&self) -> Option<&Vendor>
-    {
+    fn get_vendor(&self) -> Option<&Vendor> {
         return Vendors::iter().find(|v| v.id() == self.vendor_id());
     }
 
-    fn get_device(&self, vendor: &Vendor) -> Option<&Device>
-    {
+    fn get_device(&self, vendor: &Vendor) -> Option<&Device> {
         return vendor.devices().find(|d| d.id() == self.device_id());
     }
 
-    fn get_class(&self) -> Option<&Class>
-    {
+    fn get_class(&self) -> Option<&Class> {
         return Classes::iter().find(|c| c.id() == self.class_code());
     }
 
-    fn get_subclass(&self) -> Option<&Subclass>
-    {
-        if let Some(class) = self.get_class()
-        {
+    fn get_subclass(&self) -> Option<&Subclass> {
+        if let Some(class) = self.get_class() {
             return class.subclasses().find(|c| c.id() == self.subclass());
-        }
-        else
-        {
+        } else {
             return None;
         }
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BaseAddress
-{
+pub enum BaseAddress {
     MemoryAddress32BitSpace(PhysicalAddress, bool), // (addr, is prefetchable)
     MemoryAddress64BitSpace(PhysicalAddress, bool),
     MmioAddressSpace(u32),
@@ -223,21 +208,19 @@ pub enum BaseAddress
 #[derive(BitfieldSpecifier, Debug, Clone, Copy)]
 pub struct BaseAddressRegister(u32);
 
-impl BaseAddressRegister
-{
-    pub fn read(&self) -> u32 { return unsafe { self.bytes.align_to::<u32>() }.1[0]; }
+impl BaseAddressRegister {
+    pub fn read(&self) -> u32 {
+        return unsafe { self.bytes.align_to::<u32>() }.1[0];
+    }
 
-    pub fn get_base_addr(&self) -> Option<BaseAddress>
-    {
+    pub fn get_base_addr(&self) -> Option<BaseAddress> {
         let bar = self.read();
 
-        if bar == 0
-        {
+        if bar == 0 {
             return None;
         }
 
-        if bar & 0x1 != 0
-        {
+        if bar & 0x1 != 0 {
             let addr = bar & !0x3;
             return Some(BaseAddress::MmioAddressSpace(addr));
         }
@@ -245,10 +228,19 @@ impl BaseAddressRegister
         let bar_type = (bar >> 1) & 0x3;
         let prefetchable = bar & 0x8 != 0;
         let phys_addr = PhysicalAddress::new((bar & !0xf) as u64);
-        match bar_type
-        {
-            0x0 => return Some(BaseAddress::MemoryAddress32BitSpace(phys_addr, prefetchable)),
-            0x2 => return Some(BaseAddress::MemoryAddress64BitSpace(phys_addr, prefetchable)),
+        match bar_type {
+            0x0 => {
+                return Some(BaseAddress::MemoryAddress32BitSpace(
+                    phys_addr,
+                    prefetchable,
+                ))
+            }
+            0x2 => {
+                return Some(BaseAddress::MemoryAddress64BitSpace(
+                    phys_addr,
+                    prefetchable,
+                ))
+            }
             _ => return None,
         }
     }
@@ -257,8 +249,7 @@ impl BaseAddressRegister
 #[bitfield]
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
-pub struct ConfigurationSpaceNonBridgeField
-{
+pub struct ConfigurationSpaceNonBridgeField {
     bar0: BaseAddressRegister,
     bar1: BaseAddressRegister,
     bar2: BaseAddressRegister,
@@ -280,20 +271,15 @@ pub struct ConfigurationSpaceNonBridgeField
     max_latency: B8,
 }
 
-impl ConfigurationSpaceNonBridgeField
-{
-    pub fn read(bus: usize, device: usize, func: usize) -> Option<Self>
-    {
+impl ConfigurationSpaceNonBridgeField {
+    pub fn read(bus: usize, device: usize, func: usize) -> Option<Self> {
         let mut data: [u32; 12] = [0; 12];
-        for (i, elem) in data.iter_mut().enumerate()
-        {
+        for (i, elem) in data.iter_mut().enumerate() {
             if let Some(d) =
                 read_conf_space(bus, device, func, PCI_CONF_UNIQUE_FIELD_OFFSET + (i * 4))
             {
                 *elem = d;
-            }
-            else
-            {
+            } else {
                 return None;
             }
         }
@@ -301,8 +287,7 @@ impl ConfigurationSpaceNonBridgeField
         return Some(unsafe { transmute::<[u32; 12], Self>(data) });
     }
 
-    pub fn get_bars(&self) -> Vec<(usize, BaseAddress)>
-    {
+    pub fn get_bars(&self) -> Vec<(usize, BaseAddress)> {
         let mut bars = Vec::new();
         bars.push((0, self.bar0()));
         bars.push((1, self.bar1()));
@@ -314,13 +299,10 @@ impl ConfigurationSpaceNonBridgeField
         let mut base_addrs = Vec::new();
 
         let mut i = 0;
-        while i < bars.len()
-        {
+        while i < bars.len() {
             let (_, bar) = &bars[i];
-            match bar.get_base_addr()
-            {
-                Some(BaseAddress::MemoryAddress64BitSpace(addr, is_pref)) =>
-                {
+            match bar.get_base_addr() {
+                Some(BaseAddress::MemoryAddress64BitSpace(addr, is_pref)) => {
                     let (_, next_bar) = &bars[i + 1];
                     let addr = (next_bar.read() as u64) << 32 | addr.get();
                     let phys_addr = PhysicalAddress::new(addr);
@@ -342,8 +324,7 @@ impl ConfigurationSpaceNonBridgeField
 #[bitfield]
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
-pub struct ConfigurationSpacePciToPciBridgeField
-{
+pub struct ConfigurationSpacePciToPciBridgeField {
     bar0: BaseAddressRegister,
     bar1: BaseAddressRegister,
     primary_bus_num: B8,
@@ -370,20 +351,15 @@ pub struct ConfigurationSpacePciToPciBridgeField
     bridge_ctrl: B16,
 }
 
-impl ConfigurationSpacePciToPciBridgeField
-{
-    pub fn read(bus: usize, device: usize, func: usize) -> Option<Self>
-    {
+impl ConfigurationSpacePciToPciBridgeField {
+    pub fn read(bus: usize, device: usize, func: usize) -> Option<Self> {
         let mut data: [u32; 12] = [0; 12];
-        for (i, elem) in data.iter_mut().enumerate()
-        {
+        for (i, elem) in data.iter_mut().enumerate() {
             if let Some(d) =
                 read_conf_space(bus, device, func, PCI_CONF_UNIQUE_FIELD_OFFSET + (i * 4))
             {
                 *elem = d;
-            }
-            else
-            {
+            } else {
                 return None;
             }
         }
@@ -391,8 +367,7 @@ impl ConfigurationSpacePciToPciBridgeField
         return Some(unsafe { transmute::<[u32; 12], Self>(data) });
     }
 
-    pub fn get_bars(&self) -> Vec<(usize, BaseAddress)>
-    {
+    pub fn get_bars(&self) -> Vec<(usize, BaseAddress)> {
         let mut bars = Vec::new();
         bars.push((0, self.bar0()));
         bars.push((1, self.bar1()));
@@ -400,13 +375,10 @@ impl ConfigurationSpacePciToPciBridgeField
         let mut base_addrs = Vec::new();
 
         let mut i = 0;
-        while i < bars.len()
-        {
+        while i < bars.len() {
             let (_, bar) = &bars[i];
-            match bar.get_base_addr()
-            {
-                Some(BaseAddress::MemoryAddress64BitSpace(addr, is_pref)) =>
-                {
+            match bar.get_base_addr() {
+                Some(BaseAddress::MemoryAddress64BitSpace(addr, is_pref)) => {
                     let (_, next_bar) = &bars[i + 1];
                     let addr = (next_bar.read() as u64) << 32 | addr.get();
                     let phys_addr = PhysicalAddress::new(addr);
@@ -428,8 +400,7 @@ impl ConfigurationSpacePciToPciBridgeField
 #[bitfield]
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
-pub struct ConfigurationSpacePciToCardBusField
-{
+pub struct ConfigurationSpacePciToCardBusField {
     cardbus_socket_or_exca_base_addr: B32,
     caps_list_offset: B8,
     #[skip]
@@ -455,20 +426,15 @@ pub struct ConfigurationSpacePciToCardBusField
     pc_card_legacy_mode_base_addr: B32,
 }
 
-impl ConfigurationSpacePciToCardBusField
-{
-    pub fn read(bus: usize, device: usize, func: usize) -> Option<Self>
-    {
+impl ConfigurationSpacePciToCardBusField {
+    pub fn read(bus: usize, device: usize, func: usize) -> Option<Self> {
         let mut data: [u32; 14] = [0; 14];
-        for (i, elem) in data.iter_mut().enumerate()
-        {
+        for (i, elem) in data.iter_mut().enumerate() {
             if let Some(d) =
                 read_conf_space(bus, device, func, PCI_CONF_UNIQUE_FIELD_OFFSET + (i * 4))
             {
                 *elem = d;
-            }
-            else
-            {
+            } else {
                 return None;
             }
         }
@@ -480,8 +446,7 @@ impl ConfigurationSpacePciToCardBusField
 #[bitfield]
 #[derive(BitfieldSpecifier, Debug, Clone, Copy)]
 #[repr(C)]
-pub struct MsiMessageControlField
-{
+pub struct MsiMessageControlField {
     pub is_enable: bool,
     #[skip(setters)]
     pub multiple_msg_capable: B3,
@@ -497,8 +462,7 @@ pub struct MsiMessageControlField
 #[bitfield]
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
-pub struct MsiCapabilityField
-{
+pub struct MsiCapabilityField {
     #[skip(setters)]
     pub cap_id: B8,
     #[skip(setters)]
@@ -510,19 +474,13 @@ pub struct MsiCapabilityField
     reserved: B64,
 }
 
-impl MsiCapabilityField
-{
-    pub fn read(bus: usize, device: usize, func: usize, caps_ptr: usize) -> Option<Self>
-    {
+impl MsiCapabilityField {
+    pub fn read(bus: usize, device: usize, func: usize, caps_ptr: usize) -> Option<Self> {
         let mut data: [u32; 6] = [0; 6];
-        for (i, elem) in data.iter_mut().enumerate()
-        {
-            if let Some(d) = read_conf_space(bus, device, func, caps_ptr + (i * 4))
-            {
+        for (i, elem) in data.iter_mut().enumerate() {
+            if let Some(d) = read_conf_space(bus, device, func, caps_ptr + (i * 4)) {
                 *elem = d;
-            }
-            else
-            {
+            } else {
                 return None;
             }
         }
@@ -536,13 +494,10 @@ impl MsiCapabilityField
         device: usize,
         func: usize,
         caps_ptr: usize,
-    ) -> Result<(), &'static str>
-    {
+    ) -> Result<(), &'static str> {
         let data = unsafe { transmute::<Self, [u32; 6]>(*self) };
-        for (i, elem) in data.iter().enumerate()
-        {
-            if let Err(msg) = write_conf_space(bus, device, func, caps_ptr + (i * 4), *elem)
-            {
+        for (i, elem) in data.iter().enumerate() {
+            if let Err(msg) = write_conf_space(bus, device, func, caps_ptr + (i * 4), *elem) {
                 return Err(msg);
             }
         }
@@ -551,8 +506,7 @@ impl MsiCapabilityField
     }
 }
 
-fn read_conf_space(bus: usize, device: usize, func: usize, byte_offset: usize) -> Option<u32>
-{
+fn read_conf_space(bus: usize, device: usize, func: usize, byte_offset: usize) -> Option<u32> {
     if bus >= PCI_DEVICE_BUS_LEN
         || device >= PCI_DEVICE_DEVICE_LEN
         || func >= PCI_DEVICE_FUNC_LEN
@@ -578,8 +532,7 @@ fn write_conf_space(
     func: usize,
     byte_offset: usize,
     data: u32,
-) -> Result<(), &'static str>
-{
+) -> Result<(), &'static str> {
     if bus >= PCI_DEVICE_BUS_LEN
         || device >= PCI_DEVICE_DEVICE_LEN
         || func >= PCI_DEVICE_FUNC_LEN

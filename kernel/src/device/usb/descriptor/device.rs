@@ -5,8 +5,7 @@ use super::DescriptorHeader;
 #[bitfield]
 #[derive(Debug, Clone)]
 #[repr(C)]
-pub struct DeviceDescriptor
-{
+pub struct DeviceDescriptor {
     pub header: DescriptorHeader,
     pub bcd_usb_version: B16,
     pub class: B8,

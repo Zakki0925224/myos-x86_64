@@ -1,7 +1,10 @@
 use alloc::vec::Vec;
 use modular_bitfield::{bitfield, specifiers::*, BitfieldSpecifier};
 
-use self::{config::ConfigurationDescriptor, device::DeviceDescriptor, endpoint::EndpointDescriptor, hid::HumanInterfaceDeviceDescriptor, interface::InterfaceDescriptor};
+use self::{
+    config::ConfigurationDescriptor, device::DeviceDescriptor, endpoint::EndpointDescriptor,
+    hid::HumanInterfaceDeviceDescriptor, interface::InterfaceDescriptor,
+};
 
 pub mod config;
 pub mod device;
@@ -10,8 +13,7 @@ pub mod hid;
 pub mod interface;
 
 #[derive(Debug, Clone)]
-pub enum Descriptor
-{
+pub enum Descriptor {
     Device(DeviceDescriptor),
     Configuration(ConfigurationDescriptor),
     Endpoint(EndpointDescriptor),
@@ -22,8 +24,7 @@ pub enum Descriptor
 
 #[derive(BitfieldSpecifier, Debug, Clone, Copy)]
 #[bits = 8]
-pub enum DescriptorType
-{
+pub enum DescriptorType {
     Device = 0x1,
     Configration = 0x2,
     String = 0x3,
@@ -51,8 +52,7 @@ pub enum DescriptorType
 #[bitfield]
 #[derive(BitfieldSpecifier, Debug, Clone)]
 #[repr(C)]
-pub struct DescriptorHeader
-{
+pub struct DescriptorHeader {
     pub length: B8, // bytes
     pub ty: DescriptorType,
 }

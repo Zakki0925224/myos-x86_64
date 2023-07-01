@@ -4,8 +4,7 @@ use crate::device::usb::xhc::register::PortSpeedIdValue;
 
 #[derive(BitfieldSpecifier, Debug, Clone, Copy)]
 #[bits = 2]
-pub enum TtThinkTime
-{
+pub enum TtThinkTime {
     Most8FsBitTimes = 0,
     Most16FsBitTimes = 1,
     Most24FsBitTimes = 2,
@@ -14,8 +13,7 @@ pub enum TtThinkTime
 
 #[derive(BitfieldSpecifier, Debug, Clone, Copy)]
 #[bits = 5]
-pub enum SlotState
-{
+pub enum SlotState {
     DisabledOrEnabled = 0,
     Default = 1,
     Addressed = 2,
@@ -25,8 +23,7 @@ pub enum SlotState
 #[bitfield]
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
-pub struct SlotContext
-{
+pub struct SlotContext {
     pub route_string: B20,
     pub speed: PortSpeedIdValue,
     #[skip]

@@ -15,22 +15,28 @@ lazy_static! {
     pub static ref SERIAL: Mutex<SerialPort> = Mutex::new(SerialPort::new());
 }
 
-pub struct SerialPort
-{
+pub struct SerialPort {
     io_port: u16,
     is_init: bool,
 }
 
-impl SerialPort
-{
-    pub fn new() -> Self { return Self { io_port: 0, is_init: false }; }
+impl SerialPort {
+    pub fn new() -> Self {
+        return Self {
+            io_port: 0,
+            is_init: false,
+        };
+    }
 
-    pub fn is_init(&self) -> bool { return self.is_init; }
+    pub fn is_init(&self) -> bool {
+        return self.is_init;
+    }
 
-    pub fn get_port_num(&self) -> u16 { return self.io_port }
+    pub fn get_port_num(&self) -> u16 {
+        return self.io_port;
+    }
 
-    pub fn init(&mut self, io_port: u16)
-    {
+    pub fn init(&mut self, io_port: u16) {
         self.io_port = io_port;
         asm::out8(self.io_port + 1, 0x00); // IER - disable all interrupts
         asm::out8(self.io_port + 3, 0x80); // LCR - enable DLAB
@@ -42,8 +48,7 @@ impl SerialPort
         asm::out8(self.io_port + 4, 0x1e); // MCR - set loopback mode, test the serial chip
         asm::out8(self.io_port + 0, 0xae); // RBR - test the serial chip (send 0xae)
 
-        if asm::in8(self.io_port + 0) != 0xae
-        {
+        if asm::in8(self.io_port + 0) != 0xae {
             return;
         }
 
@@ -52,35 +57,31 @@ impl SerialPort
         self.is_init = true;
     }
 
-    pub fn receive_data(&self) -> Option<u8>
-    {
-        if !self.is_init
-        {
+    pub fn receive_data(&self) -> Option<u8> {
+        if !self.is_init {
             return None;
         }
 
         let res = asm::in8(self.io_port + 5) & 1;
 
-        if res == 0
-        {
+        if res == 0 {
             return None;
         }
 
         return Some(asm::in8(self.io_port));
     }
 
-    pub fn send_data(&self, data: u8)
-    {
+    pub fn send_data(&self, data: u8) {
         // skip send data
-        if !self.is_init
-        {
+        if !self.is_init {
             return;
         }
 
-        while self.is_transmit_empty() == 0
-        {}
+        while self.is_transmit_empty() == 0 {}
         asm::out8(self.io_port, data);
     }
 
-    fn is_transmit_empty(&self) -> u8 { return asm::in8(self.io_port + 5) & 0x20; }
+    fn is_transmit_empty(&self) -> u8 {
+        return asm::in8(self.io_port + 5) & 0x20;
+    }
 }

@@ -1,14 +1,12 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PixelFormat
-{
+pub enum PixelFormat {
     Rgb,
     Bgr,
 }
 
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
-pub struct GraphicInfo
-{
+pub struct GraphicInfo {
     pub resolution: (u32, u32),
     pub format: PixelFormat,
     pub stride: u32,

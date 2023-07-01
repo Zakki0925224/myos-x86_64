@@ -4,7 +4,6 @@
 #![feature(abi_x86_interrupt)]
 #![feature(panic_info_message)]
 #![feature(alloc_error_handler)]
-#![feature(global_asm)]
 
 mod arch;
 mod bus;
@@ -27,8 +26,7 @@ use crate::arch::{gdt, idt};
 
 #[no_mangle]
 #[start]
-pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> !
-{
+pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> ! {
     let boot_info = unsafe { boot_info.read() };
 
     // initialize frame buffer, serial, terminal, logger
@@ -50,26 +48,22 @@ pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> !
 
     env::print_info();
 
-    loop
-    {
+    loop {
         asm::hlt();
     }
 }
 
 #[alloc_error_handler]
-fn alloc_error_handler(layout: Layout) -> !
-{
+fn alloc_error_handler(layout: Layout) -> ! {
     panic!("Allocation error: {:?}", layout);
 }
 
 #[panic_handler]
-fn panic(info: &PanicInfo) -> !
-{
+fn panic(info: &PanicInfo) -> ! {
     error!("{:?}", info.message());
     error!("{:?}", info.location());
 
-    loop
-    {
+    loop {
         asm::hlt();
     }
 }

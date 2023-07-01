@@ -6,8 +6,7 @@ use crate::device::usb::setup_trb::*;
 
 #[derive(BitfieldSpecifier, Debug, Clone, Copy, Eq, PartialEq)]
 #[bits = 6]
-pub enum TransferRequestBlockType
-{
+pub enum TransferRequestBlockType {
     Invalid = 0,
     Normal = 1,
     SetupStage = 2,
@@ -47,8 +46,7 @@ pub enum TransferRequestBlockType
 
 #[derive(BitfieldSpecifier, Debug, Clone, Copy, Eq, PartialEq)]
 #[bits = 8]
-pub enum CompletionCode
-{
+pub enum CompletionCode {
     Invalid = 0,
     Success = 1,
     DataBufferError = 2,
@@ -91,8 +89,7 @@ pub enum CompletionCode
 #[bitfield]
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
-pub struct TransferRequestBlock
-{
+pub struct TransferRequestBlock {
     pub param: B64,
     pub status: B32,
     pub cycle_bit: bool,
@@ -101,13 +98,10 @@ pub struct TransferRequestBlock
     pub ctrl_regs: B16,
 }
 
-impl TransferRequestBlock
-{
+impl TransferRequestBlock {
     // Link TRB
-    pub fn toggle_cycle(&self) -> Option<bool>
-    {
-        if self.trb_type() != TransferRequestBlockType::Link
-        {
+    pub fn toggle_cycle(&self) -> Option<bool> {
+        if self.trb_type() != TransferRequestBlockType::Link {
             return None;
         }
 
@@ -116,10 +110,8 @@ impl TransferRequestBlock
         return Some((flags & 0x1) != 0);
     }
 
-    pub fn set_toggle_cycle(&mut self, new_val: bool)
-    {
-        if self.trb_type() != TransferRequestBlockType::Link
-        {
+    pub fn set_toggle_cycle(&mut self, new_val: bool) {
+        if self.trb_type() != TransferRequestBlockType::Link {
             return;
         }
 
@@ -129,8 +121,7 @@ impl TransferRequestBlock
     }
 
     // Command Completion Event TRB
-    pub fn slot_id(&self) -> Option<usize>
-    {
+    pub fn slot_id(&self) -> Option<usize> {
         let slot_id = (self.ctrl_regs() >> 8) as usize;
 
         if self.trb_type() != TransferRequestBlockType::CommandCompletionEvent
@@ -139,8 +130,7 @@ impl TransferRequestBlock
             return None;
         }
 
-        if slot_id == 0
-        {
+        if slot_id == 0 {
             return None;
         }
 
@@ -148,10 +138,8 @@ impl TransferRequestBlock
     }
 
     // Port Status Change Event TRB
-    pub fn port_id(&self) -> Option<usize>
-    {
-        if self.trb_type() != TransferRequestBlockType::PortStatusChangeEvent
-        {
+    pub fn port_id(&self) -> Option<usize> {
+        if self.trb_type() != TransferRequestBlockType::PortStatusChangeEvent {
             return None;
         }
 
@@ -159,10 +147,8 @@ impl TransferRequestBlock
     }
 
     // Setup Stage TRB
-    pub fn set_transfer_type(&mut self, new_val: TransferType)
-    {
-        if self.trb_type() != TransferRequestBlockType::SetupStage
-        {
+    pub fn set_transfer_type(&mut self, new_val: TransferType) {
+        if self.trb_type() != TransferRequestBlockType::SetupStage {
             return;
         }
 
@@ -171,20 +157,16 @@ impl TransferRequestBlock
         self.set_ctrl_regs(ctrl_regs);
     }
 
-    pub fn transfer_type(&self) -> Option<TransferType>
-    {
-        if self.trb_type() != TransferRequestBlockType::SetupStage
-        {
+    pub fn transfer_type(&self) -> Option<TransferType> {
+        if self.trb_type() != TransferRequestBlockType::SetupStage {
             return None;
         }
 
         return Some(unsafe { transmute::<u8, TransferType>((self.ctrl_regs() & 0x3) as u8) });
     }
 
-    pub fn set_setup_request_type(&mut self, new_val: SetupRequestType)
-    {
-        if self.trb_type() != TransferRequestBlockType::SetupStage
-        {
+    pub fn set_setup_request_type(&mut self, new_val: SetupRequestType) {
+        if self.trb_type() != TransferRequestBlockType::SetupStage {
             return;
         }
 
@@ -193,20 +175,16 @@ impl TransferRequestBlock
         self.set_param(param);
     }
 
-    pub fn setup_request_type(&self) -> Option<SetupRequestType>
-    {
-        if self.trb_type() != TransferRequestBlockType::SetupStage
-        {
+    pub fn setup_request_type(&self) -> Option<SetupRequestType> {
+        if self.trb_type() != TransferRequestBlockType::SetupStage {
             return None;
         }
 
         return Some(unsafe { transmute::<u8, SetupRequestType>(self.param() as u8) });
     }
 
-    pub fn set_setup_request(&mut self, new_val: SetupRequest)
-    {
-        if self.trb_type() != TransferRequestBlockType::SetupStage
-        {
+    pub fn set_setup_request(&mut self, new_val: SetupRequest) {
+        if self.trb_type() != TransferRequestBlockType::SetupStage {
             return;
         }
 
@@ -214,20 +192,16 @@ impl TransferRequestBlock
         self.set_param(param);
     }
 
-    pub fn setup_request(&self) -> Option<SetupRequest>
-    {
-        if self.trb_type() != TransferRequestBlockType::SetupStage
-        {
+    pub fn setup_request(&self) -> Option<SetupRequest> {
+        if self.trb_type() != TransferRequestBlockType::SetupStage {
             return None;
         }
 
         return Some(unsafe { transmute::<u8, SetupRequest>((self.param() >> 8) as u8) });
     }
 
-    pub fn set_setup_value(&mut self, new_val: u16)
-    {
-        if self.trb_type() != TransferRequestBlockType::SetupStage
-        {
+    pub fn set_setup_value(&mut self, new_val: u16) {
+        if self.trb_type() != TransferRequestBlockType::SetupStage {
             return;
         }
 
@@ -235,20 +209,16 @@ impl TransferRequestBlock
         self.set_param(param);
     }
 
-    pub fn setup_value(&self) -> Option<u16>
-    {
-        if self.trb_type() != TransferRequestBlockType::SetupStage
-        {
+    pub fn setup_value(&self) -> Option<u16> {
+        if self.trb_type() != TransferRequestBlockType::SetupStage {
             return None;
         }
 
         return Some((self.param() >> 16) as u16);
     }
 
-    pub fn set_setup_index(&mut self, new_val: u16)
-    {
-        if self.trb_type() != TransferRequestBlockType::SetupStage
-        {
+    pub fn set_setup_index(&mut self, new_val: u16) {
+        if self.trb_type() != TransferRequestBlockType::SetupStage {
             return;
         }
 
@@ -256,20 +226,16 @@ impl TransferRequestBlock
         self.set_param(param);
     }
 
-    pub fn setup_index(&self) -> Option<u16>
-    {
-        if self.trb_type() != TransferRequestBlockType::SetupStage
-        {
+    pub fn setup_index(&self) -> Option<u16> {
+        if self.trb_type() != TransferRequestBlockType::SetupStage {
             return None;
         }
 
         return Some((self.param() >> 32) as u16);
     }
 
-    pub fn set_setup_length(&mut self, new_val: u16)
-    {
-        if self.trb_type() != TransferRequestBlockType::SetupStage
-        {
+    pub fn set_setup_length(&mut self, new_val: u16) {
+        if self.trb_type() != TransferRequestBlockType::SetupStage {
             return;
         }
 
@@ -277,20 +243,16 @@ impl TransferRequestBlock
         self.set_param(param);
     }
 
-    pub fn setup_length(&self) -> Option<u16>
-    {
-        if self.trb_type() != TransferRequestBlockType::SetupStage
-        {
+    pub fn setup_length(&self) -> Option<u16> {
+        if self.trb_type() != TransferRequestBlockType::SetupStage {
             return None;
         }
 
         return Some((self.param() >> 48) as u16);
     }
 
-    pub fn completion_code(&self) -> Option<CompletionCode>
-    {
-        match self.trb_type()
-        {
+    pub fn completion_code(&self) -> Option<CompletionCode> {
+        match self.trb_type() {
             TransferRequestBlockType::TransferEvent => (),
             TransferRequestBlockType::CommandCompletionEvent => (),
             TransferRequestBlockType::PortStatusChangeEvent => (),
@@ -306,20 +268,16 @@ impl TransferRequestBlock
     }
 
     // transfer event TRB
-    pub fn trb_transfer_length(&self) -> Option<usize>
-    {
-        if self.trb_type() != TransferRequestBlockType::TransferEvent
-        {
+    pub fn trb_transfer_length(&self) -> Option<usize> {
+        if self.trb_type() != TransferRequestBlockType::TransferEvent {
             return None;
         }
 
         return Some((self.status() & 0xfff) as usize);
     }
 
-    pub fn endpoint_id(&self) -> Option<usize>
-    {
-        if self.trb_type() != TransferRequestBlockType::TransferEvent
-        {
+    pub fn endpoint_id(&self) -> Option<usize> {
+        if self.trb_type() != TransferRequestBlockType::TransferEvent {
             return None;
         }
 

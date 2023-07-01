@@ -5,8 +5,7 @@ use super::device::DeviceContext;
 #[bitfield]
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
-pub struct InputControlContext
-{
+pub struct InputControlContext {
     drop_context_flags: B32,
     add_context_flags: B32,
     #[skip]
@@ -26,22 +25,17 @@ pub struct InputControlContext
     reserved6: B8,
 }
 
-impl InputControlContext
-{
-    pub fn drop_context_flag(&self, index: usize) -> Option<bool>
-    {
-        if index < 2 || index > 31
-        {
+impl InputControlContext {
+    pub fn drop_context_flag(&self, index: usize) -> Option<bool> {
+        if index < 2 || index > 31 {
             return None;
         }
 
         return Some(((self.drop_context_flags() >> index) & 0x1) != 0);
     }
 
-    pub fn set_drop_context_flag(&mut self, index: usize, flag: bool) -> Result<(), &'static str>
-    {
-        if index < 2 || index > 31
-        {
+    pub fn set_drop_context_flag(&mut self, index: usize, flag: bool) -> Result<(), &'static str> {
+        if index < 2 || index > 31 {
             return Err("Invalid index");
         }
 
@@ -52,20 +46,16 @@ impl InputControlContext
         return Ok(());
     }
 
-    pub fn add_context_flag(&self, index: usize) -> Option<bool>
-    {
-        if index > 31
-        {
+    pub fn add_context_flag(&self, index: usize) -> Option<bool> {
+        if index > 31 {
             return None;
         }
 
         return Some(((self.add_context_flags() >> index) & 0x1) != 0);
     }
 
-    pub fn set_add_context_flag(&mut self, index: usize, flag: bool) -> Result<(), &'static str>
-    {
-        if index > 31
-        {
+    pub fn set_add_context_flag(&mut self, index: usize, flag: bool) -> Result<(), &'static str> {
+        if index > 31 {
             return Err("Invalid index");
         }
 
@@ -79,16 +69,13 @@ impl InputControlContext
 
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
-pub struct InputContext
-{
+pub struct InputContext {
     pub input_ctrl_context: InputControlContext,
     pub device_context: DeviceContext,
 }
 
-impl InputContext
-{
-    pub fn new() -> Self
-    {
+impl InputContext {
+    pub fn new() -> Self {
         return Self {
             input_ctrl_context: InputControlContext::new(),
             device_context: DeviceContext::new(),

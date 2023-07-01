@@ -3,7 +3,13 @@ use log::{error, info};
 use modular_bitfield::{bitfield, specifiers::*, BitfieldSpecifier};
 use spin::Mutex;
 
-use crate::{arch::{addr::{PhysicalAddress, VirtualAddress}, register::control::*}, println};
+use crate::{
+    arch::{
+        addr::{PhysicalAddress, VirtualAddress},
+        register::control::*,
+    },
+    println,
+};
 
 use super::bitmap::BITMAP_MEM_MAN;
 
@@ -15,24 +21,21 @@ lazy_static! {
 
 #[derive(BitfieldSpecifier, Debug, Clone, Copy)]
 #[bits = 1]
-pub enum ReadWrite
-{
+pub enum ReadWrite {
     Read = 0,
     Write = 1,
 }
 
 #[derive(BitfieldSpecifier, Debug, Clone, Copy)]
 #[bits = 1]
-pub enum EntryMode
-{
+pub enum EntryMode {
     Supervisor = 0,
     User = 1,
 }
 
 #[derive(BitfieldSpecifier, Debug, Clone, Copy)]
 #[bits = 1]
-pub enum PageWriteThroughLevel
-{
+pub enum PageWriteThroughLevel {
     WriteBack = 0,
     WriteThrough = 1,
 }
@@ -40,8 +43,7 @@ pub enum PageWriteThroughLevel
 #[bitfield]
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
-pub struct PageTableEntry
-{
+pub struct PageTableEntry {
     p: bool,
     rw: ReadWrite,
     us: EntryMode,
@@ -58,8 +60,7 @@ pub struct PageTableEntry
     disable_execute: bool,
 }
 
-impl PageTableEntry
-{
+impl PageTableEntry {
     pub fn set_entry(
         &mut self,
         addr: &PhysicalAddress,
@@ -67,8 +68,7 @@ impl PageTableEntry
         rw: ReadWrite,
         mode: EntryMode,
         write_through_level: PageWriteThroughLevel,
-    )
-    {
+    ) {
         self.set_p(true);
         self.set_rw(rw);
         self.set_us(mode);
@@ -81,36 +81,35 @@ impl PageTableEntry
         self.set_disable_execute(false);
     }
 
-    pub fn get_addr(&self) -> PhysicalAddress { return PhysicalAddress::new(self.addr() << 12); }
+    pub fn get_addr(&self) -> PhysicalAddress {
+        return PhysicalAddress::new(self.addr() << 12);
+    }
 
-    pub fn is_used(&self) -> bool { return self.p(); }
+    pub fn is_used(&self) -> bool {
+        return self.p();
+    }
 }
 
 #[derive(Debug)]
 #[repr(align(4096))]
-pub struct PageTable
-{
+pub struct PageTable {
     pub entries: [PageTableEntry; ENTRY_LEN],
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum MappingType
-{
+pub enum MappingType {
     Identity,
 }
 
 #[derive(Debug)]
-pub struct Paging
-{
+pub struct Paging {
     pml4_table_addr: PhysicalAddress,
     pml4_table_addr_backup: PhysicalAddress,
     mapping_type: MappingType,
 }
 
-impl Paging
-{
-    pub fn new() -> Self
-    {
+impl Paging {
+    pub fn new() -> Self {
         let table_addr = Cr3::read();
 
         return Self {
@@ -121,16 +120,13 @@ impl Paging
     }
 
     // TODO: not working yet
-    pub fn create_new_page_table(&mut self)
-    {
-        if let Ok(mem_info) = BITMAP_MEM_MAN.lock().alloc_single_mem_frame()
-        {
-            self.pml4_table_addr =
-                self.calc_phys_addr(&mem_info.get_frame_start_virt_addr(), true).unwrap();
+    pub fn create_new_page_table(&mut self) {
+        if let Ok(mem_info) = BITMAP_MEM_MAN.lock().alloc_single_mem_frame() {
+            self.pml4_table_addr = self
+                .calc_phys_addr(&mem_info.get_frame_start_virt_addr(), true)
+                .unwrap();
             println!("PML4 table addr: 0x{:x}", self.pml4_table_addr.get());
-        }
-        else
-        {
+        } else {
             error!("Failed to allocate memory frame for PML4 table");
             return;
         }
@@ -145,18 +141,15 @@ impl Paging
         let mut virt_addr = VirtualAddress::new(0);
         info!("Mapping to identity...");
 
-        while virt_addr.get() < total_mem_size
-        {
-            if let Err(_) = self.map_to_identity(&virt_addr)
-            {
+        while virt_addr.get() < total_mem_size {
+            if let Err(_) = self.map_to_identity(&virt_addr) {
                 self.pml4_table_addr = self.pml4_table_addr_backup;
                 error!("Failed to create new page table");
                 return;
             }
 
             // check
-            if self.calc_phys_addr(&virt_addr, false).is_none()
-            {
+            if self.calc_phys_addr(&virt_addr, false).is_none() {
                 self.pml4_table_addr = self.pml4_table_addr_backup;
                 error!("New page tables was not work collectly");
                 return;
@@ -176,8 +169,7 @@ impl Paging
         info!("Switched to new page table");
     }
 
-    pub fn map_to_identity(&self, virt_addr: &VirtualAddress) -> Result<(), ()>
-    {
+    pub fn map_to_identity(&self, virt_addr: &VirtualAddress) -> Result<(), ()> {
         let pml4e_index = virt_addr.get_pml4_entry_index();
         let pml3e_index = virt_addr.get_pml3_entry_index();
         let pml2e_index = virt_addr.get_pml2_entry_index();
@@ -189,10 +181,8 @@ impl Paging
         let entry = &mut table.entries[pml4e_index];
         let mut entry_addr = entry.get_addr().get_virt_addr();
 
-        if !entry.is_used()
-        {
-            if let Ok(mem_info) = BITMAP_MEM_MAN.lock().alloc_single_mem_frame()
-            {
+        if !entry.is_used() {
+            if let Ok(mem_info) = BITMAP_MEM_MAN.lock().alloc_single_mem_frame() {
                 let addr = mem_info.get_frame_start_virt_addr();
                 // cannot use addr.get_phys_addr() at here
                 entry.set_entry(
@@ -206,9 +196,7 @@ impl Paging
                 //println!("new PML4 entry[{}]: {:?}", pml4e_index, entry);
                 entry_addr = addr;
                 self.pml4_table_addr.get_virt_addr().write_volatile(table);
-            }
-            else
-            {
+            } else {
                 error!("Failed to allocate memory frame for PML4 entry");
                 return Err(());
             }
@@ -220,17 +208,15 @@ impl Paging
         let entry = &mut table.entries[pml3e_index];
         let mut entry_addr = entry.get_addr().get_virt_addr();
 
-        if !entry.is_used()
-        {
-            if let Ok(mem_info) = BITMAP_MEM_MAN.lock().alloc_single_mem_frame()
-            {
-                let mut addr =
-                    self.calc_phys_addr(&mem_info.get_frame_start_virt_addr(), true).unwrap();
+        if !entry.is_used() {
+            if let Ok(mem_info) = BITMAP_MEM_MAN.lock().alloc_single_mem_frame() {
+                let mut addr = self
+                    .calc_phys_addr(&mem_info.get_frame_start_virt_addr(), true)
+                    .unwrap();
                 let mut is_page_table_addr = true;
 
                 // 1GB page
-                if virt_addr.get() & 0x1fff_ffff == 0
-                {
+                if virt_addr.get() & 0x1fff_ffff == 0 {
                     addr = PhysicalAddress::new(addr.get());
                     is_page_table_addr = false;
                 }
@@ -247,13 +233,10 @@ impl Paging
                 entry_addr = mem_info.get_frame_start_virt_addr();
                 page_table_addr.write_volatile(table);
 
-                if !is_page_table_addr
-                {
+                if !is_page_table_addr {
                     return Ok(());
                 }
-            }
-            else
-            {
+            } else {
                 error!("Failed to allocate memory frame for PML3 entry");
                 return Err(());
             }
@@ -265,17 +248,15 @@ impl Paging
         let entry = &mut table.entries[pml2e_index];
         let mut entry_addr = entry.get_addr().get_virt_addr();
 
-        if !entry.is_used()
-        {
-            if let Ok(mem_info) = BITMAP_MEM_MAN.lock().alloc_single_mem_frame()
-            {
-                let mut addr =
-                    self.calc_phys_addr(&mem_info.get_frame_start_virt_addr(), true).unwrap();
+        if !entry.is_used() {
+            if let Ok(mem_info) = BITMAP_MEM_MAN.lock().alloc_single_mem_frame() {
+                let mut addr = self
+                    .calc_phys_addr(&mem_info.get_frame_start_virt_addr(), true)
+                    .unwrap();
                 let mut is_page_table_addr = true;
 
                 // 2MB page
-                if virt_addr.get() & 0xf_ffff == 0
-                {
+                if virt_addr.get() & 0xf_ffff == 0 {
                     addr = PhysicalAddress::new(addr.get());
                     is_page_table_addr = false;
                 }
@@ -292,13 +273,10 @@ impl Paging
                 entry_addr = mem_info.get_frame_start_virt_addr();
                 page_table_addr.write_volatile(table);
 
-                if !is_page_table_addr
-                {
+                if !is_page_table_addr {
                     return Ok(());
                 }
-            }
-            else
-            {
+            } else {
                 error!("Failed to allocate memory frame for PML2 entry");
                 return Err(());
             }
@@ -309,8 +287,7 @@ impl Paging
         let mut table: PageTable = page_table_addr.read_volatile();
         let entry = &mut table.entries[pml1e_index];
 
-        if !entry.is_used()
-        {
+        if !entry.is_used() {
             entry.set_entry(
                 &PhysicalAddress::new(virt_addr.get()),
                 false,
@@ -330,8 +307,7 @@ impl Paging
         &self,
         virt_addr: &VirtualAddress,
         is_use_backup_pml4_table_addr: bool,
-    ) -> Option<PhysicalAddress>
-    {
+    ) -> Option<PhysicalAddress> {
         let pml4e_index = virt_addr.get_pml4_entry_index();
         let pml3e_index = virt_addr.get_pml3_entry_index();
         let pml2e_index = virt_addr.get_pml2_entry_index();
@@ -339,12 +315,9 @@ impl Paging
         let page_offset = virt_addr.get_page_offset();
 
         // pml4 table
-        let table_addr = if is_use_backup_pml4_table_addr
-        {
+        let table_addr = if is_use_backup_pml4_table_addr {
             self.pml4_table_addr_backup
-        }
-        else
-        {
+        } else {
             self.pml4_table_addr
         }
         .get_virt_addr();
@@ -353,8 +326,7 @@ impl Paging
 
         //println!("get PML4 entry[{}]: {:?}", pml4e_index, entry);
 
-        if !entry.is_used()
-        {
+        if !entry.is_used() {
             return None;
         }
 
@@ -364,13 +336,11 @@ impl Paging
 
         //println!("get PML3 entry[{}]: {:?}", pml3e_index, entry);
 
-        if !entry.is_used()
-        {
+        if !entry.is_used() {
             return None;
         }
 
-        if entry.is_page()
-        {
+        if entry.is_page() {
             return Some(PhysicalAddress::new(
                 ((entry.addr() & !0x3_ffff) << 12) | virt_addr.get() & 0x3fff_ffff,
             ));
@@ -382,13 +352,11 @@ impl Paging
 
         //println!("get PML2 entry[{}]: {:?}", pml2e_index, entry);
 
-        if !entry.is_used()
-        {
+        if !entry.is_used() {
             return None;
         }
 
-        if entry.is_page()
-        {
+        if entry.is_page() {
             return Some(PhysicalAddress::new(
                 ((entry.addr() & !0x1ff) << 12) | virt_addr.get() & 0x1f_ffff,
             ));
@@ -400,18 +368,20 @@ impl Paging
 
         //println!("get PML1 entry[{}]: {:?}", pml1e_index, entry);
 
-        if !entry.is_used()
-        {
+        if !entry.is_used() {
             return None;
         }
 
-        if entry.is_page()
-        {
-            return Some(PhysicalAddress::new(entry.addr() << 12 | page_offset as u64));
+        if entry.is_page() {
+            return Some(PhysicalAddress::new(
+                entry.addr() << 12 | page_offset as u64,
+            ));
         }
 
         return None;
     }
 
-    pub fn mapping_type(&self) -> MappingType { return self.mapping_type; }
+    pub fn mapping_type(&self) -> MappingType {
+        return self.mapping_type;
+    }
 }

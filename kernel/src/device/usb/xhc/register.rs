@@ -10,8 +10,7 @@ pub const INTR_REG_SET_MAX_LEN: usize = 1024;
 #[bitfield]
 #[derive(BitfieldSpecifier, Debug, Clone, Copy)]
 #[repr(C)]
-pub struct StructuralParameters1
-{
+pub struct StructuralParameters1 {
     #[skip(setters)]
     pub num_of_device_slots: B8,
     #[skip(setters)]
@@ -25,8 +24,7 @@ pub struct StructuralParameters1
 #[bitfield]
 #[derive(BitfieldSpecifier, Debug, Clone, Copy)]
 #[repr(C)]
-pub struct StructuralParameters2
-{
+pub struct StructuralParameters2 {
     #[skip(setters)]
     pub isochronous_scheduling_threshold: B4,
     #[skip(setters)]
@@ -44,8 +42,7 @@ pub struct StructuralParameters2
 #[bitfield]
 #[derive(BitfieldSpecifier, Debug, Clone, Copy)]
 #[repr(C)]
-pub struct StructuralParameters3
-{
+pub struct StructuralParameters3 {
     #[skip(setters)]
     pub u1_device_exit_latency: B8,
     #[skip(setters)]
@@ -57,8 +54,7 @@ pub struct StructuralParameters3
 #[bitfield]
 #[derive(BitfieldSpecifier, Debug, Clone, Copy)]
 #[repr(C)]
-pub struct CapabilityParameters1
-{
+pub struct CapabilityParameters1 {
     #[skip(setters)]
     pub addressing_cap_64bit: B1,
     #[skip(setters)]
@@ -92,8 +88,7 @@ pub struct CapabilityParameters1
 #[bitfield]
 #[derive(BitfieldSpecifier, Debug, Clone, Copy)]
 #[repr(C)]
-pub struct CapabilityParameters2
-{
+pub struct CapabilityParameters2 {
     #[skip(setters)]
     pub u3_entry_cap: B1,
     #[skip(setters)]
@@ -121,8 +116,7 @@ pub struct CapabilityParameters2
 #[bitfield]
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
-pub struct CapabilityRegisters
-{
+pub struct CapabilityRegisters {
     #[skip(setters)]
     pub cap_reg_length: B8,
     #[skip]
@@ -145,13 +139,10 @@ pub struct CapabilityRegisters
     pub cap_params2: CapabilityParameters2,
 }
 
-impl CapabilityRegisters
-{
-    pub fn read(base_addr: VirtualAddress) -> Self
-    {
+impl CapabilityRegisters {
+    pub fn read(base_addr: VirtualAddress) -> Self {
         let mut data = [0; 8];
-        for (i, field) in data.iter_mut().enumerate()
-        {
+        for (i, field) in data.iter_mut().enumerate() {
             *field = base_addr.offset(i * 4).read_volatile::<u32>();
         }
 
@@ -162,8 +153,7 @@ impl CapabilityRegisters
 #[bitfield]
 #[derive(BitfieldSpecifier, Debug, Clone, Copy)]
 #[repr(C)]
-pub struct UsbCommandRegister
-{
+pub struct UsbCommandRegister {
     pub run_stop: bool,
     pub host_controller_reset: bool,
     pub intr_enable: bool,
@@ -190,8 +180,7 @@ pub struct UsbCommandRegister
 #[bitfield]
 #[derive(BitfieldSpecifier, Debug, Clone, Copy)]
 #[repr(C)]
-pub struct UsbStatusRegister
-{
+pub struct UsbStatusRegister {
     #[skip(setters)]
     pub hchalted: bool,
     #[skip]
@@ -217,8 +206,7 @@ pub struct UsbStatusRegister
 #[bitfield]
 #[derive(BitfieldSpecifier, Debug, Clone, Copy)]
 #[repr(C)]
-pub struct DeviceNotificationControlRegister
-{
+pub struct DeviceNotificationControlRegister {
     pub notification0_enable: bool,
     pub notification1_enable: bool,
     pub notification2_enable: bool,
@@ -242,8 +230,7 @@ pub struct DeviceNotificationControlRegister
 #[bitfield]
 #[derive(BitfieldSpecifier, Debug, Clone, Copy)]
 #[repr(C)]
-pub struct CommandRingControlRegister
-{
+pub struct CommandRingControlRegister {
     pub ring_cycle_state: bool,
     pub cmd_stop: bool,
     pub cmd_abort: bool,
@@ -257,8 +244,7 @@ pub struct CommandRingControlRegister
 #[bitfield]
 #[derive(BitfieldSpecifier, Debug, Clone, Copy)]
 #[repr(C)]
-pub struct ConfigureRegister
-{
+pub struct ConfigureRegister {
     pub max_device_slots_enabled: B8,
     pub u3_entry_enable: bool,
     pub configure_info_enable: bool,
@@ -269,8 +255,7 @@ pub struct ConfigureRegister
 #[bitfield]
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
-pub struct OperationalRegisters
-{
+pub struct OperationalRegisters {
     pub usb_cmd: UsbCommandRegister,
     pub usb_status: UsbStatusRegister,
     #[skip(setters)]
@@ -285,21 +270,17 @@ pub struct OperationalRegisters
     pub configure: ConfigureRegister,
 }
 
-impl OperationalRegisters
-{
-    pub fn read(base_addr: VirtualAddress) -> Self
-    {
+impl OperationalRegisters {
+    pub fn read(base_addr: VirtualAddress) -> Self {
         let mut data = [0; 15];
-        for (i, field) in data.iter_mut().enumerate()
-        {
+        for (i, field) in data.iter_mut().enumerate() {
             *field = base_addr.offset(i * 4).read_volatile::<u32>();
         }
 
         return unsafe { transmute::<[u32; 15], Self>(data) };
     }
 
-    pub fn write(&mut self, base_addr: VirtualAddress)
-    {
+    pub fn write(&mut self, base_addr: VirtualAddress) {
         let mut usb_status = self.usb_status();
         usb_status.set_host_system_err(!usb_status.host_system_err());
         usb_status.set_event_int(!usb_status.event_int());
@@ -308,8 +289,7 @@ impl OperationalRegisters
         self.set_usb_status(usb_status);
 
         let data = unsafe { transmute::<Self, [u32; 15]>(*self) };
-        for (i, field) in data.iter().enumerate()
-        {
+        for (i, field) in data.iter().enumerate() {
             base_addr.offset(i * 4).write_volatile(*field);
         }
     }
@@ -318,8 +298,7 @@ impl OperationalRegisters
 #[bitfield]
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
-pub struct RuntimeRegitsers
-{
+pub struct RuntimeRegitsers {
     #[skip(setters)]
     pub microframe_index: B14,
     #[skip]
@@ -330,24 +309,19 @@ pub struct RuntimeRegitsers
     reserved1: B96,
 }
 
-impl RuntimeRegitsers
-{
-    pub fn read(base_addr: VirtualAddress) -> Self
-    {
+impl RuntimeRegitsers {
+    pub fn read(base_addr: VirtualAddress) -> Self {
         let mut data: [u32; 8] = [0; 8];
-        for (i, elem) in data.iter_mut().enumerate()
-        {
+        for (i, elem) in data.iter_mut().enumerate() {
             *elem = base_addr.offset(i * 4).read_volatile::<u32>();
         }
 
         return unsafe { transmute::<[u32; 8], Self>(data) };
     }
 
-    pub fn write(&self, base_addr: VirtualAddress)
-    {
+    pub fn write(&self, base_addr: VirtualAddress) {
         let data = unsafe { transmute::<Self, [u32; 8]>(*self) };
-        for (i, field) in data.iter().enumerate()
-        {
+        for (i, field) in data.iter().enumerate() {
             base_addr.offset(i * 4).write_volatile(*field);
         }
     }
@@ -356,8 +330,7 @@ impl RuntimeRegitsers
 #[bitfield]
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
-pub struct InterrupterRegisterSet
-{
+pub struct InterrupterRegisterSet {
     // interrupter management
     pub int_pending: bool,
     pub int_enable: bool,
@@ -383,37 +356,29 @@ pub struct InterrupterRegisterSet
     pub event_ring_dequeue_ptr: B60,
 }
 
-impl InterrupterRegisterSet
-{
-    pub fn read(base_addr: VirtualAddress) -> Self
-    {
+impl InterrupterRegisterSet {
+    pub fn read(base_addr: VirtualAddress) -> Self {
         let mut data: [u32; 8] = [0; 8];
-        for (i, field) in data.iter_mut().enumerate()
-        {
+        for (i, field) in data.iter_mut().enumerate() {
             *field = base_addr.offset(i * 4).read_volatile::<u32>();
         }
 
         return unsafe { transmute::<[u32; 8], Self>(data) };
     }
 
-    pub fn write(&mut self, base_addr: VirtualAddress, update_seg_table: bool)
-    {
+    pub fn write(&mut self, base_addr: VirtualAddress, update_seg_table: bool) {
         self.set_int_pending(!self.int_pending());
         self.set_event_handler_busy(!self.event_handler_busy());
 
         let data = unsafe { transmute::<Self, [u32; 8]>(*self) };
 
-        for (i, field) in data.iter().enumerate()
-        {
-            if i == 5 || i == 7
-            {
+        for (i, field) in data.iter().enumerate() {
+            if i == 5 || i == 7 {
                 continue;
             }
 
-            if i == 4 || i == 6
-            {
-                if i == 4 && !update_seg_table
-                {
+            if i == 4 || i == 6 {
+                if i == 4 && !update_seg_table {
                     continue;
                 }
 
@@ -431,26 +396,22 @@ impl InterrupterRegisterSet
 #[bitfield]
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
-pub struct EventRingSegmentTableEntry
-{
+pub struct EventRingSegmentTableEntry {
     pub ring_seg_base_addr: B64, // 64byte alignment
     pub ring_seg_size: B16,
     #[skip]
     reserved1: B48,
 }
 
-impl EventRingSegmentTableEntry
-{
-    pub fn is_empty(&self) -> bool
-    {
+impl EventRingSegmentTableEntry {
+    pub fn is_empty(&self) -> bool {
         return self.ring_seg_base_addr() == 0 && self.ring_seg_size() == 0;
     }
 }
 
 #[derive(BitfieldSpecifier, Debug, Clone, Copy)]
 #[bits = 2]
-pub enum PortIndicatorControl
-{
+pub enum PortIndicatorControl {
     Off = 0,
     Amber = 1,
     Green = 2,
@@ -459,20 +420,16 @@ pub enum PortIndicatorControl
 
 #[derive(BitfieldSpecifier, Debug, Clone, Copy)]
 #[bits = 4]
-pub enum PortSpeedIdValue
-{
+pub enum PortSpeedIdValue {
     FullSpeed = 1,
     LowSpeed = 2,
     HighSpeed = 3,
     SuperSpeed = 4,
 }
 
-impl PortSpeedIdValue
-{
-    pub fn get_max_packet_size(&self) -> u16
-    {
-        return match self
-        {
+impl PortSpeedIdValue {
+    pub fn get_max_packet_size(&self) -> u16 {
+        return match self {
             Self::FullSpeed => 8, // or 16, 32, 64
             Self::LowSpeed => 8,
             Self::HighSpeed => 64,
@@ -484,8 +441,7 @@ impl PortSpeedIdValue
 #[bitfield]
 #[derive(BitfieldSpecifier, Debug, Clone, Copy)]
 #[repr(C)]
-pub struct PortStatusAndControlRegister
-{
+pub struct PortStatusAndControlRegister {
     #[skip(setters)]
     pub current_connect_status: bool,
     pub port_enabled: bool,
@@ -522,8 +478,7 @@ pub struct PortStatusAndControlRegister
 #[bitfield]
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
-pub struct PortRegisterSet
-{
+pub struct PortRegisterSet {
     pub port_status_and_ctrl: PortStatusAndControlRegister,
     pub port_pm_status_and_ctrl: B32,
     #[skip(setters)]
@@ -531,21 +486,17 @@ pub struct PortRegisterSet
     pub port_hardware_lpm_ctrl: B32,
 }
 
-impl PortRegisterSet
-{
-    pub fn read(base_addr: VirtualAddress) -> Self
-    {
+impl PortRegisterSet {
+    pub fn read(base_addr: VirtualAddress) -> Self {
         let mut data: [u32; 4] = [0; 4];
-        for (i, elem) in data.iter_mut().enumerate()
-        {
+        for (i, elem) in data.iter_mut().enumerate() {
             *elem = base_addr.offset(i * 4).read_volatile::<u32>();
         }
 
         return unsafe { transmute::<[u32; 4], Self>(data) };
     }
 
-    pub fn write(&mut self, base_addr: VirtualAddress)
-    {
+    pub fn write(&mut self, base_addr: VirtualAddress) {
         let mut port_status_and_ctrl = self.port_status_and_ctrl();
         port_status_and_ctrl
             .set_connect_status_change(!port_status_and_ctrl.connect_status_change());
@@ -557,8 +508,7 @@ impl PortRegisterSet
         self.set_port_status_and_ctrl(port_status_and_ctrl);
 
         let data = unsafe { transmute::<Self, [u32; 4]>(*self) };
-        for (i, field) in data.iter().enumerate()
-        {
+        for (i, field) in data.iter().enumerate() {
             base_addr.offset(i * 4).write_volatile(*field);
         }
     }
@@ -567,24 +517,20 @@ impl PortRegisterSet
 #[bitfield]
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
-pub struct DoorbellRegister
-{
+pub struct DoorbellRegister {
     pub db_target: B8,
     #[skip]
     reserved: B8,
     pub db_stream_id: B16,
 }
 
-impl DoorbellRegister
-{
-    pub fn read(base_addr: VirtualAddress) -> Self
-    {
+impl DoorbellRegister {
+    pub fn read(base_addr: VirtualAddress) -> Self {
         let data = base_addr.read_volatile::<u32>();
         return unsafe { transmute::<u32, Self>(data) };
     }
 
-    pub fn write(&self, base_addr: VirtualAddress)
-    {
+    pub fn write(&self, base_addr: VirtualAddress) {
         let data = unsafe { transmute::<Self, u32>(*self) };
         base_addr.write_volatile(data);
     }

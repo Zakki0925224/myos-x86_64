@@ -3,8 +3,7 @@ const FONT: &'static [u8] = include_bytes!("../../../third-party/cozette.psf");
 const FONT_MAGIC_NUM: u32 = 0x864ab572;
 const UNICODE_TABLE_SEPARATOR: u8 = 0xff;
 
-pub struct PsfFont
-{
+pub struct PsfFont {
     binary_len: usize,
     height: usize,
     width: usize,
@@ -15,52 +14,44 @@ pub struct PsfFont
     unicode_table_offset: usize,
 }
 
-impl PsfFont
-{
-    pub fn new() -> Self
-    {
-        fn get_magic_num() -> u32
-        {
+impl PsfFont {
+    pub fn new() -> Self {
+        fn get_magic_num() -> u32 {
             return (FONT[3] as u32) << 24
                 | (FONT[2] as u32) << 16
                 | (FONT[1] as u32) << 8
                 | FONT[0] as u32;
         }
 
-        fn get_pixel_height() -> u32
-        {
+        fn get_pixel_height() -> u32 {
             return (FONT[27] as u32) << 24
                 | (FONT[26] as u32) << 16
                 | (FONT[25] as u32) << 8
                 | FONT[24] as u32;
         }
 
-        fn get_pixel_width() -> u32
-        {
+        fn get_pixel_width() -> u32 {
             return (FONT[31] as u32) << 24
                 | (FONT[30] as u32) << 16
                 | (FONT[29] as u32) << 8
                 | FONT[28] as u32;
         }
 
-        fn get_glyphs_len() -> u32
-        {
+        fn get_glyphs_len() -> u32 {
             return (FONT[19] as u32) << 24
                 | (FONT[18] as u32) << 16
                 | (FONT[17] as u32) << 8
                 | FONT[16] as u32;
         }
 
-        fn get_glyph_size() -> u32
-        {
+        fn get_glyph_size() -> u32 {
             return (FONT[23] as u32) << 24
                 | (FONT[22] as u32) << 16
                 | (FONT[21] as u32) << 8
                 | FONT[20] as u32;
         }
 
-        fn has_unicode_table() -> bool
-        {
+        fn has_unicode_table() -> bool {
             let flags = (FONT[15] as u32) << 24
                 | (FONT[14] as u32) << 16
                 | (FONT[13] as u32) << 8
@@ -69,16 +60,14 @@ impl PsfFont
             return flags == 1;
         }
 
-        fn get_header_size() -> u32
-        {
+        fn get_header_size() -> u32 {
             return (FONT[11] as u32) << 24
                 | (FONT[10] as u32) << 16
                 | (FONT[9] as u32) << 8
                 | FONT[8] as u32;
         }
 
-        if get_magic_num() != FONT_MAGIC_NUM
-        {
+        if get_magic_num() != FONT_MAGIC_NUM {
             panic!("Invalid font binary");
         }
 
@@ -103,22 +92,32 @@ impl PsfFont
         };
     }
 
-    pub fn get_height(&self) -> usize { return self.height; }
+    pub fn get_height(&self) -> usize {
+        return self.height;
+    }
 
-    pub fn get_width(&self) -> usize { return self.width; }
+    pub fn get_width(&self) -> usize {
+        return self.width;
+    }
 
-    pub fn get_glyphs_len(&self) -> usize { return self.glyphs_len; }
+    pub fn get_glyphs_len(&self) -> usize {
+        return self.glyphs_len;
+    }
 
-    pub fn get_glyph_size(&self) -> usize { return self.glyph_size; }
+    pub fn get_glyph_size(&self) -> usize {
+        return self.glyph_size;
+    }
 
-    pub fn has_unicode_table(&self) -> bool { return self.has_unicode_table; }
+    pub fn has_unicode_table(&self) -> bool {
+        return self.has_unicode_table;
+    }
 
-    pub fn get_header_size(&self) -> usize { return self.header_size; }
+    pub fn get_header_size(&self) -> usize {
+        return self.header_size;
+    }
 
-    pub fn get_unicode_table_offset(&self) -> Option<usize>
-    {
-        if !self.has_unicode_table
-        {
+    pub fn get_unicode_table_offset(&self) -> Option<usize> {
+        if !self.has_unicode_table {
             return None;
         }
 
@@ -126,25 +125,20 @@ impl PsfFont
     }
 
     // ascii char only
-    pub fn unicode_char_to_glyph_index(&self, c: char) -> usize
-    {
-        if !self.has_unicode_table
-        {
+    pub fn unicode_char_to_glyph_index(&self, c: char) -> usize {
+        if !self.has_unicode_table {
             return c as u8 as usize;
         }
 
         let code_point = c as u8;
         let mut index = 0;
 
-        for i in self.unicode_table_offset..self.binary_len
-        {
-            if code_point == FONT[i]
-            {
+        for i in self.unicode_table_offset..self.binary_len {
+            if code_point == FONT[i] {
                 break;
             }
 
-            if FONT[i] == UNICODE_TABLE_SEPARATOR
-            {
+            if FONT[i] == UNICODE_TABLE_SEPARATOR {
                 index += 1;
             }
         }
@@ -152,10 +146,8 @@ impl PsfFont
         return index;
     }
 
-    pub fn get_glyph(&self, index: usize) -> Option<&'static [u8]>
-    {
-        if index > self.glyphs_len
-        {
+    pub fn get_glyph(&self, index: usize) -> Option<&'static [u8]> {
+        if index > self.glyphs_len {
             return None;
         }
 

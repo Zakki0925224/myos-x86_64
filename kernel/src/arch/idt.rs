@@ -4,7 +4,13 @@ use log::info;
 use modular_bitfield::{bitfield, specifiers::*, BitfieldSpecifier};
 use spin::Mutex;
 
-use crate::{arch::{asm::{self, DescriptorTableArgs}, register::control::Cr2}, device::usb::xhc::XHC_DRIVER};
+use crate::{
+    arch::{
+        asm::{self, DescriptorTableArgs},
+        register::control::Cr2,
+    },
+    device::usb::xhc::XHC_DRIVER,
+};
 
 use super::addr::VirtualAddress;
 
@@ -42,8 +48,7 @@ type Handler = extern "x86-interrupt" fn();
 
 #[derive(BitfieldSpecifier, Debug, Clone, Copy)]
 #[bits = 4]
-pub enum GateType
-{
+pub enum GateType {
     Interrupt = 0xe,
     Trap = 0xf,
 }
@@ -51,8 +56,7 @@ pub enum GateType
 #[bitfield]
 #[derive(Debug, Clone, Copy)]
 #[repr(C, packed)]
-pub struct GateDescriptor
-{
+pub struct GateDescriptor {
     handler_offset_low: B16,
     selector: B16,
     // attributes
@@ -71,10 +75,8 @@ pub struct GateDescriptor
     reserved2: B32,
 }
 
-impl GateDescriptor
-{
-    pub fn set_handler(&mut self, handler: Handler, cs: u16, gate_type: GateType)
-    {
+impl GateDescriptor {
+    pub fn set_handler(&mut self, handler: Handler, cs: u16, gate_type: GateType) {
         let handler_addr = handler as *const () as u64;
         self.set_handler_offset_low(handler_addr as u16);
         self.set_handler_offset_middle((handler_addr >> 16) as u16);
@@ -86,19 +88,19 @@ impl GateDescriptor
 }
 
 #[repr(C, align(16))]
-struct InterruptDescriptorTable
-{
+struct InterruptDescriptorTable {
     entries: [GateDescriptor; IDT_LEN],
 }
 
-impl InterruptDescriptorTable
-{
-    pub fn new() -> Self { return Self { entries: [GateDescriptor::new(); IDT_LEN] }; }
+impl InterruptDescriptorTable {
+    pub fn new() -> Self {
+        return Self {
+            entries: [GateDescriptor::new(); IDT_LEN],
+        };
+    }
 
-    pub fn set_handler(&mut self, vec_num: usize, handler: Handler, gate_type: GateType)
-    {
-        if vec_num >= IDT_LEN
-        {
+    pub fn set_handler(&mut self, vec_num: usize, handler: Handler, gate_type: GateType) {
+        if vec_num >= IDT_LEN {
             return;
         }
 
@@ -107,8 +109,7 @@ impl InterruptDescriptorTable
         self.entries[vec_num] = desc;
     }
 
-    pub fn load(&self)
-    {
+    pub fn load(&self) {
         let limit = (size_of::<[GateDescriptor; IDT_LEN]>() - 1) as u16;
         let base = self.entries.as_ptr() as u64;
         let args = DescriptorTableArgs { limit, base };
@@ -119,32 +120,29 @@ impl InterruptDescriptorTable
     }
 }
 
-fn notify_end_of_int()
-{
+fn notify_end_of_int() {
     let virt_addr = VirtualAddress::new(END_OF_INT_REG_ADDR);
     virt_addr.write_volatile(0);
 }
 
-extern "x86-interrupt" fn breakpoint_handler()
-{
+extern "x86-interrupt" fn breakpoint_handler() {
     panic!("int: BREAKPOINT");
 }
 
-extern "x86-interrupt" fn page_fault_handler()
-{
-    panic!("int: PAGE FAULT, Accessed virtual address: 0x{:x}", Cr2::read().get());
+extern "x86-interrupt" fn page_fault_handler() {
+    panic!(
+        "int: PAGE FAULT, Accessed virtual address: 0x{:x}",
+        Cr2::read().get()
+    );
 }
 
-extern "x86-interrupt" fn double_fault_handler()
-{
+extern "x86-interrupt" fn double_fault_handler() {
     panic!("int: DOUBLE FAULT");
 }
 
-extern "x86-interrupt" fn xhc_primary_event_ring_handler()
-{
+extern "x86-interrupt" fn xhc_primary_event_ring_handler() {
     info!("int: XHC PRIMARY EVENT RING");
-    if XHC_DRIVER.is_locked()
-    {
+    if XHC_DRIVER.is_locked() {
         panic!("int: XHC DRIVER is locked");
     }
 
@@ -152,12 +150,18 @@ extern "x86-interrupt" fn xhc_primary_event_ring_handler()
     notify_end_of_int();
 }
 
-pub fn init()
-{
-    IDT.lock().set_handler(VEC_BREAKPOINT, breakpoint_handler, GateType::Interrupt);
-    IDT.lock().set_handler(VEC_PAGE_FAULT, page_fault_handler, GateType::Interrupt);
-    IDT.lock().set_handler(VEC_DOUBLE_FAULT, double_fault_handler, GateType::Interrupt);
-    IDT.lock().set_handler(VEC_XHCI_INT, xhc_primary_event_ring_handler, GateType::Interrupt);
+pub fn init() {
+    IDT.lock()
+        .set_handler(VEC_BREAKPOINT, breakpoint_handler, GateType::Interrupt);
+    IDT.lock()
+        .set_handler(VEC_PAGE_FAULT, page_fault_handler, GateType::Interrupt);
+    IDT.lock()
+        .set_handler(VEC_DOUBLE_FAULT, double_fault_handler, GateType::Interrupt);
+    IDT.lock().set_handler(
+        VEC_XHCI_INT,
+        xhc_primary_event_ring_handler,
+        GateType::Interrupt,
+    );
     IDT.lock().load();
     info!("idt: Initialized IDT");
 }

@@ -5,8 +5,7 @@ use super::*;
 #[bitfield]
 #[derive(Debug, Clone)]
 #[repr(C)]
-pub struct HumanInterfaceDeviceDescriptor
-{
+pub struct HumanInterfaceDeviceDescriptor {
     pub header: DescriptorHeader,
     pub bcd_hid_version: B16,
     pub country_code: B8,

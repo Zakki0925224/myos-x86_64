@@ -2,8 +2,7 @@ use modular_bitfield::*;
 
 #[derive(BitfieldSpecifier, Debug)]
 #[bits = 5]
-pub enum RequestTypeRecipient
-{
+pub enum RequestTypeRecipient {
     Device = 0,
     Interface = 1,
     Endpoint = 2,
@@ -12,8 +11,7 @@ pub enum RequestTypeRecipient
 
 #[derive(BitfieldSpecifier, Debug)]
 #[bits = 2]
-pub enum RequestType
-{
+pub enum RequestType {
     Standard = 0,
     Class = 1,
     Vendor = 2,
@@ -21,8 +19,7 @@ pub enum RequestType
 
 #[derive(BitfieldSpecifier, Debug)]
 #[bits = 1]
-pub enum RequestTypeDirection
-{
+pub enum RequestTypeDirection {
     Out = 0,
     In = 1,
 }
@@ -30,8 +27,7 @@ pub enum RequestTypeDirection
 #[bitfield]
 #[derive(Debug)]
 #[repr(C)]
-pub struct SetupRequestType
-{
+pub struct SetupRequestType {
     pub recipient: RequestTypeRecipient,
     pub ty: RequestType,
     pub direction: RequestTypeDirection,
@@ -39,8 +35,7 @@ pub struct SetupRequestType
 
 #[derive(Debug)]
 #[repr(u8)]
-pub enum SetupRequest
-{
+pub enum SetupRequest {
     GetStatus = 0,
     ClearFeature = 1,
     SetFeature = 3,
@@ -69,16 +64,14 @@ pub enum SetupRequest
     SetIsochDelay = 49,
 }
 
-impl SetupRequest
-{
+impl SetupRequest {
     pub const GET_REPORT: Self = Self::ClearFeature;
     pub const SET_PROTOCOL: Self = Self::SetInterface;
 }
 
 #[derive(Debug)]
 #[repr(u8)]
-pub enum TransferType
-{
+pub enum TransferType {
     NoDataStage = 0,
     OutDataStage = 2,
     InDataStage = 3,

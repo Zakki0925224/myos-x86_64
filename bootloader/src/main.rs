@@ -9,17 +9,28 @@ extern crate log;
 #[macro_use]
 extern crate alloc;
 
-use alloc::{boxed::Box, vec::Vec};
-use common::{boot_info::BootInfo, graphic_info::{self, GraphicInfo}, mem_desc::{self, UEFI_PAGE_SIZE}};
+use alloc::vec::Vec;
+use common::{
+    boot_info::BootInfo,
+    graphic_info::{self, GraphicInfo},
+    mem_desc::{self, UEFI_PAGE_SIZE},
+};
 use core::{mem, slice::from_raw_parts_mut};
-use uefi::{prelude::*, proto::{console::gop::{GraphicsOutput, PixelFormat}, media::{file::*, fs::SimpleFileSystem}}, table::boot::*, CStr16};
+use uefi::{
+    prelude::*,
+    proto::{
+        console::gop::{GraphicsOutput, PixelFormat},
+        media::{file::*, fs::SimpleFileSystem},
+    },
+    table::boot::*,
+    CStr16,
+};
 use xmas_elf::{program, ElfFile};
 
 use crate::config::DEFAULT_BOOT_CONFIG;
 
 #[entry]
-fn efi_main(handle: Handle, mut st: SystemTable<Boot>) -> Status
-{
+fn efi_main(handle: Handle, mut st: SystemTable<Boot>) -> Status {
     uefi_services::init(&mut st).unwrap();
     let bs = st.boot_services();
 
@@ -42,39 +53,53 @@ fn efi_main(handle: Handle, mut st: SystemTable<Boot>) -> Status
 
     let (_, map) = st.exit_boot_services();
 
-    for desc in map.entries()
-    {
+    for desc in map.entries() {
         let ty = convert_mem_type(desc.ty);
         let phys_start = desc.phys_start;
         let virt_start = desc.virt_start;
         let page_cnt = desc.page_count;
         let attr = convert_mem_attr(desc.att);
 
-        mem_map.push(mem_desc::MemoryDescriptor { ty, phys_start, virt_start, page_cnt, attr });
+        mem_map.push(mem_desc::MemoryDescriptor {
+            ty,
+            phys_start,
+            virt_start,
+            page_cnt,
+            attr,
+        });
     }
 
     let mem_map_len = mem_map.len();
     let bi = BootInfo::new(mem_map.as_slice(), mem_map_len, graphic_info);
 
-    jump_to_entry(kernel_entry_point_addr, &bi, config.kernel_stack_addr, config.kernel_stack_size);
+    jump_to_entry(
+        kernel_entry_point_addr,
+        &bi,
+        config.kernel_stack_addr,
+        config.kernel_stack_size,
+    );
 
     return Status::SUCCESS;
 }
 
-fn load_elf(bs: &BootServices, image: Handle, path: &str) -> u64
-{
+fn load_elf(bs: &BootServices, _image: Handle, path: &str) -> u64 {
     // open file
     info!("Opening file: \"{}\"", path);
     let sfs_handle = bs.get_handle_for_protocol::<SimpleFileSystem>().unwrap();
-    let mut root =
-        bs.open_protocol_exclusive::<SimpleFileSystem>(sfs_handle).unwrap().open_volume().unwrap();
+    let mut root = bs
+        .open_protocol_exclusive::<SimpleFileSystem>(sfs_handle)
+        .unwrap()
+        .open_volume()
+        .unwrap();
     let mut buf = [0; 256];
     let path = CStr16::from_str_with_buf(path, &mut buf).unwrap();
-    let file =
-        root.open(path, FileMode::Read, FileAttribute::empty()).unwrap().into_type().unwrap();
+    let file = root
+        .open(path, FileMode::Read, FileAttribute::empty())
+        .unwrap()
+        .into_type()
+        .unwrap();
 
-    let mut file = match file
-    {
+    let mut file = match file {
         FileType::Regular(file) => file,
         FileType::Dir(_) => panic!("Not file: \"{}\"", path),
     };
@@ -92,10 +117,8 @@ fn load_elf(bs: &BootServices, image: Handle, path: &str) -> u64
     let mut dest_start = usize::MAX;
     let mut dest_end = 0;
 
-    for p in elf.program_iter()
-    {
-        if p.get_type().unwrap() != program::Type::Load
-        {
+    for p in elf.program_iter() {
+        if p.get_type().unwrap() != program::Type::Load {
             continue;
         }
 
@@ -104,13 +127,15 @@ fn load_elf(bs: &BootServices, image: Handle, path: &str) -> u64
     }
 
     let pages = (dest_end - dest_start + UEFI_PAGE_SIZE - 1) / UEFI_PAGE_SIZE;
-    bs.allocate_pages(AllocateType::Address(dest_start as u64), MemoryType::LOADER_DATA, pages)
-        .unwrap();
+    bs.allocate_pages(
+        AllocateType::Address(dest_start as u64),
+        MemoryType::LOADER_DATA,
+        pages,
+    )
+    .unwrap();
 
-    for p in elf.program_iter()
-    {
-        if p.get_type().unwrap() != program::Type::Load
-        {
+    for p in elf.program_iter() {
+        if p.get_type().unwrap() != program::Type::Load {
             continue;
         }
 
@@ -126,14 +151,17 @@ fn load_elf(bs: &BootServices, image: Handle, path: &str) -> u64
     return elf.header.pt2.entry_point();
 }
 
-fn init_graphic(bs: &BootServices, resolution: Option<(usize, usize)>) -> GraphicInfo
-{
+fn init_graphic(bs: &BootServices, resolution: Option<(usize, usize)>) -> GraphicInfo {
     let gop_handle = bs.get_handle_for_protocol::<GraphicsOutput>().unwrap();
-    let mut gop = bs.open_protocol_exclusive::<GraphicsOutput>(gop_handle).unwrap();
+    let mut gop = bs
+        .open_protocol_exclusive::<GraphicsOutput>(gop_handle)
+        .unwrap();
 
-    if let Some(resolution) = resolution
-    {
-        let mode = gop.modes().find(|mode| mode.info().resolution() == resolution).unwrap();
+    if let Some(resolution) = resolution {
+        let mode = gop
+            .modes()
+            .find(|mode| mode.info().resolution() == resolution)
+            .unwrap();
 
         info!("Switching graphic mode...");
         gop.set_mode(&mode).unwrap();
@@ -153,20 +181,16 @@ fn init_graphic(bs: &BootServices, resolution: Option<(usize, usize)>) -> Graphi
     return gi;
 }
 
-fn convert_pixel_format(pixel_format: PixelFormat) -> graphic_info::PixelFormat
-{
-    return match pixel_format
-    {
+fn convert_pixel_format(pixel_format: PixelFormat) -> graphic_info::PixelFormat {
+    return match pixel_format {
         PixelFormat::Rgb => graphic_info::PixelFormat::Rgb,
         PixelFormat::Bgr => graphic_info::PixelFormat::Bgr,
         _ => panic!("Unsupported pixel format"),
     };
 }
 
-fn convert_mem_type(mem_type: MemoryType) -> mem_desc::MemoryType
-{
-    return match mem_type
-    {
+fn convert_mem_type(mem_type: MemoryType) -> mem_desc::MemoryType {
+    return match mem_type {
         MemoryType::RESERVED => mem_desc::MemoryType::Reserved,
         MemoryType::LOADER_CODE => mem_desc::MemoryType::LoaderCode,
         MemoryType::LOADER_DATA => mem_desc::MemoryType::LoaderData,
@@ -186,14 +210,12 @@ fn convert_mem_type(mem_type: MemoryType) -> mem_desc::MemoryType
     };
 }
 
-fn convert_mem_attr(mem_attr: MemoryAttribute) -> mem_desc::MemoryAttribute
-{
+fn convert_mem_attr(mem_attr: MemoryAttribute) -> mem_desc::MemoryAttribute {
     return mem_desc::MemoryAttribute::from_bits_truncate(mem_attr.bits());
 }
 
-fn jump_to_entry(entry_base_addr: u64, bi: &BootInfo, stack_addr: u64, stack_size: u64)
-{
-    let stacktop = stack_addr + stack_size * UEFI_PAGE_SIZE as u64;
+fn jump_to_entry(entry_base_addr: u64, bi: &BootInfo, stack_addr: u64, stack_size: u64) {
+    let _stacktop = stack_addr + stack_size * UEFI_PAGE_SIZE as u64;
     let entry_point: extern "sysv64" fn(*const BootInfo) =
         unsafe { mem::transmute(entry_base_addr) };
     entry_point(bi);

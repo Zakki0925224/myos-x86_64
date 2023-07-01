@@ -5,8 +5,7 @@ use super::DescriptorHeader;
 #[bitfield]
 #[derive(Debug, Clone)]
 #[repr(C)]
-pub struct ConfigurationDescriptor
-{
+pub struct ConfigurationDescriptor {
     pub header: DescriptorHeader,
     pub total_length: B16,
     pub num_interfaces: B8,

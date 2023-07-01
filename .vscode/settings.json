@@ -4,5 +4,5 @@
         "./kernel/Cargo.toml",
         "./bootloader/Cargo.toml",
         "./common/Cargo.toml"
-    ],
+    ]
 }

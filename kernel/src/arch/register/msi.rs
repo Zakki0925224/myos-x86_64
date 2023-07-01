@@ -3,8 +3,7 @@ use modular_bitfield::{bitfield, specifiers::*, BitfieldSpecifier};
 #[bitfield]
 #[derive(BitfieldSpecifier, Debug, Clone, Copy)]
 #[repr(C)]
-pub struct MsiMessageAddressField
-{
+pub struct MsiMessageAddressField {
     pub xx: B2,
     pub destination_mode: B1,
     pub redirection_hint_indication: B1,
@@ -16,8 +15,7 @@ pub struct MsiMessageAddressField
 
 #[derive(BitfieldSpecifier, Debug, Clone, Copy)]
 #[bits = 3]
-pub enum DeliveryMode
-{
+pub enum DeliveryMode {
     Fixed = 0,
     LowestPriority = 1,
     Smi = 2,
@@ -28,16 +26,14 @@ pub enum DeliveryMode
 
 #[derive(BitfieldSpecifier, Debug, Clone, Copy)]
 #[bits = 1]
-pub enum Level
-{
+pub enum Level {
     Deassert = 0,
     Assert = 1,
 }
 
 #[derive(BitfieldSpecifier, Debug, Clone, Copy)]
 #[bits = 1]
-pub enum TriggerMode
-{
+pub enum TriggerMode {
     Edge = 0,
     Level = 1,
 }
@@ -45,8 +41,7 @@ pub enum TriggerMode
 #[bitfield]
 #[derive(BitfieldSpecifier, Debug, Clone, Copy)]
 #[repr(C)]
-pub struct MsiMessageDataField
-{
+pub struct MsiMessageDataField {
     pub vector: B8,
     pub delivery_mode: DeliveryMode,
     #[skip]

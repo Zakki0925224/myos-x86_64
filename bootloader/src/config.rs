@@ -1,6 +1,5 @@
 #[derive(Debug)]
-pub struct BootConfig<'a>
-{
+pub struct BootConfig<'a> {
     pub kernel_stack_addr: u64,
     pub kernel_stack_size: u64,
     pub kernel_path: &'a str,

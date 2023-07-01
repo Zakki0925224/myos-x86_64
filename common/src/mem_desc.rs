@@ -3,8 +3,7 @@ use bitflags::bitflags;
 pub const UEFI_PAGE_SIZE: usize = 0x1000;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub enum MemoryType
-{
+pub enum MemoryType {
     Reserved,
     LoaderCode,
     LoaderData,
@@ -43,8 +42,7 @@ bitflags! {
 }
 
 #[derive(Debug, Copy, Clone)]
-pub struct MemoryDescriptor
-{
+pub struct MemoryDescriptor {
     pub ty: MemoryType,
     pub phys_start: u64,
     pub virt_start: u64,

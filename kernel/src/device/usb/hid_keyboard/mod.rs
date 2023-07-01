@@ -3,8 +3,7 @@ use modular_bitfield::{bitfield, specifiers::B8};
 #[bitfield]
 #[derive(Debug)]
 #[repr(C)]
-pub struct InputData
-{
+pub struct InputData {
     modifier_key: B8,
     #[skip]
     reserved: B8,

@@ -8,19 +8,24 @@ use lazy_static::lazy_static;
 use log::info;
 use spin::Mutex;
 
-use crate::{graphics::{color::RGBColor, frame_buffer::FrameBuffer, terminal::Terminal}, serial::{self, SERIAL}, util::logger};
+use crate::{
+    graphics::{color::RGBColor, frame_buffer::FrameBuffer, terminal::Terminal},
+    serial::{self, SERIAL},
+    util::logger,
+};
 
 lazy_static! {
     pub static ref FRAME_BUF: Mutex<FrameBuffer> = Mutex::new(FrameBuffer::new());
 }
 
 lazy_static! {
-    pub static ref TERMINAL: Mutex<Terminal> =
-        Mutex::new(Terminal::new(RGBColor::new(3, 26, 0), RGBColor::new(18, 202, 99)));
+    pub static ref TERMINAL: Mutex<Terminal> = Mutex::new(Terminal::new(
+        RGBColor::new(3, 26, 0),
+        RGBColor::new(18, 202, 99)
+    ));
 }
 
-pub fn init(graphic_info: GraphicInfo)
-{
+pub fn init(graphic_info: GraphicInfo) {
     FRAME_BUF.lock().init(graphic_info);
     SERIAL.lock().init(serial::IO_PORT_COM1);
     TERMINAL.lock().init().unwrap();

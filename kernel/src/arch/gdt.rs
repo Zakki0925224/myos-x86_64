@@ -4,7 +4,10 @@ use log::info;
 use modular_bitfield::{bitfield, specifiers::*, BitfieldSpecifier};
 use spin::Mutex;
 
-use super::{asm::{self, DescriptorTableArgs}, idt::GateDescriptor};
+use super::{
+    asm::{self, DescriptorTableArgs},
+    idt::GateDescriptor,
+};
 
 lazy_static! {
     static ref GDT: Mutex<GlobalDescriptorTable> = Mutex::new(GlobalDescriptorTable::new());
@@ -14,8 +17,7 @@ const GDT_LEN: usize = 3;
 
 #[derive(BitfieldSpecifier, Debug, Clone, Copy)]
 #[bits = 4]
-pub enum SegmentType
-{
+pub enum SegmentType {
     ExecuteRead = 0xa,
     ReadWrite = 0x2,
 }
@@ -23,8 +25,7 @@ pub enum SegmentType
 #[bitfield]
 #[derive(Debug, Clone, Copy)]
 #[repr(C, packed)]
-pub struct SegmentDescriptor
-{
+pub struct SegmentDescriptor {
     limit_low: B16,
     base_low: B16,
     base_mid: B8,
@@ -40,10 +41,8 @@ pub struct SegmentDescriptor
     base_high: B8,
 }
 
-impl SegmentDescriptor
-{
-    pub fn set_code_seg(&mut self, seg_type: SegmentType, dpl: u8, base: u32, limit: u32)
-    {
+impl SegmentDescriptor {
+    pub fn set_code_seg(&mut self, seg_type: SegmentType, dpl: u8, base: u32, limit: u32) {
         self.set_base_low(base as u16);
         self.set_base_mid((base >> 16) as u8);
         self.set_base_high((base >> 24) as u8);
@@ -61,8 +60,7 @@ impl SegmentDescriptor
         self.set_granularity(1);
     }
 
-    pub fn set_data_seg(&mut self, seg_type: SegmentType, dpl: u8, base: u32, limit: u32)
-    {
+    pub fn set_data_seg(&mut self, seg_type: SegmentType, dpl: u8, base: u32, limit: u32) {
         self.set_code_seg(seg_type, dpl, base, limit);
         self.set_is_long_mode(false);
         self.set_default_op_size(1);
@@ -70,27 +68,26 @@ impl SegmentDescriptor
 }
 
 #[repr(C, align(8))]
-struct GlobalDescriptorTable
-{
+struct GlobalDescriptorTable {
     entries: [SegmentDescriptor; GDT_LEN],
 }
 
-impl GlobalDescriptorTable
-{
-    pub fn new() -> Self { return Self { entries: [SegmentDescriptor::new(); GDT_LEN] }; }
+impl GlobalDescriptorTable {
+    pub fn new() -> Self {
+        return Self {
+            entries: [SegmentDescriptor::new(); GDT_LEN],
+        };
+    }
 
-    pub fn set_desc(&mut self, vec_num: usize, desc: SegmentDescriptor)
-    {
-        if vec_num >= GDT_LEN
-        {
+    pub fn set_desc(&mut self, vec_num: usize, desc: SegmentDescriptor) {
+        if vec_num >= GDT_LEN {
             return;
         }
 
         self.entries[vec_num] = desc;
     }
 
-    pub fn load(&self)
-    {
+    pub fn load(&self) {
         let limit = (size_of::<[GateDescriptor; GDT_LEN]>() - 1) as u16;
         let base = self.entries.as_ptr() as u64;
 
@@ -101,8 +98,7 @@ impl GlobalDescriptorTable
     }
 }
 
-pub fn init()
-{
+pub fn init() {
     let mut gdt1 = SegmentDescriptor::new();
     let mut gdt2 = SegmentDescriptor::new();
 

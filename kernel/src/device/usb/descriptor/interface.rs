@@ -5,8 +5,7 @@ use super::DescriptorHeader;
 #[bitfield]
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
-pub struct InterfaceDescriptor
-{
+pub struct InterfaceDescriptor {
     pub header: DescriptorHeader,
     pub interface_num: B8,
     pub alternate_setting: B8,

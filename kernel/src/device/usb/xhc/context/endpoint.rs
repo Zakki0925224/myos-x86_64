@@ -2,8 +2,7 @@ use modular_bitfield::{bitfield, specifiers::*, BitfieldSpecifier};
 
 #[derive(BitfieldSpecifier, Debug, Clone, Copy)]
 #[bits = 3]
-pub enum EndpointState
-{
+pub enum EndpointState {
     Disabled = 0,
     Running = 1,
     Halted = 2,
@@ -13,8 +12,7 @@ pub enum EndpointState
 
 #[derive(BitfieldSpecifier, Debug, Clone, Copy, PartialEq)]
 #[bits = 3]
-pub enum EndpointType
-{
+pub enum EndpointType {
     IsochOut = 1,
     BulkOut = 2,
     InterruptOut = 3,
@@ -24,15 +22,12 @@ pub enum EndpointType
     InterruptIn = 7,
 }
 
-impl EndpointType
-{
-    pub fn new(endpoint_addr: u8, bitmap_attrs: u8) -> Self
-    {
+impl EndpointType {
+    pub fn new(endpoint_addr: u8, bitmap_attrs: u8) -> Self {
         let addr_bit7 = endpoint_addr >> 7;
         let bitmap_bit0to1 = bitmap_attrs & 0x3;
 
-        return match (addr_bit7, bitmap_bit0to1)
-        {
+        return match (addr_bit7, bitmap_bit0to1) {
             (0, 1) => Self::IsochOut,
             (0, 2) => Self::BulkOut,
             (0, 3) => Self::InterruptOut,
@@ -47,8 +42,7 @@ impl EndpointType
 #[bitfield]
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
-pub struct EndpointContext
-{
+pub struct EndpointContext {
     pub endpoint_state: EndpointState,
     #[skip]
     reserved0: B5,
