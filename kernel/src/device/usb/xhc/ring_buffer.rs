@@ -87,12 +87,16 @@ impl RingBuffer {
         return self.is_init;
     }
 
-    pub fn get_buf_len(&self) -> usize {
+    pub fn buf_len(&self) -> usize {
         return self.buf_len;
     }
 
-    pub fn get_enqueue_index(&self) -> usize {
+    pub fn enqueue_index(&self) -> usize {
         return self.enqueue_index;
+    }
+
+    pub fn cycle_state(&self) -> bool {
+        return self.cycle_state;
     }
 
     pub fn enqueue(&mut self) -> Result<(), RingBufferError> {

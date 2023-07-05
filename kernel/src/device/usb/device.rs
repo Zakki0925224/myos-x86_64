@@ -105,31 +105,6 @@ impl UsbDevice {
         return Ok(());
     }
 
-    pub fn configure_endpoint_transfer_ring(&mut self) -> Result<(), UsbDeviceError> {
-        for endpoint_id in &self.configured_endpoint_dci {
-            if let Some(ring_buf) = self.transfer_ring_bufs[*endpoint_id].as_mut() {
-                let mut trb = TransferRequestBlock::new();
-                trb.set_trb_type(TransferRequestBlockType::Normal);
-                trb.set_param(0);
-                trb.set_status(8); // TRB Transfer Length
-                trb.set_other_flags(0x12); // IOC, ISP bit
-
-                if let Err(err) = ring_buf.fill(trb) {
-                    return Err(UsbDeviceError::RingBufferError(err));
-                }
-
-                ring_buf.debug();
-
-                match XHC_DRIVER.lock().as_ref() {
-                    Some(xhc_driver) => xhc_driver.ring_doorbell(self.slot_id, *endpoint_id as u8),
-                    None => (),
-                }
-            }
-        }
-
-        return Ok(());
-    }
-
     pub fn slot_id(&self) -> usize {
         return self.slot_id;
     }
@@ -331,7 +306,7 @@ impl UsbDevice {
                 endpoint_context.set_tr_dequeue_ptr(
                     transfer_ring_buf_mem_info.get_frame_start_phys_addr().get() >> 1,
                 );
-                endpoint_context.set_interval(endpoint_desc.interval());
+                endpoint_context.set_interval(endpoint_desc.interval() - 1);
                 endpoint_context.set_max_primary_streams(0);
                 endpoint_context.set_mult(0);
                 endpoint_context.set_error_cnt(3);
@@ -362,6 +337,31 @@ impl UsbDevice {
         } else {
             return Err(UsbDeviceError::XhcDriverWasNotInitializedError);
         }
+    }
+
+    pub fn configure_endpoint_transfer_ring(&mut self) -> Result<(), UsbDeviceError> {
+        for endpoint_id in &self.configured_endpoint_dci {
+            if let Some(ring_buf) = self.transfer_ring_bufs[*endpoint_id].as_mut() {
+                let mut trb = TransferRequestBlock::new();
+                trb.set_trb_type(TransferRequestBlockType::Normal);
+                trb.set_param(0);
+                trb.set_status(8); // TRB Transfer Length
+                trb.set_other_flags(0x12); // IOC, ISP bit
+
+                if let Err(err) = ring_buf.fill(trb) {
+                    return Err(UsbDeviceError::RingBufferError(err));
+                }
+
+                ring_buf.debug();
+
+                match XHC_DRIVER.lock().as_ref() {
+                    Some(xhc_driver) => xhc_driver.ring_doorbell(self.slot_id, *endpoint_id as u8),
+                    None => (),
+                }
+            }
+        }
+
+        return Ok(());
     }
 
     pub fn request_to_set_interface(
