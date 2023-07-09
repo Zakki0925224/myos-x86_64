@@ -12,7 +12,11 @@ use crate::{
     device::usb::xhc::XHC_DRIVER,
 };
 
+use self::info::{InterruptStackFrame, PageFaultErrorCode};
+
 use super::addr::VirtualAddress;
+
+pub mod info;
 
 lazy_static! {
     static ref IDT: Mutex<InterruptDescriptorTable> = Mutex::new(InterruptDescriptorTable::new());
@@ -44,7 +48,13 @@ pub const VEC_XHCI_INT: usize = 64;
 
 const END_OF_INT_REG_ADDR: u64 = 0xfee000b0;
 
-type Handler = extern "x86-interrupt" fn();
+type NormalHandler = extern "x86-interrupt" fn();
+type PageFaultHandler = extern "x86-interrupt" fn(InterruptStackFrame, PageFaultErrorCode);
+
+enum InterruptHandler {
+    Normal(NormalHandler),
+    PageFault(PageFaultHandler),
+}
 
 #[derive(BitfieldSpecifier, Debug, Clone, Copy)]
 #[bits = 4]
@@ -76,8 +86,11 @@ pub struct GateDescriptor {
 }
 
 impl GateDescriptor {
-    pub fn set_handler(&mut self, handler: Handler, cs: u16, gate_type: GateType) {
-        let handler_addr = handler as *const () as u64;
+    pub fn set_handler(&mut self, handler: InterruptHandler, cs: u16, gate_type: GateType) {
+        let handler_addr = match handler {
+            InterruptHandler::Normal(handler) => handler as *const () as u64,
+            InterruptHandler::PageFault(handler) => handler as *const () as u64,
+        };
         self.set_handler_offset_low(handler_addr as u16);
         self.set_handler_offset_middle((handler_addr >> 16) as u16);
         self.set_handler_offset_high((handler_addr >> 32) as u32);
@@ -99,7 +112,7 @@ impl InterruptDescriptorTable {
         };
     }
 
-    pub fn set_handler(&mut self, vec_num: usize, handler: Handler, gate_type: GateType) {
+    pub fn set_handler(&mut self, vec_num: usize, handler: InterruptHandler, gate_type: GateType) {
         if vec_num >= IDT_LEN {
             return;
         }
@@ -129,10 +142,15 @@ extern "x86-interrupt" fn breakpoint_handler() {
     panic!("int: BREAKPOINT");
 }
 
-extern "x86-interrupt" fn page_fault_handler() {
+extern "x86-interrupt" fn page_fault_handler(
+    stack_frame: InterruptStackFrame,
+    error_code: PageFaultErrorCode,
+) {
     panic!(
-        "int: PAGE FAULT, Accessed virtual address: 0x{:x}",
-        Cr2::read().get()
+        "int: PAGE FAULT, Accessed virtual address: 0x{:x}, Error code: {:?}, Stack frame: {:?}",
+        Cr2::read().get(),
+        error_code,
+        stack_frame
     );
 }
 
@@ -141,7 +159,7 @@ extern "x86-interrupt" fn double_fault_handler() {
 }
 
 extern "x86-interrupt" fn xhc_primary_event_ring_handler() {
-    info!("int: XHC PRIMARY EVENT RING");
+    //info!("int: XHC PRIMARY EVENT RING");
     if XHC_DRIVER.is_locked() {
         panic!("int: XHC DRIVER is locked");
     }
@@ -151,15 +169,24 @@ extern "x86-interrupt" fn xhc_primary_event_ring_handler() {
 }
 
 pub fn init() {
-    IDT.lock()
-        .set_handler(VEC_BREAKPOINT, breakpoint_handler, GateType::Interrupt);
-    IDT.lock()
-        .set_handler(VEC_PAGE_FAULT, page_fault_handler, GateType::Interrupt);
-    IDT.lock()
-        .set_handler(VEC_DOUBLE_FAULT, double_fault_handler, GateType::Interrupt);
+    IDT.lock().set_handler(
+        VEC_BREAKPOINT,
+        InterruptHandler::Normal(breakpoint_handler),
+        GateType::Interrupt,
+    );
+    IDT.lock().set_handler(
+        VEC_PAGE_FAULT,
+        InterruptHandler::PageFault(page_fault_handler),
+        GateType::Interrupt,
+    );
+    IDT.lock().set_handler(
+        VEC_DOUBLE_FAULT,
+        InterruptHandler::Normal(double_fault_handler),
+        GateType::Interrupt,
+    );
     IDT.lock().set_handler(
         VEC_XHCI_INT,
-        xhc_primary_event_ring_handler,
+        InterruptHandler::Normal(xhc_primary_event_ring_handler),
         GateType::Interrupt,
     );
     IDT.lock().load();

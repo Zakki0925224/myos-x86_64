@@ -1,8 +1,8 @@
 use common::mem_desc::MemoryDescriptor;
+use log::warn;
 
 use crate::{
-    mem::{allocator::ALLOCATOR, paging::PAGING},
-    println,
+    arch::addr::VirtualAddress, mem::allocator::ALLOCATOR, mem::paging::PAGE_MAN, println,
 };
 
 use self::bitmap::BITMAP_MEM_MAN;
@@ -17,6 +17,13 @@ pub fn init(mem_map: &[MemoryDescriptor]) {
     }
 
     ALLOCATOR.init();
+
+    // TODO: not working
+    // match PAGE_MAN.lock().create_new_page_table() {
+    //     Ok(_) => (),
+    //     Err(err) => println!("{:?}", err),
+    // }
+
     let used = BITMAP_MEM_MAN.lock().get_used_mem_size();
     let total = BITMAP_MEM_MAN.lock().get_total_mem_size();
     println!(
@@ -25,5 +32,4 @@ pub fn init(mem_map: &[MemoryDescriptor]) {
         total,
         (used as f32 / total as f32) * 100f32
     );
-    println!("Page mapping type: {:?}", PAGING.lock().mapping_type());
 }

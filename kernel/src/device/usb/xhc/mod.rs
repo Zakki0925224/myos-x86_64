@@ -662,7 +662,7 @@ impl XhcDriver {
                 let slot_id = trb.slot_id().unwrap();
                 let endpoint_id = trb.endpoint_id().unwrap();
 
-                info!("slot id: {}, endpoint id: {}", slot_id, endpoint_id);
+                //info!("slot id: {}, endpoint id: {}", slot_id, endpoint_id);
 
                 if USB_DRIVER.is_locked() {
                     return;
@@ -924,7 +924,7 @@ impl XhcDriver {
         {
             Ok((trb, intr_reg_set)) => {
                 self.write_intr_reg_sets(0, intr_reg_set).unwrap();
-                info!("xhc: Poped from event ring: {:?}", trb);
+                //info!("xhc: Poped from event ring: {:?}", trb);
                 Some(trb)
             }
             Err(err) => {

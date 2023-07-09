@@ -352,7 +352,7 @@ impl UsbDevice {
                     return Err(UsbDeviceError::RingBufferError(err));
                 }
 
-                ring_buf.debug();
+                //ring_buf.debug();
 
                 match XHC_DRIVER.lock().as_ref() {
                     Some(xhc_driver) => xhc_driver.ring_doorbell(self.slot_id, *endpoint_id as u8),
@@ -397,7 +397,7 @@ impl UsbDevice {
 
     pub fn update(&mut self, endpoint_id: usize, transfer_event_trb: TransferRequestBlock) {
         if let Some(ring_buf) = self.transfer_ring_bufs[endpoint_id].as_mut() {
-            ring_buf.debug();
+            //ring_buf.debug();
 
             let target_trb_virt_addr =
                 PhysicalAddress::new(transfer_event_trb.param()).get_virt_addr();
@@ -406,7 +406,7 @@ impl UsbDevice {
             let data: InputData = PhysicalAddress::new(target_trb.param())
                 .get_virt_addr()
                 .read_volatile();
-            println!("target trb addr: 0x{:x}", target_trb_virt_addr.get());
+            //println!("target trb addr: 0x{:x}", target_trb_virt_addr.get());
             println!("{:?}", data);
 
             ring_buf.enqueue().unwrap();

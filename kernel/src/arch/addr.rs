@@ -1,6 +1,6 @@
 use core::ptr::{read_volatile, write_volatile};
 
-use crate::mem::paging::PAGING;
+use crate::mem::paging::PAGE_MAN;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(transparent)]
@@ -66,31 +66,34 @@ impl VirtualAddress {
     }
 
     pub fn get_phys_addr(&self) -> PhysicalAddress {
-        if let Some(addr) = PAGING.lock().calc_phys_addr(self, true) {
-            return addr;
+        if PAGE_MAN.is_locked() {
+            panic!("Page manager is locked");
         }
 
-        panic!("This virtual address is not mapped (#GP)");
+        match PAGE_MAN.lock().calc_phys_addr(*self) {
+            Ok(addr) => return addr,
+            Err(err) => panic!("mem: {:?}", err),
+        }
     }
 
     pub fn get_pml4_entry_index(&self) -> usize {
-        return ((self.0 >> 39) & 0x1ff) as usize;
+        return ((self.0 >> 39) & 0x1ff) as u16 as usize;
     }
 
     pub fn get_pml3_entry_index(&self) -> usize {
-        return ((self.0 >> 30) & 0x1ff) as usize;
+        return ((self.0 >> 30) & 0x1ff) as u16 as usize;
     }
 
     pub fn get_pml2_entry_index(&self) -> usize {
-        return ((self.0 >> 21) & 0x1ff) as usize;
+        return ((self.0 >> 21) & 0x1ff) as u16 as usize;
     }
 
     pub fn get_pml1_entry_index(&self) -> usize {
-        return ((self.0 >> 12) & 0x1ff) as usize;
+        return ((self.0 >> 12) & 0x1ff) as u16 as usize;
     }
 
     pub fn get_page_offset(&self) -> usize {
-        return (self.0 & 0xfff) as usize;
+        return (self.0 & 0xfff) as u16 as usize;
     }
 
     pub fn read_volatile<T>(&self) -> T {
