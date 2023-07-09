@@ -2,7 +2,7 @@ use core::mem::transmute;
 
 use modular_bitfield::{bitfield, specifiers::*, BitfieldSpecifier};
 
-use crate::arch::addr::VirtualAddress;
+use crate::arch::addr::*;
 
 pub const DOORBELL_REG_MAX_LEN: usize = 256;
 pub const INTR_REG_SET_MAX_LEN: usize = 1024;

@@ -14,7 +14,7 @@ use crate::{
 
 use self::info::{InterruptStackFrame, PageFaultErrorCode};
 
-use super::addr::VirtualAddress;
+use super::addr::*;
 
 pub mod info;
 

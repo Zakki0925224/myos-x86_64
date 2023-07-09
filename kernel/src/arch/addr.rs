@@ -2,27 +2,35 @@ use core::ptr::{read_volatile, write_volatile};
 
 use crate::mem::paging::PAGE_MAN;
 
+pub trait Address {
+    fn new(addr: u64) -> Self;
+    fn get(&self) -> u64;
+    fn set(&mut self, addr: u64);
+    fn offset(&self, offset: usize) -> Self;
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(transparent)]
 pub struct PhysicalAddress(u64);
 
-impl PhysicalAddress {
-    pub fn new(addr: u64) -> Self {
+impl Address for PhysicalAddress {
+    fn new(addr: u64) -> Self {
         return Self { 0: addr };
     }
 
-    pub fn get(&self) -> u64 {
+    fn get(&self) -> u64 {
         return self.0;
     }
 
-    pub fn set(&mut self, addr: u64) {
+    fn set(&mut self, addr: u64) {
         self.0 = addr;
     }
 
-    pub fn offset(&self, offset: usize) -> PhysicalAddress {
-        return PhysicalAddress::new(self.0 + offset as u64);
+    fn offset(&self, offset: usize) -> Self {
+        return Self::new(self.0 + offset as u64);
     }
+}
 
+impl PhysicalAddress {
     pub fn get_virt_addr(&self) -> VirtualAddress {
         // println!("{:?}", PAGING.lock());
         // println!("a");
@@ -37,32 +45,29 @@ impl PhysicalAddress {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(transparent)]
 pub struct VirtualAddress(u64);
+
+impl Address for VirtualAddress {
+    fn new(addr: u64) -> Self {
+        return Self { 0: addr };
+    }
+
+    fn get(&self) -> u64 {
+        return self.0;
+    }
+
+    fn set(&mut self, addr: u64) {
+        self.0 = addr;
+    }
+
+    fn offset(&self, offset: usize) -> Self {
+        return Self::new(self.0 + offset as u64);
+    }
+}
 
 impl VirtualAddress {
     pub fn is_valid_addr(addr: u64) -> bool {
         return !(addr > 0x7fff_ffff_ffff_ffff && addr < 0xffff_8000_0000_0000);
-    }
-
-    pub fn new(addr: u64) -> Self {
-        if !VirtualAddress::is_valid_addr(addr) {
-            panic!("Invalid virtual address");
-        }
-
-        return Self { 0: addr };
-    }
-
-    pub fn get(&self) -> u64 {
-        return self.0;
-    }
-
-    pub fn set(&mut self, addr: u64) {
-        self.0 = addr;
-    }
-
-    pub fn offset(&self, offset: usize) -> VirtualAddress {
-        return VirtualAddress::new(self.0 + offset as u64);
     }
 
     pub fn get_phys_addr(&self) -> PhysicalAddress {

@@ -1,4 +1,4 @@
-use crate::arch::addr::VirtualAddress;
+use crate::arch::addr::*;
 
 use super::context::input::InputContext;
 

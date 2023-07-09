@@ -1,7 +1,7 @@
 use modular_bitfield::*;
 use modular_bitfield::{specifiers::*, BitfieldSpecifier};
 
-use crate::arch::addr::PhysicalAddress;
+use crate::arch::addr::*;
 
 const PAGE_TABLE_ENTRY_LEN: usize = 512;
 pub const PAGE_SIZE: usize = 4096;

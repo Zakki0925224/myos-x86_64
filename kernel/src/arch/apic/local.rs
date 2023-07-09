@@ -1,4 +1,4 @@
-use crate::arch::addr::VirtualAddress;
+use crate::arch::addr::*;
 
 const LOCAL_APIC_REG_ADDR: u64 = 0xfee00020;
 

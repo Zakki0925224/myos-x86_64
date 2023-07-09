@@ -1,6 +1,6 @@
 use common::graphic_info::{GraphicInfo, PixelFormat};
 
-use crate::arch::addr::VirtualAddress;
+use crate::arch::addr::*;
 
 use super::{color::Color, font::PsfFont};
 

@@ -4,7 +4,7 @@ use alloc::vec::Vec;
 use modular_bitfield::{bitfield, specifiers::*, BitfieldSpecifier};
 use pci_ids::*;
 
-use crate::arch::{addr::PhysicalAddress, asm, register::msi::*};
+use crate::arch::{addr::*, asm, register::msi::*};
 
 const MMIO_PORT_CONF_ADDR: u32 = 0xcf8;
 const MMIO_PORT_CONF_DATA: u32 = 0xcfc;
