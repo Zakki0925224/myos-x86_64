@@ -17,7 +17,10 @@ mod util;
 extern crate alloc;
 
 use alloc::alloc::Layout;
-use arch::asm;
+use arch::{
+    asm,
+    task::{simple_executor::SimpleExecutor, Task},
+};
 use common::boot_info::BootInfo;
 use core::panic::PanicInfo;
 use log::*;
@@ -48,9 +51,22 @@ pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> ! {
 
     env::print_info();
 
+    // let mut executor = SimpleExecutor::new();
+    // executor.spawn(Task::new(example_task()));
+    // executor.run();
+
     loop {
         asm::hlt();
     }
+}
+
+async fn async_num() -> u32 {
+    return 42;
+}
+
+async fn example_task() {
+    let num = async_num().await;
+    println!("async num: {}", num);
 }
 
 #[alloc_error_handler]
