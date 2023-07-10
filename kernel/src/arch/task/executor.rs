@@ -4,6 +4,7 @@ use core::{
 };
 
 use alloc::collections::VecDeque;
+use log::info;
 
 use super::Task;
 
@@ -24,8 +25,11 @@ impl Executor {
             let waker = dummy_waker();
             let mut context = Context::from_waker(&waker);
             match task.poll(&mut context) {
-                Poll::Ready(()) => {} // task done
-                Poll::Pending => self.task_queue.push_back(task),
+                Poll::Ready(()) => info!("task: Done a task: (id: {})", task.id.0),
+                Poll::Pending => {
+                    info!("task: Pending a task: (id: {})", task.id.0);
+                    self.task_queue.push_back(task)
+                }
             }
         }
     }

@@ -19,7 +19,7 @@ pub static ALLOCATOR: Allocator = Allocator {
 };
 
 pub struct Allocator {
-    pub start_virt_addr: UnsafeCell<u64>,
+    start_virt_addr: UnsafeCell<u64>,
     base_virt_addr: UnsafeCell<u64>,
 }
 

@@ -53,6 +53,8 @@ pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> ! {
 
     let mut executor = Executor::new();
     executor.spawn(Task::new(example_task()));
+    executor.spawn(Task::new(example_task()));
+    executor.spawn(Task::new(example_task()));
     executor.run();
 
     loop {
