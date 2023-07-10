@@ -63,6 +63,7 @@ pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> ! {
     let initramfs_page_cnt = boot_info.initramfs_page_cnt;
     let mut current = initramfs_start_virt_addr;
 
+    println!("page cnt: {}", initramfs_page_cnt);
     while current.get() < initramfs_start_virt_addr.get() + 80 {
         let data: u64 = current.read_volatile();
         println!("0x{:x}: 0x{:x}", current.get(), data);

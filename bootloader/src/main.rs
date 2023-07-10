@@ -171,6 +171,11 @@ fn load_initramfs(bs: &BootServices, path: &str) -> (u64, u64) {
 
     file.read(&mut buf).unwrap();
 
+    // check gzip magic number
+    if buf[0] != 0x1f || buf[1] != 0x8b {
+        panic!("This file is not gzip compressed data");
+    }
+
     let pages = (file_size + UEFI_PAGE_SIZE - 1) / UEFI_PAGE_SIZE;
     // TODO: want to use virtual address
     let phys_addr = bs
