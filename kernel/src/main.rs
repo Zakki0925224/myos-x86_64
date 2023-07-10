@@ -18,6 +18,7 @@ extern crate alloc;
 
 use alloc::alloc::Layout;
 use arch::{
+    addr::{Address, VirtualAddress},
     asm,
     task::{executor::Executor, Task},
 };
@@ -56,6 +57,17 @@ pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> ! {
     executor.spawn(Task::new(example_task()));
     executor.spawn(Task::new(example_task()));
     executor.run();
+
+    // initramfs
+    let initramfs_start_virt_addr = VirtualAddress::new(boot_info.initramfs_start_virt_addr);
+    let initramfs_page_cnt = boot_info.initramfs_page_cnt;
+    let mut current = initramfs_start_virt_addr;
+
+    while current.get() < initramfs_start_virt_addr.get() + 80 {
+        let data: u64 = current.read_volatile();
+        println!("0x{:x}: 0x{:x}", current.get(), data);
+        current = current.offset(8);
+    }
 
     loop {
         asm::hlt();

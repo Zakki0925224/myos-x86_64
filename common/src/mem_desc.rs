@@ -19,7 +19,7 @@ pub enum MemoryType {
     MmioPortSpace,
     PalCode,
     PersistentMemory,
-    Custom(u32),
+    Other(u32),
 }
 
 bitflags! {

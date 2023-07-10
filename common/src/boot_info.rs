@@ -7,10 +7,9 @@ use crate::{graphic_info::GraphicInfo, mem_desc::MemoryDescriptor};
 pub struct BootInfo {
     mem_map: *const MemoryDescriptor,
     mem_map_len: u64,
-    pub graphic_info: GraphicInfo, // phys_mem_offset,
-                                   // cmdline,
-                                   // initramfs_addr,
-                                   // initramfs_size
+    pub graphic_info: GraphicInfo,
+    pub initramfs_start_virt_addr: u64,
+    pub initramfs_page_cnt: u64,
 }
 
 impl BootInfo {
@@ -18,11 +17,15 @@ impl BootInfo {
         mem_map_slice: &[MemoryDescriptor],
         mem_map_len: usize,
         graphic_info: GraphicInfo,
+        initramfs_start_virt_addr: u64,
+        initramfs_page_cnt: u64,
     ) -> Self {
         return Self {
             mem_map: mem_map_slice.as_ptr() as *const MemoryDescriptor,
             mem_map_len: mem_map_len as u64,
             graphic_info,
+            initramfs_start_virt_addr,
+            initramfs_page_cnt,
         };
     }
 

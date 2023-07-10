@@ -98,6 +98,7 @@ tasks:
             - sudo mkdir -p /mnt/EFI/myos
             - sudo cp {{$.OUTPUT_DIR}}/{{$.BOOTLOADER_FILE}} /mnt/EFI/BOOT/BOOTX64.EFI
             - sudo cp {{$.OUTPUT_DIR}}/{{$.KERNEL_FILE}} /mnt/EFI/myos/kernel.elf
+            - sudo cp /boot/initramfs-*-x86_64.img /mnt/initramfs.img
             - sleep 0.5
             - sudo umount /mnt
 

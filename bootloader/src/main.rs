@@ -44,8 +44,11 @@ fn efi_main(handle: Handle, mut st: SystemTable<Boot>) -> Status {
     info!("{:?}", graphic_info);
 
     // load kernel
-    let kernel_entry_point_addr = load_elf(bs, handle, config.kernel_path);
+    let kernel_entry_point_addr = load_elf(bs, config.kernel_path);
     info!("Kernel entry point: 0x{:x}", kernel_entry_point_addr);
+
+    // load initramfs
+    let (initramfs_start_virt_addr, initramfs_page_cnt) = load_initramfs(bs, config.initramfs_path);
 
     // exit boot service and get memory map
     info!("Exit boot services");
@@ -70,7 +73,13 @@ fn efi_main(handle: Handle, mut st: SystemTable<Boot>) -> Status {
     }
 
     let mem_map_len = mem_map.len();
-    let bi = BootInfo::new(mem_map.as_slice(), mem_map_len, graphic_info);
+    let bi = BootInfo::new(
+        mem_map.as_slice(),
+        mem_map_len,
+        graphic_info,
+        initramfs_start_virt_addr,
+        initramfs_page_cnt,
+    );
 
     jump_to_entry(
         kernel_entry_point_addr,
@@ -82,8 +91,7 @@ fn efi_main(handle: Handle, mut st: SystemTable<Boot>) -> Status {
     return Status::SUCCESS;
 }
 
-fn load_elf(bs: &BootServices, _image: Handle, path: &str) -> u64 {
-    // open file
+fn read_file(bs: &BootServices, path: &str) -> RegularFile {
     info!("Opening file: \"{}\"", path);
     let sfs_handle = bs.get_handle_for_protocol::<SimpleFileSystem>().unwrap();
     let mut root = bs
@@ -99,13 +107,16 @@ fn load_elf(bs: &BootServices, _image: Handle, path: &str) -> u64 {
         .into_type()
         .unwrap();
 
-    let mut file = match file {
+    return match file {
         FileType::Regular(file) => file,
         FileType::Dir(_) => panic!("Not file: \"{}\"", path),
     };
+}
+
+fn load_elf(bs: &BootServices, path: &str) -> u64 {
+    let mut file = read_file(bs, path);
 
     let file_info = file.get_boxed_info::<FileInfo>().unwrap();
-
     let file_size = file_info.file_size() as usize;
     let mut buf = vec![0; file_size];
 
@@ -149,6 +160,28 @@ fn load_elf(bs: &BootServices, _image: Handle, path: &str) -> u64 {
 
     info!("Loaded ELF at: 0x{:x}", dest_start);
     return elf.header.pt2.entry_point();
+}
+
+fn load_initramfs(bs: &BootServices, path: &str) -> (u64, u64) {
+    let mut file = read_file(bs, path);
+
+    let file_info = file.get_boxed_info::<FileInfo>().unwrap();
+    let file_size = file_info.file_size() as usize;
+    let mut buf = vec![0; file_size];
+
+    file.read(&mut buf).unwrap();
+
+    let pages = (file_size + UEFI_PAGE_SIZE - 1) / UEFI_PAGE_SIZE;
+    // TODO: want to use virtual address
+    let phys_addr = bs
+        .allocate_pages(AllocateType::AnyPages, MemoryType::LOADER_DATA, pages)
+        .unwrap();
+
+    let dest = unsafe { from_raw_parts_mut(phys_addr as *mut u8, pages * UEFI_PAGE_SIZE) };
+    dest[..file_size].copy_from_slice(&buf);
+    dest[file_size..].fill(0);
+
+    return (phys_addr, pages as u64);
 }
 
 fn init_graphic(bs: &BootServices, resolution: Option<(usize, usize)>) -> GraphicInfo {
@@ -206,7 +239,7 @@ fn convert_mem_type(mem_type: MemoryType) -> mem_desc::MemoryType {
         MemoryType::MMIO_PORT_SPACE => mem_desc::MemoryType::MmioPortSpace,
         MemoryType::PAL_CODE => mem_desc::MemoryType::PalCode,
         MemoryType::PERSISTENT_MEMORY => mem_desc::MemoryType::PersistentMemory,
-        MemoryType(value) => mem_desc::MemoryType::Custom(value),
+        MemoryType(value) => mem_desc::MemoryType::Other(value),
     };
 }
 
