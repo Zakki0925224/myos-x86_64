@@ -1,17 +1,21 @@
-use core::task::{Context, Poll, RawWaker, RawWakerVTable, Waker};
+use core::{
+    ptr::null,
+    task::{Context, Poll, RawWaker, RawWakerVTable, Waker},
+};
 
 use alloc::collections::VecDeque;
 
 use super::Task;
 
-pub struct SimpleExecutor {
+pub struct Executor {
     task_queue: VecDeque<Task>,
 }
 
-impl SimpleExecutor {
-    pub fn new() -> SimpleExecutor {
-        return SimpleExecutor {
-            task_queue: VecDeque::new(),
+impl Executor {
+    pub fn new() -> Executor {
+        return Executor {
+            // if use VecDeque::new(), occures unsafe precondition violated when push data
+            task_queue: VecDeque::with_capacity(16),
         };
     }
 
@@ -37,7 +41,7 @@ fn dummy_raw_waker() -> RawWaker {
         return dummy_raw_waker();
     }
     let vtable = &RawWakerVTable::new(clone, no_op, no_op, no_op);
-    return RawWaker::new(0 as *const (), vtable);
+    return RawWaker::new(null() as *const (), vtable);
 }
 
 fn dummy_waker() -> Waker {

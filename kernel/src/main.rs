@@ -19,7 +19,7 @@ extern crate alloc;
 use alloc::alloc::Layout;
 use arch::{
     asm,
-    task::{simple_executor::SimpleExecutor, Task},
+    task::{executor::Executor, Task},
 };
 use common::boot_info::BootInfo;
 use core::panic::PanicInfo;
@@ -51,9 +51,9 @@ pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> ! {
 
     env::print_info();
 
-    // let mut executor = SimpleExecutor::new();
-    // executor.spawn(Task::new(example_task()));
-    // executor.run();
+    let mut executor = Executor::new();
+    executor.spawn(Task::new(example_task()));
+    executor.run();
 
     loop {
         asm::hlt();

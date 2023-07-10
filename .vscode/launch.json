@@ -7,7 +7,7 @@
             "request": "launch",
             "miDebuggerServerAddress": "localhost:3333",
             "miDebuggerArgs": "${workspaceFolder}/build/kernel.elf",
-            "miDebuggerPath": "/usr/bin/rust-gdb",
+            "miDebuggerPath": "rust-gdb",
             "program": "${workspaceFolder}/build/kernel.elf",
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
