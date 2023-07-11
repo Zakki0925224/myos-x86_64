@@ -49,6 +49,7 @@ fn efi_main(handle: Handle, mut st: SystemTable<Boot>) -> Status {
 
     // load initramfs
     let (initramfs_start_virt_addr, initramfs_page_cnt) = load_initramfs(bs, config.initramfs_path);
+    //let (initramfs_start_virt_addr, initramfs_page_cnt) = (0, 0);
 
     // exit boot service and get memory map
     info!("Exit boot services");
@@ -171,11 +172,6 @@ fn load_initramfs(bs: &BootServices, path: &str) -> (u64, u64) {
 
     file.read(&mut buf).unwrap();
 
-    // check gzip magic number
-    if buf[0] != 0x1f || buf[1] != 0x8b {
-        panic!("This file is not gzip compressed data");
-    }
-
     let pages = (file_size + UEFI_PAGE_SIZE - 1) / UEFI_PAGE_SIZE;
     // TODO: want to use virtual address
     let phys_addr = bs
@@ -185,6 +181,8 @@ fn load_initramfs(bs: &BootServices, path: &str) -> (u64, u64) {
     let dest = unsafe { from_raw_parts_mut(phys_addr as *mut u8, pages * UEFI_PAGE_SIZE) };
     dest[..file_size].copy_from_slice(&buf);
     dest[file_size..].fill(0);
+
+    info!("Loaded initramfs at: 0x{:x}", phys_addr);
 
     return (phys_addr, pages as u64);
 }

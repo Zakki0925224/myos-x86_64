@@ -18,8 +18,9 @@ This is a replacement project for the previous **[myos](https://github.com/Zakki
 -   Device support
     -   [x] Serial connection (UART 16650A)
     -   [x] PCI devices
-    -   [x] USB devices (xHC) (work in progress...)
+    -   [ ] USB devices (xHC) (work in progress...)
 -   [x] GUI support by using Graphics Output Protocol
+-   [ ] Initramfs (but here we call FAT32 formatted image initramfs)
 
 ## How to build
 

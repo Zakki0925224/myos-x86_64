@@ -10,6 +10,7 @@ vars:
     THIRD_PARTY_DIR: third-party
     COZETTE_DIR: cozette
     QEMU_DIR: qemu
+    INITRAMFS_DIR: initramfs
 
     BOOTLOADER_FILE: bootx64.efi
     KERNEL_FILE: kernel.elf
@@ -20,6 +21,7 @@ vars:
     OVMF_CODE_FILE: OVMF_CODE.fd
     OVMF_VARS_FILE: OVMF_VARS.fd
     QEMU_TRACE_FILE: qemu_trace
+    INITRAMFS_IMG_FILE: initramfs.img
 
     GIT_CHECKOUT_TO_LATEST_TAG: git submodule update --init --recursive && git fetch --tags && latestTag=$(git describe --tags `git rev-list --tags --max-count=1`) &&git checkout $latestTag && git gc
 
@@ -30,9 +32,9 @@ vars:
         usb-mouse
         usb-kbd
     QEMU_DRIVES: |
-        id=disk,if=none,format=raw,file={{$.OUTPUT_DIR}}/{{$.IMG_FILE}}
-        if=pflash,format=raw,readonly=on,file={{$.THIRD_PARTY_DIR}}/{{$.OVMF_CODE_FILE}}
-        if=pflash,format=raw,file={{$.THIRD_PARTY_DIR}}/{{$.OVMF_VARS_FILE}}
+        id=disk,if=none,format=raw,file=./{{$.OUTPUT_DIR}}/{{$.IMG_FILE}}
+        if=pflash,format=raw,readonly=on,file=./{{$.THIRD_PARTY_DIR}}/{{$.OVMF_CODE_FILE}}
+        if=pflash,format=raw,file=./{{$.THIRD_PARTY_DIR}}/{{$.OVMF_VARS_FILE}}
     QEMU_ARGS: |
         -no-reboot
         -no-shutdown
@@ -41,17 +43,17 @@ vars:
         -monitor telnet::5678,server,nowait
         -gdb tcp::3333
     QEMU: qemu-system-x86_64 -accel kvm {{range .QEMU_ARGS | splitLines -}}{{if .}}{{.}} {{end}}{{end -}} {{range .QEMU_DRIVES | splitLines -}}{{if .}}-drive {{.}} {{end}}{{end -}} {{range .QEMU_DEVICES | splitLines -}}{{if .}}-device {{.}} {{end}}{{end -}}
-    OWN_QEMU: "{{$.THIRD_PARTY_DIR}}/{{$.QEMU_DIR}}/build/x86_64-softmmu/{{$.QEMU}} --display sdl --trace events={{$.QEMU_TRACE_FILE}}"
+    OWN_QEMU: "./{{$.THIRD_PARTY_DIR}}/{{$.QEMU_DIR}}/build/x86_64-softmmu/{{$.QEMU}} --display sdl --trace events=./{{$.QEMU_TRACE_FILE}}"
 
 tasks:
     clear:
         cmds:
-            - rm -rf {{$.OUTPUT_DIR}}
-            - rm -rf {{$.DUMP_DIR}}
+            - rm -rf ./{{$.OUTPUT_DIR}}
+            - rm -rf ./{{$.DUMP_DIR}}
 
     init:
         cmds:
-            - mkdir -p {{$.OUTPUT_DIR}}
+            - mkdir -p ./{{$.OUTPUT_DIR}}
 
     build-cozette:
         dir: ./{{$.THIRD_PARTY_DIR}}/{{$.COZETTE_DIR}}
@@ -88,17 +90,27 @@ tasks:
             - cargo build
             - cp ./target/x86_64/debug/kernel ../{{$.OUTPUT_DIR}}/{{$.KERNEL_FILE}}
 
+    makeinitramfs-img:
+        cmds:
+            - qemu-img create -f raw ./{{$.OUTPUT_DIR}}/{{$.INITRAMFS_IMG_FILE}} 10M
+            - mkfs.fat -n "INITRAMFS" -F 32 -s 2 ./{{$.OUTPUT_DIR}}/{{$.INITRAMFS_IMG_FILE}} # format for FAT32
+            - sudo mount -o loop ./{{$.OUTPUT_DIR}}/{{$.INITRAMFS_IMG_FILE}} /mnt
+            - sudo cp -r ./{{$.INITRAMFS_DIR}}/* /mnt/
+            - sleep 0.5
+            - sudo umount /mnt
+
     makeimg:
         cmds:
             - task: build
+            - task: makeinitramfs-img
             - qemu-img create -f raw ./{{$.OUTPUT_DIR}}/{{$.IMG_FILE}} 200M
             - mkfs.fat -n "MYOS" -F 32 -s 2 ./{{$.OUTPUT_DIR}}/{{$.IMG_FILE}} # format for FAT32
             - sudo mount -o loop ./{{$.OUTPUT_DIR}}/{{$.IMG_FILE}} /mnt
             - sudo mkdir -p /mnt/EFI/BOOT
             - sudo mkdir -p /mnt/EFI/myos
-            - sudo cp {{$.OUTPUT_DIR}}/{{$.BOOTLOADER_FILE}} /mnt/EFI/BOOT/BOOTX64.EFI
-            - sudo cp {{$.OUTPUT_DIR}}/{{$.KERNEL_FILE}} /mnt/EFI/myos/kernel.elf
-            - sudo cp /boot/initramfs-*-x86_64.img /mnt/initramfs.img
+            - sudo cp ./{{$.OUTPUT_DIR}}/{{$.BOOTLOADER_FILE}} /mnt/EFI/BOOT/BOOTX64.EFI
+            - sudo cp ./{{$.OUTPUT_DIR}}/{{$.KERNEL_FILE}} /mnt/EFI/myos/kernel.elf
+            - sudo cp ./{{$.OUTPUT_DIR}}/{{$.INITRAMFS_IMG_FILE}} /mnt/initramfs.img
             - sleep 0.5
             - sudo umount /mnt
 
@@ -128,11 +140,11 @@ tasks:
 
     gdb:
         cmds:
-            - 'rust-gdb {{$.OUTPUT_DIR}}/{{$.KERNEL_FILE}} -ex "target remote :3333"'
+            - 'rust-gdb ./{{$.OUTPUT_DIR}}/{{$.KERNEL_FILE}} -ex "target remote :3333"'
 
     dump:
         cmds:
             - task: build
-            - mkdir -p {{$.DUMP_DIR}}
-            - objdump -d {{$.OUTPUT_DIR}}/{{$.KERNEL_FILE}} > {{$.DUMP_DIR}}/dump_kernel.txt
-            - objdump -d {{$.OUTPUT_DIR}}/{{$.BOOTLOADER_FILE}} > {{$.DUMP_DIR}}/dump_bootloader.txt
+            - mkdir -p ./{{$.DUMP_DIR}}
+            - objdump -d ./{{$.OUTPUT_DIR}}/{{$.KERNEL_FILE}} > ./{{$.DUMP_DIR}}/dump_kernel.txt
+            - objdump -d ./{{$.OUTPUT_DIR}}/{{$.BOOTLOADER_FILE}} > ./{{$.DUMP_DIR}}/dump_bootloader.txt
