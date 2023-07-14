@@ -9,6 +9,7 @@ mod arch;
 mod bus;
 mod device;
 mod env;
+mod fs;
 mod graphics;
 mod mem;
 mod serial;
@@ -24,6 +25,7 @@ use arch::{
 };
 use common::boot_info::BootInfo;
 use core::panic::PanicInfo;
+use fs::fat::boot_sector::BootSector;
 use log::*;
 
 use crate::arch::{gdt, idt};
@@ -61,14 +63,10 @@ pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> ! {
     // initramfs
     let initramfs_start_virt_addr = VirtualAddress::new(boot_info.initramfs_start_virt_addr);
     let initramfs_page_cnt = boot_info.initramfs_page_cnt;
-    let mut current = initramfs_start_virt_addr;
 
-    println!("page cnt: {}", initramfs_page_cnt);
-    while current.get() < initramfs_start_virt_addr.get() + 80 {
-        let data: u64 = current.read_volatile();
-        println!("0x{:x}: 0x{:x}", current.get(), data);
-        current = current.offset(8);
-    }
+    let boot_sector: BootSector = initramfs_start_virt_addr.read_volatile();
+    println!("{:?}", boot_sector);
+    println!("{}", boot_sector.oem_name());
 
     loop {
         asm::hlt();
