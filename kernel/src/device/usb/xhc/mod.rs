@@ -6,7 +6,7 @@ use log::{info, warn};
 use spin::Mutex;
 
 use crate::{
-    arch::{addr::*, apic::local::read_local_apic_id, idt::VEC_XHCI_INT, register::msi::*},
+    arch::{addr::*, apic::read_local_apic_id, idt::VEC_XHCI_INT, register::msi::*},
     bus::pci::{conf_space::BaseAddress, device_id::PCI_USB_XHCI_ID, PCI_DEVICE_MAN},
     device::usb::{
         xhc::{port::ConfigState, register::*},

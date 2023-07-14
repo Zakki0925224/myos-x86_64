@@ -28,12 +28,15 @@ use core::panic::PanicInfo;
 use fs::fat::boot_sector::BootSector;
 use log::*;
 
-use crate::arch::{gdt, idt};
+use crate::arch::{apic::timer::LOCAL_APIC_TIMER, gdt, idt};
 
 #[no_mangle]
 #[start]
 pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> ! {
     let boot_info = unsafe { boot_info.read() };
+
+    // initialize local APIC timer
+    LOCAL_APIC_TIMER.init();
 
     // initialize frame buffer, serial, terminal, logger
     graphics::init(boot_info.graphic_info);
