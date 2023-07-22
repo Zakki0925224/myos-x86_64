@@ -25,7 +25,7 @@ use arch::{
 };
 use common::boot_info::BootInfo;
 use core::panic::PanicInfo;
-use fs::fat::boot_sector::BootSector;
+use fs::fat::FatVolume;
 use log::*;
 
 use crate::arch::{apic::timer::LOCAL_APIC_TIMER, gdt, idt};
@@ -65,11 +65,8 @@ pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> ! {
 
     // initramfs
     let initramfs_start_virt_addr = VirtualAddress::new(boot_info.initramfs_start_virt_addr);
-    let initramfs_page_cnt = boot_info.initramfs_page_cnt;
-
-    let boot_sector: BootSector = initramfs_start_virt_addr.read_volatile();
-    println!("{:?}", boot_sector);
-    println!("{}", boot_sector.oem_name());
+    let initramfs_fat_volume = FatVolume::new(initramfs_start_virt_addr);
+    println!("{:?}", initramfs_fat_volume.read_fs_info_sector());
 
     loop {
         asm::hlt();
