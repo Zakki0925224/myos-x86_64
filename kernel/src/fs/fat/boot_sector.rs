@@ -88,30 +88,15 @@ impl BootSector {
         return u16::from_le_bytes(self.bytes_per_sector) as usize;
     }
 
-    fn fat_size16(&self) -> usize {
-        return u16::from_le_bytes(self.fat_size16) as usize;
+    pub fn sectors_per_cluster(&self) -> usize {
+        return self.sectors_per_cluster as usize;
     }
 
-    fn num_fat_sectors(&self) -> usize {
+    pub fn fat_sectors(&self) -> usize {
         return self.fat_size16() * self.num_fats as usize;
     }
 
-    fn root_entry_count(&self) -> usize {
-        return u16::from_le_bytes(self.root_entry_count) as usize;
-    }
-
-    fn root_dir_start_sector(&self) -> usize {
-        return (((self.reserved_sector_count[1] as u16) << 8)
-            | self.reserved_sector_count[0] as u16) as usize
-            + self.num_fat_sectors();
-    }
-
-    fn root_dir_sectors(&self) -> usize {
-        let bytes_per_sector = self.bytes_per_sector();
-        return (32 * self.root_entry_count() + bytes_per_sector - 1) / bytes_per_sector;
-    }
-
-    fn total_sector(&self) -> usize {
+    pub fn total_sectors(&self) -> usize {
         let total_sector16 = u16::from_le_bytes(self.total_sector16);
         let total_sector32 = u32::from_le_bytes(self.total_sector32);
 
@@ -122,11 +107,34 @@ impl BootSector {
         return total_sector16 as usize;
     }
 
-    fn data_start_sector(&self) -> usize {
+    pub fn reserved_sectors(&self) -> usize {
+        return u16::from_le_bytes(self.reserved_sector_count) as usize;
+    }
+
+    pub fn data_start_sector(&self) -> usize {
         return self.root_dir_start_sector() + self.root_dir_sectors();
     }
 
+    fn fat_size16(&self) -> usize {
+        return u16::from_le_bytes(self.fat_size16) as usize;
+    }
+
+    fn root_entry_count(&self) -> usize {
+        return u16::from_le_bytes(self.root_entry_count) as usize;
+    }
+
+    pub fn root_dir_start_sector(&self) -> usize {
+        return (((self.reserved_sector_count[1] as u16) << 8)
+            | self.reserved_sector_count[0] as u16) as usize
+            + self.fat_sectors();
+    }
+
+    pub fn root_dir_sectors(&self) -> usize {
+        let bytes_per_sector = self.bytes_per_sector();
+        return (32 * self.root_entry_count() + bytes_per_sector - 1) / bytes_per_sector;
+    }
+
     fn data_sectors(&self) -> usize {
-        return self.total_sector() - self.data_start_sector();
+        return self.total_sectors() - self.data_start_sector();
     }
 }
