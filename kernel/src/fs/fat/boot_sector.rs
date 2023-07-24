@@ -68,7 +68,7 @@ pub struct BootSector {
 
 impl BootSector {
     pub fn fat_type(&self) -> FatType {
-        return match self.num_data_clusters() {
+        return match self.data_clusters() {
             ..=4085 => FatType::Fat12,
             4086..=65525 => FatType::Fat16,
             _ => FatType::Fat32,
@@ -80,7 +80,7 @@ impl BootSector {
         return buf;
     }
 
-    pub fn num_data_clusters(&self) -> usize {
+    pub fn data_clusters(&self) -> usize {
         return self.data_sectors() / self.sectors_per_cluster as usize;
     }
 
@@ -107,12 +107,9 @@ impl BootSector {
         return total_sector16 as usize;
     }
 
+    // fat start sector
     pub fn reserved_sectors(&self) -> usize {
         return u16::from_le_bytes(self.reserved_sector_count) as usize;
-    }
-
-    pub fn data_start_sector(&self) -> usize {
-        return self.root_dir_start_sector() + self.root_dir_sectors();
     }
 
     fn fat_size16(&self) -> usize {
@@ -123,18 +120,34 @@ impl BootSector {
         return u16::from_le_bytes(self.root_entry_count) as usize;
     }
 
-    pub fn root_dir_start_sector(&self) -> usize {
-        return (((self.reserved_sector_count[1] as u16) << 8)
-            | self.reserved_sector_count[0] as u16) as usize
-            + self.fat_sectors();
+    pub fn root_dir_start_sector(&self) -> Option<usize> {
+        return match self.fat_type() {
+            FatType::Fat32 => None,
+            _ => Some(self.reserved_sectors() + self.fat_sectors()),
+        };
     }
 
-    pub fn root_dir_sectors(&self) -> usize {
-        let bytes_per_sector = self.bytes_per_sector();
-        return (32 * self.root_entry_count() + bytes_per_sector - 1) / bytes_per_sector;
+    pub fn root_dir_sectors(&self) -> Option<usize> {
+        let root_dir_start_sector = match self.root_dir_start_sector() {
+            Some(sector) => sector,
+            None => return None,
+        };
+
+        return Some(
+            root_dir_start_sector
+                + (self.root_entry_count() * 32 + self.bytes_per_sector() - 1)
+                    / self.bytes_per_sector(),
+        );
     }
 
-    fn data_sectors(&self) -> usize {
+    pub fn data_start_sector(&self) -> usize {
+        return match self.fat_type() {
+            FatType::Fat32 => self.reserved_sectors() + self.fat_sectors(),
+            _ => self.root_dir_start_sector().unwrap() + self.root_dir_sectors().unwrap(),
+        };
+    }
+
+    pub fn data_sectors(&self) -> usize {
         return self.total_sectors() - self.data_start_sector();
     }
 }
