@@ -15,7 +15,7 @@ pub struct FrameBuffer {
     is_init: bool,
     resolution: (usize, usize),
     format: PixelFormat,
-    framebuf_addr: u64,
+    framebuf_virt_addr: VirtualAddress,
     framebuf_size: usize,
     stride: usize,
     font: PsfFont,
@@ -27,7 +27,7 @@ impl FrameBuffer {
             is_init: false,
             resolution: (0, 0),
             format: PixelFormat::Rgb,
-            framebuf_addr: 0,
+            framebuf_virt_addr: VirtualAddress::new(0),
             framebuf_size: 0,
             stride: 0,
             font: PsfFont::new(),
@@ -40,7 +40,7 @@ impl FrameBuffer {
             graphic_info.resolution.1 as usize,
         );
         self.format = graphic_info.format;
-        self.framebuf_addr = graphic_info.framebuf_addr;
+        self.framebuf_virt_addr = VirtualAddress::new(graphic_info.framebuf_addr);
         self.framebuf_size = graphic_info.framebuf_size as usize;
         self.stride = graphic_info.stride as usize;
         self.is_init = true;
@@ -173,13 +173,16 @@ impl FrameBuffer {
 
     fn read_pixel(&self, x: usize, y: usize) -> u32 {
         let (res_x, _) = self.get_resolution();
-        let addr = VirtualAddress::new(self.framebuf_addr + 4 * (res_x * y) as u64 + 4 * x as u64);
-        return addr.read_volatile();
+        return self
+            .framebuf_virt_addr
+            .offset(4 * (res_x * y) + 4 * x)
+            .read_volatile();
     }
 
     fn write_pixel(&self, x: usize, y: usize, data: u32) {
         let (res_x, _) = self.get_resolution();
-        let addr = VirtualAddress::new(self.framebuf_addr + 4 * (res_x * y) as u64 + 4 * x as u64);
-        addr.write_volatile(data);
+        self.framebuf_virt_addr
+            .offset(4 * (res_x * y) + 4 * x)
+            .write_volatile(data);
     }
 }

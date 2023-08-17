@@ -29,7 +29,6 @@ pub enum PageWriteThroughLevel {
 
 #[bitfield]
 #[derive(Debug, Clone, Copy)]
-#[repr(C)]
 pub struct PageTableEntry {
     pub p: bool,
     pub rw: ReadWrite,
@@ -73,14 +72,6 @@ impl PageTableEntry {
     }
 }
 
-impl Default for PageTableEntry {
-    fn default() -> Self {
-        Self {
-            bytes: Default::default(),
-        }
-    }
-}
-
 #[derive(Debug)]
 #[repr(C, align(4096))]
 pub struct PageTable {
@@ -90,7 +81,7 @@ pub struct PageTable {
 impl PageTable {
     pub fn new() -> Self {
         return Self {
-            entries: [PageTableEntry::default(); PAGE_TABLE_ENTRY_LEN],
+            entries: [PageTableEntry::new(); PAGE_TABLE_ENTRY_LEN],
         };
     }
 }

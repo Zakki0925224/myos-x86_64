@@ -66,7 +66,7 @@ pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> ! {
     // initramfs
     let initramfs_start_virt_addr = VirtualAddress::new(boot_info.initramfs_start_virt_addr);
     let initramfs_fat_volume = FatVolume::new(initramfs_start_virt_addr);
-    initramfs_fat_volume.debug();
+    //initramfs_fat_volume.debug();
 
     loop {
         asm::hlt();

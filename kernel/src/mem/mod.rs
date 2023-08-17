@@ -1,8 +1,10 @@
 use common::mem_desc::MemoryDescriptor;
-use log::warn;
 
 use crate::{
-    arch::addr::VirtualAddress, mem::allocator::ALLOCATOR, mem::paging::PAGE_MAN, println,
+    arch::addr::{Address, VirtualAddress},
+    mem::allocator::ALLOCATOR,
+    mem::paging::PAGE_MAN,
+    println,
 };
 
 use self::bitmap::BITMAP_MEM_MAN;
@@ -23,6 +25,10 @@ pub fn init(mem_map: &[MemoryDescriptor]) {
     //     Ok(_) => (),
     //     Err(err) => println!("{:?}", err),
     // }
+    println!(
+        "{:?}",
+        PAGE_MAN.lock().calc_phys_addr(VirtualAddress::new(0x1000))
+    );
 
     let used = BITMAP_MEM_MAN.lock().get_used_mem_size();
     let total = BITMAP_MEM_MAN.lock().get_total_mem_size();

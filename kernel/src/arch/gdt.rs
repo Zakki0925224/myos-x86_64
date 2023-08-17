@@ -24,7 +24,7 @@ pub enum SegmentType {
 
 #[bitfield]
 #[derive(Debug, Clone, Copy)]
-#[repr(C, packed)]
+#[repr(C, align(8))]
 pub struct SegmentDescriptor {
     limit_low: B16,
     base_low: B16,
@@ -67,7 +67,6 @@ impl SegmentDescriptor {
     }
 }
 
-#[repr(C, align(8))]
 struct GlobalDescriptorTable {
     entries: [SegmentDescriptor; GDT_LEN],
 }
@@ -88,7 +87,7 @@ impl GlobalDescriptorTable {
     }
 
     pub fn load(&self) {
-        let limit = (size_of::<[GateDescriptor; GDT_LEN]>() - 1) as u16;
+        let limit = (size_of::<GateDescriptor>() * GDT_LEN - 1) as u16;
         let base = self.entries.as_ptr() as u64;
 
         let args = DescriptorTableArgs { limit, base };

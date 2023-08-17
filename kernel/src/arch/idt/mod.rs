@@ -65,7 +65,7 @@ pub enum GateType {
 
 #[bitfield]
 #[derive(Debug, Clone, Copy)]
-#[repr(C, packed)]
+#[repr(C, align(16))]
 pub struct GateDescriptor {
     handler_offset_low: B16,
     selector: B16,
@@ -100,7 +100,6 @@ impl GateDescriptor {
     }
 }
 
-#[repr(C, align(16))]
 struct InterruptDescriptorTable {
     entries: [GateDescriptor; IDT_LEN],
 }
@@ -123,7 +122,7 @@ impl InterruptDescriptorTable {
     }
 
     pub fn load(&self) {
-        let limit = (size_of::<[GateDescriptor; IDT_LEN]>() - 1) as u16;
+        let limit = (size_of::<GateDescriptor>() * IDT_LEN - 1) as u16;
         let base = self.entries.as_ptr() as u64;
         let args = DescriptorTableArgs { limit, base };
         asm::lidt(&args);
