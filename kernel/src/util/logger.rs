@@ -1,7 +1,7 @@
 use log::{Level, LevelFilter, Record, SetLoggerError};
 
 use crate::{
-    graphics::{color::*, TERMINAL},
+    graphics::{color::*, frame_buf_console::FRAME_BUF_CONSOLE},
     print,
 };
 
@@ -31,11 +31,11 @@ impl log::Log for SimpleLogger {
     fn log(&self, record: &Record) {
         if self.enabled(record.metadata()) {
             match record.level() {
-                Level::Error => TERMINAL.lock().set_fore_color(LOG_COLOR_ERROR),
-                Level::Warn => TERMINAL.lock().set_fore_color(LOG_COLOR_WARN),
-                Level::Info => TERMINAL.lock().set_fore_color(LOG_COLOR_INFO),
-                Level::Debug => TERMINAL.lock().set_fore_color(LOG_COLOR_DEBUG),
-                Level::Trace => TERMINAL.lock().set_fore_color(LOG_COLOR_TRACE),
+                Level::Error => FRAME_BUF_CONSOLE.lock().set_fore_color(LOG_COLOR_ERROR),
+                Level::Warn => FRAME_BUF_CONSOLE.lock().set_fore_color(LOG_COLOR_WARN),
+                Level::Info => FRAME_BUF_CONSOLE.lock().set_fore_color(LOG_COLOR_INFO),
+                Level::Debug => FRAME_BUF_CONSOLE.lock().set_fore_color(LOG_COLOR_DEBUG),
+                Level::Trace => FRAME_BUF_CONSOLE.lock().set_fore_color(LOG_COLOR_TRACE),
             }
 
             if record.level() == Level::Error || record.level() == Level::Debug {
@@ -54,7 +54,7 @@ impl log::Log for SimpleLogger {
 
             print!("{:?}\n", record.args());
 
-            TERMINAL.lock().reset_fore_color();
+            FRAME_BUF_CONSOLE.lock().reset_fore_color();
         }
     }
 

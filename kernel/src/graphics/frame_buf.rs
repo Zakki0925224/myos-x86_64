@@ -1,8 +1,14 @@
 use common::graphic_info::{GraphicInfo, PixelFormat};
+use lazy_static::lazy_static;
+use spin::Mutex;
 
 use crate::arch::addr::*;
 
 use super::{color::Color, font::PsfFont};
+
+lazy_static! {
+    pub static ref FRAME_BUF: Mutex<FrameBuffer> = Mutex::new(FrameBuffer::new());
+}
 
 #[derive(Debug)]
 pub enum FrameBufferError {

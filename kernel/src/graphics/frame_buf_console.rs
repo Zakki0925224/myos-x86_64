@@ -1,17 +1,30 @@
-use crate::{graphics::{color::*, frame_buffer::FrameBufferError}, device::serial::SERIAL};
 use core::fmt::{self, Write};
+use lazy_static::lazy_static;
+use spin::Mutex;
 
-use super::{FRAME_BUF, TERMINAL};
+use crate::{device::serial::SERIAL, graphics::color::*};
+
+use super::{
+    color::COLOR_WHITE,
+    frame_buf::{FrameBufferError, FRAME_BUF},
+};
 
 const TAB_DISP_CHAR: char = ' ';
 const TAB_INDENT_SIZE: usize = 4;
+
+lazy_static! {
+    pub static ref FRAME_BUF_CONSOLE: Mutex<FrameBufferConsole> = Mutex::new(
+        FrameBufferConsole::new(RGBColor::new(3, 26, 0), RGBColor::new(18, 202, 99))
+    );
+}
+
 #[derive(Debug)]
-pub enum TerminalError {
+pub enum FrameBufferConsoleError {
     NotInitialized,
     FrameBufferError(FrameBufferError),
 }
 
-pub struct Terminal {
+pub struct FrameBufferConsole {
     is_init: bool,
     back_color: RGBColor,
     default_fore_color: RGBColor,
@@ -25,7 +38,7 @@ pub struct Terminal {
     cursor_y: usize,
 }
 
-impl Terminal {
+impl FrameBufferConsole {
     pub fn new(back_color: RGBColor, fore_color: RGBColor) -> Self {
         return Self {
             is_init: false,
@@ -42,9 +55,9 @@ impl Terminal {
         };
     }
 
-    pub fn init(&mut self) -> Result<(), TerminalError> {
+    pub fn init(&mut self) -> Result<(), FrameBufferConsoleError> {
         if !FRAME_BUF.lock().is_init() {
-            return Err(TerminalError::FrameBufferError(
+            return Err(FrameBufferConsoleError::FrameBufferError(
                 FrameBufferError::NotInitialized,
             ));
         }
@@ -135,9 +148,9 @@ impl Terminal {
         self.fore_color = self.default_fore_color;
     }
 
-    pub fn write_char(&mut self, c: char) -> Result<(), TerminalError> {
+    pub fn write_char(&mut self, c: char) -> Result<(), FrameBufferConsoleError> {
         if !self.is_init {
-            return Err(TerminalError::NotInitialized);
+            return Err(FrameBufferConsoleError::NotInitialized);
         }
 
         match c {
@@ -152,16 +165,15 @@ impl Terminal {
             c,
             &self.fore_color,
         ) {
-            return Err(TerminalError::FrameBufferError(err));
+            return Err(FrameBufferConsoleError::FrameBufferError(err));
         }
 
-        // TODO: send Terminal color code
         SERIAL.lock().send_data(c as u8);
 
         return self.inc_cursor();
     }
 
-    pub fn write_string(&mut self, string: &str) -> Result<(), TerminalError> {
+    pub fn write_string(&mut self, string: &str) -> Result<(), FrameBufferConsoleError> {
         for c in string.chars() {
             if let Err(err) = self.write_char(c) {
                 return Err(err);
@@ -171,7 +183,7 @@ impl Terminal {
         return Ok(());
     }
 
-    fn inc_cursor(&mut self) -> Result<(), TerminalError> {
+    fn inc_cursor(&mut self) -> Result<(), FrameBufferConsoleError> {
         self.cursor_x += 1;
 
         if self.cursor_x > self.char_max_x_len {
@@ -190,7 +202,7 @@ impl Terminal {
         return Ok(());
     }
 
-    fn tab(&mut self) -> Result<(), TerminalError> {
+    fn tab(&mut self) -> Result<(), FrameBufferConsoleError> {
         for _ in 0..TAB_INDENT_SIZE {
             if let Err(err) = self.write_char(TAB_DISP_CHAR) {
                 return Err(err);
@@ -206,7 +218,7 @@ impl Terminal {
         return Ok(());
     }
 
-    fn new_line(&mut self) -> Result<(), TerminalError> {
+    fn new_line(&mut self) -> Result<(), FrameBufferConsoleError> {
         self.cursor_x = 0;
         self.cursor_y += 1;
 
@@ -222,13 +234,13 @@ impl Terminal {
         return Ok(());
     }
 
-    fn scroll(&self) -> Result<(), TerminalError> {
+    fn scroll(&self) -> Result<(), FrameBufferConsoleError> {
         let font_glyph_size_y = self.font_glyph_size.1;
 
         for y in font_glyph_size_y..self.max_y_res {
             for x in 0..self.max_x_res {
                 if let Err(err) = FRAME_BUF.lock().copy_pixel(x, y, x, y - font_glyph_size_y) {
-                    return Err(TerminalError::FrameBufferError(err));
+                    return Err(FrameBufferConsoleError::FrameBufferError(err));
                 }
             }
         }
@@ -240,17 +252,17 @@ impl Terminal {
             font_glyph_size_y - 1,
             &self.back_color,
         ) {
-            return Err(TerminalError::FrameBufferError(err));
+            return Err(FrameBufferConsoleError::FrameBufferError(err));
         }
 
         return Ok(());
     }
 }
 
-impl fmt::Write for Terminal {
+impl fmt::Write for FrameBufferConsole {
     fn write_str(&mut self, s: &str) -> fmt::Result {
         if !self.is_init {
-            panic!("terminal: {:?}", TerminalError::NotInitialized);
+            panic!("terminal: {:?}", FrameBufferConsoleError::NotInitialized);
         }
 
         self.write_string(s).unwrap();
@@ -261,13 +273,13 @@ impl fmt::Write for Terminal {
 // print!, println! macro
 #[doc(hidden)]
 pub fn _print(args: fmt::Arguments) {
-    TERMINAL.lock().write_fmt(args).unwrap();
+    FRAME_BUF_CONSOLE.lock().write_fmt(args).unwrap();
 }
 
 #[macro_export]
 macro_rules! print
 {
-    ($($arg:tt)*) => ($crate::graphics::terminal::_print(format_args!($($arg)*)));
+    ($($arg:tt)*) => ($crate::graphics::frame_buf_console::_print(format_args!($($arg)*)));
 }
 
 #[macro_export]
