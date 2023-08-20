@@ -12,7 +12,6 @@ mod env;
 mod fs;
 mod graphics;
 mod mem;
-mod serial;
 mod util;
 
 extern crate alloc;
@@ -25,6 +24,7 @@ use arch::{
 };
 use common::boot_info::BootInfo;
 use core::panic::PanicInfo;
+use device::serial::SERIAL;
 use fs::fat::FatVolume;
 use log::*;
 
@@ -69,7 +69,18 @@ pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> ! {
     //initramfs_fat_volume.debug();
 
     loop {
-        asm::hlt();
+        // if let Some(data) = SERIAL.lock().receive_data() {
+        //     SERIAL.lock().send_data(data);
+        // }
+
+        if !SERIAL.is_locked() {
+            asm::cli();
+            let data = SERIAL.lock().receive_data();
+            println!("data: {:?}", data);
+            asm::sti();
+        }
+
+        //asm::hlt();
     }
 }
 

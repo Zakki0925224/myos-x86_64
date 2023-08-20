@@ -1,7 +1,4 @@
-use crate::{
-    graphics::{color::*, frame_buffer::FrameBufferError},
-    serial::SERIAL,
-};
+use crate::{graphics::{color::*, frame_buffer::FrameBufferError}, device::serial::SERIAL};
 use core::fmt::{self, Write};
 
 use super::{FRAME_BUF, TERMINAL};

@@ -10,6 +10,7 @@ pub trait Address {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(transparent)]
 pub struct PhysicalAddress(u64);
 
 impl Address for PhysicalAddress {
@@ -45,6 +46,7 @@ impl PhysicalAddress {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(transparent)]
 pub struct VirtualAddress(u64);
 
 impl Address for VirtualAddress {

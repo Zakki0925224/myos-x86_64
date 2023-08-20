@@ -9,8 +9,8 @@ use log::info;
 use spin::Mutex;
 
 use crate::{
+    device::serial::SERIAL,
     graphics::{color::RGBColor, frame_buffer::FrameBuffer, terminal::Terminal},
-    serial::{self, SERIAL},
     util::logger,
 };
 
@@ -27,7 +27,7 @@ lazy_static! {
 
 pub fn init(graphic_info: GraphicInfo) {
     FRAME_BUF.lock().init(graphic_info);
-    SERIAL.lock().init(serial::IO_PORT_COM1);
+    SERIAL.lock().init();
     TERMINAL.lock().init().unwrap();
     logger::init().unwrap();
     info!("terminal: Initialized kernel terminal");

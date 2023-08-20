@@ -48,12 +48,9 @@ pub const VEC_XHCI_INT: usize = 64;
 
 const END_OF_INT_REG_ADDR: u64 = 0xfee000b0;
 
-type NormalHandler = extern "x86-interrupt" fn();
-type PageFaultHandler = extern "x86-interrupt" fn(InterruptStackFrame, PageFaultErrorCode);
-
-enum InterruptHandler {
-    Normal(NormalHandler),
-    PageFault(PageFaultHandler),
+pub enum InterruptHandler {
+    Normal(extern "x86-interrupt" fn()),
+    PageFault(extern "x86-interrupt" fn(InterruptStackFrame, PageFaultErrorCode)),
 }
 
 #[derive(BitfieldSpecifier, Debug, Clone, Copy)]
