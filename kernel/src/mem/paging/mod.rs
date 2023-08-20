@@ -125,7 +125,7 @@ impl PageManager {
         println!("total: 0x{:x}", total_mem_size);
         //let total_mem_size = 0x0a000000 as usize;
         let total_mem_size = 0x09000000 as usize;
-        let mut virt_addr = VirtualAddress::new(0);
+        let mut virt_addr = VirtualAddress::default();
 
         while virt_addr.get() < total_mem_size as u64 {
             // info!(

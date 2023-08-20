@@ -117,7 +117,7 @@ impl BitmapMemoryManager {
     pub fn new() -> Self {
         return Self {
             is_init: false,
-            bitmap_virt_addr: VirtualAddress::new(0),
+            bitmap_virt_addr: VirtualAddress::default(),
             bitmap_len: 0,
             frame_len: 0,
             allocated_frame_len: 0,
@@ -138,7 +138,7 @@ impl BitmapMemoryManager {
         }
 
         // find available memory area for bitmap
-        let mut bitmap_virt_addr = VirtualAddress::new(0);
+        let mut bitmap_virt_addr = VirtualAddress::default();
         for d in mem_map {
             if d.ty != MemoryType::Conventional
                 || d.page_cnt as usize * UEFI_PAGE_SIZE < bitmap_len

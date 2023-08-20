@@ -69,10 +69,6 @@ pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> ! {
     //initramfs_fat_volume.debug();
 
     loop {
-        // if let Some(data) = SERIAL.lock().receive_data() {
-        //     SERIAL.lock().send_data(data);
-        // }
-
         if !SERIAL.is_locked() {
             asm::cli();
             let data = SERIAL.lock().receive_data();

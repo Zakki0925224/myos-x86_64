@@ -28,8 +28,8 @@ impl Port {
             port_id,
             slot_id: None,
             config_state: ConfigState::NotConnected,
-            input_context_base_virt_addr: VirtualAddress::new(0),
-            output_context_base_virt_addr: VirtualAddress::new(0),
+            input_context_base_virt_addr: VirtualAddress::default(),
+            output_context_base_virt_addr: VirtualAddress::default(),
         };
     }
 

@@ -107,15 +107,15 @@ impl XhcDriver {
                     controller_pci_bus: device.bus,
                     controller_pci_device: device.device,
                     controller_pci_func: device.func,
-                    cap_reg_virt_addr: VirtualAddress::new(0),
-                    ope_reg_virt_addr: VirtualAddress::new(0),
-                    runtime_reg_virt_addr: VirtualAddress::new(0),
-                    intr_reg_sets_virt_addr: VirtualAddress::new(0),
-                    port_reg_sets_virt_addr: VirtualAddress::new(0),
-                    doorbell_reg_virt_addr: VirtualAddress::new(0),
-                    cmd_ring_virt_addr: VirtualAddress::new(0),
-                    device_context_arr_virt_addr: VirtualAddress::new(0),
-                    primary_event_ring_virt_addr: VirtualAddress::new(0),
+                    cap_reg_virt_addr: VirtualAddress::default(),
+                    ope_reg_virt_addr: VirtualAddress::default(),
+                    runtime_reg_virt_addr: VirtualAddress::default(),
+                    intr_reg_sets_virt_addr: VirtualAddress::default(),
+                    port_reg_sets_virt_addr: VirtualAddress::default(),
+                    doorbell_reg_virt_addr: VirtualAddress::default(),
+                    cmd_ring_virt_addr: VirtualAddress::default(),
+                    device_context_arr_virt_addr: VirtualAddress::default(),
+                    primary_event_ring_virt_addr: VirtualAddress::default(),
                     num_of_ports: 0,
                     num_of_slots: 0,
                     primary_event_ring_buf: None,
@@ -236,7 +236,7 @@ impl XhcDriver {
         let sp2 = cap_reg.structural_params2();
         let num_of_bufs =
             (sp2.max_scratchpad_bufs_high() << 5 | sp2.max_scratchpad_bufs_low()) as usize;
-        let mut scratchpad_buf_arr_virt_addr = VirtualAddress::new(0);
+        let mut scratchpad_buf_arr_virt_addr = VirtualAddress::default();
 
         let scratchpad_buf_arr_mem_virt_addr = match BITMAP_MEM_MAN.lock().alloc_single_mem_frame()
         {
@@ -271,7 +271,7 @@ impl XhcDriver {
             let entry = if i == 0 {
                 scratchpad_buf_arr_virt_addr
             } else {
-                VirtualAddress::new(0)
+                VirtualAddress::default()
             };
             self.write_device_context_base_addr(i, entry).unwrap();
         }

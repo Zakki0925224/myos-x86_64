@@ -27,7 +27,7 @@ impl FrameBuffer {
             is_init: false,
             resolution: (0, 0),
             format: PixelFormat::Rgb,
-            framebuf_virt_addr: VirtualAddress::new(0),
+            framebuf_virt_addr: VirtualAddress::default(),
             framebuf_size: 0,
             stride: 0,
             font: PsfFont::new(),

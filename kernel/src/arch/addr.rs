@@ -15,7 +15,7 @@ pub struct PhysicalAddress(u64);
 
 impl Address for PhysicalAddress {
     fn new(addr: u64) -> Self {
-        return Self { 0: addr };
+        return Self(addr);
     }
 
     fn get(&self) -> u64 {
@@ -45,13 +45,19 @@ impl PhysicalAddress {
     }
 }
 
+impl Default for PhysicalAddress {
+    fn default() -> Self {
+        return Self(0);
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(transparent)]
 pub struct VirtualAddress(u64);
 
 impl Address for VirtualAddress {
     fn new(addr: u64) -> Self {
-        return Self { 0: addr };
+        return Self(addr);
     }
 
     fn get(&self) -> u64 {
@@ -113,5 +119,11 @@ impl VirtualAddress {
         unsafe {
             write_volatile(ptr, data);
         }
+    }
+}
+
+impl Default for VirtualAddress {
+    fn default() -> Self {
+        return Self(0);
     }
 }
