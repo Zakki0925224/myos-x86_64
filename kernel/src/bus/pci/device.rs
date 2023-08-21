@@ -31,8 +31,9 @@ impl PciDevice {
     }
 
     pub fn read_conf_space_non_bridge_field(&self) -> Option<ConfigurationSpaceNonBridgeField> {
-        match self.conf_space_header.header_type() {
-            ConfigurationSpaceHeaderType::NonBridge => {
+        match self.conf_space_header.get_header_type() {
+            ConfigurationSpaceHeaderType::NonBridge
+            | ConfigurationSpaceHeaderType::MultiFunction => {
                 if let Some(field) =
                     ConfigurationSpaceNonBridgeField::read(self.bus, self.device, self.func)
                 {
@@ -48,7 +49,7 @@ impl PciDevice {
     pub fn read_conf_space_pci_to_pci_bridge_field(
         &self,
     ) -> Option<ConfigurationSpacePciToPciBridgeField> {
-        match self.conf_space_header.header_type() {
+        match self.conf_space_header.get_header_type() {
             ConfigurationSpaceHeaderType::PciToPciBridge => {
                 if let Some(field) =
                     ConfigurationSpacePciToPciBridgeField::read(self.bus, self.device, self.func)
@@ -65,7 +66,7 @@ impl PciDevice {
     pub fn read_space_pci_to_cardbus_bridge_field(
         &self,
     ) -> Option<ConfigurationSpacePciToCardBusField> {
-        match self.conf_space_header.header_type() {
+        match self.conf_space_header.get_header_type() {
             ConfigurationSpaceHeaderType::PciToCardBusBridge => {
                 if let Some(field) =
                     ConfigurationSpacePciToCardBusField::read(self.bus, self.device, self.func)
@@ -95,8 +96,9 @@ impl PciDevice {
             return None;
         }
 
-        match self.conf_space_header.header_type() {
-            ConfigurationSpaceHeaderType::NonBridge => {
+        match self.conf_space_header.get_header_type() {
+            ConfigurationSpaceHeaderType::NonBridge
+            | ConfigurationSpaceHeaderType::MultiFunction => {
                 return Some(self.read_conf_space_non_bridge_field().unwrap().caps_ptr());
             }
             ConfigurationSpaceHeaderType::PciToPciBridge => {

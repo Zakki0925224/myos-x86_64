@@ -6,7 +6,7 @@ lazy_static! {
     pub static ref SERIAL: Mutex<SerialPort> = Mutex::new(SerialPort::new(ComPort::Com1));
 }
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 #[repr(u16)]
 pub enum ComPort {
     Com1 = 0x3f8, // IRQ = 4

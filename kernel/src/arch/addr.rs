@@ -120,6 +120,14 @@ impl VirtualAddress {
             write_volatile(ptr, data);
         }
     }
+
+    pub fn as_ptr<T>(&self) -> *const T {
+        return self.get() as *const T;
+    }
+
+    pub fn as_ptr_mut<T>(&self) -> *mut T {
+        return self.get() as *mut T;
+    }
 }
 
 impl Default for VirtualAddress {

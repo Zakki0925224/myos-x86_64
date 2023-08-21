@@ -1,16 +1,12 @@
-use modular_bitfield::{bitfield, specifiers::B8};
-
-#[bitfield]
 #[derive(Debug)]
 #[repr(C)]
 pub struct InputData {
-    modifier_key: B8,
-    #[skip]
-    reserved: B8,
-    key_code1: B8,
-    key_code2: B8,
-    key_code3: B8,
-    key_code4: B8,
-    key_code5: B8,
-    key_code6: B8,
+    modifier_key: u8,
+    _reserved: u8,
+    key_code1: u8,
+    key_code2: u8,
+    key_code3: u8,
+    key_code4: u8,
+    key_code5: u8,
+    key_code6: u8,
 }

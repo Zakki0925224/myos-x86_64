@@ -77,13 +77,13 @@ pub struct ConfigurationSpaceStatusRegister {
     pub detected_parity_err: bool,
 }
 
-#[derive(BitfieldSpecifier, Debug, Clone, Copy)]
-#[bits = 8]
+#[derive(Debug, Clone, Copy)]
 pub enum ConfigurationSpaceHeaderType {
-    NonBridge = 0x0,
-    PciToPciBridge = 0x1,
-    PciToCardBusBridge = 0x2,
-    MutliFunction = 0x80,
+    NonBridge,
+    PciToPciBridge,
+    PciToCardBusBridge,
+    MultiFunction,
+    Invalid(u8),
 }
 
 #[bitfield]
@@ -105,8 +105,7 @@ pub struct ConfigurationSpaceCommonHeaderField {
     pub class_code: B8,
     cache_line_size: B8,
     latency_timer: B8,
-    #[skip(setters)]
-    pub header_type: ConfigurationSpaceHeaderType,
+    header_type: B8,
     bist: B8,
 }
 
@@ -175,6 +174,21 @@ impl ConfigurationSpaceCommonHeaderField {
         }
 
         return Some(subclass.unwrap().name());
+    }
+
+    pub fn get_header_type(&self) -> ConfigurationSpaceHeaderType {
+        return match self.header_type() {
+            0x00 => ConfigurationSpaceHeaderType::NonBridge,
+            0x01 => ConfigurationSpaceHeaderType::PciToPciBridge,
+            0x02 => ConfigurationSpaceHeaderType::PciToCardBusBridge,
+            other => {
+                if other & 0x80 != 0 {
+                    ConfigurationSpaceHeaderType::MultiFunction
+                } else {
+                    ConfigurationSpaceHeaderType::Invalid(other)
+                }
+            }
+        };
     }
 
     fn get_vendor(&self) -> Option<&Vendor> {

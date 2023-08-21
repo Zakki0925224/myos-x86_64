@@ -12,6 +12,7 @@ mod env;
 mod fs;
 mod graphics;
 mod mem;
+mod terminal;
 mod util;
 
 extern crate alloc;
@@ -27,6 +28,8 @@ use core::panic::PanicInfo;
 use device::serial::SERIAL;
 use fs::fat::FatVolume;
 use log::*;
+use terminal::Terminal;
+use util::ascii::AsciiCode;
 
 use crate::arch::{apic::timer::LOCAL_APIC_TIMER, gdt, idt};
 
@@ -38,7 +41,7 @@ pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> ! {
     // initialize local APIC timer
     LOCAL_APIC_TIMER.init();
 
-    // initialize frame buffer, serial, terminal, logger
+    // initialize frame buffer, serial, console, logger
     graphics::init(boot_info.graphic_info);
 
     // initialize GDT (TODO: not working correctly)
@@ -57,36 +60,38 @@ pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> ! {
 
     env::print_info();
 
-    let mut executor = Executor::new();
-    executor.spawn(Task::new(example_task()));
-    executor.spawn(Task::new(example_task()));
-    executor.spawn(Task::new(example_task()));
-    executor.run();
-
     // initramfs
     let initramfs_start_virt_addr = VirtualAddress::new(boot_info.initramfs_start_virt_addr);
     let initramfs_fat_volume = FatVolume::new(initramfs_start_virt_addr);
     //initramfs_fat_volume.debug();
 
+    let mut executor = Executor::new();
+    executor.spawn(Task::new(serial_terminal_task()));
+    executor.run();
+
+    loop {
+        asm::hlt();
+    }
+}
+
+async fn serial_terminal_task() {
+    info!("Starting debug terminal...");
+    let mut terminal = Terminal::new();
+    terminal.clear();
+
     loop {
         if !SERIAL.is_locked() {
             asm::cli();
             let data = SERIAL.lock().receive_data();
-            println!("data: {:?}", data);
+            if let Some(data) = data {
+                // skip invalid data
+                if data <= AsciiCode::Delete as u8 {
+                    terminal.input_char(data.into());
+                }
+            }
             asm::sti();
         }
-
-        //asm::hlt();
     }
-}
-
-async fn async_num() -> u32 {
-    return 42;
-}
-
-async fn example_task() {
-    let num = async_num().await;
-    println!("async num: {}", num);
 }
 
 #[alloc_error_handler]

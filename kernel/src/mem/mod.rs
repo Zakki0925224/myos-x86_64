@@ -2,7 +2,6 @@ use common::mem_desc::MemoryDescriptor;
 
 use crate::{
     arch::addr::{Address, VirtualAddress},
-    mem::allocator::ALLOCATOR,
     mem::paging::PAGE_MAN,
     println,
 };
@@ -18,16 +17,20 @@ pub fn init(mem_map: &[MemoryDescriptor]) {
         panic!("mem: {:?}", err);
     }
 
-    ALLOCATOR.init();
+    allocator::init_heap();
 
     // TODO: not working
     // match PAGE_MAN.lock().create_new_page_table() {
     //     Ok(_) => (),
     //     Err(err) => println!("{:?}", err),
     // }
-    println!(
-        "{:?}",
-        PAGE_MAN.lock().calc_phys_addr(VirtualAddress::new(0x1000))
+    assert!(
+        PAGE_MAN
+            .lock()
+            .calc_phys_addr(VirtualAddress::new(0x1000))
+            .unwrap()
+            .get()
+            == 0x1000
     );
 
     let used = BITMAP_MEM_MAN.lock().get_used_mem_size();

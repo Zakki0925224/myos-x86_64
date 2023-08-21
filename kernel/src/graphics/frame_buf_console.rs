@@ -262,7 +262,7 @@ impl FrameBufferConsole {
 impl fmt::Write for FrameBufferConsole {
     fn write_str(&mut self, s: &str) -> fmt::Result {
         if !self.is_init {
-            panic!("terminal: {:?}", FrameBufferConsoleError::NotInitialized);
+            panic!("console: {:?}", FrameBufferConsoleError::NotInitialized);
         }
 
         self.write_string(s).unwrap();

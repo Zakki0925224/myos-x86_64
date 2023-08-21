@@ -13,6 +13,7 @@ use crate::{
         USB_DRIVER,
     },
     mem::bitmap::*,
+    println,
 };
 
 use self::{
@@ -96,43 +97,43 @@ impl XhcDriver {
         let xhci_controllers = pci_device_man.find_by_class(class_code, subclass_code, prog_if);
 
         for device in xhci_controllers {
-            if let Some(conf_space) = device.read_conf_space_non_bridge_field() {
-                let bars = conf_space.get_bars();
-                if bars.len() == 0 {
-                    continue;
-                }
+            let device_name = device.conf_space_header.get_device_name().unwrap();
 
-                let usb = XhcDriver {
-                    is_init: false,
-                    controller_pci_bus: device.bus,
-                    controller_pci_device: device.device,
-                    controller_pci_func: device.func,
-                    cap_reg_virt_addr: VirtualAddress::default(),
-                    ope_reg_virt_addr: VirtualAddress::default(),
-                    runtime_reg_virt_addr: VirtualAddress::default(),
-                    intr_reg_sets_virt_addr: VirtualAddress::default(),
-                    port_reg_sets_virt_addr: VirtualAddress::default(),
-                    doorbell_reg_virt_addr: VirtualAddress::default(),
-                    cmd_ring_virt_addr: VirtualAddress::default(),
-                    device_context_arr_virt_addr: VirtualAddress::default(),
-                    primary_event_ring_virt_addr: VirtualAddress::default(),
-                    num_of_ports: 0,
-                    num_of_slots: 0,
-                    primary_event_ring_buf: None,
-                    cmd_ring_buf: None,
-                    ports: Vec::new(),
-                    configuring_port_id: None,
-                    root_hub_port_id: None,
-                };
-
-                info!(
-                    "xhc: xHC device: {:?} - {}",
-                    device.get_device_class(),
-                    device.conf_space_header.get_device_name().unwrap()
-                );
-
-                return Ok(usb);
+            // TODO
+            if !device_name.contains("xHCI") && !device_name.contains("3.") {
+                continue;
             }
+
+            let usb = XhcDriver {
+                is_init: false,
+                controller_pci_bus: device.bus,
+                controller_pci_device: device.device,
+                controller_pci_func: device.func,
+                cap_reg_virt_addr: VirtualAddress::default(),
+                ope_reg_virt_addr: VirtualAddress::default(),
+                runtime_reg_virt_addr: VirtualAddress::default(),
+                intr_reg_sets_virt_addr: VirtualAddress::default(),
+                port_reg_sets_virt_addr: VirtualAddress::default(),
+                doorbell_reg_virt_addr: VirtualAddress::default(),
+                cmd_ring_virt_addr: VirtualAddress::default(),
+                device_context_arr_virt_addr: VirtualAddress::default(),
+                primary_event_ring_virt_addr: VirtualAddress::default(),
+                num_of_ports: 0,
+                num_of_slots: 0,
+                primary_event_ring_buf: None,
+                cmd_ring_buf: None,
+                ports: Vec::new(),
+                configuring_port_id: None,
+                root_hub_port_id: None,
+            };
+
+            info!(
+                "xhc: xHC device: {:?} - {}",
+                device.get_device_class(),
+                device.conf_space_header.get_device_name().unwrap()
+            );
+
+            return Ok(usb);
         }
 
         return Err(XhcDriverError::XhcDeviceWasNotFoundError);
@@ -232,32 +233,29 @@ impl XhcDriver {
         );
 
         // initialize scratchpad
-        let cap_reg = self.read_cap_reg();
-        let sp2 = cap_reg.structural_params2();
-        let num_of_bufs =
-            (sp2.max_scratchpad_bufs_high() << 5 | sp2.max_scratchpad_bufs_low()) as usize;
-        let mut scratchpad_buf_arr_virt_addr = VirtualAddress::default();
+        // let cap_reg = self.read_cap_reg();
+        // let sp2 = cap_reg.structural_params2();
+        // let num_of_bufs =
+        //     (sp2.max_scratchpad_bufs_high() << 5 | sp2.max_scratchpad_bufs_low()) as usize;
 
-        let scratchpad_buf_arr_mem_virt_addr = match BITMAP_MEM_MAN.lock().alloc_single_mem_frame()
-        {
-            Ok(mem_info) => mem_info,
-            Err(err) => return Err(XhcDriverError::BitmapMemoryManagerError(err)),
-        }
-        .get_frame_start_virt_addr();
+        // let scratchpad_buf_arr_virt_addr = match BITMAP_MEM_MAN.lock().alloc_single_mem_frame() {
+        //     Ok(mem_info) => mem_info,
+        //     Err(err) => return Err(XhcDriverError::BitmapMemoryManagerError(err)),
+        // }
+        // .get_frame_start_virt_addr();
 
-        let arr: &mut [u64] = scratchpad_buf_arr_mem_virt_addr.read_volatile();
+        // let arr: &mut [u64] = scratchpad_buf_arr_virt_addr.read_volatile();
 
-        for i in 0..num_of_bufs {
-            let mem_frame_info = match BITMAP_MEM_MAN.lock().alloc_single_mem_frame() {
-                Ok(mem_info) => mem_info,
-                Err(err) => return Err(XhcDriverError::BitmapMemoryManagerError(err)),
-            };
+        // for i in 0..num_of_bufs {
+        //     let mem_frame_info = match BITMAP_MEM_MAN.lock().alloc_single_mem_frame() {
+        //         Ok(mem_info) => mem_info,
+        //         Err(err) => return Err(XhcDriverError::BitmapMemoryManagerError(err)),
+        //     };
 
-            arr[i] = mem_frame_info.get_frame_start_phys_addr().get();
-        }
+        //     arr[i] = mem_frame_info.get_frame_start_phys_addr().get();
+        // }
 
-        scratchpad_buf_arr_mem_virt_addr.write_volatile(arr);
-        scratchpad_buf_arr_virt_addr = scratchpad_buf_arr_mem_virt_addr;
+        // scratchpad_buf_arr_virt_addr.write_volatile(arr);
 
         // initialize device context
         self.device_context_arr_virt_addr = match BITMAP_MEM_MAN.lock().alloc_single_mem_frame() {
@@ -269,7 +267,8 @@ impl XhcDriver {
         // initialize device context array
         for i in 0..(self.num_of_slots + 1) {
             let entry = if i == 0 {
-                scratchpad_buf_arr_virt_addr
+                //scratchpad_buf_arr_virt_addr
+                VirtualAddress::default()
             } else {
                 VirtualAddress::default()
             };

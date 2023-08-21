@@ -17,5 +17,5 @@ pub fn init(graphic_info: GraphicInfo) {
     SERIAL.lock().init();
     FRAME_BUF_CONSOLE.lock().init().unwrap();
     logger::init().unwrap();
-    info!("terminal: Initialized kernel terminal");
+    info!("Initialized graphics");
 }

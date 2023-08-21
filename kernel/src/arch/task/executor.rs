@@ -9,33 +9,40 @@ use log::info;
 use super::Task;
 
 pub struct Executor {
-    task_queue: VecDeque<Task>,
+    task_queue: Option<VecDeque<Task>>,
 }
 
 impl Executor {
     pub fn new() -> Executor {
-        return Executor {
-            // if use VecDeque::new(), occures unsafe precondition violated when push data
-            task_queue: VecDeque::with_capacity(16),
-        };
+        // if use VecDeque::new(), occures unsafe precondition violated when push data
+        // -> this is a bug for my own allocator
+        //task_queue: VecDeque::with_capacity(16),
+        return Executor { task_queue: None };
     }
 
     pub fn run(&mut self) {
-        while let Some(mut task) = self.task_queue.pop_front() {
+        while let Some(mut task) = self.task_queue().pop_front() {
             let waker = dummy_waker();
             let mut context = Context::from_waker(&waker);
             match task.poll(&mut context) {
                 Poll::Ready(()) => info!("task: Done a task: (id: {})", task.id.0),
                 Poll::Pending => {
                     info!("task: Pending a task: (id: {})", task.id.0);
-                    self.task_queue.push_back(task)
+                    self.task_queue().push_back(task)
                 }
             }
         }
     }
 
     pub fn spawn(&mut self, task: Task) {
-        self.task_queue.push_back(task);
+        self.task_queue().push_back(task);
+    }
+
+    fn task_queue(&mut self) -> &mut VecDeque<Task> {
+        if self.task_queue.is_none() {
+            self.task_queue = Some(VecDeque::new());
+        }
+        return self.task_queue.as_mut().unwrap();
     }
 }
 

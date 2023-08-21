@@ -69,27 +69,33 @@ impl PciDeviceManager {
     pub fn debug(&self) {
         for d in &self.devices {
             println!("{}:{}:{}", d.bus, d.device, d.func);
-            println!("{:?}", d.conf_space_header.header_type());
+            println!("{:?}", d.conf_space_header.get_header_type());
             println!("{:?}", d.conf_space_header.get_device_name());
-            println!("{:?}", d.read_caps_list());
-            if let Some(field) = d.read_conf_space_non_bridge_field() {
-                for bar in field.get_bars() {
-                    let ty = match bar.1 {
-                        BaseAddress::MemoryAddress32BitSpace(_, _) => "32 bit memory",
-                        BaseAddress::MemoryAddress64BitSpace(_, _) => "64 bit memory",
-                        BaseAddress::MmioAddressSpace(_) => "I/O",
-                    };
+            println!(
+                "class: {}, subclass: {}, if: {}\n",
+                d.conf_space_header.class_code(),
+                d.conf_space_header.subclass(),
+                d.conf_space_header.prog_if()
+            );
+            // println!("{:?}", d.read_caps_list());
+            // if let Some(field) = d.read_conf_space_non_bridge_field() {
+            //     for bar in field.get_bars() {
+            //         let ty = match bar.1 {
+            //             BaseAddress::MemoryAddress32BitSpace(_, _) => "32 bit memory",
+            //             BaseAddress::MemoryAddress64BitSpace(_, _) => "64 bit memory",
+            //             BaseAddress::MmioAddressSpace(_) => "I/O",
+            //         };
 
-                    let addr = match bar.1 {
-                        BaseAddress::MemoryAddress32BitSpace(addr, _) => addr.get() as usize,
-                        BaseAddress::MemoryAddress64BitSpace(addr, _) => addr.get() as usize,
-                        BaseAddress::MmioAddressSpace(addr) => addr as usize,
-                    };
+            //         let addr = match bar.1 {
+            //             BaseAddress::MemoryAddress32BitSpace(addr, _) => addr.get() as usize,
+            //             BaseAddress::MemoryAddress64BitSpace(addr, _) => addr.get() as usize,
+            //             BaseAddress::MmioAddressSpace(addr) => addr as usize,
+            //         };
 
-                    println!("BAR{}: {} at 0x{:x}", bar.0, ty, addr);
-                }
-            }
-            println!("--------------");
+            //         println!("BAR{}: {} at 0x{:x}", bar.0, ty, addr);
+            //     }
+            // }
+            //println!("--------------");
         }
     }
 }
