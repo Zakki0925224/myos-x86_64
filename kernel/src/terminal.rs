@@ -1,6 +1,6 @@
 use alloc::{string::String, vec::Vec};
 
-use crate::{bus::pci::PCI_DEVICE_MAN, env, print, println, util::ascii::AsciiCode};
+use crate::{arch::qemu, bus::pci::PCI_DEVICE_MAN, env, print, println, util::ascii::AsciiCode};
 
 pub struct Terminal {
     input_buf: Vec<char>,
@@ -45,6 +45,7 @@ impl Terminal {
         match input_str.as_str() {
             "info" => env::print_info(),
             "lspci" => PCI_DEVICE_MAN.lock().debug(),
+            "exit" => qemu::exit(0),
             s => println!("Command \"{}\" was not found", s),
         }
     }

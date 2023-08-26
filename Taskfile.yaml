@@ -31,6 +31,7 @@ vars:
         ide-cd,drive=disk,bus=ahci.0,bootindex=1
         usb-mouse
         usb-kbd
+        isa-debug-exit,iobase=0xf4,iosize=0x04
     QEMU_DRIVES: |
         id=disk,if=none,format=raw,file=./{{$.OUTPUT_DIR}}/{{$.IMG_FILE}}
         if=pflash,format=raw,readonly=on,file=./{{$.THIRD_PARTY_DIR}}/{{$.OVMF_CODE_FILE}}
@@ -127,7 +128,8 @@ tasks:
     run:
         cmds:
             - task: makeimg
-            - "{{$.OWN_QEMU}}"
+            - cmd: "{{$.OWN_QEMU}}"
+              ignore_error: true
 
     run-with-gdb:
         cmds:
