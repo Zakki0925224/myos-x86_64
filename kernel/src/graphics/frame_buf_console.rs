@@ -14,7 +14,7 @@ const TAB_INDENT_SIZE: usize = 4;
 
 lazy_static! {
     pub static ref FRAME_BUF_CONSOLE: Mutex<FrameBufferConsole> = Mutex::new(
-        FrameBufferConsole::new(RGBColor::new(3, 26, 0), RGBColor::new(18, 202, 99))
+        FrameBufferConsole::new(RgbColor::new(3, 26, 0), RgbColor::new(18, 202, 99))
     );
 }
 
@@ -26,9 +26,9 @@ pub enum FrameBufferConsoleError {
 
 pub struct FrameBufferConsole {
     is_init: bool,
-    back_color: RGBColor,
-    default_fore_color: RGBColor,
-    fore_color: RGBColor,
+    back_color: RgbColor,
+    default_fore_color: RgbColor,
+    fore_color: RgbColor,
     font_glyph_size: (usize, usize),
     max_x_res: usize,
     max_y_res: usize,
@@ -39,7 +39,7 @@ pub struct FrameBufferConsole {
 }
 
 impl FrameBufferConsole {
-    pub fn new(back_color: RGBColor, fore_color: RGBColor) -> Self {
+    pub fn new(back_color: RgbColor, fore_color: RgbColor) -> Self {
         return Self {
             is_init: false,
             back_color,
@@ -140,7 +140,7 @@ impl FrameBufferConsole {
         return Ok(());
     }
 
-    pub fn set_fore_color(&mut self, fore_color: RGBColor) {
+    pub fn set_fore_color(&mut self, fore_color: RgbColor) {
         self.fore_color = fore_color;
     }
 

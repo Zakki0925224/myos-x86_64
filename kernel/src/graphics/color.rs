@@ -1,67 +1,31 @@
 use common::graphic_info::PixelFormat;
 
-pub const COLOR_WHITE: RGBColor = RGBColor {
-    r: 255,
-    g: 255,
-    b: 255,
-};
-pub const COLOR_OLIVE: RGBColor = RGBColor {
-    r: 128,
-    g: 128,
-    b: 0,
-};
-pub const COLOR_YELLOW: RGBColor = RGBColor {
-    r: 255,
-    g: 255,
-    b: 0,
-};
-pub const COLOR_FUCHSIA: RGBColor = RGBColor {
-    r: 255,
-    g: 0,
-    b: 255,
-};
-pub const COLOR_SILVER: RGBColor = RGBColor {
-    r: 192,
-    g: 192,
-    b: 192,
-};
-pub const COLOR_CYAN: RGBColor = RGBColor {
-    r: 0,
-    g: 255,
-    b: 255,
-};
-pub const COLOR_GREEN: RGBColor = RGBColor { r: 0, g: 255, b: 0 };
-pub const COLOR_RED: RGBColor = RGBColor { r: 255, g: 0, b: 0 };
-pub const COLOR_GRAY: RGBColor = RGBColor {
-    r: 128,
-    g: 128,
-    b: 128,
-};
-pub const COLOR_BLUE: RGBColor = RGBColor { r: 0, g: 0, b: 255 };
-pub const COLOR_PURPLE: RGBColor = RGBColor {
-    r: 128,
-    g: 0,
-    b: 128,
-};
-pub const COLOR_BLACK: RGBColor = RGBColor { r: 0, g: 0, b: 0 };
-pub const COLOR_NAVY: RGBColor = RGBColor { r: 0, g: 0, b: 128 };
-pub const COLOR_TEAL: RGBColor = RGBColor {
-    r: 0,
-    g: 128,
-    b: 128,
-};
-pub const COLOR_MAROON: RGBColor = RGBColor { r: 128, g: 0, b: 0 };
+pub const COLOR_WHITE: RgbColor = RgbColor::new(255, 255, 255);
+pub const COLOR_OLIVE: RgbColor = RgbColor::new(128, 128, 0);
+pub const COLOR_YELLOW: RgbColor = RgbColor::new(255, 255, 0);
+pub const COLOR_FUCHSIA: RgbColor = RgbColor::new(255, 0, 255);
+pub const COLOR_SILVER: RgbColor = RgbColor::new(192, 192, 192);
+pub const COLOR_CYAN: RgbColor = RgbColor::new(0, 255, 255);
+pub const COLOR_GREEN: RgbColor = RgbColor::new(0, 255, 0);
+pub const COLOR_RED: RgbColor = RgbColor::new(255, 0, 0);
+pub const COLOR_GRAY: RgbColor = RgbColor::new(128, 128, 128);
+pub const COLOR_BLUE: RgbColor = RgbColor::new(0, 0, 255);
+pub const COLOR_PURPLE: RgbColor = RgbColor::new(128, 0, 128);
+pub const COLOR_BLACK: RgbColor = RgbColor::new(0, 0, 0);
+pub const COLOR_NAVY: RgbColor = RgbColor::new(0, 0, 128);
+pub const COLOR_TEAL: RgbColor = RgbColor::new(0, 128, 128);
+pub const COLOR_MAROON: RgbColor = RgbColor::new(128, 0, 0);
 
 #[derive(Debug, Clone, Copy)]
-pub struct RGBColor {
+pub struct RgbColor {
     pub r: u8,
     pub g: u8,
     pub b: u8,
 }
 
-impl RGBColor {
-    pub fn new(r: u8, g: u8, b: u8) -> Self {
-        return RGBColor { r, g, b };
+impl RgbColor {
+    pub const fn new(r: u8, g: u8, b: u8) -> Self {
+        return RgbColor { r, g, b };
     }
 }
 
@@ -69,7 +33,7 @@ pub trait Color {
     fn get_color_code(&self, pixel_format: PixelFormat) -> u32;
 }
 
-impl Color for RGBColor {
+impl Color for RgbColor {
     fn get_color_code(&self, pixel_format: PixelFormat) -> u32 {
         let r = self.r as u32;
         let g = self.g as u32;

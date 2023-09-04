@@ -5,15 +5,11 @@ use crate::{
     print,
 };
 
-const LOG_COLOR_ERROR: RGBColor = COLOR_RED;
-const LOG_COLOR_WARN: RGBColor = RGBColor {
-    r: 253,
-    g: 126,
-    b: 0,
-}; // orange
-const LOG_COLOR_INFO: RGBColor = COLOR_CYAN;
-const LOG_COLOR_DEBUG: RGBColor = COLOR_YELLOW;
-const LOG_COLOR_TRACE: RGBColor = COLOR_GREEN;
+const LOG_COLOR_ERROR: RgbColor = COLOR_RED;
+const LOG_COLOR_WARN: RgbColor = RgbColor::new(253, 126, 0); // orange
+const LOG_COLOR_INFO: RgbColor = COLOR_CYAN;
+const LOG_COLOR_DEBUG: RgbColor = COLOR_YELLOW;
+const LOG_COLOR_TRACE: RgbColor = COLOR_GREEN;
 
 static LOGGER: SimpleLogger = SimpleLogger;
 

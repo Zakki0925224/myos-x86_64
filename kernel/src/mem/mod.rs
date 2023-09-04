@@ -10,6 +10,7 @@ use self::bitmap::BITMAP_MEM_MAN;
 
 pub mod allocator;
 pub mod bitmap;
+pub mod buffer;
 pub mod paging;
 
 pub fn init(mem_map: &[MemoryDescriptor]) {
