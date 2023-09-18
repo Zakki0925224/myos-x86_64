@@ -1,5 +1,5 @@
 use self::{conf_space::*, device::PciDevice};
-use crate::{arch::addr::Address, println};
+use crate::println;
 use alloc::vec::Vec;
 use lazy_static::lazy_static;
 use spin::Mutex;

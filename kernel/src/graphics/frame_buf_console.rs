@@ -1,4 +1,4 @@
-use core::fmt::{self, Write};
+use core::fmt;
 use lazy_static::lazy_static;
 use spin::Mutex;
 
@@ -168,8 +168,6 @@ impl FrameBufferConsole {
             return Err(FrameBufferConsoleError::FrameBufferError(err));
         }
 
-        SERIAL.lock().send_data(c as u8);
-
         return self.inc_cursor();
     }
 
@@ -268,23 +266,4 @@ impl fmt::Write for FrameBufferConsole {
         self.write_string(s).unwrap();
         return Ok(());
     }
-}
-
-// print!, println! macro
-#[doc(hidden)]
-pub fn _print(args: fmt::Arguments) {
-    FRAME_BUF_CONSOLE.lock().write_fmt(args).unwrap();
-}
-
-#[macro_export]
-macro_rules! print
-{
-    ($($arg:tt)*) => ($crate::graphics::frame_buf_console::_print(format_args!($($arg)*)));
-}
-
-#[macro_export]
-macro_rules! println
-{
-    () => ($crate::print!("\n"));
-    ($($arg:tt)*) => ($crate::print!("{}\n", format_args!($($arg)*)));
 }

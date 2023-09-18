@@ -17,7 +17,7 @@ mod util;
 
 extern crate alloc;
 
-use alloc::{alloc::Layout, vec};
+use alloc::alloc::Layout;
 use arch::{
     addr::{Address, VirtualAddress},
     asm,
@@ -26,15 +26,15 @@ use arch::{
 use common::boot_info::BootInfo;
 use core::panic::PanicInfo;
 use debug_terminal::Terminal;
-use device::{
-    console::{BufferType, CONSOLE},
-    serial::SERIAL,
-};
+use device::serial::SERIAL;
 use fs::fat::FatVolume;
 use log::*;
 use util::ascii::AsciiCode;
 
-use crate::arch::{apic::timer::LOCAL_APIC_TIMER, gdt, idt};
+use crate::{
+    arch::{apic::timer::LOCAL_APIC_TIMER, gdt, idt},
+    device::console,
+};
 
 #[no_mangle]
 #[start]
@@ -68,12 +68,6 @@ pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> ! {
     let initramfs_fat_volume = FatVolume::new(initramfs_start_virt_addr);
     //initramfs_fat_volume.debug();
 
-    // let mut console = device::console::Console::new();
-    let buf_type = device::console::BufferType::Input;
-    CONSOLE.lock().write(AsciiCode::SmallA, buf_type).unwrap();
-    CONSOLE.lock().write(AsciiCode::SmallB, buf_type).unwrap();
-    CONSOLE.lock().write(AsciiCode::SmallC, buf_type).unwrap();
-
     let mut executor = Executor::new();
     executor.spawn(Task::new(console_task()));
     //executor.spawn(Task::new(serial_terminal_task()));
@@ -96,33 +90,8 @@ async fn console_task() {
                 None => return,
             };
 
-            let result = CONSOLE.lock().write(data.into(), BufferType::Input);
-
-            if let Err(_) = result {
-                //warn!("console: {:?}", err);
-
-                // reset buffer and resend
-                CONSOLE.lock().reset_buf(BufferType::Input);
-                CONSOLE
-                    .lock()
-                    .write(data.into(), BufferType::Input)
-                    .unwrap();
-            }
-
-            let result = CONSOLE.lock().write(data.into(), BufferType::Output);
-            match result {
-                Ok(_) => {}
-                Err(_) => {
-                    //warn!("console: {:?}", err);
-
-                    // reset buffer and resend
-                    CONSOLE.lock().reset_buf(BufferType::Output);
-                    CONSOLE
-                        .lock()
-                        .write(data.into(), BufferType::Output)
-                        .unwrap();
-                }
-            }
+            console::writek(data.into());
+            print!("{}", data as char);
         });
     }
 }

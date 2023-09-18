@@ -1,7 +1,4 @@
-use crate::{
-    arch::register::msi::{MsiMessageAddressField, MsiMessageDataField},
-    println,
-};
+use crate::arch::register::msi::{MsiMessageAddressField, MsiMessageDataField};
 
 use super::conf_space::*;
 use alloc::vec::Vec;

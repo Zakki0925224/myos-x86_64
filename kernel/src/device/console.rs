@@ -1,10 +1,10 @@
-use core::fmt;
+use core::fmt::{self, Write};
 
 use lazy_static::lazy_static;
 use spin::Mutex;
 
 use crate::{
-    graphics::color::*,
+    graphics::{color::*, frame_buf_console::FRAME_BUF_CONSOLE},
     mem::buffer::fifo::{Fifo, FifoError},
     util::ascii::AsciiCode,
 };
@@ -22,7 +22,7 @@ type IoBufferType = Fifo<ConsoleCharacter, IO_BUF_LEN>;
 
 // kernel console
 lazy_static! {
-    pub static ref CONSOLE: Mutex<Console> = Mutex::new(Console::new(true));
+    static ref CONSOLE: Mutex<Console> = Mutex::new(Console::new(true));
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -54,7 +54,6 @@ pub struct Console {
     output_buf: IoBufferType,
     err_output_buf: IoBufferType,
     buf_default_value: ConsoleCharacter,
-    cursor_pos: usize,
     use_serial_port: bool,
 }
 
@@ -65,7 +64,6 @@ impl Console {
             output_buf: Fifo::new(IO_BUF_DEFAULT_VALUE),
             err_output_buf: Fifo::new(IO_BUF_DEFAULT_VALUE),
             buf_default_value: IO_BUF_DEFAULT_VALUE,
-            cursor_pos: 0,
             use_serial_port,
         };
     }
@@ -79,16 +77,6 @@ impl Console {
 
         buf.reset_ptr();
     }
-
-    // pub fn get_buf_len(&self, buf_type: BufferType) -> usize {
-    //     let buf = match buf_type {
-    //         BufferType::Input => &self.input_buf,
-    //         BufferType::Output => &self.output_buf,
-    //         BufferType::ErrorOutput => &self.err_output_buf,
-    //     };
-
-    //     return buf.len();
-    // }
 
     pub fn set_back_color(&mut self, back_color: RgbColor) {
         self.buf_default_value.back_color = back_color;
@@ -147,7 +135,6 @@ impl Console {
     }
 }
 
-// TODO
 impl fmt::Write for Console {
     fn write_str(&mut self, s: &str) -> fmt::Result {
         let buf_type = BufferType::Output;
@@ -160,5 +147,32 @@ impl fmt::Write for Console {
         }
 
         return Ok(());
+    }
+}
+
+#[doc(hidden)]
+pub fn _print(args: fmt::Arguments) {
+    CONSOLE.lock().write_fmt(args).unwrap();
+    FRAME_BUF_CONSOLE.lock().write_fmt(args).unwrap();
+}
+
+#[macro_export]
+macro_rules! print {
+    ($($arg:tt)*) => ($crate::device::console::_print(format_args!($($arg)*)));
+}
+
+#[macro_export]
+macro_rules! println
+{
+    () => ($crate::print!("\n"));
+    ($($arg:tt)*) => ($crate::print!("{}\n", format_args!($($arg)*)));
+}
+
+pub fn writek(ascii_code: AsciiCode) {
+    let result = CONSOLE.lock().write(ascii_code, BufferType::Input);
+
+    if let Err(_) = result {
+        CONSOLE.lock().reset_buf(BufferType::Input);
+        CONSOLE.lock().write(ascii_code, BufferType::Input).unwrap();
     }
 }

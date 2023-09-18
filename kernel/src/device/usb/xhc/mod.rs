@@ -13,7 +13,6 @@ use crate::{
         USB_DRIVER,
     },
     mem::bitmap::*,
-    println,
 };
 
 use self::{
