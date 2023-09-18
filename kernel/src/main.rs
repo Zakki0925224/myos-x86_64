@@ -26,7 +26,10 @@ use arch::{
 use common::boot_info::BootInfo;
 use core::panic::PanicInfo;
 use debug_terminal::Terminal;
-use device::{console::CONSOLE, serial::SERIAL};
+use device::{
+    console::{BufferType, CONSOLE},
+    serial::SERIAL,
+};
 use fs::fat::FatVolume;
 use log::*;
 use util::ascii::AsciiCode;
@@ -72,8 +75,8 @@ pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> ! {
     CONSOLE.lock().write(AsciiCode::SmallC, buf_type).unwrap();
 
     let mut executor = Executor::new();
-    //executor.spawn(Task::new(console_task()));
-    executor.spawn(Task::new(serial_terminal_task()));
+    executor.spawn(Task::new(console_task()));
+    //executor.spawn(Task::new(serial_terminal_task()));
     executor.run();
 
     loop {
@@ -88,31 +91,35 @@ async fn console_task() {
         }
 
         asm::disabled_int_func(|| {
-            let data = SERIAL.lock().receive_data();
-            if let Some(data) = data {
-                if CONSOLE
+            let data = match SERIAL.lock().receive_data() {
+                Some(data) => data,
+                None => return,
+            };
+
+            let result = CONSOLE.lock().write(data.into(), BufferType::Input);
+
+            if let Err(_) = result {
+                //warn!("console: {:?}", err);
+
+                // reset buffer and resend
+                CONSOLE.lock().reset_buf(BufferType::Input);
+                CONSOLE
                     .lock()
-                    .write(data.into(), device::console::BufferType::Input)
-                    .is_ok()
-                {
-                    if CONSOLE
-                        .lock()
-                        .write(data.into(), device::console::BufferType::Output)
-                        .is_err()
-                    {
-                        CONSOLE
-                            .lock()
-                            .reset_buf(device::console::BufferType::Output);
-                        CONSOLE
-                            .lock()
-                            .write(data.into(), device::console::BufferType::Output)
-                            .unwrap();
-                    }
-                } else {
-                    CONSOLE.lock().reset_buf(device::console::BufferType::Input);
+                    .write(data.into(), BufferType::Input)
+                    .unwrap();
+            }
+
+            let result = CONSOLE.lock().write(data.into(), BufferType::Output);
+            match result {
+                Ok(_) => {}
+                Err(_) => {
+                    //warn!("console: {:?}", err);
+
+                    // reset buffer and resend
+                    CONSOLE.lock().reset_buf(BufferType::Output);
                     CONSOLE
                         .lock()
-                        .write(data.into(), device::console::BufferType::Input)
+                        .write(data.into(), BufferType::Output)
                         .unwrap();
                 }
             }

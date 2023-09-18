@@ -18,7 +18,7 @@ const IO_BUF_DEFAULT_VALUE: ConsoleCharacter = ConsoleCharacter {
     ascii_code: AsciiCode::Null,
 };
 
-type InputOutputBufferType = Fifo<ConsoleCharacter, IO_BUF_LEN>;
+type IoBufferType = Fifo<ConsoleCharacter, IO_BUF_LEN>;
 
 // kernel console
 lazy_static! {
@@ -34,7 +34,10 @@ pub struct ConsoleCharacter {
 
 #[derive(Debug, Clone, Copy)]
 pub enum ConsoleError {
-    IoBufferError(FifoError),
+    IoBufferError {
+        buf_type: BufferType,
+        err: FifoError,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -47,9 +50,9 @@ pub enum BufferType {
 // TTY + PTS
 #[derive(Debug)]
 pub struct Console {
-    input_buf: InputOutputBufferType,
-    output_buf: InputOutputBufferType,
-    err_output_buf: InputOutputBufferType,
+    input_buf: IoBufferType,
+    output_buf: IoBufferType,
+    err_output_buf: IoBufferType,
     buf_default_value: ConsoleCharacter,
     cursor_pos: usize,
     use_serial_port: bool,
@@ -115,7 +118,7 @@ impl Console {
 
         match buf.enqueue(value) {
             Ok(_) => (),
-            Err(err) => return Err(ConsoleError::IoBufferError(err)),
+            Err(err) => return Err(ConsoleError::IoBufferError { buf_type, err }),
         };
 
         if !SERIAL.is_locked()
