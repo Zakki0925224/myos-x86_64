@@ -18,6 +18,12 @@ pub fn sti() {
     }
 }
 
+pub fn disabled_int_func<F: FnMut()>(mut func: F) {
+    cli();
+    func();
+    sti();
+}
+
 pub fn int3() {
     unsafe {
         asm!("int3");

@@ -26,7 +26,7 @@ use arch::{
 use common::boot_info::BootInfo;
 use core::panic::PanicInfo;
 use debug_terminal::Terminal;
-use device::{console::CONSOLE_1, serial::SERIAL};
+use device::{console::CONSOLE, serial::SERIAL};
 use fs::fat::FatVolume;
 use log::*;
 use util::ascii::AsciiCode;
@@ -67,18 +67,13 @@ pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> ! {
 
     // let mut console = device::console::Console::new();
     let buf_type = device::console::BufferType::Input;
-    CONSOLE_1.lock().write(AsciiCode::SmallA, buf_type).unwrap();
-    CONSOLE_1.lock().write(AsciiCode::SmallB, buf_type).unwrap();
-    CONSOLE_1.lock().write(AsciiCode::SmallC, buf_type).unwrap();
-
-    loop {
-        if CONSOLE_1.lock().read(buf_type).is_none() {
-            break;
-        }
-    }
+    CONSOLE.lock().write(AsciiCode::SmallA, buf_type).unwrap();
+    CONSOLE.lock().write(AsciiCode::SmallB, buf_type).unwrap();
+    CONSOLE.lock().write(AsciiCode::SmallC, buf_type).unwrap();
 
     let mut executor = Executor::new();
-    executor.spawn(Task::new(console_task()));
+    //executor.spawn(Task::new(console_task()));
+    executor.spawn(Task::new(serial_terminal_task()));
     executor.run();
 
     loop {
@@ -88,62 +83,64 @@ pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> ! {
 
 async fn console_task() {
     loop {
-        if !SERIAL.is_locked() {
-            asm::cli();
+        if SERIAL.is_locked() {
+            continue;
+        }
+
+        asm::disabled_int_func(|| {
             let data = SERIAL.lock().receive_data();
             if let Some(data) = data {
-                if CONSOLE_1
+                if CONSOLE
                     .lock()
                     .write(data.into(), device::console::BufferType::Input)
                     .is_ok()
                 {
-                    if CONSOLE_1
+                    if CONSOLE
                         .lock()
                         .write(data.into(), device::console::BufferType::Output)
                         .is_err()
                     {
-                        CONSOLE_1
+                        CONSOLE
                             .lock()
                             .reset_buf(device::console::BufferType::Output);
-                        CONSOLE_1
+                        CONSOLE
                             .lock()
                             .write(data.into(), device::console::BufferType::Output)
                             .unwrap();
                     }
                 } else {
-                    CONSOLE_1
-                        .lock()
-                        .reset_buf(device::console::BufferType::Input);
-                    CONSOLE_1
+                    CONSOLE.lock().reset_buf(device::console::BufferType::Input);
+                    CONSOLE
                         .lock()
                         .write(data.into(), device::console::BufferType::Input)
                         .unwrap();
                 }
             }
-            asm::sti();
-        }
+        });
     }
 }
 
-// async fn serial_terminal_task() {
-//     info!("Starting debug terminal...");
-//     let mut terminal = Terminal::new();
-//     terminal.clear();
+async fn serial_terminal_task() {
+    info!("Starting debug terminal...");
+    let mut terminal = Terminal::new();
+    terminal.clear();
 
-//     loop {
-//         if !SERIAL.is_locked() {
-//             asm::cli();
-//             let data = SERIAL.lock().receive_data();
-//             if let Some(data) = data {
-//                 // skip invalid data
-//                 if data <= AsciiCode::Delete as u8 {
-//                     terminal.input_char(data.into());
-//                 }
-//             }
-//             asm::sti();
-//         }
-//     }
-// }
+    loop {
+        if SERIAL.is_locked() {
+            continue;
+        }
+
+        asm::disabled_int_func(|| {
+            let data = SERIAL.lock().receive_data();
+            if let Some(data) = data {
+                // skip invalid data
+                if data <= AsciiCode::Delete as u8 {
+                    terminal.input_char(data.into());
+                }
+            }
+        });
+    }
+}
 
 #[alloc_error_handler]
 fn alloc_error_handler(layout: Layout) -> ! {

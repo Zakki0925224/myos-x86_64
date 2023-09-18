@@ -22,15 +22,7 @@ type InputOutputBufferType = Fifo<ConsoleCharacter, IO_BUF_LEN>;
 
 // kernel console
 lazy_static! {
-    pub static ref CONSOLE_1: Mutex<Console> = Mutex::new(Console::new(true));
-}
-
-lazy_static! {
-    pub static ref CONSOLE_2: Mutex<Console> = Mutex::new(Console::new(false));
-}
-
-lazy_static! {
-    pub static ref CONSOLE_3: Mutex<Console> = Mutex::new(Console::new(false));
+    pub static ref CONSOLE: Mutex<Console> = Mutex::new(Console::new(true));
 }
 
 #[derive(Debug, Clone, Copy)]
