@@ -10,6 +10,7 @@ mod bus;
 mod debug_terminal;
 mod device;
 mod env;
+mod error;
 mod fs;
 mod graphics;
 mod mem;
@@ -26,7 +27,7 @@ use arch::{
 use common::boot_info::BootInfo;
 use core::panic::PanicInfo;
 use debug_terminal::Terminal;
-use device::serial::SERIAL;
+use device::serial::{self, ComPort};
 use fs::fat::FatVolume;
 use log::*;
 use util::ascii::AsciiCode;
@@ -44,7 +45,10 @@ pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> ! {
     // initialize local APIC timer
     LOCAL_APIC_TIMER.init();
 
-    // initialize frame buffer, serial, console, logger
+    // initialize serial
+    serial::init(ComPort::Com1);
+
+    // initialize frame buffer, console, logger
     graphics::init(boot_info.graphic_info);
 
     // initialize GDT (TODO: not working correctly)
@@ -80,11 +84,8 @@ pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> ! {
 
 async fn console_task() {
     loop {
-        let ascii_code = match SERIAL.try_lock() {
-            Some(serial) => match serial.receive_data() {
-                Some(data) => data.into(),
-                None => continue,
-            },
+        let ascii_code = match serial::receive_data() {
+            Some(data) => data.into(),
             None => continue,
         };
 

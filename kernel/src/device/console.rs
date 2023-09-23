@@ -9,7 +9,7 @@ use crate::{
     util::ascii::AsciiCode,
 };
 
-use super::serial::SERIAL;
+use super::serial;
 
 const IO_BUF_LEN: usize = 512;
 const IO_BUF_DEFAULT_VALUE: ConsoleCharacter = ConsoleCharacter {
@@ -112,9 +112,7 @@ impl Console {
         if (buf_type == BufferType::Output || buf_type == BufferType::ErrorOutput)
             && self.use_serial_port
         {
-            if let Some(serial) = SERIAL.try_lock() {
-                serial.send_data(value.ascii_code as u8);
-            }
+            serial::send_data(value.ascii_code as u8);
         }
 
         return Ok(());
