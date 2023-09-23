@@ -86,7 +86,10 @@ pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> ! {
 async fn console_task() {
     loop {
         let ascii_code = match serial::receive_data() {
-            Some(data) => data.into(),
+            Some(data) => match data.try_into() {
+                Ok(c) => c,
+                Err(_) => continue,
+            },
             None => continue,
         };
 

@@ -137,7 +137,11 @@ impl fmt::Write for Console {
     fn write_str(&mut self, s: &str) -> fmt::Result {
         let buf_type = BufferType::Output;
         for c in s.chars() {
-            let ascii_code = (c as u8).into();
+            let ascii_code = match (c as u8).try_into() {
+                Ok(c) => c,
+                Err(_) => continue,
+            };
+
             if self.write(ascii_code, buf_type).is_err() {
                 self.reset_buf(buf_type);
                 self.write(ascii_code, buf_type).unwrap();

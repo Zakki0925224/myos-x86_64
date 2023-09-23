@@ -2,6 +2,7 @@ use core::mem::transmute;
 
 #[derive(Debug, Clone, Copy)]
 #[repr(u8)]
+#[allow(dead_code)]
 pub enum AsciiCode {
     Null,
     StartOfHeading,
@@ -133,12 +134,18 @@ pub enum AsciiCode {
     Delete,
 }
 
-impl From<u8> for AsciiCode {
-    fn from(value: u8) -> Self {
-        if value <= Self::Delete as u8 {
-            return unsafe { transmute(value) };
-        }
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AsciiCodeError {
+    FailedToTryFromU8(u8),
+}
 
-        panic!("Invalid value for AsciiCode");
+impl TryFrom<u8> for AsciiCode {
+    type Error = AsciiCodeError;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        return match value {
+            0..=0x7f => Ok(unsafe { transmute(value) }),
+            _ => Err(AsciiCodeError::FailedToTryFromU8(value)),
+        };
     }
 }
