@@ -14,6 +14,7 @@ mod error;
 mod fs;
 mod graphics;
 mod mem;
+mod serial;
 mod util;
 
 extern crate alloc;
@@ -27,9 +28,9 @@ use arch::{
 use common::boot_info::BootInfo;
 use core::panic::PanicInfo;
 use debug_terminal::Terminal;
-use device::serial::{self, ComPort};
 use fs::fat::FatVolume;
 use log::*;
+use serial::ComPort;
 use util::ascii::AsciiCode;
 
 use crate::{

@@ -3,7 +3,6 @@ use log::warn;
 use self::usb::USB_DRIVER;
 
 pub mod console;
-pub mod serial;
 pub mod usb;
 
 pub fn init() {

@@ -6,10 +6,9 @@ use spin::Mutex;
 use crate::{
     graphics::{color::*, frame_buf_console::FRAME_BUF_CONSOLE},
     mem::buffer::fifo::{Fifo, FifoError},
+    serial,
     util::ascii::AsciiCode,
 };
-
-use super::serial;
 
 const IO_BUF_LEN: usize = 512;
 const IO_BUF_DEFAULT_VALUE: ConsoleCharacter = ConsoleCharacter {
