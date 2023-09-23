@@ -7,17 +7,15 @@ use crate::arch::addr::*;
 use super::color::Color;
 
 lazy_static! {
-    pub static ref FRAME_BUF: Mutex<FrameBuffer> = Mutex::new(FrameBuffer::new());
+    pub static ref FRAME_BUF: Mutex<Option<FrameBuffer>> = Mutex::new(None);
 }
 
 #[derive(Debug)]
 pub enum FrameBufferError {
-    NotInitialized,
     OutsideFrameBufferAreaError(usize, usize), // x, y
 }
 
 pub struct FrameBuffer {
-    is_init: bool,
     resolution: (usize, usize),
     format: PixelFormat,
     framebuf_virt_addr: VirtualAddress,
@@ -26,31 +24,23 @@ pub struct FrameBuffer {
 }
 
 impl FrameBuffer {
-    pub fn new() -> Self {
-        return Self {
-            is_init: false,
-            resolution: (0, 0),
-            format: PixelFormat::Rgb,
-            framebuf_virt_addr: VirtualAddress::default(),
-            framebuf_size: 0,
-            stride: 0,
-        };
-    }
-
-    pub fn init(&mut self, graphic_info: GraphicInfo) {
-        self.resolution = (
+    pub fn new(graphic_info: GraphicInfo) -> Self {
+        let resolution = (
             graphic_info.resolution.0 as usize,
             graphic_info.resolution.1 as usize,
         );
-        self.format = graphic_info.format;
-        self.framebuf_virt_addr = VirtualAddress::new(graphic_info.framebuf_addr);
-        self.framebuf_size = graphic_info.framebuf_size as usize;
-        self.stride = graphic_info.stride as usize;
-        self.is_init = true;
-    }
+        let format = graphic_info.format;
+        let framebuf_virt_addr = VirtualAddress::new(graphic_info.framebuf_addr);
+        let framebuf_size = graphic_info.framebuf_size as usize;
+        let stride = graphic_info.stride as usize;
 
-    pub fn is_init(&self) -> bool {
-        return self.is_init;
+        return Self {
+            resolution,
+            format,
+            framebuf_virt_addr,
+            framebuf_size,
+            stride,
+        };
     }
 
     pub fn get_resolution(&self) -> (usize, usize) {
@@ -73,10 +63,6 @@ impl FrameBuffer {
         height: usize,
         color: &impl Color,
     ) -> Result<(), FrameBufferError> {
-        if !self.is_init {
-            return Err(FrameBufferError::NotInitialized);
-        }
-
         let (res_x, res_y) = self.get_resolution();
         if x1 >= res_x || y1 >= res_y {
             return Err(FrameBufferError::OutsideFrameBufferAreaError(x1, y1));
@@ -105,10 +91,6 @@ impl FrameBuffer {
         to_x: usize,
         to_y: usize,
     ) -> Result<(), FrameBufferError> {
-        if !self.is_init {
-            return Err(FrameBufferError::NotInitialized);
-        }
-
         let (res_x, res_y) = self.get_resolution();
         if x >= res_x || y >= res_y {
             return Err(FrameBufferError::OutsideFrameBufferAreaError(x, y));
@@ -125,10 +107,6 @@ impl FrameBuffer {
     }
 
     pub fn clear(&self, color: &impl Color) -> Result<(), FrameBufferError> {
-        if !self.is_init {
-            return Err(FrameBufferError::NotInitialized);
-        }
-
         let (max_x, max_y) = self.get_resolution();
         for y in 0..max_y {
             for x in 0..max_x {

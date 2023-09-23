@@ -159,7 +159,9 @@ pub fn _print(args: fmt::Arguments) {
     }
 
     if let Some(mut frame_buf_console) = FRAME_BUF_CONSOLE.try_lock() {
-        frame_buf_console.write_fmt(args).unwrap();
+        if let Some(frame_buf_console) = frame_buf_console.as_mut() {
+            frame_buf_console.write_fmt(args).unwrap();
+        }
     }
 }
 

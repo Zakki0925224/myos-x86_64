@@ -27,32 +27,48 @@ impl log::Log for SimpleLogger {
     }
 
     fn log(&self, record: &Record) {
-        if self.enabled(record.metadata()) {
+        if !self.enabled(record.metadata()) {
+            return;
+        }
+
+        if let Some(mut frame_buf_console) = FRAME_BUF_CONSOLE.try_lock() {
+            let frame_buf_console = match frame_buf_console.as_mut() {
+                Some(f) => f,
+                None => return,
+            };
+
             match record.level() {
-                Level::Error => FRAME_BUF_CONSOLE.lock().set_fore_color(LOG_COLOR_ERROR),
-                Level::Warn => FRAME_BUF_CONSOLE.lock().set_fore_color(LOG_COLOR_WARN),
-                Level::Info => FRAME_BUF_CONSOLE.lock().set_fore_color(LOG_COLOR_INFO),
-                Level::Debug => FRAME_BUF_CONSOLE.lock().set_fore_color(LOG_COLOR_DEBUG),
-                Level::Trace => FRAME_BUF_CONSOLE.lock().set_fore_color(LOG_COLOR_TRACE),
+                Level::Error => frame_buf_console.set_fore_color(LOG_COLOR_ERROR),
+                Level::Warn => frame_buf_console.set_fore_color(LOG_COLOR_WARN),
+                Level::Info => frame_buf_console.set_fore_color(LOG_COLOR_INFO),
+                Level::Debug => frame_buf_console.set_fore_color(LOG_COLOR_DEBUG),
+                Level::Trace => frame_buf_console.set_fore_color(LOG_COLOR_TRACE),
             }
+        }
 
-            if record.level() == Level::Error || record.level() == Level::Debug {
-                print!("[{}]: ", record.level());
-            } else {
-                print!("[ {}]: ", record.level());
-            }
+        if record.level() == Level::Error || record.level() == Level::Debug {
+            print!("[{}]: ", record.level());
+        } else {
+            print!("[ {}]: ", record.level());
+        }
 
-            if record.level() == Level::Error {
-                print!(
-                    "{}@{}: ",
-                    record.file().unwrap_or("Unknown"),
-                    record.line().unwrap_or(0)
-                );
-            }
+        if record.level() == Level::Error {
+            print!(
+                "{}@{}: ",
+                record.file().unwrap_or("Unknown"),
+                record.line().unwrap_or(0)
+            );
+        }
 
-            print!("{:?}\n", record.args());
+        print!("{:?}\n", record.args());
 
-            FRAME_BUF_CONSOLE.lock().reset_fore_color();
+        if let Some(mut frame_buf_console) = FRAME_BUF_CONSOLE.try_lock() {
+            let frame_buf_console = match frame_buf_console.as_mut() {
+                Some(f) => f,
+                None => return,
+            };
+
+            frame_buf_console.reset_fore_color();
         }
     }
 
