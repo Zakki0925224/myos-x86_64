@@ -109,11 +109,12 @@ impl Console {
             Err(err) => return Err(ConsoleError::IoBufferError { buf_type, err }),
         };
 
-        if !SERIAL.is_locked()
-            && (buf_type == BufferType::Output || buf_type == BufferType::ErrorOutput)
+        if (buf_type == BufferType::Output || buf_type == BufferType::ErrorOutput)
             && self.use_serial_port
         {
-            SERIAL.lock().send_data(value.ascii_code as u8);
+            if let Some(serial) = SERIAL.try_lock() {
+                serial.send_data(value.ascii_code as u8);
+            }
         }
 
         return Ok(());
@@ -152,8 +153,13 @@ impl fmt::Write for Console {
 
 #[doc(hidden)]
 pub fn _print(args: fmt::Arguments) {
-    CONSOLE.lock().write_fmt(args).unwrap();
-    FRAME_BUF_CONSOLE.lock().write_fmt(args).unwrap();
+    if let Some(mut console) = CONSOLE.try_lock() {
+        console.write_fmt(args).unwrap();
+    }
+
+    if let Some(mut frame_buf_console) = FRAME_BUF_CONSOLE.try_lock() {
+        frame_buf_console.write_fmt(args).unwrap();
+    }
 }
 
 #[macro_export]
@@ -168,11 +174,11 @@ macro_rules! println
     ($($arg:tt)*) => ($crate::print!("{}\n", format_args!($($arg)*)));
 }
 
-pub fn writek(ascii_code: AsciiCode) {
-    let result = CONSOLE.lock().write(ascii_code, BufferType::Input);
-
-    if let Err(_) = result {
-        CONSOLE.lock().reset_buf(BufferType::Input);
-        CONSOLE.lock().write(ascii_code, BufferType::Input).unwrap();
+pub fn input(ascii_code: AsciiCode) {
+    if let Some(mut console) = CONSOLE.try_lock() {
+        if let Err(_) = console.write(ascii_code, BufferType::Input) {
+            console.reset_buf(BufferType::Input);
+            console.write(ascii_code, BufferType::Input).unwrap();
+        }
     }
 }

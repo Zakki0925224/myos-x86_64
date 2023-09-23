@@ -80,41 +80,23 @@ pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> ! {
 
 async fn console_task() {
     loop {
-        if SERIAL.is_locked() {
-            continue;
-        }
+        let ascii_code = match SERIAL.try_lock() {
+            Some(serial) => match serial.receive_data() {
+                Some(data) => data.into(),
+                None => continue,
+            },
+            None => continue,
+        };
 
-        asm::disabled_int_func(|| {
-            let data = match SERIAL.lock().receive_data() {
-                Some(data) => data,
-                None => return,
-            };
-
-            console::writek(data.into());
-            print!("{}", data as char);
-        });
-    }
-}
-
-async fn serial_terminal_task() {
-    info!("Starting debug terminal...");
-    let mut terminal = Terminal::new();
-    terminal.clear();
-
-    loop {
-        if SERIAL.is_locked() {
-            continue;
-        }
-
-        asm::disabled_int_func(|| {
-            let data = SERIAL.lock().receive_data();
-            if let Some(data) = data {
-                // skip invalid data
-                if data <= AsciiCode::Delete as u8 {
-                    terminal.input_char(data.into());
-                }
+        console::input(ascii_code);
+        match ascii_code {
+            AsciiCode::CarriageReturn => {
+                println!();
             }
-        });
+            code => {
+                print!("{}", code as u8 as char);
+            }
+        }
     }
 }
 

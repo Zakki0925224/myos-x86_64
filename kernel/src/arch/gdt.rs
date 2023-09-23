@@ -104,9 +104,16 @@ pub fn init() {
     gdt1.set_code_seg(SegmentType::ExecuteRead, 0, 0, 0xffff_f);
     gdt2.set_data_seg(SegmentType::ReadWrite, 0, 0, 0xffff_f);
 
-    GDT.lock().set_desc(1, gdt1);
-    GDT.lock().set_desc(2, gdt2);
-    GDT.lock().load();
+    loop {
+        if let Some(mut gdt) = GDT.try_lock() {
+            gdt.set_desc(1, gdt1);
+            gdt.set_desc(2, gdt2);
+            gdt.load();
+            break;
+        }
+
+        info!("idt: Waiting for GDT lock...");
+    }
 
     asm::set_ds(0);
     asm::set_es(0);

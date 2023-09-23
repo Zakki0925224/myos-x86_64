@@ -2,7 +2,7 @@ use core::fmt;
 use lazy_static::lazy_static;
 use spin::Mutex;
 
-use crate::{device::serial::SERIAL, graphics::color::*};
+use crate::graphics::color::*;
 
 use super::{
     color::COLOR_WHITE,
@@ -211,8 +211,6 @@ impl FrameBufferConsole {
             }
         }
 
-        SERIAL.lock().send_data(b'\t');
-
         return Ok(());
     }
 
@@ -226,8 +224,6 @@ impl FrameBufferConsole {
             }
             self.cursor_y = self.char_max_y_len;
         }
-
-        SERIAL.lock().send_data(b'\n');
 
         return Ok(());
     }
