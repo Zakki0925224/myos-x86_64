@@ -1,4 +1,4 @@
-use log::{Level, LevelFilter, Record, SetLoggerError};
+use log::{Level, LevelFilter, Record};
 
 use crate::{
     graphics::{color::*, frame_buf_console::FRAME_BUF_CONSOLE},
@@ -13,8 +13,10 @@ const LOG_COLOR_TRACE: RgbColor = COLOR_GREEN;
 
 static LOGGER: SimpleLogger = SimpleLogger;
 
-pub fn init() -> Result<(), SetLoggerError> {
-    log::set_logger(&LOGGER).map(|()| log::set_max_level(LevelFilter::Info))
+pub fn init() {
+    log::set_logger(&LOGGER)
+        .map(|()| log::set_max_level(LevelFilter::Info))
+        .unwrap();
 }
 
 struct SimpleLogger;

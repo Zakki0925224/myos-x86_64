@@ -6,6 +6,7 @@ use crate::graphics::color::*;
 
 use super::{
     color::COLOR_WHITE,
+    font::PsfFont,
     frame_buf::{FrameBufferError, FRAME_BUF},
 };
 
@@ -21,15 +22,16 @@ lazy_static! {
 #[derive(Debug)]
 pub enum FrameBufferConsoleError {
     NotInitialized,
+    FontGlyphError,
     FrameBufferError(FrameBufferError),
 }
 
 pub struct FrameBufferConsole {
     is_init: bool,
+    font: PsfFont,
     back_color: RgbColor,
     default_fore_color: RgbColor,
     fore_color: RgbColor,
-    font_glyph_size: (usize, usize),
     max_x_res: usize,
     max_y_res: usize,
     char_max_x_len: usize,
@@ -42,10 +44,10 @@ impl FrameBufferConsole {
     pub fn new(back_color: RgbColor, fore_color: RgbColor) -> Self {
         return Self {
             is_init: false,
+            font: PsfFont::new(),
             back_color,
             default_fore_color: fore_color,
             fore_color,
-            font_glyph_size: (0, 0),
             max_x_res: 0,
             max_y_res: 0,
             char_max_x_len: 0,
@@ -62,13 +64,10 @@ impl FrameBufferConsole {
             ));
         }
 
-        let (glyph_size_width, _) = FRAME_BUF.lock().get_font_glyph_size();
-        self.font_glyph_size = (glyph_size_width, 16);
-
         self.max_x_res = FRAME_BUF.lock().get_stride();
         self.max_y_res = FRAME_BUF.lock().get_resolution().1;
-        self.char_max_x_len = self.max_x_res / self.font_glyph_size.0 - 1;
-        self.char_max_y_len = self.max_y_res / self.font_glyph_size.1 - 1;
+        self.char_max_x_len = self.max_x_res / self.font.get_width() - 1;
+        self.char_max_y_len = self.max_y_res / self.font.get_height() - 1;
         self.cursor_x = 0;
         self.cursor_y = 2;
 
@@ -159,14 +158,12 @@ impl FrameBufferConsole {
             _ => (),
         }
 
-        if let Err(err) = FRAME_BUF.lock().draw_font(
-            self.cursor_x * self.font_glyph_size.0,
-            self.cursor_y * self.font_glyph_size.1,
+        self.draw_font(
+            self.cursor_x * self.font.get_width(),
+            self.cursor_y * self.font.get_height(),
             c,
             &self.fore_color,
-        ) {
-            return Err(FrameBufferConsoleError::FrameBufferError(err));
-        }
+        )?;
 
         return self.inc_cursor();
     }
@@ -175,6 +172,36 @@ impl FrameBufferConsole {
         for c in string.chars() {
             if let Err(err) = self.write_char(c) {
                 return Err(err);
+            }
+        }
+
+        return Ok(());
+    }
+
+    fn draw_font(
+        &self,
+        x1: usize,
+        y1: usize,
+        c: char,
+        color: &impl Color,
+    ) -> Result<(), FrameBufferConsoleError> {
+        let glyph = match self
+            .font
+            .get_glyph(self.font.unicode_char_to_glyph_index(c))
+        {
+            Some(g) => g,
+            None => return Err(FrameBufferConsoleError::FontGlyphError),
+        };
+
+        for h in 0..self.font.get_height() {
+            for w in 0..self.font.get_width() {
+                if !(glyph[h] << w) & 0x80 == 0x80 {
+                    continue;
+                }
+
+                if let Err(err) = FRAME_BUF.lock().draw_rect(x1 + w, y1 + h, 1, 1, color) {
+                    return Err(FrameBufferConsoleError::FrameBufferError(err));
+                }
             }
         }
 
@@ -229,7 +256,7 @@ impl FrameBufferConsole {
     }
 
     fn scroll(&self) -> Result<(), FrameBufferConsoleError> {
-        let font_glyph_size_y = self.font_glyph_size.1;
+        let font_glyph_size_y = self.font.get_height();
 
         for y in font_glyph_size_y..self.max_y_res {
             for x in 0..self.max_x_res {

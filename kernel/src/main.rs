@@ -31,7 +31,7 @@ use debug_terminal::Terminal;
 use fs::fat::FatVolume;
 use log::*;
 use serial::ComPort;
-use util::ascii::AsciiCode;
+use util::{ascii::AsciiCode, logger};
 
 use crate::{
     arch::{apic::timer::LOCAL_APIC_TIMER, gdt, idt},
@@ -49,8 +49,11 @@ pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> ! {
     // initialize serial
     serial::init(ComPort::Com1);
 
-    // initialize frame buffer, console, logger
+    // initialize frame buffer, console
     graphics::init(boot_info.graphic_info);
+
+    // initialize logger
+    logger::init();
 
     // initialize GDT (TODO: not working correctly)
     //gdt::init();

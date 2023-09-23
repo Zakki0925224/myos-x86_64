@@ -4,7 +4,7 @@ use spin::Mutex;
 
 use crate::arch::addr::*;
 
-use super::{color::Color, font::PsfFont};
+use super::color::Color;
 
 lazy_static! {
     pub static ref FRAME_BUF: Mutex<FrameBuffer> = Mutex::new(FrameBuffer::new());
@@ -14,7 +14,6 @@ lazy_static! {
 pub enum FrameBufferError {
     NotInitialized,
     OutsideFrameBufferAreaError(usize, usize), // x, y
-    FontGlyphError,
 }
 
 pub struct FrameBuffer {
@@ -24,7 +23,6 @@ pub struct FrameBuffer {
     framebuf_virt_addr: VirtualAddress,
     framebuf_size: usize,
     stride: usize,
-    font: PsfFont,
 }
 
 impl FrameBuffer {
@@ -36,7 +34,6 @@ impl FrameBuffer {
             framebuf_virt_addr: VirtualAddress::default(),
             framebuf_size: 0,
             stride: 0,
-            font: PsfFont::new(),
         };
     }
 
@@ -68,10 +65,6 @@ impl FrameBuffer {
         return self.format;
     }
 
-    pub fn get_font_glyph_size(&self) -> (usize, usize) {
-        return (self.font.get_width(), self.font.get_width());
-    }
-
     pub fn draw_rect(
         &self,
         x1: usize,
@@ -100,33 +93,6 @@ impl FrameBuffer {
             for x in x1..x1 + width {
                 self.set_color(x, y, color);
             }
-        }
-
-        return Ok(());
-    }
-
-    pub fn draw_font(
-        &self,
-        x1: usize,
-        y1: usize,
-        c: char,
-        color: &impl Color,
-    ) -> Result<(), FrameBufferError> {
-        if let Some(glyph) = self
-            .font
-            .get_glyph(self.font.unicode_char_to_glyph_index(c))
-        {
-            for h in 0..self.font.get_height() {
-                for w in 0..self.font.get_width() {
-                    if (glyph[h] << w) & 0x80 == 0x80 {
-                        if let Err(err) = self.draw_rect(x1 + w, y1 + h, 1, 1, color) {
-                            return Err(err);
-                        }
-                    }
-                }
-            }
-        } else {
-            return Err(FrameBufferError::FontGlyphError);
         }
 
         return Ok(());
