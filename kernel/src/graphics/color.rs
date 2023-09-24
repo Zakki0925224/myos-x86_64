@@ -29,6 +29,12 @@ impl RgbColor {
     }
 }
 
+impl From<(u8, u8, u8)> for RgbColor {
+    fn from(color: (u8, u8, u8)) -> Self {
+        return RgbColor::new(color.0, color.1, color.2);
+    }
+}
+
 pub trait Color {
     fn get_color_code(&self, pixel_format: PixelFormat) -> u32;
 }

@@ -49,11 +49,15 @@ pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> ! {
     // initialize serial
     serial::init(ComPort::Com1);
 
-    // initialize frame buffer, console
-    graphics::init(boot_info.graphic_info);
-
     // initialize logger
     logger::init();
+
+    // initialize frame buffer, console
+    graphics::init(
+        boot_info.graphic_info,
+        (3, 26, 0).into(),
+        (18, 202, 99).into(),
+    );
 
     // initialize GDT (TODO: not working correctly)
     //gdt::init();

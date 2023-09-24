@@ -2,13 +2,9 @@ use core::fmt;
 use lazy_static::lazy_static;
 use spin::Mutex;
 
-use crate::graphics::color::*;
+use crate::{error::Result, graphics::color::*};
 
-use super::{
-    color::COLOR_WHITE,
-    font::PsfFont,
-    frame_buf::{FrameBufferError, FRAME_BUF},
-};
+use super::{color::COLOR_WHITE, font::PsfFont, frame_buf::FRAME_BUF};
 
 const TAB_DISP_CHAR: char = ' ';
 const TAB_INDENT_SIZE: usize = 4;
@@ -17,10 +13,9 @@ lazy_static! {
     pub static ref FRAME_BUF_CONSOLE: Mutex<Option<FrameBufferConsole>> = Mutex::new(None);
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FrameBufferConsoleError {
     FontGlyphError,
-    FrameBufferError(FrameBufferError),
 }
 
 pub struct FrameBufferConsole {
@@ -53,7 +48,7 @@ impl FrameBufferConsole {
                 let cursor_x = 0;
                 let cursor_y = 2;
 
-                frame_buf.clear(&back_color).unwrap();
+                frame_buf.clear(&back_color);
                 frame_buf.draw_rect(0, 0, 20, 20, &COLOR_WHITE).unwrap();
                 frame_buf.draw_rect(20, 0, 20, 20, &COLOR_OLIVE).unwrap();
                 frame_buf.draw_rect(40, 0, 20, 20, &COLOR_YELLOW).unwrap();
@@ -95,7 +90,7 @@ impl FrameBufferConsole {
         self.fore_color = self.default_fore_color;
     }
 
-    pub fn write_char(&mut self, c: char) -> Result<(), FrameBufferConsoleError> {
+    pub fn write_char(&mut self, c: char) -> Result<()> {
         match c {
             '\n' => return self.new_line(),
             '\t' => return self.tab(),
@@ -109,32 +104,26 @@ impl FrameBufferConsole {
             &self.fore_color,
         )?;
 
-        return self.inc_cursor();
+        self.inc_cursor()?;
+
+        return Ok(());
     }
 
-    pub fn write_string(&mut self, string: &str) -> Result<(), FrameBufferConsoleError> {
+    pub fn write_string(&mut self, string: &str) -> Result<()> {
         for c in string.chars() {
-            if let Err(err) = self.write_char(c) {
-                return Err(err);
-            }
+            self.write_char(c)?;
         }
 
         return Ok(());
     }
 
-    fn draw_font(
-        &self,
-        x1: usize,
-        y1: usize,
-        c: char,
-        color: &impl Color,
-    ) -> Result<(), FrameBufferConsoleError> {
+    fn draw_font<C: Color>(&self, x1: usize, y1: usize, c: char, color: &C) -> Result<()> {
         let glyph = match self
             .font
             .get_glyph(self.font.unicode_char_to_glyph_index(c))
         {
             Some(g) => g,
-            None => return Err(FrameBufferConsoleError::FontGlyphError),
+            None => return Err(FrameBufferConsoleError::FontGlyphError.into()),
         };
 
         for h in 0..self.font.get_height() {
@@ -145,9 +134,7 @@ impl FrameBufferConsole {
 
                 if let Some(mut frame_buf) = FRAME_BUF.try_lock() {
                     let frame_buf = frame_buf.as_mut().unwrap();
-                    if let Err(err) = frame_buf.draw_rect(x1 + w, y1 + h, 1, 1, color) {
-                        return Err(FrameBufferConsoleError::FrameBufferError(err));
-                    }
+                    frame_buf.draw_rect(x1 + w, y1 + h, 1, 1, color)?;
                 }
             }
         }
@@ -155,7 +142,7 @@ impl FrameBufferConsole {
         return Ok(());
     }
 
-    fn inc_cursor(&mut self) -> Result<(), FrameBufferConsoleError> {
+    fn inc_cursor(&mut self) -> Result<()> {
         self.cursor_x += 1;
 
         if self.cursor_x > self.char_max_x_len {
@@ -164,9 +151,7 @@ impl FrameBufferConsole {
         }
 
         if self.cursor_y > self.char_max_y_len {
-            if let Err(err) = self.scroll() {
-                return Err(err);
-            }
+            self.scroll()?;
             self.cursor_x = 0;
             self.cursor_y = self.char_max_y_len;
         }
@@ -174,35 +159,28 @@ impl FrameBufferConsole {
         return Ok(());
     }
 
-    fn tab(&mut self) -> Result<(), FrameBufferConsoleError> {
+    fn tab(&mut self) -> Result<()> {
         for _ in 0..TAB_INDENT_SIZE {
-            if let Err(err) = self.write_char(TAB_DISP_CHAR) {
-                return Err(err);
-            }
-
-            if let Err(err) = self.inc_cursor() {
-                return Err(err);
-            }
+            self.write_char(TAB_DISP_CHAR)?;
+            self.inc_cursor()?;
         }
 
         return Ok(());
     }
 
-    fn new_line(&mut self) -> Result<(), FrameBufferConsoleError> {
+    fn new_line(&mut self) -> Result<()> {
         self.cursor_x = 0;
         self.cursor_y += 1;
 
         if self.cursor_y > self.char_max_y_len {
-            if let Err(err) = self.scroll() {
-                return Err(err);
-            }
+            self.scroll()?;
             self.cursor_y = self.char_max_y_len;
         }
 
         return Ok(());
     }
 
-    fn scroll(&self) -> Result<(), FrameBufferConsoleError> {
+    fn scroll(&self) -> Result<()> {
         let font_glyph_size_y = self.font.get_height();
 
         if let Some(mut frame_buf) = FRAME_BUF.try_lock() {
@@ -210,21 +188,17 @@ impl FrameBufferConsole {
 
             for y in font_glyph_size_y..self.max_y_res {
                 for x in 0..self.max_x_res {
-                    if let Err(err) = frame_buf.copy_pixel(x, y, x, y - font_glyph_size_y) {
-                        return Err(FrameBufferConsoleError::FrameBufferError(err));
-                    }
+                    frame_buf.copy_pixel(x, y, x, y - font_glyph_size_y)?;
                 }
             }
 
-            if let Err(err) = frame_buf.draw_rect(
+            frame_buf.draw_rect(
                 0,
                 self.max_y_res - font_glyph_size_y,
                 self.max_x_res - 1,
                 font_glyph_size_y - 1,
                 &self.back_color,
-            ) {
-                return Err(FrameBufferConsoleError::FrameBufferError(err));
-            }
+            )?;
         }
 
         return Ok(());
@@ -233,10 +207,6 @@ impl FrameBufferConsole {
 
 impl fmt::Write for FrameBufferConsole {
     fn write_str(&mut self, s: &str) -> fmt::Result {
-        // if !self.is_init {
-        //     panic!("console: {:?}", FrameBufferConsoleError::NotInitialized);
-        // }
-
         self.write_string(s).unwrap();
         return Ok(());
     }

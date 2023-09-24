@@ -2,7 +2,7 @@ use common::graphic_info::{GraphicInfo, PixelFormat};
 use lazy_static::lazy_static;
 use spin::Mutex;
 
-use crate::arch::addr::*;
+use crate::{arch::addr::*, error::Result};
 
 use super::color::Color;
 
@@ -10,16 +10,15 @@ lazy_static! {
     pub static ref FRAME_BUF: Mutex<Option<FrameBuffer>> = Mutex::new(None);
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FrameBufferError {
-    OutsideFrameBufferAreaError(usize, usize), // x, y
+    OutsideFrameBufferAreaError { x: usize, y: usize },
 }
 
 pub struct FrameBuffer {
     resolution: (usize, usize),
     format: PixelFormat,
     framebuf_virt_addr: VirtualAddress,
-    framebuf_size: usize,
     stride: usize,
 }
 
@@ -31,14 +30,12 @@ impl FrameBuffer {
         );
         let format = graphic_info.format;
         let framebuf_virt_addr = VirtualAddress::new(graphic_info.framebuf_addr);
-        let framebuf_size = graphic_info.framebuf_size as usize;
         let stride = graphic_info.stride as usize;
 
         return Self {
             resolution,
             format,
             framebuf_virt_addr,
-            framebuf_size,
             stride,
         };
     }
@@ -55,24 +52,25 @@ impl FrameBuffer {
         return self.format;
     }
 
-    pub fn draw_rect(
+    pub fn draw_rect<C: Color>(
         &self,
         x1: usize,
         y1: usize,
         width: usize,
         height: usize,
-        color: &impl Color,
-    ) -> Result<(), FrameBufferError> {
+        color: &C,
+    ) -> Result<()> {
         let (res_x, res_y) = self.get_resolution();
         if x1 >= res_x || y1 >= res_y {
-            return Err(FrameBufferError::OutsideFrameBufferAreaError(x1, y1));
+            return Err(FrameBufferError::OutsideFrameBufferAreaError { x: x1, y: y1 }.into());
         }
 
         if x1 + width >= res_x || y1 + height >= res_y {
-            return Err(FrameBufferError::OutsideFrameBufferAreaError(
-                x1 + width,
-                y1 + height,
-            ));
+            return Err(FrameBufferError::OutsideFrameBufferAreaError {
+                x: x1 + width,
+                y: y1 + height,
+            }
+            .into());
         }
 
         for y in y1..y1 + height {
@@ -84,20 +82,14 @@ impl FrameBuffer {
         return Ok(());
     }
 
-    pub fn copy_pixel(
-        &self,
-        x: usize,
-        y: usize,
-        to_x: usize,
-        to_y: usize,
-    ) -> Result<(), FrameBufferError> {
+    pub fn copy_pixel(&self, x: usize, y: usize, to_x: usize, to_y: usize) -> Result<()> {
         let (res_x, res_y) = self.get_resolution();
         if x >= res_x || y >= res_y {
-            return Err(FrameBufferError::OutsideFrameBufferAreaError(x, y));
+            return Err(FrameBufferError::OutsideFrameBufferAreaError { x, y }.into());
         }
 
         if to_x >= res_x || to_y >= res_y {
-            return Err(FrameBufferError::OutsideFrameBufferAreaError(to_x, to_y));
+            return Err(FrameBufferError::OutsideFrameBufferAreaError { x: to_x, y: to_y }.into());
         }
 
         let data = self.read_pixel(x, y);
@@ -106,18 +98,16 @@ impl FrameBuffer {
         return Ok(());
     }
 
-    pub fn clear(&self, color: &impl Color) -> Result<(), FrameBufferError> {
+    pub fn clear<C: Color>(&self, color: &C) {
         let (max_x, max_y) = self.get_resolution();
         for y in 0..max_y {
             for x in 0..max_x {
                 self.set_color(x, y, color);
             }
         }
-
-        return Ok(());
     }
 
-    fn set_color(&self, x: usize, y: usize, color: &impl Color) {
+    fn set_color<C: Color>(&self, x: usize, y: usize, color: &C) {
         self.write_pixel(x, y, color.get_color_code(self.get_pixel_format()));
     }
 
