@@ -165,33 +165,31 @@ extern "x86-interrupt" fn xhc_primary_event_ring_handler() {
 }
 
 pub fn init() {
-    loop {
-        if let Some(mut idt) = IDT.try_lock() {
-            idt.set_handler(
-                VEC_BREAKPOINT,
-                InterruptHandler::Normal(breakpoint_handler),
-                GateType::Interrupt,
-            );
-            idt.set_handler(
-                VEC_PAGE_FAULT,
-                InterruptHandler::PageFault(page_fault_handler),
-                GateType::Interrupt,
-            );
-            idt.set_handler(
-                VEC_DOUBLE_FAULT,
-                InterruptHandler::Normal(double_fault_handler),
-                GateType::Interrupt,
-            );
-            idt.set_handler(
-                VEC_XHCI_INT,
-                InterruptHandler::Normal(xhc_primary_event_ring_handler),
-                GateType::Interrupt,
-            );
-            idt.load();
-            break;
-        }
-
-        info!("idt: Waiting for IDT lock...");
+    if let Some(mut idt) = IDT.try_lock() {
+        idt.set_handler(
+            VEC_BREAKPOINT,
+            InterruptHandler::Normal(breakpoint_handler),
+            GateType::Interrupt,
+        );
+        idt.set_handler(
+            VEC_PAGE_FAULT,
+            InterruptHandler::PageFault(page_fault_handler),
+            GateType::Interrupt,
+        );
+        idt.set_handler(
+            VEC_DOUBLE_FAULT,
+            InterruptHandler::Normal(double_fault_handler),
+            GateType::Interrupt,
+        );
+        idt.set_handler(
+            VEC_XHCI_INT,
+            InterruptHandler::Normal(xhc_primary_event_ring_handler),
+            GateType::Interrupt,
+        );
+        idt.load();
+    } else {
+        error!("int: IDT is locked");
+        return;
     }
 
     info!("idt: Initialized IDT");

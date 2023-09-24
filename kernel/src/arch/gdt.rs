@@ -4,6 +4,8 @@ use log::info;
 use modular_bitfield::{bitfield, specifiers::*, BitfieldSpecifier};
 use spin::Mutex;
 
+use crate::error;
+
 use super::{
     asm::{self, DescriptorTableArgs},
     idt::GateDescriptor,
@@ -104,15 +106,13 @@ pub fn init() {
     gdt1.set_code_seg(SegmentType::ExecuteRead, 0, 0, 0xffff_f);
     gdt2.set_data_seg(SegmentType::ReadWrite, 0, 0, 0xffff_f);
 
-    loop {
-        if let Some(mut gdt) = GDT.try_lock() {
-            gdt.set_desc(1, gdt1);
-            gdt.set_desc(2, gdt2);
-            gdt.load();
-            break;
-        }
-
-        info!("idt: Waiting for GDT lock...");
+    if let Some(mut gdt) = GDT.try_lock() {
+        gdt.set_desc(1, gdt1);
+        gdt.set_desc(2, gdt2);
+        gdt.load();
+    } else {
+        error!("gdt: GDT is locked");
+        return;
     }
 
     asm::set_ds(0);
