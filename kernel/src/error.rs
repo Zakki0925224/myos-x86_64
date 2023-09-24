@@ -1,5 +1,6 @@
 use crate::{
     graphics::{frame_buf::FrameBufferError, frame_buf_console::FrameBufferConsoleError},
+    mem::{bitmap::BitmapMemoryManagerError, paging::PageManagerError},
     util::ascii::AsciiCodeError,
 };
 
@@ -9,6 +10,8 @@ pub enum Error {
     AsciiCodeError(AsciiCodeError),
     FrameBufferError(FrameBufferError),
     FrameBufferConsoleError(FrameBufferConsoleError),
+    BitmapMemoryManagerError(BitmapMemoryManagerError),
+    PageManagerError(PageManagerError),
 }
 
 impl From<&'static str> for Error {
@@ -32,6 +35,18 @@ impl From<FrameBufferError> for Error {
 impl From<FrameBufferConsoleError> for Error {
     fn from(err: FrameBufferConsoleError) -> Self {
         return Error::FrameBufferConsoleError(err);
+    }
+}
+
+impl From<BitmapMemoryManagerError> for Error {
+    fn from(err: BitmapMemoryManagerError) -> Self {
+        return Error::BitmapMemoryManagerError(err);
+    }
+}
+
+impl From<PageManagerError> for Error {
+    fn from(err: PageManagerError) -> Self {
+        return Error::PageManagerError(err);
     }
 }
 

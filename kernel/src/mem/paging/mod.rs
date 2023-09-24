@@ -4,11 +4,12 @@ use spin::Mutex;
 use crate::arch::addr::VirtualAddress;
 use crate::arch::register::control::Cr0;
 use crate::arch::{addr::*, register::control::Cr3};
+use crate::error::Result;
 use crate::println;
 
 use self::page_table::*;
 
-use super::bitmap::{BitmapMemoryManagerError, BITMAP_MEM_MAN};
+use super::bitmap::BITMAP_MEM_MAN;
 
 pub mod page_table;
 
@@ -16,17 +17,16 @@ lazy_static! {
     pub static ref PAGE_MAN: Mutex<PageManager> = Mutex::new(PageManager::new());
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MappingType {
     Identity,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PageManagerError {
     AddressNotMappedError(VirtualAddress),
     UnsupportedMappingTypeError(MappingType),
     InvalidPageTableEntryError(usize, PageTableEntry), // table level, entry
-    BitmapMemoryManagerError(BitmapMemoryManagerError),
 }
 
 #[derive(Debug)]
@@ -43,10 +43,7 @@ impl PageManager {
         };
     }
 
-    pub fn calc_phys_addr(
-        &self,
-        virt_addr: VirtualAddress,
-    ) -> Result<PhysicalAddress, PageManagerError> {
+    pub fn calc_phys_addr(&self, virt_addr: VirtualAddress) -> Result<PhysicalAddress> {
         let pml4e_index = virt_addr.get_pml4_entry_index();
         let pml3e_index = virt_addr.get_pml3_entry_index();
         let pml2e_index = virt_addr.get_pml2_entry_index();
@@ -58,7 +55,7 @@ impl PageManager {
         let entry = table.entries[pml4e_index];
 
         if !entry.p() {
-            return Err(PageManagerError::InvalidPageTableEntryError(4, entry));
+            return Err(PageManagerError::InvalidPageTableEntryError(4, entry).into());
         }
 
         // pml3 table
@@ -66,7 +63,7 @@ impl PageManager {
         let entry = table.entries[pml3e_index];
 
         if !entry.p() {
-            return Err(PageManagerError::InvalidPageTableEntryError(3, entry));
+            return Err(PageManagerError::InvalidPageTableEntryError(3, entry).into());
         }
 
         if entry.is_page() {
@@ -80,7 +77,7 @@ impl PageManager {
         let entry = table.entries[pml2e_index];
 
         if !entry.p() {
-            return Err(PageManagerError::InvalidPageTableEntryError(2, entry));
+            return Err(PageManagerError::InvalidPageTableEntryError(2, entry).into());
         }
 
         if entry.is_page() {
@@ -94,7 +91,7 @@ impl PageManager {
         let entry = table.entries[pml1e_index];
 
         if !entry.p() {
-            return Err(PageManagerError::InvalidPageTableEntryError(1, entry));
+            return Err(PageManagerError::InvalidPageTableEntryError(1, entry).into());
         }
 
         if entry.is_page() {
@@ -103,7 +100,7 @@ impl PageManager {
             ));
         }
 
-        return Err(PageManagerError::InvalidPageTableEntryError(1, entry));
+        return Err(PageManagerError::InvalidPageTableEntryError(1, entry).into());
     }
 
     pub fn debug_page_fault(&self) {
@@ -113,12 +110,11 @@ impl PageManager {
         }
     }
 
-    pub fn create_new_page_table(&mut self) -> Result<(), PageManagerError> {
-        let pml4_table_virt_addr = match BITMAP_MEM_MAN.lock().alloc_single_mem_frame() {
-            Ok(mem_info) => mem_info,
-            Err(err) => return Err(PageManagerError::BitmapMemoryManagerError(err)),
-        }
-        .get_frame_start_virt_addr();
+    pub fn create_new_page_table(&mut self) -> Result<()> {
+        let pml4_table_virt_addr = BITMAP_MEM_MAN
+            .lock()
+            .alloc_single_mem_frame()?
+            .get_frame_start_virt_addr();
         let mut pml4_page_table = PageTable::new();
 
         let total_mem_size = BITMAP_MEM_MAN.lock().get_total_mem_size();
@@ -167,11 +163,11 @@ impl PageManager {
         rw: ReadWrite,
         mode: EntryMode,
         write_through_level: PageWriteThroughLevel,
-    ) -> Result<(), PageManagerError> {
+    ) -> Result<()> {
         if self.mapping_type != MappingType::Identity {
-            return Err(PageManagerError::UnsupportedMappingTypeError(
-                self.mapping_type.clone(),
-            ));
+            return Err(
+                PageManagerError::UnsupportedMappingTypeError(self.mapping_type.clone()).into(),
+            );
         }
 
         let pml4e_index = virt_addr.get_pml4_entry_index();
@@ -184,19 +180,11 @@ impl PageManager {
         let mut entry_phys_addr = entry.get_phys_addr();
 
         if !entry.p() {
-            match BITMAP_MEM_MAN.lock().alloc_single_mem_frame() {
-                Ok(mem_info) => {
-                    let addr = match self.calc_phys_addr(mem_info.get_frame_start_virt_addr()) {
-                        Ok(addr) => addr,
-                        Err(err) => return Err(err),
-                    };
-
-                    entry.set_entry(addr, true, rw, mode, write_through_level);
-                    entry_phys_addr = addr;
-                    pml4_page_table.entries[pml4e_index] = entry;
-                }
-                Err(err) => return Err(PageManagerError::BitmapMemoryManagerError(err)),
-            }
+            let mem_info = BITMAP_MEM_MAN.lock().alloc_single_mem_frame()?;
+            let phys_addr = self.calc_phys_addr(mem_info.get_frame_start_virt_addr())?;
+            entry.set_entry(phys_addr, true, rw, mode, write_through_level);
+            entry_phys_addr = phys_addr;
+            pml4_page_table.entries[pml4e_index] = entry;
         }
 
         // pml3 table
@@ -206,26 +194,19 @@ impl PageManager {
         let mut entry_phys_addr = entry.get_phys_addr();
 
         if !entry.p() {
-            match BITMAP_MEM_MAN.lock().alloc_single_mem_frame() {
-                Ok(mem_info) => {
-                    let addr = match self.calc_phys_addr(mem_info.get_frame_start_virt_addr()) {
-                        Ok(addr) => addr,
-                        Err(err) => return Err(err),
-                    };
+            let mem_info = BITMAP_MEM_MAN.lock().alloc_single_mem_frame()?;
+            let phys_addr = self.calc_phys_addr(mem_info.get_frame_start_virt_addr())?;
 
-                    // 1GB page
-                    let is_page_table_addr = !(virt_addr.get() & 0x1fff_ffff == 0);
+            // 1GB page
+            let is_page_table_addr = !(virt_addr.get() & 0x1fff_ffff == 0);
 
-                    entry.set_entry(addr, is_page_table_addr, rw, mode, write_through_level);
-                    entry_phys_addr = addr;
-                    table.entries[pml3e_index] = entry;
-                    table_phys_addr.get_virt_addr().write_volatile(table);
+            entry.set_entry(phys_addr, is_page_table_addr, rw, mode, write_through_level);
+            entry_phys_addr = phys_addr;
+            table.entries[pml3e_index] = entry;
+            table_phys_addr.get_virt_addr().write_volatile(table);
 
-                    if !is_page_table_addr {
-                        return Ok(());
-                    }
-                }
-                Err(err) => return Err(PageManagerError::BitmapMemoryManagerError(err)),
+            if !is_page_table_addr {
+                return Ok(());
             }
         }
 
@@ -236,26 +217,19 @@ impl PageManager {
         let mut entry_phys_addr = entry.get_phys_addr();
 
         if !entry.p() {
-            match BITMAP_MEM_MAN.lock().alloc_single_mem_frame() {
-                Ok(mem_info) => {
-                    let addr = match self.calc_phys_addr(mem_info.get_frame_start_virt_addr()) {
-                        Ok(addr) => addr,
-                        Err(err) => return Err(err),
-                    };
+            let mem_info = BITMAP_MEM_MAN.lock().alloc_single_mem_frame()?;
+            let phys_addr = self.calc_phys_addr(mem_info.get_frame_start_virt_addr())?;
 
-                    // 2MB page
-                    let is_page_table_addr = !(virt_addr.get() & 0xf_ffff == 0);
+            // 2 MB page
+            let is_page_table_addr = !(virt_addr.get() & 0xf_ffff == 0);
 
-                    entry.set_entry(addr, is_page_table_addr, rw, mode, write_through_level);
-                    entry_phys_addr = addr;
-                    table.entries[pml2e_index] = entry;
-                    table_phys_addr.get_virt_addr().write_volatile(table);
+            entry.set_entry(phys_addr, is_page_table_addr, rw, mode, write_through_level);
+            entry_phys_addr = phys_addr;
+            table.entries[pml2e_index] = entry;
+            table_phys_addr.get_virt_addr().write_volatile(table);
 
-                    if !is_page_table_addr {
-                        return Ok(());
-                    }
-                }
-                Err(err) => return Err(PageManagerError::BitmapMemoryManagerError(err)),
+            if !is_page_table_addr {
+                return Ok(());
             }
         }
 

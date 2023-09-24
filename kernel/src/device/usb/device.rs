@@ -5,6 +5,7 @@ use alloc::vec::Vec;
 use crate::{
     arch::addr::*,
     device::usb::{hid_keyboard::InputData, xhc::context::input::InputControlContext},
+    error::Error,
     mem::bitmap::*,
     println,
 };
@@ -25,7 +26,7 @@ const DEFAULT_CONTROL_PIPE_ID: u8 = 1;
 #[derive(Debug)]
 pub enum UsbDeviceError {
     RingBufferError(RingBufferError),
-    BitmapMemoryManagerError(BitmapMemoryManagerError),
+    BitmapMemoryManagerError(Error),
     XhcPortNotFoundError,
     XhcDriverWasNotInitializedError,
     InvalidTransferRequestBlockTypeError,

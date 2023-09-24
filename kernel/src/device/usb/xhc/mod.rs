@@ -12,6 +12,7 @@ use crate::{
         xhc::{port::ConfigState, register::*},
         USB_DRIVER,
     },
+    error::Error,
     mem::bitmap::*,
 };
 
@@ -52,7 +53,7 @@ pub enum XhcDriverError {
     InvalidDoorbellRegisterIndexError(usize),
     InvalidDeviceContextArrayIndexError(usize),
     HostControllerIsNotHaltedError,
-    BitmapMemoryManagerError(BitmapMemoryManagerError),
+    BitmapMemoryManagerError(Error),
     RingBufferError(RingBufferError),
     OtherError(&'static str),
     NotInitialized,

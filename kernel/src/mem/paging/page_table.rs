@@ -28,7 +28,7 @@ pub enum PageWriteThroughLevel {
 }
 
 #[bitfield]
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PageTableEntry {
     pub p: bool,
     pub rw: ReadWrite,
