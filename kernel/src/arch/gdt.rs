@@ -111,8 +111,7 @@ pub fn init() {
         gdt.set_desc(2, gdt2);
         gdt.load();
     } else {
-        error!("gdt: GDT is locked");
-        return;
+        panic!("GDT is locked");
     }
 
     asm::set_ds(0);

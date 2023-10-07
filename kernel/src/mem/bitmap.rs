@@ -70,16 +70,6 @@ impl Bitmap {
         self.0 = bitmap;
     }
 
-    pub fn allocated_frame_len(&self) -> usize {
-        let map = self.get_map();
-        return map.into_iter().map(|m| if m { 1 } else { 0 }).sum();
-    }
-
-    pub fn free_frame_len(&self) -> usize {
-        let map = self.get_map();
-        return map.into_iter().map(|m| if !m { 1 } else { 0 }).sum();
-    }
-
     pub fn is_allocated_all(&self) -> bool {
         return self.0 == 0xff;
     }
@@ -348,7 +338,7 @@ impl BitmapMemoryManager {
         let start_frame_index = frame_index * BITMAP_SIZE + bitmap_pos;
 
         for i in start_frame_index..start_frame_index + count {
-            self.alloc_frame(i);
+            self.alloc_frame(i)?;
         }
 
         let mem_frame_info = MemoryFrameInfo {

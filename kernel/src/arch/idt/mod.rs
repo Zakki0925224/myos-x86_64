@@ -188,8 +188,7 @@ pub fn init() {
         );
         idt.load();
     } else {
-        error!("int: IDT is locked");
-        return;
+        panic!("IDT is locked");
     }
 
     info!("idt: Initialized IDT");
