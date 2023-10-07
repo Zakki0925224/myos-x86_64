@@ -43,7 +43,7 @@ impl SerialPort {
         // if serial isn't faulty, set normal mode
         serial.write_reg(4, 0x0f);
 
-        return Some(serial);
+        Some(serial)
     }
 
     pub fn receive_data(&self) -> Option<u8> {
@@ -51,7 +51,7 @@ impl SerialPort {
             return None;
         }
 
-        return Some(self.read_reg(0));
+        Some(self.read_reg(0))
     }
 
     pub fn send_data(&self, data: u8) {
@@ -60,11 +60,11 @@ impl SerialPort {
     }
 
     fn is_received_data(&self) -> bool {
-        return self.read_reg(5) & 0x01 != 0;
+        self.read_reg(5) & 0x01 != 0
     }
 
     fn is_transmit_empty(&self) -> bool {
-        return self.read_reg(5) & 0x20 != 0;
+        self.read_reg(5) & 0x20 != 0
     }
 
     fn write_reg(&self, offset: u16, data: u8) {
@@ -72,7 +72,7 @@ impl SerialPort {
     }
 
     fn read_reg(&self, offset: u16) -> u8 {
-        return asm::in8(self.com_port as u16 + offset);
+        asm::in8(self.com_port as u16 + offset)
     }
 }
 
@@ -89,7 +89,7 @@ pub fn receive_data() -> Option<u8> {
         }
     }
 
-    return None;
+    None
 }
 
 pub fn send_data(data: u8) {

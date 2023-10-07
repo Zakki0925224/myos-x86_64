@@ -20,13 +20,13 @@ impl BootInfo {
         initramfs_start_virt_addr: u64,
         initramfs_page_cnt: u64,
     ) -> Self {
-        return Self {
-            mem_map: mem_map_slice.as_ptr() as *const MemoryDescriptor,
+        Self {
+            mem_map: mem_map_slice.as_ptr(),
             mem_map_len: mem_map_len as u64,
             graphic_info,
             initramfs_start_virt_addr,
             initramfs_page_cnt,
-        };
+        }
     }
 
     pub fn get_mem_map(&self) -> &[MemoryDescriptor] {

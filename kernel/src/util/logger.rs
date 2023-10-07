@@ -23,7 +23,7 @@ struct SimpleLogger;
 
 impl log::Log for SimpleLogger {
     fn enabled(&self, metadata: &log::Metadata) -> bool {
-        return metadata.level() <= Level::Info;
+        metadata.level() <= Level::Info
     }
 
     fn log(&self, record: &Record) {

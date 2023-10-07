@@ -136,7 +136,7 @@ impl XhcDriver {
             return Ok(usb);
         }
 
-        return Err(XhcDriverError::XhcDeviceWasNotFoundError);
+        Err(XhcDriverError::XhcDeviceWasNotFoundError)
     }
 
     pub fn init(&mut self) -> Result<(), XhcDriverError> {
@@ -395,7 +395,7 @@ impl XhcDriver {
         self.is_init = true;
         info!("xhc: Initialized xHC driver");
 
-        return Ok(());
+        Ok(())
     }
 
     pub fn start(&mut self) -> Result<(), XhcDriverError> {
@@ -437,7 +437,7 @@ impl XhcDriver {
 
         self.ring_doorbell(0, 0);
 
-        return Ok(());
+        Ok(())
     }
 
     pub fn scan_ports(&mut self) -> Result<Vec<usize>, XhcDriverError> {
@@ -462,7 +462,7 @@ impl XhcDriver {
             }
         }
 
-        return Ok(port_ids);
+        Ok(port_ids)
     }
 
     pub fn reset_port(&mut self, port_id: usize) -> Result<(), XhcDriverError> {
@@ -501,7 +501,7 @@ impl XhcDriver {
 
         self.configuring_port_id = Some(port_id);
 
-        return Ok(());
+        Ok(())
     }
 
     pub fn alloc_address_to_device(&mut self, port_id: usize) -> Result<UsbDevice, XhcDriverError> {
@@ -591,10 +591,10 @@ impl XhcDriver {
         trb.set_ctrl_regs((slot_id as u16) << 8);
         self.push_cmd_ring(trb).unwrap();
 
-        return match UsbDevice::new(slot_id, trnasfer_ring_mem_info, max_packet_size) {
+        match UsbDevice::new(slot_id, trnasfer_ring_mem_info, max_packet_size) {
             Ok(device) => Ok(device),
             Err(err) => Err(XhcDriverError::UsbDeviceError(err)),
-        };
+        }
     }
 
     pub fn on_updated_event_ring(&mut self) {
@@ -691,11 +691,11 @@ impl XhcDriver {
     }
 
     pub fn is_init(&self) -> bool {
-        return self.is_init;
+        self.is_init
     }
 
     pub fn is_running(&self) -> bool {
-        return !self.read_ope_reg().usb_status().hchalted();
+        !self.read_ope_reg().usb_status().hchalted()
     }
 
     pub fn find_port_by_slot_id(&self, slot_id: usize) -> Option<&Port> {
@@ -710,7 +710,7 @@ impl XhcDriver {
             }
         }
 
-        return None;
+        None
     }
 
     fn alloc_slot(&mut self, port_id: usize, slot_id: usize) -> Result<(), XhcDriverError> {
@@ -739,11 +739,11 @@ impl XhcDriver {
 
         info!("xhc: Allocated slot: {} (port id: {})", slot_id, port_id);
 
-        return Ok(());
+        Ok(())
     }
 
     fn read_port(&self, port_id: usize) -> Option<&Port> {
-        return self.ports.iter().find(|p| p.port_id() == port_id);
+        self.ports.iter().find(|p| p.port_id() == port_id)
     }
 
     fn write_port(&mut self, port: Port) {
@@ -757,11 +757,11 @@ impl XhcDriver {
     }
 
     fn read_cap_reg(&self) -> CapabilityRegisters {
-        return CapabilityRegisters::read(self.cap_reg_virt_addr);
+        CapabilityRegisters::read(self.cap_reg_virt_addr)
     }
 
     fn read_ope_reg(&self) -> OperationalRegisters {
-        return OperationalRegisters::read(self.ope_reg_virt_addr);
+        OperationalRegisters::read(self.ope_reg_virt_addr)
     }
 
     fn write_ope_reg(&self, mut ope_reg: OperationalRegisters) {
@@ -769,7 +769,7 @@ impl XhcDriver {
     }
 
     fn read_runtime_reg(&self) -> RuntimeRegitsers {
-        return RuntimeRegitsers::read(self.runtime_reg_virt_addr);
+        RuntimeRegitsers::read(self.runtime_reg_virt_addr)
     }
 
     fn write_runtime_reg(&self, runtime_reg: RuntimeRegitsers) {
@@ -784,7 +784,7 @@ impl XhcDriver {
         let base_addr = self
             .intr_reg_sets_virt_addr
             .offset(index * size_of::<InterrupterRegisterSet>());
-        return Some(InterrupterRegisterSet::read(base_addr));
+        Some(InterrupterRegisterSet::read(base_addr))
     }
 
     fn write_intr_reg_sets(
@@ -810,7 +810,7 @@ impl XhcDriver {
 
         intr_reg_set.write(base_addr, update_seg_table);
 
-        return Ok(());
+        Ok(())
     }
 
     fn read_port_reg_set(&self, index: usize) -> Option<PortRegisterSet> {
@@ -821,7 +821,7 @@ impl XhcDriver {
         let base_addr = self
             .port_reg_sets_virt_addr
             .offset((index - 1) * size_of::<PortRegisterSet>());
-        return Some(PortRegisterSet::read(base_addr));
+        Some(PortRegisterSet::read(base_addr))
     }
 
     fn write_port_reg_set(
@@ -840,7 +840,7 @@ impl XhcDriver {
             .offset((index - 1) * size_of::<PortRegisterSet>());
         port_reg_set.write(base_addr);
 
-        return Ok(());
+        Ok(())
     }
 
     fn write_doorbell_reg(
@@ -857,7 +857,7 @@ impl XhcDriver {
             .offset(index * size_of::<DoorbellRegister>());
         doorbell_reg.write(base_addr);
 
-        return Ok(());
+        Ok(())
     }
 
     fn read_device_context_base_addr(&self, index: usize) -> Option<VirtualAddress> {
@@ -871,7 +871,7 @@ impl XhcDriver {
             .read_volatile();
         let virt_addr = PhysicalAddress::new(entry).get_virt_addr();
 
-        return Some(virt_addr);
+        Some(virt_addr)
     }
 
     fn write_device_context_base_addr(
@@ -887,7 +887,7 @@ impl XhcDriver {
             .offset(index * size_of::<u64>())
             .write_volatile(base_addr.get_phys_addr().get());
 
-        return Ok(());
+        Ok(())
     }
 
     pub fn read_device_context(&self, slot_id: usize) -> Option<DeviceContext> {
@@ -895,7 +895,7 @@ impl XhcDriver {
             return Some(base_addr.read_volatile());
         }
 
-        return None;
+        None
     }
 
     pub fn ring_doorbell(&self, index: usize, value: u8) {
@@ -910,12 +910,12 @@ impl XhcDriver {
             Err(err) => return Err(XhcDriverError::RingBufferError(err)),
         }
 
-        return Ok(());
+        Ok(())
     }
 
     fn pop_primary_event_ring(&mut self) -> Option<TransferRequestBlock> {
         let intr_reg_sets_0 = self.read_intr_reg_sets(0).unwrap();
-        return match self
+        match self
             .primary_event_ring_buf
             .as_mut()
             .unwrap()
@@ -930,6 +930,6 @@ impl XhcDriver {
                 warn!("xhc: {:?}", err);
                 None
             }
-        };
+        }
     }
 }

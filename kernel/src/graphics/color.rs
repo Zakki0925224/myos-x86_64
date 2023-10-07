@@ -25,13 +25,13 @@ pub struct RgbColor {
 
 impl RgbColor {
     pub const fn new(r: u8, g: u8, b: u8) -> Self {
-        return RgbColor { r, g, b };
+        Self { r, g, b }
     }
 }
 
 impl From<(u8, u8, u8)> for RgbColor {
     fn from(color: (u8, u8, u8)) -> Self {
-        return RgbColor::new(color.0, color.1, color.2);
+        Self::new(color.0, color.1, color.2)
     }
 }
 
@@ -45,17 +45,15 @@ impl Color for RgbColor {
         let g = self.g as u32;
         let b = self.b as u32;
 
-        // only support bgr or rgb pixel format
-        if pixel_format == PixelFormat::Bgr {
-            return r << 16 | g << 8 | b << 0;
-        } else {
-            return b << 16 | g << 8 | r << 0;
+        match pixel_format {
+            PixelFormat::Bgr => r << 16 | g << 8 | b << 0,
+            PixelFormat::Rgb => r << 0 | g << 8 | b << 16,
         }
     }
 }
 
 impl Color for u32 {
     fn get_color_code(&self, _: PixelFormat) -> u32 {
-        return *self;
+        *self
     }
 }

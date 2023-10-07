@@ -58,14 +58,14 @@ impl RingBuffer {
             return Err(RingBufferError::RingBufferSizeIsTooSmallError(buf_len));
         }
 
-        return Ok(Self {
+        Ok(Self {
             buf_base_virt_addr: buf_base_mem_info.get_frame_start_virt_addr(),
             buf_len,
             buf_type,
             cycle_state: cycle_state_bit,
             is_init: false,
             enqueue_index: 0,
-        });
+        })
     }
 
     pub fn init(&mut self) {
@@ -84,19 +84,19 @@ impl RingBuffer {
     }
 
     pub fn is_init(&self) -> bool {
-        return self.is_init;
+        self.is_init
     }
 
     pub fn buf_len(&self) -> usize {
-        return self.buf_len;
+        self.buf_len
     }
 
     pub fn enqueue_index(&self) -> usize {
-        return self.enqueue_index;
+        self.enqueue_index
     }
 
     pub fn cycle_state(&self) -> bool {
-        return self.cycle_state;
+        self.cycle_state
     }
 
     pub fn enqueue(&mut self) -> Result<(), RingBufferError> {
@@ -137,7 +137,7 @@ impl RingBuffer {
 
         self.enqueue_index += 1;
 
-        return Ok(());
+        Ok(())
     }
 
     pub fn push(&mut self, trb: TransferRequestBlock) -> Result<(), RingBufferError> {
@@ -170,7 +170,7 @@ impl RingBuffer {
 
         self.enqueue_index += 1;
 
-        return Ok(());
+        Ok(())
     }
 
     pub fn pop(
@@ -218,7 +218,7 @@ impl RingBuffer {
         int_reg_set.set_event_ring_dequeue_ptr(dequeue_ptr.get_phys_addr().get() >> 4);
         int_reg_set.set_event_handler_busy(false);
 
-        return Ok((trb, int_reg_set));
+        Ok((trb, int_reg_set))
     }
 
     pub fn fill(&mut self, fill_trb: TransferRequestBlock) -> Result<(), RingBufferError> {
@@ -258,7 +258,7 @@ impl RingBuffer {
 
         self.enqueue_index = self.buf_len - 3;
 
-        return Ok(());
+        Ok(())
     }
 
     pub fn debug(&self) {
@@ -305,7 +305,7 @@ impl RingBuffer {
 
         self.cycle_state = !self.cycle_state;
 
-        return Ok(());
+        Ok(())
     }
 
     fn read(&self, index: usize) -> Option<TransferRequestBlock> {
@@ -316,7 +316,7 @@ impl RingBuffer {
         let virt_addr = self
             .buf_base_virt_addr
             .offset(index * size_of::<TransferRequestBlock>());
-        return Some(virt_addr.read_volatile());
+        Some(virt_addr.read_volatile())
     }
 
     fn write(&self, index: usize, trb: TransferRequestBlock) -> Result<(), RingBufferError> {
@@ -329,6 +329,6 @@ impl RingBuffer {
             .offset(index * size_of::<TransferRequestBlock>());
         virt_addr.write_volatile(trb);
 
-        return Ok(());
+        Ok(())
     }
 }

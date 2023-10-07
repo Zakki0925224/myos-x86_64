@@ -32,24 +32,24 @@ impl FrameBuffer {
         let framebuf_virt_addr = VirtualAddress::new(graphic_info.framebuf_addr);
         let stride = graphic_info.stride as usize;
 
-        return Self {
+        Self {
             resolution,
             format,
             framebuf_virt_addr,
             stride,
-        };
+        }
     }
 
     pub fn get_resolution(&self) -> (usize, usize) {
-        return self.resolution;
+        self.resolution
     }
 
     pub fn get_stride(&self) -> usize {
-        return self.stride;
+        self.stride
     }
 
     pub fn get_pixel_format(&self) -> PixelFormat {
-        return self.format;
+        self.format
     }
 
     pub fn draw_rect<C: Color>(
@@ -79,7 +79,7 @@ impl FrameBuffer {
             }
         }
 
-        return Ok(());
+        Ok(())
     }
 
     pub fn copy_pixel(&self, x: usize, y: usize, to_x: usize, to_y: usize) -> Result<()> {
@@ -95,7 +95,7 @@ impl FrameBuffer {
         let data = self.read_pixel(x, y);
         self.write_pixel(to_x, to_y, data);
 
-        return Ok(());
+        Ok(())
     }
 
     pub fn clear<C: Color>(&self, color: &C) {
@@ -113,10 +113,9 @@ impl FrameBuffer {
 
     fn read_pixel(&self, x: usize, y: usize) -> u32 {
         let (res_x, _) = self.get_resolution();
-        return self
-            .framebuf_virt_addr
+        self.framebuf_virt_addr
             .offset(4 * (res_x * y) + 4 * x)
-            .read_volatile();
+            .read_volatile()
     }
 
     fn write_pixel(&self, x: usize, y: usize, data: u32) {

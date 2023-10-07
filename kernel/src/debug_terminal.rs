@@ -8,9 +8,9 @@ pub struct Terminal {
 
 impl Terminal {
     pub fn new() -> Self {
-        return Self {
+        Self {
             input_buf: Vec::new(),
-        };
+        }
     }
 
     pub fn clear(&mut self) {

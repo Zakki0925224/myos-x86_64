@@ -15,12 +15,12 @@ pub struct Timer {
 
 impl Timer {
     pub fn new() -> Self {
-        return Self {
+        Self {
             lvt_timer_virt_addr: VirtualAddress::new(0xfee00320),
             initial_cnt_virt_addr: VirtualAddress::new(0xfee00380),
             current_cnt_virt_addr: VirtualAddress::new(0xfee00390),
             divide_conf_virt_addr: VirtualAddress::new(0xfee003e0),
-        };
+        }
     }
 
     pub fn init(&self) {
@@ -40,10 +40,10 @@ impl Timer {
 
     pub fn elapsed(&self) -> u32 {
         let elapsed = u32::MAX - self.current_cnt_virt_addr.read_volatile::<u32>();
-        return elapsed;
+        elapsed
     }
 
     pub fn is_measuring(&self) -> bool {
-        return self.elapsed() != u32::MAX;
+        self.elapsed() != u32::MAX
     }
 }

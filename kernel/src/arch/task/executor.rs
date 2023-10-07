@@ -13,11 +13,11 @@ pub struct Executor {
 }
 
 impl Executor {
-    pub fn new() -> Executor {
+    pub fn new() -> Self {
         // if use VecDeque::new(), occures unsafe precondition violated when push data
         // -> this is a bug for my own allocator
         //task_queue: VecDeque::with_capacity(16),
-        return Executor { task_queue: None };
+        Self { task_queue: None }
     }
 
     pub fn run(&mut self) {
@@ -42,19 +42,19 @@ impl Executor {
         if self.task_queue.is_none() {
             self.task_queue = Some(VecDeque::new());
         }
-        return self.task_queue.as_mut().unwrap();
+        self.task_queue.as_mut().unwrap()
     }
 }
 
 fn dummy_raw_waker() -> RawWaker {
     fn no_op(_: *const ()) {}
     fn clone(_: *const ()) -> RawWaker {
-        return dummy_raw_waker();
+        dummy_raw_waker()
     }
     let vtable = &RawWakerVTable::new(clone, no_op, no_op, no_op);
-    return RawWaker::new(null() as *const (), vtable);
+    RawWaker::new(null() as *const (), vtable)
 }
 
 fn dummy_waker() -> Waker {
-    return unsafe { Waker::from_raw(dummy_raw_waker()) };
+    unsafe { Waker::from_raw(dummy_raw_waker()) }
 }

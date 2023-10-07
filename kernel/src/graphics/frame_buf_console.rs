@@ -33,7 +33,7 @@ pub struct FrameBufferConsole {
 
 impl FrameBufferConsole {
     pub fn new(back_color: RgbColor, fore_color: RgbColor) -> Option<Self> {
-        return match FRAME_BUF.try_lock() {
+        match FRAME_BUF.try_lock() {
             Some(frame_buf) => {
                 let frame_buf = match frame_buf.as_ref() {
                     Some(f) => f,
@@ -79,7 +79,7 @@ impl FrameBufferConsole {
                 })
             }
             None => None,
-        };
+        }
     }
 
     pub fn set_fore_color(&mut self, fore_color: RgbColor) {
@@ -92,8 +92,8 @@ impl FrameBufferConsole {
 
     pub fn write_char(&mut self, c: char) -> Result<()> {
         match c {
-            '\n' => return self.new_line(),
-            '\t' => return self.tab(),
+            '\n' => self.new_line()?,
+            '\t' => self.tab()?,
             _ => (),
         }
 
@@ -106,7 +106,7 @@ impl FrameBufferConsole {
 
         self.inc_cursor()?;
 
-        return Ok(());
+        Ok(())
     }
 
     pub fn write_string(&mut self, string: &str) -> Result<()> {
@@ -114,7 +114,7 @@ impl FrameBufferConsole {
             self.write_char(c)?;
         }
 
-        return Ok(());
+        Ok(())
     }
 
     fn draw_font<C: Color>(&self, x1: usize, y1: usize, c: char, color: &C) -> Result<()> {
@@ -139,7 +139,7 @@ impl FrameBufferConsole {
             }
         }
 
-        return Ok(());
+        Ok(())
     }
 
     fn inc_cursor(&mut self) -> Result<()> {
@@ -156,7 +156,7 @@ impl FrameBufferConsole {
             self.cursor_y = self.char_max_y_len;
         }
 
-        return Ok(());
+        Ok(())
     }
 
     fn tab(&mut self) -> Result<()> {
@@ -165,7 +165,7 @@ impl FrameBufferConsole {
             self.inc_cursor()?;
         }
 
-        return Ok(());
+        Ok(())
     }
 
     fn new_line(&mut self) -> Result<()> {
@@ -177,7 +177,7 @@ impl FrameBufferConsole {
             self.cursor_y = self.char_max_y_len;
         }
 
-        return Ok(());
+        Ok(())
     }
 
     fn scroll(&self) -> Result<()> {
@@ -201,13 +201,13 @@ impl FrameBufferConsole {
             )?;
         }
 
-        return Ok(());
+        Ok(())
     }
 }
 
 impl fmt::Write for FrameBufferConsole {
     fn write_str(&mut self, s: &str) -> fmt::Result {
         self.write_string(s).unwrap();
-        return Ok(());
+        Ok(())
     }
 }

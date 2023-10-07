@@ -75,9 +75,9 @@ struct GlobalDescriptorTable {
 
 impl GlobalDescriptorTable {
     pub fn new() -> Self {
-        return Self {
+        Self {
             entries: [SegmentDescriptor::new(); GDT_LEN],
-        };
+        }
     }
 
     pub fn set_desc(&mut self, vec_num: usize, desc: SegmentDescriptor) {

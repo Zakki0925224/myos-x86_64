@@ -34,9 +34,9 @@ pub struct UsbDriver {
 
 impl UsbDriver {
     pub fn new() -> Self {
-        return Self {
+        Self {
             devices: Vec::new(),
-        };
+        }
     }
 
     pub fn init(&mut self) -> Result<(), UsbDriverError> {
@@ -211,14 +211,7 @@ impl UsbDriver {
         return result;
     }
 
-    pub fn is_init() -> bool {
-        return match XHC_DRIVER.lock().as_ref() {
-            Some(xhc_driver) => xhc_driver.is_init(),
-            None => false,
-        };
-    }
-
     pub fn find_device_by_slot_id(&mut self, slot_id: usize) -> Option<&mut UsbDevice> {
-        return self.devices.iter_mut().find(|d| d.slot_id() == slot_id);
+        self.devices.iter_mut().find(|d| d.slot_id() == slot_id)
     }
 }

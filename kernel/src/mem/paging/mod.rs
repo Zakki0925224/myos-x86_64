@@ -37,10 +37,10 @@ pub struct PageManager {
 
 impl PageManager {
     pub fn new() -> Self {
-        return Self {
+        Self {
             pml4_table_virt_addr: Cr3::read().get_virt_addr(),
             mapping_type: MappingType::Identity,
-        };
+        }
     }
 
     pub fn calc_phys_addr(&self, virt_addr: VirtualAddress) -> Result<PhysicalAddress> {
@@ -100,7 +100,7 @@ impl PageManager {
             ));
         }
 
-        return Err(PageManagerError::InvalidPageTableEntryError(1, entry).into());
+        Err(PageManagerError::InvalidPageTableEntryError(1, entry).into())
     }
 
     pub fn debug_page_fault(&self) {
@@ -153,7 +153,7 @@ impl PageManager {
         cr0.set_paging(true);
         cr0.write();
 
-        return Ok(());
+        Ok(())
     }
 
     fn map_to_identity(
@@ -250,6 +250,6 @@ impl PageManager {
             table_phys_addr.get_virt_addr().write_volatile(table);
         }
 
-        return Ok(());
+        Ok(())
     }
 }

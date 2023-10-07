@@ -9,9 +9,9 @@ pub struct DeviceContext {
 
 impl DeviceContext {
     pub fn new() -> Self {
-        return Self {
+        Self {
             slot_context: SlotContext::new(),
             endpoint_contexts: [EndpointContext::new(); 31],
-        };
+        }
     }
 }

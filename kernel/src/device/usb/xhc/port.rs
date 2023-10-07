@@ -24,21 +24,21 @@ pub struct Port {
 
 impl Port {
     pub fn new(port_id: usize) -> Self {
-        return Self {
+        Self {
             port_id,
             slot_id: None,
             config_state: ConfigState::NotConnected,
             input_context_base_virt_addr: VirtualAddress::default(),
             output_context_base_virt_addr: VirtualAddress::default(),
-        };
+        }
     }
 
     pub fn port_id(&self) -> usize {
-        return self.port_id;
+        self.port_id
     }
 
     pub fn read_input_context(&self) -> InputContext {
-        return self.input_context_base_virt_addr.read_volatile();
+        self.input_context_base_virt_addr.read_volatile()
     }
 
     pub fn write_input_context(&self, input_context: InputContext) {

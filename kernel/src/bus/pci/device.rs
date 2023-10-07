@@ -13,17 +13,14 @@ pub struct PciDevice {
 
 impl PciDevice {
     pub fn new(bus: usize, device: usize, func: usize) -> Option<Self> {
-        if let Some(conf_space_header) =
-            ConfigurationSpaceCommonHeaderField::read(bus, device, func)
-        {
-            return Some(Self {
+        match ConfigurationSpaceCommonHeaderField::read(bus, device, func) {
+            Some(conf_space_header) => Some(Self {
                 bus,
                 device,
                 func,
                 conf_space_header,
-            });
-        } else {
-            return None;
+            }),
+            None => None,
         }
     }
 
@@ -31,15 +28,12 @@ impl PciDevice {
         match self.conf_space_header.get_header_type() {
             ConfigurationSpaceHeaderType::NonBridge
             | ConfigurationSpaceHeaderType::MultiFunction => {
-                if let Some(field) =
-                    ConfigurationSpaceNonBridgeField::read(self.bus, self.device, self.func)
-                {
-                    return Some(field);
-                } else {
-                    return None;
+                match ConfigurationSpaceNonBridgeField::read(self.bus, self.device, self.func) {
+                    Some(field) => Some(field),
+                    None => None,
                 }
             }
-            _ => return None,
+            _ => None,
         }
     }
 
@@ -48,15 +42,13 @@ impl PciDevice {
     ) -> Option<ConfigurationSpacePciToPciBridgeField> {
         match self.conf_space_header.get_header_type() {
             ConfigurationSpaceHeaderType::PciToPciBridge => {
-                if let Some(field) =
-                    ConfigurationSpacePciToPciBridgeField::read(self.bus, self.device, self.func)
+                match ConfigurationSpacePciToPciBridgeField::read(self.bus, self.device, self.func)
                 {
-                    return Some(field);
-                } else {
-                    return None;
+                    Some(field) => Some(field),
+                    None => None,
                 }
             }
-            _ => return None,
+            _ => None,
         }
     }
 
@@ -65,15 +57,12 @@ impl PciDevice {
     ) -> Option<ConfigurationSpacePciToCardBusField> {
         match self.conf_space_header.get_header_type() {
             ConfigurationSpaceHeaderType::PciToCardBusBridge => {
-                if let Some(field) =
-                    ConfigurationSpacePciToCardBusField::read(self.bus, self.device, self.func)
-                {
-                    return Some(field);
-                } else {
-                    return None;
+                match ConfigurationSpacePciToCardBusField::read(self.bus, self.device, self.func) {
+                    Some(field) => Some(field),
+                    None => None,
                 }
             }
-            _ => return None,
+            _ => None,
         }
     }
 
@@ -81,11 +70,11 @@ impl PciDevice {
         let class_code = self.conf_space_header.class_code();
         let subclass_code = self.conf_space_header.subclass();
         let prog_if = self.conf_space_header.prog_if();
-        return (class_code, subclass_code, prog_if);
+        (class_code, subclass_code, prog_if)
     }
 
     pub fn is_available_msi_int(&self) -> bool {
-        return self.conf_space_header.status().caps_list_available();
+        self.conf_space_header.status().caps_list_available()
     }
 
     fn read_caps_ptr(&self) -> Option<u8> {
@@ -96,17 +85,15 @@ impl PciDevice {
         match self.conf_space_header.get_header_type() {
             ConfigurationSpaceHeaderType::NonBridge
             | ConfigurationSpaceHeaderType::MultiFunction => {
-                return Some(self.read_conf_space_non_bridge_field().unwrap().caps_ptr());
+                Some(self.read_conf_space_non_bridge_field().unwrap().caps_ptr())
             }
-            ConfigurationSpaceHeaderType::PciToPciBridge => {
-                return Some(
-                    self.read_conf_space_pci_to_pci_bridge_field()
-                        .unwrap()
-                        .caps_ptr(),
-                );
-            }
-            _ => return None, // unsupported type
-        };
+            ConfigurationSpaceHeaderType::PciToPciBridge => Some(
+                self.read_conf_space_pci_to_pci_bridge_field()
+                    .unwrap()
+                    .caps_ptr(),
+            ),
+            _ => None, // unsupported type
+        }
     }
 
     pub fn read_caps_list(&self) -> Option<Vec<MsiCapabilityField>> {
@@ -131,7 +118,7 @@ impl PciDevice {
             return None;
         }
 
-        return Some(list);
+        Some(list)
     }
 
     pub fn set_msi_cap(
@@ -170,13 +157,11 @@ impl PciDevice {
             cap.set_msg_data(msg_data);
 
             // write cap
-            if let Err(msg) = cap.write(self.bus, self.device, self.func, caps_ptr) {
-                return Err(msg);
-            }
+            cap.write(self.bus, self.device, self.func, caps_ptr)?;
         } else {
             return Err("Failed to read MSI capability fields");
         }
 
-        return Ok(());
+        Ok(())
     }
 }

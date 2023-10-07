@@ -22,23 +22,23 @@ pub struct MemoryFrameInfo {
 
 impl MemoryFrameInfo {
     pub fn get_frame_start_virt_addr(&self) -> VirtualAddress {
-        return self.frame_start_virt_addr;
+        self.frame_start_virt_addr
     }
 
     pub fn get_frame_start_phys_addr(&self) -> PhysicalAddress {
-        return self.frame_start_virt_addr.get_phys_addr();
+        self.frame_start_virt_addr.get_phys_addr()
     }
 
     pub fn get_frame_size(&self) -> usize {
-        return self.frame_size;
+        self.frame_size
     }
 
     pub fn get_frame_index(&self) -> usize {
-        return self.frame_index;
+        self.frame_index
     }
 
     pub fn is_allocated(&self) -> bool {
-        return self.is_allocated;
+        self.is_allocated
     }
 }
 
@@ -48,7 +48,7 @@ struct Bitmap(u8);
 
 impl Bitmap {
     pub fn new(bitmap: u8) -> Self {
-        return Self(bitmap);
+        Self(bitmap)
     }
 
     pub fn get_map(&self) -> [bool; BITMAP_SIZE] {
@@ -58,7 +58,7 @@ impl Bitmap {
             map[i] = ((self.0 << i) & 0x80) != 0;
         }
 
-        return map;
+        map
     }
 
     pub fn set_map(&mut self, map: [bool; BITMAP_SIZE]) {
@@ -71,11 +71,11 @@ impl Bitmap {
     }
 
     pub fn is_allocated_all(&self) -> bool {
-        return self.0 == 0xff;
+        self.0 == 0xff
     }
 
     pub fn is_free_all(&self) -> bool {
-        return self.0 == 0;
+        self.0 == 0
     }
 }
 
@@ -105,7 +105,7 @@ pub struct BitmapMemoryManager {
 
 impl BitmapMemoryManager {
     pub fn new() -> Self {
-        return Self {
+        Self {
             is_init: false,
             bitmap_virt_addr: VirtualAddress::default(),
             bitmap_len: 0,
@@ -113,7 +113,7 @@ impl BitmapMemoryManager {
             allocated_frame_len: 0,
             free_frame_len: 0,
             frame_size: 0,
-        };
+        }
     }
 
     pub fn init(&mut self, mem_map: &[MemoryDescriptor]) -> Result<()> {
@@ -191,23 +191,23 @@ impl BitmapMemoryManager {
 
         info!("mem: Initialized bitmap memory manager");
 
-        return Ok(());
+        Ok(())
     }
 
     pub fn is_init(&self) -> bool {
-        return self.is_init;
+        self.is_init
     }
 
     pub fn get_frame_size(&self) -> usize {
-        return self.frame_size;
+        self.frame_size
     }
 
     pub fn get_total_mem_size(&self) -> usize {
-        return self.frame_size * self.frame_len;
+        self.frame_size * self.frame_len
     }
 
     pub fn get_used_mem_size(&self) -> usize {
-        return self.allocated_frame_len * self.frame_size;
+        self.allocated_frame_len * self.frame_size
     }
 
     pub fn get_mem_frame(&self, frame_index: usize) -> Option<MemoryFrameInfo> {
@@ -226,7 +226,7 @@ impl BitmapMemoryManager {
             });
         }
 
-        return None;
+        None
     }
 
     pub fn alloc_single_mem_frame(&mut self) -> Result<MemoryFrameInfo> {
@@ -274,7 +274,7 @@ impl BitmapMemoryManager {
         self.alloc_frame(found_mem_frame_index)?;
         self.mem_clear(&mem_frame_info);
 
-        return Ok(mem_frame_info);
+        Ok(mem_frame_info)
     }
 
     pub fn alloc_multi_mem_frame(&mut self, len: usize) -> Result<MemoryFrameInfo> {
@@ -350,7 +350,7 @@ impl BitmapMemoryManager {
             is_allocated: true,
         };
 
-        return Ok(mem_frame_info);
+        Ok(mem_frame_info)
     }
 
     pub fn mem_clear(&self, mem_frame_info: &MemoryFrameInfo) {
@@ -374,13 +374,11 @@ impl BitmapMemoryManager {
             self.dealloc_frame(i)?;
         }
 
-        return Ok(());
+        Ok(())
     }
 
     fn get_mem_frame_index(&self, virt_addr: VirtualAddress) -> usize {
-        let index = virt_addr.get() as usize / self.frame_size;
-
-        return index;
+        virt_addr.get() as usize / self.frame_size
     }
 
     fn read_bitmap(&self, offset: usize) -> Option<Bitmap> {
@@ -393,7 +391,7 @@ impl BitmapMemoryManager {
         }
 
         let addr = VirtualAddress::new(self.bitmap_virt_addr.get() + offset as u64);
-        return Some(Bitmap::new(addr.read_volatile()));
+        Some(Bitmap::new(addr.read_volatile()))
     }
 
     fn write_bitmap(&self, offset: usize, bitmap: Bitmap) -> Result<()> {
@@ -408,7 +406,7 @@ impl BitmapMemoryManager {
         let addr = VirtualAddress::new(self.bitmap_virt_addr.get() + offset as u64);
         addr.write_volatile(bitmap.0);
 
-        return Ok(());
+        Ok(())
     }
 
     fn clear_bitmap(&self) -> Result<()> {
@@ -421,7 +419,7 @@ impl BitmapMemoryManager {
             addr.write_volatile::<u8>(0);
         }
 
-        return Ok(());
+        Ok(())
     }
 
     fn alloc_frame(&mut self, frame_index: usize) -> Result<()> {
@@ -457,7 +455,7 @@ impl BitmapMemoryManager {
             return Ok(());
         }
 
-        return Err(BitmapMemoryManagerError::FailedToReadBitmapError.into());
+        Err(BitmapMemoryManagerError::FailedToReadBitmapError.into())
     }
 
     fn dealloc_frame(&mut self, frame_index: usize) -> Result<()> {
@@ -492,6 +490,6 @@ impl BitmapMemoryManager {
             return Ok(());
         }
 
-        return Err(BitmapMemoryManagerError::FailedToReadBitmapError.into());
+        Err(BitmapMemoryManagerError::FailedToReadBitmapError.into())
     }
 }

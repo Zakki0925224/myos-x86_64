@@ -68,7 +68,7 @@ impl PageTableEntry {
     }
 
     pub fn get_phys_addr(&self) -> PhysicalAddress {
-        return PhysicalAddress::new(self.addr() << 12);
+        PhysicalAddress::new(self.addr() << 12)
     }
 }
 
@@ -80,8 +80,8 @@ pub struct PageTable {
 
 impl PageTable {
     pub fn new() -> Self {
-        return Self {
+        Self {
             entries: [PageTableEntry::new(); PAGE_TABLE_ENTRY_LEN],
-        };
+        }
     }
 }

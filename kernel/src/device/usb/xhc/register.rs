@@ -146,7 +146,7 @@ impl CapabilityRegisters {
             *field = base_addr.offset(i * 4).read_volatile::<u32>();
         }
 
-        return unsafe { transmute::<[u32; 8], Self>(data) };
+        unsafe { transmute::<[u32; 8], Self>(data) }
     }
 }
 
@@ -277,7 +277,7 @@ impl OperationalRegisters {
             *field = base_addr.offset(i * 4).read_volatile::<u32>();
         }
 
-        return unsafe { transmute::<[u32; 15], Self>(data) };
+        unsafe { transmute::<[u32; 15], Self>(data) }
     }
 
     pub fn write(&mut self, base_addr: VirtualAddress) {
@@ -316,7 +316,7 @@ impl RuntimeRegitsers {
             *elem = base_addr.offset(i * 4).read_volatile::<u32>();
         }
 
-        return unsafe { transmute::<[u32; 8], Self>(data) };
+        unsafe { transmute::<[u32; 8], Self>(data) }
     }
 
     pub fn write(&self, base_addr: VirtualAddress) {
@@ -363,7 +363,7 @@ impl InterrupterRegisterSet {
             *field = base_addr.offset(i * 4).read_volatile::<u32>();
         }
 
-        return unsafe { transmute::<[u32; 8], Self>(data) };
+        unsafe { transmute::<[u32; 8], Self>(data) }
     }
 
     pub fn write(&mut self, base_addr: VirtualAddress, update_seg_table: bool) {
@@ -405,7 +405,7 @@ pub struct EventRingSegmentTableEntry {
 
 impl EventRingSegmentTableEntry {
     pub fn is_empty(&self) -> bool {
-        return self.ring_seg_base_addr() == 0 && self.ring_seg_size() == 0;
+        self.ring_seg_base_addr() == 0 && self.ring_seg_size() == 0
     }
 }
 
@@ -429,12 +429,12 @@ pub enum PortSpeedIdValue {
 
 impl PortSpeedIdValue {
     pub fn get_max_packet_size(&self) -> u16 {
-        return match self {
+        match self {
             Self::FullSpeed => 8, // or 16, 32, 64
             Self::LowSpeed => 8,
             Self::HighSpeed => 64,
             Self::SuperSpeed => 512,
-        };
+        }
     }
 }
 
@@ -493,7 +493,7 @@ impl PortRegisterSet {
             *elem = base_addr.offset(i * 4).read_volatile::<u32>();
         }
 
-        return unsafe { transmute::<[u32; 4], Self>(data) };
+        unsafe { transmute::<[u32; 4], Self>(data) }
     }
 
     pub fn write(&mut self, base_addr: VirtualAddress) {
@@ -527,7 +527,7 @@ pub struct DoorbellRegister {
 impl DoorbellRegister {
     pub fn read(base_addr: VirtualAddress) -> Self {
         let data = base_addr.read_volatile::<u32>();
-        return unsafe { transmute::<u32, Self>(data) };
+        unsafe { transmute::<u32, Self>(data) }
     }
 
     pub fn write(&self, base_addr: VirtualAddress) {

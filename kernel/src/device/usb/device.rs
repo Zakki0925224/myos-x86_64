@@ -94,20 +94,15 @@ impl UsbDevice {
             conf_descs: Vec::new(),
         };
 
-        return Ok(dev);
+        Ok(dev)
     }
 
     pub fn init(&mut self) -> Result<(), UsbDeviceError> {
-        match self.request_to_get_desc(DescriptorType::Device, 0) {
-            Ok(_) => (),
-            Err(err) => return Err(err),
-        }
-
-        return Ok(());
+        self.request_to_get_desc(DescriptorType::Device, 0)
     }
 
     pub fn slot_id(&self) -> usize {
-        return self.slot_id;
+        self.slot_id
     }
 
     pub fn read_dev_desc(&mut self) {
@@ -168,11 +163,11 @@ impl UsbDevice {
     }
 
     pub fn get_dev_desc(&self) -> &DeviceDescriptor {
-        return &self.dev_desc;
+        &self.dev_desc
     }
 
     pub fn get_conf_descs(&self) -> &Vec<Descriptor> {
-        return &self.conf_descs;
+        &self.conf_descs
     }
 
     pub fn request_to_get_desc(
@@ -199,7 +194,7 @@ impl UsbDevice {
 
         let buf_size = buf_mem_info.get_frame_size();
 
-        return self.ctrl_in(
+        self.ctrl_in(
             RequestType::Standard,
             RequestTypeRecipient::Device,
             SetupRequest::GetDescriptor,
@@ -207,11 +202,11 @@ impl UsbDevice {
             0,
             buf_size as u16,
             Some((buf_mem_info.get_frame_start_phys_addr(), buf_size as u32)),
-        );
+        )
     }
 
     pub fn request_to_set_conf(&mut self, conf_value: u8) -> Result<(), UsbDeviceError> {
-        return self.ctrl_out(
+        self.ctrl_out(
             RequestType::Standard,
             RequestTypeRecipient::Device,
             SetupRequest::SetConfiguration,
@@ -219,35 +214,33 @@ impl UsbDevice {
             0,
             0,
             None,
-        );
+        )
     }
 
     pub fn get_num_confs(&self) -> usize {
-        return self.get_dev_desc().num_configs() as usize;
+        self.get_dev_desc().num_configs() as usize
     }
 
     pub fn get_interface_descs(&self) -> Vec<&InterfaceDescriptor> {
-        return self
-            .conf_descs
+        self.conf_descs
             .iter()
             .filter(|d| matches!(**d, Descriptor::Interface(_)))
             .map(|d| match d {
                 Descriptor::Interface(desc) => desc,
                 _ => unreachable!(),
             })
-            .collect();
+            .collect()
     }
 
     pub fn get_endpoint_descs(&self) -> Vec<&EndpointDescriptor> {
-        return self
-            .conf_descs
+        self.conf_descs
             .iter()
             .filter(|d| matches!(**d, Descriptor::Endpoint(_)))
             .map(|d| match d {
                 Descriptor::Endpoint(desc) => desc,
                 _ => unreachable!(),
             })
-            .collect();
+            .collect()
     }
 
     pub fn configure_endpoint(
@@ -362,14 +355,14 @@ impl UsbDevice {
             }
         }
 
-        return Ok(());
+        Ok(())
     }
 
     pub fn request_to_set_interface(
         &mut self,
         interface_desc: InterfaceDescriptor,
     ) -> Result<(), UsbDeviceError> {
-        return self.ctrl_out(
+        self.ctrl_out(
             RequestType::Standard,
             RequestTypeRecipient::Interface,
             SetupRequest::SetInterface,
@@ -377,7 +370,7 @@ impl UsbDevice {
             interface_desc.interface_num() as u16,
             0,
             None,
-        );
+        )
     }
 
     pub fn request_to_set_protocol(
@@ -385,7 +378,7 @@ impl UsbDevice {
         interface_desc: InterfaceDescriptor,
         protocol: u8,
     ) -> Result<(), UsbDeviceError> {
-        return self.ctrl_out(
+        self.ctrl_out(
             RequestType::Class,
             RequestTypeRecipient::Interface,
             SetupRequest::SET_PROTOCOL,
@@ -393,7 +386,7 @@ impl UsbDevice {
             interface_desc.interface_num() as u16,
             0,
             None,
-        );
+        )
     }
 
     pub fn update(&mut self, endpoint_id: usize, transfer_event_trb: TransferRequestBlock) {
@@ -466,11 +459,7 @@ impl UsbDevice {
         status_stage_trb.set_trb_type(TransferRequestBlockType::StatusStage);
         status_stage_trb.set_ctrl_regs(1); // DIR bit
 
-        return self.send_to_dcp_transfer_ring(
-            setup_stage_trb,
-            data_stage_trb,
-            Some(status_stage_trb),
-        );
+        self.send_to_dcp_transfer_ring(setup_stage_trb, data_stage_trb, Some(status_stage_trb))
     }
 
     fn ctrl_in(
@@ -531,11 +520,7 @@ impl UsbDevice {
 
         status_stage_trb.set_ctrl_regs(ctrl_regs); // DIR bit
 
-        return self.send_to_dcp_transfer_ring(
-            setup_stage_trb,
-            data_stage_trb,
-            Some(status_stage_trb),
-        );
+        self.send_to_dcp_transfer_ring(setup_stage_trb, data_stage_trb, Some(status_stage_trb))
     }
 
     fn send_to_dcp_transfer_ring(
@@ -579,6 +564,6 @@ impl UsbDevice {
             None => return Err(UsbDeviceError::XhcDriverWasNotInitializedError),
         }
 
-        return Ok(());
+        Ok(())
     }
 }

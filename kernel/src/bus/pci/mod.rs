@@ -20,9 +20,9 @@ pub struct PciDeviceManager {
 
 impl PciDeviceManager {
     pub fn new() -> Self {
-        return PciDeviceManager {
+        PciDeviceManager {
             devices: Vec::new(),
-        };
+        }
     }
 
     pub fn scan_devices(&mut self) {
@@ -55,7 +55,7 @@ impl PciDeviceManager {
             devices.push(device);
         }
 
-        return devices;
+        devices
     }
 
     pub fn find_by_bdf(&self, bus: usize, device: usize, func: usize) -> Option<&PciDevice> {
@@ -63,7 +63,7 @@ impl PciDeviceManager {
             .devices
             .iter()
             .find(|d| d.bus == bus && d.device == device && d.func == func);
-        return found;
+        found
     }
 
     pub fn debug(&self) {

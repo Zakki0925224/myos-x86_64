@@ -16,37 +16,37 @@ pub enum Error {
 
 impl From<&'static str> for Error {
     fn from(s: &'static str) -> Self {
-        return Error::Failed(s);
+        Error::Failed(s)
     }
 }
 
 impl From<AsciiCodeError> for Error {
     fn from(err: AsciiCodeError) -> Self {
-        return Error::AsciiCodeError(err);
+        Error::AsciiCodeError(err)
     }
 }
 
 impl From<FrameBufferError> for Error {
     fn from(err: FrameBufferError) -> Self {
-        return Error::FrameBufferError(err);
+        Error::FrameBufferError(err)
     }
 }
 
 impl From<FrameBufferConsoleError> for Error {
     fn from(err: FrameBufferConsoleError) -> Self {
-        return Error::FrameBufferConsoleError(err);
+        Error::FrameBufferConsoleError(err)
     }
 }
 
 impl From<BitmapMemoryManagerError> for Error {
     fn from(err: BitmapMemoryManagerError) -> Self {
-        return Error::BitmapMemoryManagerError(err);
+        Error::BitmapMemoryManagerError(err)
     }
 }
 
 impl From<PageManagerError> for Error {
     fn from(err: PageManagerError) -> Self {
-        return Error::PageManagerError(err);
+        Error::PageManagerError(err)
     }
 }
 

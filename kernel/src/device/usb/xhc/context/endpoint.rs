@@ -27,7 +27,7 @@ impl EndpointType {
         let addr_bit7 = endpoint_addr >> 7;
         let bitmap_bit0to1 = bitmap_attrs & 0x3;
 
-        return match (addr_bit7, bitmap_bit0to1) {
+        match (addr_bit7, bitmap_bit0to1) {
             (0, 1) => Self::IsochOut,
             (0, 2) => Self::BulkOut,
             (0, 3) => Self::InterruptOut,
@@ -35,7 +35,7 @@ impl EndpointType {
             (1, 1) => Self::IsochIn,
             (1, 2) => Self::BulkIn,
             _ => Self::InterruptIn,
-        };
+        }
     }
 }
 

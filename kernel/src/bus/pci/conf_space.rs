@@ -120,11 +120,11 @@ impl ConfigurationSpaceCommonHeaderField {
             }
         }
 
-        return Some(unsafe { transmute::<[u32; 4], Self>(data) });
+        Some(unsafe { transmute::<[u32; 4], Self>(data) })
     }
 
     pub fn is_exist(&self) -> bool {
-        return self.vendor_id() != PCI_DEVICE_NON_EXIST;
+        self.vendor_id() != PCI_DEVICE_NON_EXIST
     }
 
     pub fn get_device_name(&self) -> Option<&str> {
@@ -134,11 +134,12 @@ impl ConfigurationSpaceCommonHeaderField {
         }
 
         let device = self.get_device(&vendor.unwrap());
-        return if device.is_some() {
+
+        if device.is_some() {
             Some(device.unwrap().name())
         } else {
             None
-        };
+        }
     }
 
     pub fn get_vendor_name(&self) -> Option<&str> {
@@ -147,11 +148,12 @@ impl ConfigurationSpaceCommonHeaderField {
         }
 
         let vendor = self.get_vendor();
-        return if vendor.is_some() {
+
+        if vendor.is_some() {
             Some(vendor.unwrap().name())
         } else {
             None
-        };
+        }
     }
 
     pub fn get_class_name(&self) -> Option<&str> {
@@ -160,11 +162,12 @@ impl ConfigurationSpaceCommonHeaderField {
         }
 
         let class = self.get_class();
-        return if class.is_some() {
+
+        if class.is_some() {
             Some(class.unwrap().name())
         } else {
             None
-        };
+        }
     }
 
     pub fn get_subclass_name(&self) -> Option<&str> {
@@ -173,11 +176,11 @@ impl ConfigurationSpaceCommonHeaderField {
             return None;
         }
 
-        return Some(subclass.unwrap().name());
+        Some(subclass.unwrap().name())
     }
 
     pub fn get_header_type(&self) -> ConfigurationSpaceHeaderType {
-        return match self.header_type() {
+        match self.header_type() {
             0x00 => ConfigurationSpaceHeaderType::NonBridge,
             0x01 => ConfigurationSpaceHeaderType::PciToPciBridge,
             0x02 => ConfigurationSpaceHeaderType::PciToCardBusBridge,
@@ -188,26 +191,25 @@ impl ConfigurationSpaceCommonHeaderField {
                     ConfigurationSpaceHeaderType::Invalid(other)
                 }
             }
-        };
+        }
     }
 
     fn get_vendor(&self) -> Option<&Vendor> {
-        return Vendors::iter().find(|v| v.id() == self.vendor_id());
+        Vendors::iter().find(|v| v.id() == self.vendor_id())
     }
 
     fn get_device(&self, vendor: &Vendor) -> Option<&Device> {
-        return vendor.devices().find(|d| d.id() == self.device_id());
+        vendor.devices().find(|d| d.id() == self.device_id())
     }
 
     fn get_class(&self) -> Option<&Class> {
-        return Classes::iter().find(|c| c.id() == self.class_code());
+        Classes::iter().find(|c| c.id() == self.class_code())
     }
 
     fn get_subclass(&self) -> Option<&Subclass> {
-        if let Some(class) = self.get_class() {
-            return class.subclasses().find(|c| c.id() == self.subclass());
-        } else {
-            return None;
+        match self.get_class() {
+            Some(class) => class.subclasses().find(|c| c.id() == self.subclass()),
+            None => None,
         }
     }
 }
@@ -224,7 +226,7 @@ pub struct BaseAddressRegister(u32);
 
 impl BaseAddressRegister {
     pub fn read(&self) -> u32 {
-        return unsafe { self.bytes.align_to::<u32>() }.1[0];
+        unsafe { self.bytes.align_to::<u32>() }.1[0]
     }
 
     pub fn get_base_addr(&self) -> Option<BaseAddress> {
@@ -242,20 +244,17 @@ impl BaseAddressRegister {
         let bar_type = (bar >> 1) & 0x3;
         let prefetchable = bar & 0x8 != 0;
         let phys_addr = PhysicalAddress::new((bar & !0xf) as u64);
+
         match bar_type {
-            0x0 => {
-                return Some(BaseAddress::MemoryAddress32BitSpace(
-                    phys_addr,
-                    prefetchable,
-                ))
-            }
-            0x2 => {
-                return Some(BaseAddress::MemoryAddress64BitSpace(
-                    phys_addr,
-                    prefetchable,
-                ))
-            }
-            _ => return None,
+            0x0 => Some(BaseAddress::MemoryAddress32BitSpace(
+                phys_addr,
+                prefetchable,
+            )),
+            0x2 => Some(BaseAddress::MemoryAddress64BitSpace(
+                phys_addr,
+                prefetchable,
+            )),
+            _ => None,
         }
     }
 }
@@ -298,7 +297,7 @@ impl ConfigurationSpaceNonBridgeField {
             }
         }
 
-        return Some(unsafe { transmute::<[u32; 12], Self>(data) });
+        Some(unsafe { transmute::<[u32; 12], Self>(data) })
     }
 
     pub fn get_bars(&self) -> Vec<(usize, BaseAddress)> {
@@ -331,7 +330,7 @@ impl ConfigurationSpaceNonBridgeField {
             i += 1;
         }
 
-        return base_addrs;
+        base_addrs
     }
 }
 
@@ -378,7 +377,7 @@ impl ConfigurationSpacePciToPciBridgeField {
             }
         }
 
-        return Some(unsafe { transmute::<[u32; 12], Self>(data) });
+        Some(unsafe { transmute::<[u32; 12], Self>(data) })
     }
 
     pub fn get_bars(&self) -> Vec<(usize, BaseAddress)> {
@@ -407,7 +406,7 @@ impl ConfigurationSpacePciToPciBridgeField {
             i += 1;
         }
 
-        return base_addrs;
+        base_addrs
     }
 }
 
@@ -453,7 +452,7 @@ impl ConfigurationSpacePciToCardBusField {
             }
         }
 
-        return Some(unsafe { transmute::<[u32; 14], Self>(data) });
+        Some(unsafe { transmute::<[u32; 14], Self>(data) })
     }
 }
 
@@ -499,7 +498,7 @@ impl MsiCapabilityField {
             }
         }
 
-        return Some(unsafe { transmute::<[u32; 6], Self>(data) });
+        Some(unsafe { transmute::<[u32; 6], Self>(data) })
     }
 
     pub fn write(
@@ -516,7 +515,7 @@ impl MsiCapabilityField {
             }
         }
 
-        return Ok(());
+        Ok(())
     }
 }
 
@@ -537,7 +536,7 @@ fn read_conf_space(bus: usize, device: usize, func: usize, byte_offset: usize) -
     asm::out32(MMIO_PORT_CONF_ADDR, addr);
     let result = asm::in32(MMIO_PORT_CONF_DATA);
 
-    return Some(result);
+    Some(result)
 }
 
 fn write_conf_space(
@@ -563,5 +562,5 @@ fn write_conf_space(
     asm::out32(MMIO_PORT_CONF_ADDR, addr);
     asm::out32(MMIO_PORT_CONF_DATA, data);
 
-    return Ok(());
+    Ok(())
 }

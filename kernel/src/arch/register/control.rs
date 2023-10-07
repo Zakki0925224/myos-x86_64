@@ -36,7 +36,7 @@ pub struct Cr0 {
 
 impl Cr0 {
     pub fn read() -> Cr0 {
-        return Cr0::from_bytes(asm::read_cr0().to_le_bytes());
+        Cr0::from_bytes(asm::read_cr0().to_le_bytes())
     }
 
     pub fn write(&self) {
@@ -48,7 +48,7 @@ pub struct Cr2;
 
 impl Cr2 {
     pub fn read() -> VirtualAddress {
-        return VirtualAddress::new(asm::read_cr2());
+        VirtualAddress::new(asm::read_cr2())
     }
 }
 
@@ -56,7 +56,7 @@ pub struct Cr3;
 
 impl Cr3 {
     pub fn read() -> PhysicalAddress {
-        return PhysicalAddress::new(asm::read_cr3());
+        PhysicalAddress::new(asm::read_cr3())
     }
 
     pub fn write(pml4_table_addr: PhysicalAddress) {

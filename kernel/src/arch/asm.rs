@@ -41,7 +41,7 @@ pub fn in8(port: u16) -> u8 {
     unsafe {
         asm!("in al, dx", out("al") data, in("dx") port);
     }
-    return data;
+    data
 }
 
 pub fn out32(port: u32, data: u32) {
@@ -55,7 +55,7 @@ pub fn in32(port: u32) -> u32 {
     unsafe {
         asm!("in eax, dx", out("eax") data, in("edx") port);
     }
-    return data;
+    data
 }
 
 pub fn set_ds(value: u16) {
@@ -109,7 +109,7 @@ pub fn sidt() -> DescriptorTableArgs {
     unsafe {
         asm!("sidt [{}]", in(reg) &mut data);
     }
-    return unsafe { transmute::<[u8; 10], DescriptorTableArgs>(data) };
+    unsafe { transmute::<[u8; 10], DescriptorTableArgs>(data) }
 }
 
 pub fn lidt(desc_table_args: &DescriptorTableArgs) {
@@ -123,7 +123,7 @@ pub fn sgdt() -> DescriptorTableArgs {
     unsafe {
         asm!("sgdt [{}]", in(reg) &mut data);
     }
-    return unsafe { transmute::<[u8; 10], DescriptorTableArgs>(data) };
+    unsafe { transmute::<[u8; 10], DescriptorTableArgs>(data) }
 }
 
 pub fn lgdt(desc_table_args: &DescriptorTableArgs) {
@@ -137,7 +137,7 @@ pub fn read_cs() -> u16 {
     unsafe {
         asm!("mov {}, cs", out(reg) cs);
     }
-    return cs;
+    cs
 }
 
 pub fn read_cr0() -> u64 {
@@ -145,7 +145,7 @@ pub fn read_cr0() -> u64 {
     unsafe {
         asm!("mov {}, cr0", out(reg) cr0);
     }
-    return cr0;
+    cr0
 }
 
 pub fn write_cr0(value: u64) {
@@ -159,7 +159,7 @@ pub fn read_cr2() -> u64 {
     unsafe {
         asm!("mov {}, cr2", out(reg) cr2);
     }
-    return cr2;
+    cr2
 }
 
 pub fn read_cr3() -> u64 {
@@ -167,7 +167,7 @@ pub fn read_cr3() -> u64 {
     unsafe {
         asm!("mov {}, cr3", out(reg) cr3);
     }
-    return cr3;
+    cr3
 }
 
 pub fn write_cr3(value: u64) {

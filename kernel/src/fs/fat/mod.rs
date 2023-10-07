@@ -21,17 +21,17 @@ pub struct FatVolume {
 
 impl FatVolume {
     pub fn new(volume_start_virt_addr: VirtualAddress) -> Self {
-        return Self {
+        Self {
             volume_start_virt_addr,
-        };
+        }
     }
 
     pub fn read_boot_sector(&self) -> BootSector {
-        return self.volume_start_virt_addr.read_volatile();
+        self.volume_start_virt_addr.read_volatile()
     }
 
     pub fn read_fs_info_sector(&self) -> Option<FsInfoSector> {
-        return match self.fat_type() {
+        match self.fat_type() {
             FatType::Fat32 => {
                 let boot_sector = self.read_boot_sector();
                 let fat32_other_field = unsafe { boot_sector.other_field.fat32 };
@@ -45,13 +45,13 @@ impl FatVolume {
                 )
             }
             _ => None,
-        };
+        }
     }
 
     pub fn fat_type(&self) -> FatType {
         let boot_sector = self.read_boot_sector();
 
-        return boot_sector.fat_type();
+        boot_sector.fat_type()
     }
 
     pub fn read_dir_entry(&self, cluster_num: usize) -> Option<DirectoryEntry> {
@@ -73,19 +73,17 @@ impl FatVolume {
         let offset = start_sector * bytes_per_sector;
         println!("offset: 0x{:x}", offset);
 
-        return Some(self.volume_start_virt_addr.offset(offset).read_volatile());
+        Some(self.volume_start_virt_addr.offset(offset).read_volatile())
     }
 
     pub fn read_root_dir_entry(&self) -> DirectoryEntry {
         match self.fat_type() {
-            FatType::Fat32 => {
-                return self.read_dir_entry(0).unwrap();
-            }
+            FatType::Fat32 => self.read_dir_entry(0).unwrap(),
             _ => {
                 let boot_sector = self.read_boot_sector();
                 let root_dir_start_sector = boot_sector.root_dir_start_sector().unwrap();
                 let offset = root_dir_start_sector * boot_sector.bytes_per_sector();
-                return self.volume_start_virt_addr.offset(offset).read_volatile();
+                self.volume_start_virt_addr.offset(offset).read_volatile()
             }
         }
     }

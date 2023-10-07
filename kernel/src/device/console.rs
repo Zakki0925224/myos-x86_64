@@ -58,13 +58,13 @@ pub struct Console {
 
 impl Console {
     pub fn new(use_serial_port: bool) -> Self {
-        return Self {
+        Self {
             input_buf: Fifo::new(IO_BUF_DEFAULT_VALUE),
             output_buf: Fifo::new(IO_BUF_DEFAULT_VALUE),
             err_output_buf: Fifo::new(IO_BUF_DEFAULT_VALUE),
             buf_default_value: IO_BUF_DEFAULT_VALUE,
             use_serial_port,
-        };
+        }
     }
 
     pub fn reset_buf(&mut self, buf_type: BufferType) {
@@ -114,7 +114,7 @@ impl Console {
             serial::send_data(value.ascii_code as u8);
         }
 
-        return Ok(());
+        Ok(())
     }
 
     pub fn read(&mut self, buf_type: BufferType) -> Option<ConsoleCharacter> {
@@ -124,12 +124,10 @@ impl Console {
             BufferType::ErrorOutput => &mut self.err_output_buf,
         };
 
-        let value = match buf.dequeue() {
-            Ok(value) => value,
-            Err(_) => return None,
-        };
-
-        return Some(value);
+        match buf.dequeue() {
+            Ok(value) => Some(value),
+            Err(_) => None,
+        }
     }
 }
 
@@ -148,7 +146,7 @@ impl fmt::Write for Console {
             }
         }
 
-        return Ok(());
+        Ok(())
     }
 }
 

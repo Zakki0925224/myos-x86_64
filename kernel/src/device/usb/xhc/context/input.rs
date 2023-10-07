@@ -31,7 +31,7 @@ impl InputControlContext {
             return None;
         }
 
-        return Some(((self.drop_context_flags() >> index) & 0x1) != 0);
+        Some(((self.drop_context_flags() >> index) & 0x1) != 0)
     }
 
     pub fn set_drop_context_flag(&mut self, index: usize, flag: bool) -> Result<(), &'static str> {
@@ -43,7 +43,7 @@ impl InputControlContext {
         let flags = (self.drop_context_flags() & mask) | (if flag { 0x1 } else { 0 } << index);
         self.set_drop_context_flags(flags);
 
-        return Ok(());
+        Ok(())
     }
 
     pub fn add_context_flag(&self, index: usize) -> Option<bool> {
@@ -51,7 +51,7 @@ impl InputControlContext {
             return None;
         }
 
-        return Some(((self.add_context_flags() >> index) & 0x1) != 0);
+        Some(((self.add_context_flags() >> index) & 0x1) != 0)
     }
 
     pub fn set_add_context_flag(&mut self, index: usize, flag: bool) -> Result<(), &'static str> {
@@ -63,7 +63,7 @@ impl InputControlContext {
         let flags = (self.add_context_flags() & mask) | (if flag { 0x1 } else { 0 } << index);
         self.set_add_context_flags(flags);
 
-        return Ok(());
+        Ok(())
     }
 }
 
@@ -76,9 +76,9 @@ pub struct InputContext {
 
 impl InputContext {
     pub fn new() -> Self {
-        return Self {
+        Self {
             input_ctrl_context: InputControlContext::new(),
             device_context: DeviceContext::new(),
-        };
+        }
     }
 }

@@ -143,9 +143,9 @@ impl TryFrom<u8> for AsciiCode {
     type Error = AsciiCodeError;
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
-        return match value {
+        match value {
             0..=0x7f => Ok(unsafe { transmute(value) }),
             _ => Err(AsciiCodeError::FailedToTryFromU8(value)),
-        };
+        }
     }
 }

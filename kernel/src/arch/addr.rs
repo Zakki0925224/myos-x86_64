@@ -15,11 +15,11 @@ pub struct PhysicalAddress(u64);
 
 impl Address for PhysicalAddress {
     fn new(addr: u64) -> Self {
-        return Self(addr);
+        Self(addr)
     }
 
     fn get(&self) -> u64 {
-        return self.0;
+        self.0
     }
 
     fn set(&mut self, addr: u64) {
@@ -27,7 +27,7 @@ impl Address for PhysicalAddress {
     }
 
     fn offset(&self, offset: usize) -> Self {
-        return Self::new(self.0 + offset as u64);
+        Self::new(self.0 + offset as u64)
     }
 }
 
@@ -41,13 +41,13 @@ impl PhysicalAddress {
         //     MappingType::Identity => VirtualAddress::new(self.0),
         //     _ => panic!("Unsupported mapping type"),
         // };
-        return VirtualAddress::new(self.0);
+        VirtualAddress::new(self.0)
     }
 }
 
 impl Default for PhysicalAddress {
     fn default() -> Self {
-        return Self(0);
+        Self(0)
     }
 }
 
@@ -57,11 +57,11 @@ pub struct VirtualAddress(u64);
 
 impl Address for VirtualAddress {
     fn new(addr: u64) -> Self {
-        return Self(addr);
+        Self(addr)
     }
 
     fn get(&self) -> u64 {
-        return self.0;
+        self.0
     }
 
     fn set(&mut self, addr: u64) {
@@ -69,13 +69,13 @@ impl Address for VirtualAddress {
     }
 
     fn offset(&self, offset: usize) -> Self {
-        return Self::new(self.0 + offset as u64);
+        Self::new(self.0 + offset as u64)
     }
 }
 
 impl VirtualAddress {
     pub fn is_valid_addr(addr: u64) -> bool {
-        return !(addr > 0x7fff_ffff_ffff_ffff && addr < 0xffff_8000_0000_0000);
+        !(addr > 0x7fff_ffff_ffff_ffff && addr < 0xffff_8000_0000_0000)
     }
 
     pub fn get_phys_addr(&self) -> PhysicalAddress {
@@ -90,28 +90,28 @@ impl VirtualAddress {
     }
 
     pub fn get_pml4_entry_index(&self) -> usize {
-        return ((self.0 >> 39) & 0x1ff) as u16 as usize;
+        ((self.0 >> 39) & 0x1ff) as u16 as usize
     }
 
     pub fn get_pml3_entry_index(&self) -> usize {
-        return ((self.0 >> 30) & 0x1ff) as u16 as usize;
+        ((self.0 >> 30) & 0x1ff) as u16 as usize
     }
 
     pub fn get_pml2_entry_index(&self) -> usize {
-        return ((self.0 >> 21) & 0x1ff) as u16 as usize;
+        ((self.0 >> 21) & 0x1ff) as u16 as usize
     }
 
     pub fn get_pml1_entry_index(&self) -> usize {
-        return ((self.0 >> 12) & 0x1ff) as u16 as usize;
+        ((self.0 >> 12) & 0x1ff) as u16 as usize
     }
 
     pub fn get_page_offset(&self) -> usize {
-        return (self.0 & 0xfff) as u16 as usize;
+        (self.0 & 0xfff) as u16 as usize
     }
 
     pub fn read_volatile<T>(&self) -> T {
         let ptr = self.get() as *const T;
-        return unsafe { read_volatile(ptr) };
+        unsafe { read_volatile(ptr) }
     }
 
     pub fn write_volatile<T>(&self, data: T) {
@@ -122,16 +122,16 @@ impl VirtualAddress {
     }
 
     pub fn as_ptr<T>(&self) -> *const T {
-        return self.get() as *const T;
+        self.get() as *const T
     }
 
     pub fn as_ptr_mut<T>(&self) -> *mut T {
-        return self.get() as *mut T;
+        self.get() as *mut T
     }
 }
 
 impl Default for VirtualAddress {
     fn default() -> Self {
-        return Self(0);
+        Self(0)
     }
 }

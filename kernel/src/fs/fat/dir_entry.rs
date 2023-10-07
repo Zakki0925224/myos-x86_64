@@ -19,7 +19,6 @@ pub struct DirectoryEntry {
 
 impl DirectoryEntry {
     pub fn name(&self) -> String {
-        let buf = String::from_utf8_lossy(&self.name).into_owned();
-        return buf;
+        String::from_utf8_lossy(&self.name).into_owned()
     }
 }

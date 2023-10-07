@@ -15,6 +15,6 @@ pub struct EndpointDescriptor {
 
 impl EndpointDescriptor {
     pub fn dci(&self) -> usize {
-        return ((self.endpoint_addr() & 0xf) * 2 + (self.endpoint_addr() >> 7)) as usize;
+        ((self.endpoint_addr() & 0xf) * 2 + (self.endpoint_addr() >> 7)) as usize
     }
 }

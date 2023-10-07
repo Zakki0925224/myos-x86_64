@@ -17,20 +17,20 @@ pub struct Fifo<T: Sized + Copy, const SIZE: usize> {
 
 impl<T: Sized + Copy, const SIZE: usize> Fifo<T, SIZE> {
     pub const fn new(default: T) -> Self {
-        return Self {
+        Self {
             buf: [default; SIZE],
             size: SIZE,
             read_ptr: AtomicUsize::new(0),
             write_ptr: AtomicUsize::new(0),
-        };
+        }
     }
 
     pub fn size(&self) -> usize {
-        return self.size;
+        self.size
     }
 
     pub fn len(&self) -> usize {
-        return self.write_ptr.load(Ordering::Relaxed);
+        self.write_ptr.load(Ordering::Relaxed)
     }
 
     pub fn reset_ptr(&self) {
@@ -62,7 +62,7 @@ impl<T: Sized + Copy, const SIZE: usize> Fifo<T, SIZE> {
 
         self.buf[write_ptr] = value;
 
-        return Ok(());
+        Ok(())
     }
 
     pub fn dequeue(&mut self) -> Result<T, FifoError> {
@@ -87,6 +87,6 @@ impl<T: Sized + Copy, const SIZE: usize> Fifo<T, SIZE> {
             return Err(FifoError::BufferIsLocked);
         }
 
-        return Ok(self.buf[read_ptr]);
+        Ok(self.buf[read_ptr])
     }
 }

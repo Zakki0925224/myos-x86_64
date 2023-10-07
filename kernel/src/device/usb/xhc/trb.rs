@@ -107,7 +107,7 @@ impl TransferRequestBlock {
 
         let flags = self.other_flags();
 
-        return Some((flags & 0x1) != 0);
+        Some((flags & 0x1) != 0)
     }
 
     pub fn set_toggle_cycle(&mut self, new_val: bool) {
@@ -134,7 +134,7 @@ impl TransferRequestBlock {
             return None;
         }
 
-        return Some(slot_id);
+        Some(slot_id)
     }
 
     // Port Status Change Event TRB
@@ -143,7 +143,7 @@ impl TransferRequestBlock {
             return None;
         }
 
-        return Some((self.param() >> 24) as usize);
+        Some((self.param() >> 24) as usize)
     }
 
     // Setup Stage TRB
@@ -162,7 +162,7 @@ impl TransferRequestBlock {
             return None;
         }
 
-        return Some(unsafe { transmute::<u8, TransferType>((self.ctrl_regs() & 0x3) as u8) });
+        Some(unsafe { transmute::<u8, TransferType>((self.ctrl_regs() & 0x3) as u8) })
     }
 
     pub fn set_setup_request_type(&mut self, new_val: SetupRequestType) {
@@ -180,7 +180,7 @@ impl TransferRequestBlock {
             return None;
         }
 
-        return Some(unsafe { transmute::<u8, SetupRequestType>(self.param() as u8) });
+        Some(unsafe { transmute::<u8, SetupRequestType>(self.param() as u8) })
     }
 
     pub fn set_setup_request(&mut self, new_val: SetupRequest) {
@@ -197,7 +197,7 @@ impl TransferRequestBlock {
             return None;
         }
 
-        return Some(unsafe { transmute::<u8, SetupRequest>((self.param() >> 8) as u8) });
+        Some(unsafe { transmute::<u8, SetupRequest>((self.param() >> 8) as u8) })
     }
 
     pub fn set_setup_value(&mut self, new_val: u16) {
@@ -214,7 +214,7 @@ impl TransferRequestBlock {
             return None;
         }
 
-        return Some((self.param() >> 16) as u16);
+        Some((self.param() >> 16) as u16)
     }
 
     pub fn set_setup_index(&mut self, new_val: u16) {
@@ -231,7 +231,7 @@ impl TransferRequestBlock {
             return None;
         }
 
-        return Some((self.param() >> 32) as u16);
+        Some((self.param() >> 32) as u16)
     }
 
     pub fn set_setup_length(&mut self, new_val: u16) {
@@ -248,7 +248,7 @@ impl TransferRequestBlock {
             return None;
         }
 
-        return Some((self.param() >> 48) as u16);
+        Some((self.param() >> 48) as u16)
     }
 
     pub fn completion_code(&self) -> Option<CompletionCode> {
@@ -264,7 +264,7 @@ impl TransferRequestBlock {
             _ => return None,
         }
 
-        return Some(unsafe { transmute::<u8, CompletionCode>((self.status() >> 24) as u8) });
+        Some(unsafe { transmute::<u8, CompletionCode>((self.status() >> 24) as u8) })
     }
 
     // transfer event TRB
@@ -273,7 +273,7 @@ impl TransferRequestBlock {
             return None;
         }
 
-        return Some((self.status() & 0xfff) as usize);
+        Some((self.status() & 0xfff) as usize)
     }
 
     pub fn endpoint_id(&self) -> Option<usize> {
@@ -281,6 +281,6 @@ impl TransferRequestBlock {
             return None;
         }
 
-        return Some((self.ctrl_regs() & 0x1f) as usize);
+        Some((self.ctrl_regs() & 0x1f) as usize)
     }
 }

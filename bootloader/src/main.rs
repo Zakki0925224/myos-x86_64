@@ -89,7 +89,7 @@ fn efi_main(handle: Handle, mut st: SystemTable<Boot>) -> Status {
         config.kernel_stack_size,
     );
 
-    return Status::SUCCESS;
+    Status::SUCCESS
 }
 
 fn read_file(bs: &BootServices, path: &str) -> RegularFile {
@@ -108,10 +108,10 @@ fn read_file(bs: &BootServices, path: &str) -> RegularFile {
         .into_type()
         .unwrap();
 
-    return match file {
+    match file {
         FileType::Regular(file) => file,
         FileType::Dir(_) => panic!("Not file: \"{}\"", path),
-    };
+    }
 }
 
 fn load_elf(bs: &BootServices, path: &str) -> u64 {
@@ -160,7 +160,7 @@ fn load_elf(bs: &BootServices, path: &str) -> u64 {
     }
 
     info!("Loaded ELF at: 0x{:x}", dest_start);
-    return elf.header.pt2.entry_point();
+    elf.header.pt2.entry_point()
 }
 
 fn load_initramfs(bs: &BootServices, path: &str) -> (u64, u64) {
@@ -184,7 +184,7 @@ fn load_initramfs(bs: &BootServices, path: &str) -> (u64, u64) {
 
     info!("Loaded initramfs at: 0x{:x}", phys_addr);
 
-    return (phys_addr, pages as u64);
+    (phys_addr, pages as u64)
 }
 
 fn init_graphic(bs: &BootServices, resolution: Option<(usize, usize)>) -> GraphicInfo {
@@ -206,27 +206,25 @@ fn init_graphic(bs: &BootServices, resolution: Option<(usize, usize)>) -> Graphi
     let mode_info = gop.current_mode_info();
     let res = mode_info.resolution();
 
-    let gi = GraphicInfo {
+    GraphicInfo {
         resolution: (res.0 as u32, res.1 as u32),
         format: convert_pixel_format(mode_info.pixel_format()),
         stride: mode_info.stride() as u32,
         framebuf_addr: gop.frame_buffer().as_mut_ptr() as u64,
         framebuf_size: gop.frame_buffer().size() as u64,
-    };
-
-    return gi;
+    }
 }
 
 fn convert_pixel_format(pixel_format: PixelFormat) -> graphic_info::PixelFormat {
-    return match pixel_format {
+    match pixel_format {
         PixelFormat::Rgb => graphic_info::PixelFormat::Rgb,
         PixelFormat::Bgr => graphic_info::PixelFormat::Bgr,
         _ => panic!("Unsupported pixel format"),
-    };
+    }
 }
 
 fn convert_mem_type(mem_type: MemoryType) -> mem_desc::MemoryType {
-    return match mem_type {
+    match mem_type {
         MemoryType::RESERVED => mem_desc::MemoryType::Reserved,
         MemoryType::LOADER_CODE => mem_desc::MemoryType::LoaderCode,
         MemoryType::LOADER_DATA => mem_desc::MemoryType::LoaderData,
@@ -243,11 +241,11 @@ fn convert_mem_type(mem_type: MemoryType) -> mem_desc::MemoryType {
         MemoryType::PAL_CODE => mem_desc::MemoryType::PalCode,
         MemoryType::PERSISTENT_MEMORY => mem_desc::MemoryType::PersistentMemory,
         MemoryType(value) => mem_desc::MemoryType::Other(value),
-    };
+    }
 }
 
 fn convert_mem_attr(mem_attr: MemoryAttribute) -> mem_desc::MemoryAttribute {
-    return mem_desc::MemoryAttribute::from_bits_truncate(mem_attr.bits());
+    mem_desc::MemoryAttribute::from_bits_truncate(mem_attr.bits())
 }
 
 fn jump_to_entry(entry_base_addr: u64, bi: &BootInfo, stack_addr: u64, stack_size: u64) {

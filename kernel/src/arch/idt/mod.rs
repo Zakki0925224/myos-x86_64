@@ -103,9 +103,9 @@ struct InterruptDescriptorTable {
 
 impl InterruptDescriptorTable {
     pub fn new() -> Self {
-        return Self {
+        Self {
             entries: [GateDescriptor::new(); IDT_LEN],
-        };
+        }
     }
 
     pub fn set_handler(&mut self, vec_num: usize, handler: InterruptHandler, gate_type: GateType) {
