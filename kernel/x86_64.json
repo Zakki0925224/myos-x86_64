@@ -4,7 +4,7 @@
     "linker-flavor": "ld.lld",
     "target-endian": "little",
     "target-pointer-width": "64",
-    "target-c-int-width": "32",
+    "target-c-int-width": "64",
     "arch": "x86_64",
     "cpu": "x86-64",
     "os": "none",
