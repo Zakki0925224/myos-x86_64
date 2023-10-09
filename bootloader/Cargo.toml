@@ -6,15 +6,7 @@ authors = ["Zakki <zakki0925224@gmail.com>"]
 
 [dependencies]
 common = { path = "../common" }
-uefi = { version = "*", features = ["alloc"] }
-uefi-services = "*"
-log = "*"
-xmas-elf = "*"
-
-[profile.dev]
-opt-level = 0
-debug = true
-
-[profile.release]
-opt-level = 3
-debug = false
+uefi = { version = "0.24.0", features = ["alloc"] }
+uefi-services = "0.21.0"
+log = "0.4.18"
+xmas-elf = "0.9.0"

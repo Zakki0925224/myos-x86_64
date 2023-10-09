@@ -3,7 +3,7 @@ use crate::arch::register::msi::{MsiMessageAddressField, MsiMessageDataField};
 use super::conf_space::*;
 use alloc::vec::Vec;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PciDevice {
     pub bus: usize,
     pub device: usize,

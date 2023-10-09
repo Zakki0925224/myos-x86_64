@@ -31,18 +31,25 @@ impl log::Log for SimpleLogger {
             return;
         }
 
-        if let Some(mut frame_buf_console) = FRAME_BUF_CONSOLE.try_lock() {
-            let frame_buf_console = match frame_buf_console.as_mut() {
-                Some(f) => f,
-                None => return,
-            };
+        loop {
+            match FRAME_BUF_CONSOLE.try_lock() {
+                Some(mut frame_buf_console) => {
+                    let frame_buf_console = match frame_buf_console.as_mut() {
+                        Some(f) => f,
+                        None => break,
+                    };
 
-            match record.level() {
-                Level::Error => frame_buf_console.set_fore_color(LOG_COLOR_ERROR),
-                Level::Warn => frame_buf_console.set_fore_color(LOG_COLOR_WARN),
-                Level::Info => frame_buf_console.set_fore_color(LOG_COLOR_INFO),
-                Level::Debug => frame_buf_console.set_fore_color(LOG_COLOR_DEBUG),
-                Level::Trace => frame_buf_console.set_fore_color(LOG_COLOR_TRACE),
+                    match record.level() {
+                        Level::Error => frame_buf_console.set_fore_color(LOG_COLOR_ERROR),
+                        Level::Warn => frame_buf_console.set_fore_color(LOG_COLOR_WARN),
+                        Level::Info => frame_buf_console.set_fore_color(LOG_COLOR_INFO),
+                        Level::Debug => frame_buf_console.set_fore_color(LOG_COLOR_DEBUG),
+                        Level::Trace => frame_buf_console.set_fore_color(LOG_COLOR_TRACE),
+                    }
+
+                    break;
+                }
+                None => continue,
             }
         }
 
@@ -62,13 +69,19 @@ impl log::Log for SimpleLogger {
 
         print!("{:?}\n", record.args());
 
-        if let Some(mut frame_buf_console) = FRAME_BUF_CONSOLE.try_lock() {
-            let frame_buf_console = match frame_buf_console.as_mut() {
-                Some(f) => f,
-                None => return,
-            };
+        loop {
+            match FRAME_BUF_CONSOLE.try_lock() {
+                Some(mut frame_buf_console) => {
+                    let frame_buf_console = match frame_buf_console.as_mut() {
+                        Some(f) => f,
+                        None => break,
+                    };
 
-            frame_buf_console.reset_fore_color();
+                    frame_buf_console.reset_fore_color();
+                    break;
+                }
+                None => continue,
+            }
         }
     }
 

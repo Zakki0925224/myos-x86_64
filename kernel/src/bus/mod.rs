@@ -1,10 +1,14 @@
 use log::info;
 
-use self::pci::PCI_DEVICE_MAN;
-
 pub mod pci;
 
 pub fn init() {
-    PCI_DEVICE_MAN.lock().scan_devices();
+    loop {
+        match pci::scan_devices() {
+            Ok(_) => break,
+            Err(_) => continue,
+        }
+    }
+
     info!("pci: Initialized PCI device manager");
 }

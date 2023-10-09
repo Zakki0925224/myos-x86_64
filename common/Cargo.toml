@@ -8,11 +8,3 @@ authors = ["Zakki <zakki0925224@gmail.com>"]
 
 [dependencies]
 bitflags = "2.3.1"
-
-[profile.dev]
-opt-level = 0
-debug = true
-
-[profile.release]
-opt-level = 3
-debug = false

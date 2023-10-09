@@ -1,12 +1,13 @@
 use crate::{
     graphics::{frame_buf::FrameBufferError, frame_buf_console::FrameBufferConsoleError},
     mem::{bitmap::BitmapMemoryManagerError, paging::PageManagerError},
-    util::ascii::AsciiCodeError,
+    util::{ascii::AsciiCodeError, mutex::MutexError},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Error {
     Failed(&'static str),
+    MutexError(MutexError),
     AsciiCodeError(AsciiCodeError),
     FrameBufferError(FrameBufferError),
     FrameBufferConsoleError(FrameBufferConsoleError),
@@ -17,6 +18,12 @@ pub enum Error {
 impl From<&'static str> for Error {
     fn from(s: &'static str) -> Self {
         Error::Failed(s)
+    }
+}
+
+impl From<MutexError> for Error {
+    fn from(err: MutexError) -> Self {
+        Error::MutexError(err)
     }
 }
 

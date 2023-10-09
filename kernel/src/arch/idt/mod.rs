@@ -155,40 +155,48 @@ extern "x86-interrupt" fn double_fault_handler() {
 }
 
 extern "x86-interrupt" fn xhc_primary_event_ring_handler() {
-    if let Some(mut xhc_driver) = XHC_DRIVER.try_lock() {
-        xhc_driver.as_mut().unwrap().on_updated_event_ring();
-    } else {
-        error!("int: XHC_DRIVER is locked");
+    loop {
+        match XHC_DRIVER.try_lock() {
+            Some(mut xhc_driver) => {
+                xhc_driver.as_mut().unwrap().on_updated_event_ring();
+                break;
+            }
+            None => continue,
+        }
     }
 
     notify_end_of_int();
 }
 
 pub fn init() {
-    if let Some(mut idt) = IDT.try_lock() {
-        idt.set_handler(
-            VEC_BREAKPOINT,
-            InterruptHandler::Normal(breakpoint_handler),
-            GateType::Interrupt,
-        );
-        idt.set_handler(
-            VEC_PAGE_FAULT,
-            InterruptHandler::PageFault(page_fault_handler),
-            GateType::Interrupt,
-        );
-        idt.set_handler(
-            VEC_DOUBLE_FAULT,
-            InterruptHandler::Normal(double_fault_handler),
-            GateType::Interrupt,
-        );
-        idt.set_handler(
-            VEC_XHCI_INT,
-            InterruptHandler::Normal(xhc_primary_event_ring_handler),
-            GateType::Interrupt,
-        );
-        idt.load();
-    } else {
-        panic!("IDT is locked");
+    loop {
+        match IDT.try_lock() {
+            Some(mut idt) => {
+                idt.set_handler(
+                    VEC_BREAKPOINT,
+                    InterruptHandler::Normal(breakpoint_handler),
+                    GateType::Interrupt,
+                );
+                idt.set_handler(
+                    VEC_PAGE_FAULT,
+                    InterruptHandler::PageFault(page_fault_handler),
+                    GateType::Interrupt,
+                );
+                idt.set_handler(
+                    VEC_DOUBLE_FAULT,
+                    InterruptHandler::Normal(double_fault_handler),
+                    GateType::Interrupt,
+                );
+                idt.set_handler(
+                    VEC_XHCI_INT,
+                    InterruptHandler::Normal(xhc_primary_event_ring_handler),
+                    GateType::Interrupt,
+                );
+                idt.load();
+                break;
+            }
+            None => continue,
+        }
     }
 
     info!("idt: Initialized IDT");

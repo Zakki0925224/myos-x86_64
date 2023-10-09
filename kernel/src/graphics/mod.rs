@@ -13,12 +13,20 @@ use crate::graphics::{
 };
 
 pub fn init(graphic_info: GraphicInfo, back_color: RgbColor, fore_color: RgbColor) {
-    if let Some(mut frame_buf) = FRAME_BUF.try_lock() {
-        *frame_buf = Some(FrameBuffer::new(graphic_info));
-    }
+    loop {
+        match FRAME_BUF.try_lock() {
+            Some(mut frame_buf) => *frame_buf = Some(FrameBuffer::new(graphic_info)),
+            None => continue,
+        }
 
-    if let Some(mut frame_buf_console) = FRAME_BUF_CONSOLE.try_lock() {
-        *frame_buf_console = FrameBufferConsole::new(back_color, fore_color);
+        match FRAME_BUF_CONSOLE.try_lock() {
+            Some(mut frame_buf_console) => {
+                *frame_buf_console = FrameBufferConsole::new(back_color, fore_color)
+            }
+            None => continue,
+        }
+
+        break;
     }
 
     info!("graphics: Initialized frame buffer");

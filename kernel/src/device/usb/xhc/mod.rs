@@ -7,7 +7,7 @@ use spin::Mutex;
 
 use crate::{
     arch::{addr::*, apic::read_local_apic_id, idt::VEC_XHCI_INT, register::msi::*},
-    bus::pci::{conf_space::BaseAddress, device_id::PCI_USB_XHCI_ID, PCI_DEVICE_MAN},
+    bus::pci::{self, conf_space::BaseAddress, device_id::PCI_USB_XHCI_ID},
     device::usb::{
         xhc::{port::ConfigState, register::*},
         USB_DRIVER,
@@ -92,9 +92,12 @@ pub struct XhcDriver {
 impl XhcDriver {
     pub fn new() -> Result<Self, XhcDriverError> {
         let (class_code, subclass_code, prog_if) = PCI_USB_XHCI_ID;
-
-        let pci_device_man = PCI_DEVICE_MAN.lock();
-        let xhci_controllers = pci_device_man.find_by_class(class_code, subclass_code, prog_if);
+        let xhci_controllers = loop {
+            match pci::find_by_class(class_code, subclass_code, prog_if) {
+                Ok(devices) => break devices,
+                Err(_) => continue,
+            }
+        };
 
         for device in xhci_controllers {
             let device_name = device.conf_space_header.get_device_name().unwrap();
@@ -140,14 +143,16 @@ impl XhcDriver {
     }
 
     pub fn init(&mut self) -> Result<(), XhcDriverError> {
-        let pci_device_man = PCI_DEVICE_MAN.lock();
-        let controller = match pci_device_man.find_by_bdf(
-            self.controller_pci_bus,
-            self.controller_pci_device,
-            self.controller_pci_func,
-        ) {
-            Some(controller) => controller,
-            None => return Err(XhcDriverError::XhcDeviceWasNotFoundError),
+        let controller = loop {
+            match pci::find_by_bdf(
+                self.controller_pci_bus,
+                self.controller_pci_device,
+                self.controller_pci_func,
+            ) {
+                Ok(Some(device)) => break device,
+                Ok(None) => return Err(XhcDriverError::XhcDeviceWasNotFoundError),
+                Err(_) => continue,
+            }
         };
 
         // read base address registers
