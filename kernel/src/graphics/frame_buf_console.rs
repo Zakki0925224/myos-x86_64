@@ -92,8 +92,8 @@ impl FrameBufferConsole {
 
     pub fn write_char(&mut self, c: char) -> Result<()> {
         match c {
-            '\n' => self.new_line()?,
-            '\t' => self.tab()?,
+            '\n' => return self.new_line(),
+            '\t' => return self.tab(),
             _ => (),
         }
 
