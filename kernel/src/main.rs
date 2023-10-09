@@ -7,13 +7,13 @@
 
 mod arch;
 mod bus;
-mod debug_terminal;
 mod device;
 mod env;
 mod error;
 mod fs;
 mod graphics;
 mod mem;
+mod panic;
 mod serial;
 mod util;
 
@@ -21,20 +21,16 @@ extern crate alloc;
 
 use alloc::alloc::Layout;
 use arch::{
-    addr::{Address, VirtualAddress},
     asm,
     task::{executor::Executor, Task},
 };
 use common::boot_info::BootInfo;
-use core::panic::PanicInfo;
-use debug_terminal::Terminal;
-use fs::fat::FatVolume;
 use log::*;
 use serial::ComPort;
 use util::{ascii::AsciiCode, logger};
 
 use crate::{
-    arch::{apic::timer::LOCAL_APIC_TIMER, gdt, idt},
+    arch::{apic::timer::LOCAL_APIC_TIMER, idt},
     device::console,
 };
 
@@ -115,14 +111,4 @@ async fn console_task() {
 #[alloc_error_handler]
 fn alloc_error_handler(layout: Layout) -> ! {
     panic!("Allocation error: {:?}", layout);
-}
-
-#[panic_handler]
-fn panic(info: &PanicInfo) -> ! {
-    error!("{:?}", info.message());
-    error!("{:?}", info.location());
-
-    loop {
-        asm::hlt();
-    }
 }
