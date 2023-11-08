@@ -1,6 +1,6 @@
 use core::mem::size_of;
 use lazy_static::lazy_static;
-use log::{error, info};
+use log::info;
 use modular_bitfield::{bitfield, specifiers::*, BitfieldSpecifier};
 use spin::Mutex;
 
@@ -9,7 +9,7 @@ use crate::{
         asm::{self, DescriptorTableArgs},
         register::control::Cr2,
     },
-    device::usb::xhc::XHC_DRIVER,
+    device::{ps2_keyboard, usb::xhc::XHC_DRIVER},
 };
 
 use self::info::{InterruptStackFrame, PageFaultErrorCode};
@@ -22,31 +22,39 @@ lazy_static! {
     static ref IDT: Mutex<InterruptDescriptorTable> = Mutex::new(InterruptDescriptorTable::new());
 }
 
+// idt
 const IDT_LEN: usize = 256;
-const VEC_DIVIDE_ERR: usize = 0;
-const VEC_DEBUG: usize = 1;
-const VEC_NMI_INT: usize = 2;
+const _VEC_DIVIDE_ERR: usize = 0;
+const _VEC_DEBUG: usize = 1;
+const _VEC_NMI_INT: usize = 2;
 const VEC_BREAKPOINT: usize = 3;
-const VEC_OVERFLOW: usize = 4;
-const VEC_BOUND_RANGE_EXCEEDED: usize = 5;
-const VEC_INVALID_OPCODE: usize = 6;
-const VEC_DEVICE_NOT_AVAILABLE: usize = 7;
+const _VEC_OVERFLOW: usize = 4;
+const _VEC_BOUND_RANGE_EXCEEDED: usize = 5;
+const _VEC_INVALID_OPCODE: usize = 6;
+const _VEC_DEVICE_NOT_AVAILABLE: usize = 7;
 const VEC_DOUBLE_FAULT: usize = 8;
-const VEC_INVALID_TSS: usize = 10;
-const VEC_SEG_NOT_PRESENT: usize = 11;
-const VEC_STACK_SEG_FAULT: usize = 12;
-const VEC_GENERAL_PROTECTION: usize = 13;
+const _VEC_INVALID_TSS: usize = 10;
+const _VEC_SEG_NOT_PRESENT: usize = 11;
+const _VEC_STACK_SEG_FAULT: usize = 12;
+const _VEC_GENERAL_PROTECTION: usize = 13;
 const VEC_PAGE_FAULT: usize = 14;
-const VEC_FLOATING_POINT_ERR: usize = 16;
-const VEC_ALIGN_CHECK: usize = 17;
-const VEC_MACHINE_CHECK: usize = 18;
-const VEC_SIMD_FLOATING_POINT_EX: usize = 19;
-const VEC_VIRT_EX: usize = 20;
-const VEC_CTRL_PROTECTION_EX: usize = 21;
-const VEC_MASKABLE_INT_0: usize = 32;
+const _VEC_FLOATING_POINT_ERR: usize = 16;
+const _VEC_ALIGN_CHECK: usize = 17;
+const _VEC_MACHINE_CHECK: usize = 18;
+const _VEC_SIMD_FLOATING_POINT_EX: usize = 19;
+const _VEC_VIRT_EX: usize = 20;
+const _VEC_CTRL_PROTECTION_EX: usize = 21;
 pub const VEC_XHCI_INT: usize = 64;
 
 const END_OF_INT_REG_ADDR: u64 = 0xfee000b0;
+
+// pic
+const _VEC_PIC_IRQ0: usize = 32; // system timer
+const VEC_PIC_IRQ1: usize = 33; // ps/2 keyboard
+
+const MASTER_PIC_ADDR: u16 = 0x20;
+const SLAVE_PIC_ADDR: u16 = 0xa0;
+const PIC_END_OF_INT_CMD: u8 = 0x20;
 
 pub enum InterruptHandler {
     Normal(extern "x86-interrupt" fn()),
@@ -134,6 +142,11 @@ fn notify_end_of_int() {
     virt_addr.write_volatile(0);
 }
 
+fn pic_notify_end_of_int() {
+    asm::out8(MASTER_PIC_ADDR, PIC_END_OF_INT_CMD);
+    asm::out8(SLAVE_PIC_ADDR, PIC_END_OF_INT_CMD);
+}
+
 extern "x86-interrupt" fn breakpoint_handler() {
     panic!("int: BREAKPOINT");
 }
@@ -168,7 +181,40 @@ extern "x86-interrupt" fn xhc_primary_event_ring_handler() {
     notify_end_of_int();
 }
 
-pub fn init() {
+extern "x86-interrupt" fn ps2_keyboard_handler() {
+    ps2_keyboard::receive();
+    pic_notify_end_of_int();
+}
+
+pub fn init_pic() {
+    // disallow all interrupts
+    asm::out8(MASTER_PIC_ADDR + 1, 0xff);
+    asm::out8(SLAVE_PIC_ADDR + 1, 0xff);
+
+    // mapping IRQ0 - 7 to IDT entries 0x20 - 0x27
+    asm::out8(MASTER_PIC_ADDR, 0x11); // edge trigger mode
+    asm::out8(MASTER_PIC_ADDR + 1, 0x20);
+    asm::out8(MASTER_PIC_ADDR + 1, 1 << 2);
+    asm::out8(MASTER_PIC_ADDR + 1, 0x1); // none buffer mode
+
+    // mapping IRQ8 - 15 to IDT entries 0x28 - 0x2f
+    asm::out8(SLAVE_PIC_ADDR, 0x11); // edge trigger mode
+    asm::out8(SLAVE_PIC_ADDR + 1, 0x28);
+    asm::out8(SLAVE_PIC_ADDR + 1, 2);
+    asm::out8(SLAVE_PIC_ADDR + 1, 0x1); // none buffer mode
+
+    // mask all
+    asm::out8(MASTER_PIC_ADDR + 1, 0xfb);
+    asm::out8(SLAVE_PIC_ADDR + 1, 0xff);
+
+    // allow interrupts
+    asm::out8(MASTER_PIC_ADDR + 1, 0xf9);
+    asm::out8(SLAVE_PIC_ADDR + 1, 0xef);
+
+    info!("idt: Initialized PIC");
+}
+
+pub fn init_idt() {
     loop {
         match IDT.try_lock() {
             Some(mut idt) => {
@@ -190,6 +236,11 @@ pub fn init() {
                 idt.set_handler(
                     VEC_XHCI_INT,
                     InterruptHandler::Normal(xhc_primary_event_ring_handler),
+                    GateType::Interrupt,
+                );
+                idt.set_handler(
+                    VEC_PIC_IRQ1,
+                    InterruptHandler::Normal(ps2_keyboard_handler),
                     GateType::Interrupt,
                 );
                 idt.load();

@@ -57,8 +57,9 @@ pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> ! {
 
     // initialize GDT (TODO: not working correctly)
     //gdt::init();
-    // initialize IDT
-    idt::init();
+    // initialize PIC and IDT
+    idt::init_pic();
+    idt::init_idt();
 
     // initialize memory management
     mem::init(boot_info.get_mem_map());
