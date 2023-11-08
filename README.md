@@ -15,7 +15,9 @@ This is a replacement project for the previous **[myos](https://github.com/Zakki
 -   [x] Written in Rust
 -   [x] My own UEFI boot loader by using [uefi-rs](https://github.com/rust-osdev/uefi-rs)
 -   [x] x86_64 kernel
+-   [x] Programmable Interrupt Controller (Intel 8259A)
 -   Device support
+    -   [x] PS/2 Keyboard
     -   [x] Serial connection (UART 16650A)
     -   [x] PCI devices
     -   [ ] USB devices (xHC) (work in progress...)
