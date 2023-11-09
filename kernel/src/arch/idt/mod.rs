@@ -52,8 +52,8 @@ const END_OF_INT_REG_ADDR: u64 = 0xfee000b0;
 const _VEC_PIC_IRQ0: usize = 32; // system timer
 const VEC_PIC_IRQ1: usize = 33; // ps/2 keyboard
 
-const MASTER_PIC_ADDR: u16 = 0x20;
-const SLAVE_PIC_ADDR: u16 = 0xa0;
+const MASTER_PIC_ADDR: IoPortAddress = IoPortAddress::new(0x20);
+const SLAVE_PIC_ADDR: IoPortAddress = IoPortAddress::new(0xa0);
 const PIC_END_OF_INT_CMD: u8 = 0x20;
 
 pub enum InterruptHandler {
@@ -143,8 +143,8 @@ fn notify_end_of_int() {
 }
 
 fn pic_notify_end_of_int() {
-    asm::out8(MASTER_PIC_ADDR, PIC_END_OF_INT_CMD);
-    asm::out8(SLAVE_PIC_ADDR, PIC_END_OF_INT_CMD);
+    MASTER_PIC_ADDR.out8(PIC_END_OF_INT_CMD);
+    SLAVE_PIC_ADDR.out8(PIC_END_OF_INT_CMD);
 }
 
 extern "x86-interrupt" fn breakpoint_handler() {
@@ -188,28 +188,28 @@ extern "x86-interrupt" fn ps2_keyboard_handler() {
 
 pub fn init_pic() {
     // disallow all interrupts
-    asm::out8(MASTER_PIC_ADDR + 1, 0xff);
-    asm::out8(SLAVE_PIC_ADDR + 1, 0xff);
+    MASTER_PIC_ADDR.offset(1).out8(0xff);
+    SLAVE_PIC_ADDR.offset(1).out8(0xff);
 
     // mapping IRQ0 - 7 to IDT entries 0x20 - 0x27
-    asm::out8(MASTER_PIC_ADDR, 0x11); // edge trigger mode
-    asm::out8(MASTER_PIC_ADDR + 1, 0x20);
-    asm::out8(MASTER_PIC_ADDR + 1, 1 << 2);
-    asm::out8(MASTER_PIC_ADDR + 1, 0x1); // none buffer mode
+    MASTER_PIC_ADDR.offset(0).out8(0x11);
+    MASTER_PIC_ADDR.offset(1).out8(0x20);
+    MASTER_PIC_ADDR.offset(1).out8(1 << 2);
+    MASTER_PIC_ADDR.offset(1).out8(0x1); // none buffer mode
 
     // mapping IRQ8 - 15 to IDT entries 0x28 - 0x2f
-    asm::out8(SLAVE_PIC_ADDR, 0x11); // edge trigger mode
-    asm::out8(SLAVE_PIC_ADDR + 1, 0x28);
-    asm::out8(SLAVE_PIC_ADDR + 1, 2);
-    asm::out8(SLAVE_PIC_ADDR + 1, 0x1); // none buffer mode
+    SLAVE_PIC_ADDR.offset(0).out8(0x11); // edge trigger mode
+    SLAVE_PIC_ADDR.offset(1).out8(0x28);
+    SLAVE_PIC_ADDR.offset(1).out8(2);
+    SLAVE_PIC_ADDR.offset(1).out8(0x1); // none buffer mode
 
     // mask all
-    asm::out8(MASTER_PIC_ADDR + 1, 0xfb);
-    asm::out8(SLAVE_PIC_ADDR + 1, 0xff);
+    MASTER_PIC_ADDR.offset(1).out8(0xfb);
+    SLAVE_PIC_ADDR.offset(1).out8(0xff);
 
     // allow interrupts
-    asm::out8(MASTER_PIC_ADDR + 1, 0xf9);
-    asm::out8(SLAVE_PIC_ADDR + 1, 0xef);
+    MASTER_PIC_ADDR.offset(1).out8(0xf9);
+    SLAVE_PIC_ADDR.offset(1).out8(0xef);
 
     info!("idt: Initialized PIC");
 }

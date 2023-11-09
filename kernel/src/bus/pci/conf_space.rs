@@ -4,10 +4,10 @@ use alloc::vec::Vec;
 use modular_bitfield::{bitfield, specifiers::*, BitfieldSpecifier};
 use pci_ids::*;
 
-use crate::arch::{addr::*, asm, register::msi::*};
+use crate::arch::{addr::*, register::msi::*};
 
-const MMIO_PORT_CONF_ADDR: u32 = 0xcf8;
-const MMIO_PORT_CONF_DATA: u32 = 0xcfc;
+const PCI_PORT_CONF_REG_ADDR: PhysicalAddress = PhysicalAddress::new(0xcf8);
+const PCI_PORT_CONF_DATA_REG_ADDR: PhysicalAddress = PhysicalAddress::new(0xcfc);
 const PCI_DEVICE_NON_EXIST: u16 = 0xffff;
 pub const PCI_DEVICE_BUS_LEN: usize = 256;
 pub const PCI_DEVICE_DEVICE_LEN: usize = 32;
@@ -533,10 +533,9 @@ fn read_conf_space(bus: usize, device: usize, func: usize, byte_offset: usize) -
         | (device as u32) << 11
         | (func as u32) << 8
         | byte_offset as u32;
-    asm::out32(MMIO_PORT_CONF_ADDR, addr);
-    let result = asm::in32(MMIO_PORT_CONF_DATA);
+    PCI_PORT_CONF_REG_ADDR.out32(addr);
 
-    Some(result)
+    Some(PCI_PORT_CONF_DATA_REG_ADDR.in32())
 }
 
 fn write_conf_space(
@@ -559,8 +558,8 @@ fn write_conf_space(
         | (device as u32) << 11
         | (func as u32) << 8
         | byte_offset as u32;
-    asm::out32(MMIO_PORT_CONF_ADDR, addr);
-    asm::out32(MMIO_PORT_CONF_DATA, data);
+    PCI_PORT_CONF_REG_ADDR.out32(addr);
+    PCI_PORT_CONF_DATA_REG_ADDR.out32(data);
 
     Ok(())
 }

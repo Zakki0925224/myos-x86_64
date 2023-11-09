@@ -1,10 +1,6 @@
 use common::mem_desc::MemoryDescriptor;
 
-use crate::{
-    arch::addr::{Address, VirtualAddress},
-    mem::paging::PAGE_MAN,
-    println,
-};
+use crate::{arch::addr::VirtualAddress, mem::paging::PAGE_MAN, println};
 
 use self::bitmap::BITMAP_MEM_MAN;
 

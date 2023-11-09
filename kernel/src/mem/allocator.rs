@@ -1,8 +1,6 @@
 use common::mem_desc::UEFI_PAGE_SIZE;
 use linked_list_allocator::LockedHeap;
 
-use crate::arch::addr::Address;
-
 use super::bitmap::BITMAP_MEM_MAN;
 
 const HEAP_SIZE: usize = UEFI_PAGE_SIZE * UEFI_PAGE_SIZE; // 16MiB

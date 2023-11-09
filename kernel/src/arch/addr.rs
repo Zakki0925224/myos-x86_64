@@ -2,36 +2,29 @@ use core::ptr::{read_volatile, write_volatile};
 
 use crate::mem::paging::PAGE_MAN;
 
-pub trait Address {
-    fn new(addr: u64) -> Self;
-    fn get(&self) -> u64;
-    fn set(&mut self, addr: u64);
-    fn offset(&self, offset: usize) -> Self;
-}
+use super::asm;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(transparent)]
 pub struct PhysicalAddress(u64);
 
-impl Address for PhysicalAddress {
-    fn new(addr: u64) -> Self {
+impl PhysicalAddress {
+    pub const fn new(addr: u64) -> Self {
         Self(addr)
     }
 
-    fn get(&self) -> u64 {
+    pub fn get(&self) -> u64 {
         self.0
     }
 
-    fn set(&mut self, addr: u64) {
+    pub fn set(&mut self, addr: u64) {
         self.0 = addr;
     }
 
-    fn offset(&self, offset: usize) -> Self {
+    pub fn offset(&self, offset: usize) -> Self {
         Self::new(self.0 + offset as u64)
     }
-}
 
-impl PhysicalAddress {
     pub fn get_virt_addr(&self) -> VirtualAddress {
         // println!("{:?}", PAGING.lock());
         // println!("a");
@@ -42,6 +35,22 @@ impl PhysicalAddress {
         //     _ => panic!("Unsupported mapping type"),
         // };
         VirtualAddress::new(self.0)
+    }
+
+    pub fn out32(&self, data: u32) {
+        if self.0 > u32::MAX as u64 {
+            panic!("Invalid address for out32");
+        }
+
+        asm::out32(self.0 as u32, data);
+    }
+
+    pub fn in32(&self) -> u32 {
+        if self.0 > u32::MAX as u64 {
+            panic!("Invalid address for out32");
+        }
+
+        asm::in32(self.0 as u32)
     }
 }
 
@@ -55,27 +64,21 @@ impl Default for PhysicalAddress {
 #[repr(transparent)]
 pub struct VirtualAddress(u64);
 
-impl Address for VirtualAddress {
-    fn new(addr: u64) -> Self {
+impl VirtualAddress {
+    pub const fn new(addr: u64) -> Self {
         Self(addr)
     }
 
-    fn get(&self) -> u64 {
+    pub fn get(&self) -> u64 {
         self.0
     }
 
-    fn set(&mut self, addr: u64) {
+    pub fn set(&mut self, addr: u64) {
         self.0 = addr;
     }
 
-    fn offset(&self, offset: usize) -> Self {
+    pub fn offset(&self, offset: usize) -> Self {
         Self::new(self.0 + offset as u64)
-    }
-}
-
-impl VirtualAddress {
-    pub fn is_valid_addr(addr: u64) -> bool {
-        !(addr > 0x7fff_ffff_ffff_ffff && addr < 0xffff_8000_0000_0000)
     }
 
     pub fn get_phys_addr(&self) -> PhysicalAddress {
@@ -131,6 +134,42 @@ impl VirtualAddress {
 }
 
 impl Default for VirtualAddress {
+    fn default() -> Self {
+        Self(0)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(transparent)]
+pub struct IoPortAddress(u16);
+
+impl IoPortAddress {
+    pub const fn new(addr: u16) -> Self {
+        Self(addr)
+    }
+
+    pub fn get(&self) -> u16 {
+        self.0
+    }
+
+    pub fn set(&mut self, addr: u16) {
+        self.0 = addr;
+    }
+
+    pub fn offset(&self, offset: usize) -> Self {
+        Self::new(self.0 + offset as u16)
+    }
+
+    pub fn out8(self, data: u8) {
+        asm::out8(self.0 as u16, data);
+    }
+
+    pub fn in8(self) -> u8 {
+        asm::in8(self.0 as u16)
+    }
+}
+
+impl Default for IoPortAddress {
     fn default() -> Self {
         Self(0)
     }

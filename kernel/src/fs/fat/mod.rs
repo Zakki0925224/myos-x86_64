@@ -1,8 +1,5 @@
 use self::{boot_sector::BootSector, dir_entry::DirectoryEntry, fs_info_sector::FsInfoSector};
-use crate::{
-    arch::addr::{Address, VirtualAddress},
-    println,
-};
+use crate::{arch::addr::VirtualAddress, println};
 
 pub mod boot_sector;
 pub mod dir_entry;
