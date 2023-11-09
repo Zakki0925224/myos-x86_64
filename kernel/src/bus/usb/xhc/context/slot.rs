@@ -1,6 +1,6 @@
 use modular_bitfield::{bitfield, specifiers::*, BitfieldSpecifier};
 
-use crate::device::usb::xhc::register::PortSpeedIdValue;
+use crate::bus::usb::xhc::register::PortSpeedIdValue;
 
 #[derive(BitfieldSpecifier, Debug, Clone, Copy)]
 #[bits = 2]

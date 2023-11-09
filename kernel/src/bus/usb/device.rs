@@ -3,11 +3,7 @@ use core::mem::size_of;
 use alloc::vec::Vec;
 
 use crate::{
-    arch::addr::*,
-    device::usb::{hid_keyboard::InputData, xhc::context::input::InputControlContext},
-    error::Error,
-    mem::bitmap::*,
-    println,
+    arch::addr::*, device::usb::hid_keyboard::InputData, error::Error, mem::bitmap::*, println,
 };
 
 use super::{
@@ -17,7 +13,12 @@ use super::{
         DescriptorHeader, DescriptorType,
     },
     setup_trb::*,
-    xhc::{context::endpoint::*, ring_buffer::*, trb::*, XHC_DRIVER},
+    xhc::{
+        context::{endpoint::*, input::InputControlContext},
+        ring_buffer::*,
+        trb::*,
+        XHC_DRIVER,
+    },
 };
 
 const RING_BUF_LEN: usize = 8;

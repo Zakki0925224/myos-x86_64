@@ -7,10 +7,9 @@ use spin::Mutex;
 
 use crate::{
     arch::{addr::*, apic::read_local_apic_id, idt::VEC_XHCI_INT, register::msi::*},
-    bus::pci::{self, conf_space::BaseAddress, device_id::PCI_USB_XHCI_ID},
-    device::usb::{
-        xhc::{port::ConfigState, register::*},
-        USB_DRIVER,
+    bus::{
+        pci::{self, conf_space::BaseAddress, device_id::PCI_USB_XHCI_ID},
+        usb::xhc::{port::ConfigState, register::*},
     },
     error::Error,
     mem::bitmap::*,
@@ -19,11 +18,12 @@ use crate::{
 use self::{
     context::{device::DeviceContext, endpoint::*, input::InputContext, slot::SlotContext},
     port::Port,
+    register::CapabilityRegisters,
     ring_buffer::*,
     trb::*,
 };
 
-use super::device::*;
+use super::{device::*, USB_DRIVER};
 
 pub mod context;
 pub mod port;

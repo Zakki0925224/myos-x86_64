@@ -64,7 +64,7 @@ pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> ! {
     // initialize memory management
     mem::init(boot_info.get_mem_map());
 
-    // initialize pci
+    // initialize pci, usb
     bus::init();
 
     // initialize device drivers

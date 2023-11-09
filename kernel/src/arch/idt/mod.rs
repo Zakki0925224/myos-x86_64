@@ -9,7 +9,8 @@ use crate::{
         asm::{self, DescriptorTableArgs},
         register::control::Cr2,
     },
-    device::{ps2_keyboard, usb::xhc::XHC_DRIVER},
+    bus::usb::xhc::XHC_DRIVER,
+    device::ps2_keyboard,
 };
 
 use self::info::{InterruptStackFrame, PageFaultErrorCode};

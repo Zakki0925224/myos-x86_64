@@ -1,6 +1,9 @@
-use log::info;
+use log::{info, warn};
+
+use crate::bus::usb::USB_DRIVER;
 
 pub mod pci;
+pub mod usb;
 
 pub fn init() {
     loop {
@@ -11,4 +14,9 @@ pub fn init() {
     }
 
     info!("pci: Initialized PCI device manager");
+
+    // initialize usb driver
+    if let Err(err) = USB_DRIVER.lock().init() {
+        warn!("usb: {:?}", err);
+    }
 }

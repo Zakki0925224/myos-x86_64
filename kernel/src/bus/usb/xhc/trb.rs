@@ -2,7 +2,7 @@ use core::mem::transmute;
 
 use modular_bitfield::{bitfield, specifiers::*, BitfieldSpecifier};
 
-use crate::device::usb::setup_trb::*;
+use crate::bus::usb::setup_trb::*;
 
 #[derive(BitfieldSpecifier, Debug, Clone, Copy, Eq, PartialEq)]
 #[bits = 6]
