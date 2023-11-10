@@ -89,4 +89,8 @@ impl<T: Sized + Copy, const SIZE: usize> Fifo<T, SIZE> {
 
         Ok(self.buf[read_ptr])
     }
+
+    pub fn get_buf_ref(&self) -> &[T; SIZE] {
+        &self.buf
+    }
 }
