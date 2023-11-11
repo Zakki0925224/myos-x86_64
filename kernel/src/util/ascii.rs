@@ -1,6 +1,6 @@
 use core::mem::transmute;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 #[repr(u8)]
 #[allow(dead_code)]
 pub enum AsciiCode {

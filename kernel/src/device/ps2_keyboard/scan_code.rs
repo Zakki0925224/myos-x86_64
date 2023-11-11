@@ -1,3 +1,5 @@
+use crate::util::ascii::AsciiCode;
+
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 #[allow(dead_code)]
 pub enum KeyCode {
@@ -112,6 +114,8 @@ pub enum KeyCode {
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct ScanCode {
     pub key_code: KeyCode,
+    pub ascii_code: Option<AsciiCode>,
+    pub on_shift_ascii_code: Option<AsciiCode>,
     pub pressed: [u8; 6],
     pub released: [u8; 6],
 }

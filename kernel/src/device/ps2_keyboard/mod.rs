@@ -1,6 +1,12 @@
 use crate::{
-    arch::addr::IoPortAddress, device::ps2_keyboard::key_map::ANSI_US_104_KEY_MAP,
-    mem::buffer::fifo::Fifo, println,
+    arch::addr::IoPortAddress,
+    device::ps2_keyboard::{
+        key_event::{KeyState, ModifierKeysState},
+        key_map::ANSI_US_104_KEY_MAP,
+        scan_code::KeyCode,
+    },
+    mem::buffer::fifo::Fifo,
+    println,
 };
 use lazy_static::lazy_static;
 use log::info;
@@ -21,6 +27,7 @@ lazy_static! {
 
 struct Keyboard {
     key_map: KeyMap,
+    mod_keys_state: ModifierKeysState,
     key_event: Option<KeyEvent>,
     key_buf: Fifo<u8, 6>,
 }
@@ -29,31 +36,102 @@ impl Keyboard {
     pub fn new(key_map: KeyMap) -> Self {
         Self {
             key_map,
+            mod_keys_state: ModifierKeysState::default(),
             key_event: None,
             key_buf: Fifo::new(0),
         }
     }
 
     pub fn input(&mut self, data: u8) {
-        //info!("ps2 kbd: 0x{:x}", data);
-
         let map = match self.key_map {
             KeyMap::AnsiUs104(map) => map,
         };
 
         if self.key_buf.enqueue(data).is_err() {
-            self.key_buf.reset_ptr();
+            self.reset_key_buf();
             self.key_buf.enqueue(data).unwrap();
         }
 
+        let key_buf_ref = self.key_buf.get_buf_ref();
+
         for scan_code in map {
-            if scan_code.pressed == *self.key_buf.get_buf_ref() {
-                println!("{:?}", scan_code.key_code);
-                self.key_buf.reset_ptr();
-            } else if scan_code.released == *self.key_buf.get_buf_ref() {
-                self.key_buf.reset_ptr();
+            let key_code = scan_code.key_code;
+
+            if scan_code.pressed == *key_buf_ref {
+                // pressed
+                self.mod_keys_state = ModifierKeysState {
+                    shift: key_code == KeyCode::LShift
+                        || key_code == KeyCode::RShift
+                        || self.mod_keys_state.shift,
+                    ctrl: key_code == KeyCode::LCtrl
+                        || key_code == KeyCode::RCtrl
+                        || self.mod_keys_state.ctrl,
+                    gui: key_code == KeyCode::LGui
+                        || key_code == KeyCode::RGui
+                        || self.mod_keys_state.gui,
+                    alt: key_code == KeyCode::LAlt
+                        || key_code == KeyCode::RAlt
+                        || self.mod_keys_state.alt,
+                };
+
+                let ascii_code = match self.mod_keys_state.shift {
+                    true => scan_code.on_shift_ascii_code,
+                    false => scan_code.ascii_code,
+                };
+
+                self.key_event = Some(KeyEvent {
+                    code: key_code,
+                    state: KeyState::Pressed,
+                    ascii: ascii_code,
+                });
+                break;
+            } else if scan_code.released == *key_buf_ref {
+                // released
+                self.mod_keys_state = ModifierKeysState {
+                    shift: key_code != KeyCode::LShift
+                        && key_code != KeyCode::RShift
+                        && self.mod_keys_state.shift,
+                    ctrl: key_code != KeyCode::RCtrl
+                        && key_code != KeyCode::LCtrl
+                        && self.mod_keys_state.ctrl,
+                    gui: key_code != KeyCode::LGui
+                        && key_code != KeyCode::RGui
+                        && self.mod_keys_state.gui,
+                    alt: key_code != KeyCode::LAlt
+                        && key_code != KeyCode::RAlt
+                        && self.mod_keys_state.alt,
+                };
+
+                self.key_event = Some(KeyEvent {
+                    code: key_code,
+                    state: KeyState::Released,
+                    ascii: None,
+                });
+                break;
             }
         }
+
+        println!("{:?}", self.key_event);
+        // if let Some(e) = self.key_event {
+        //     if let Some(a) = e.ascii {
+        //         println!("{}", a as u8 as char);
+        //     }
+        // }
+
+        if (self.key_buf.len() == 1 && key_buf_ref[0] != 0xe0 && key_buf_ref[0] != 0xe1)
+            || (self.key_buf.len() == 2
+                && key_buf_ref[1] != 0x2a
+                && key_buf_ref[1] != 0xb7
+                && key_buf_ref[1] != 0x1d)
+            || (self.key_buf.len() == 3 && key_buf_ref[2] != 0x45 && key_buf_ref[2] != 0xe0)
+        {
+            self.reset_key_buf();
+            self.key_event = None;
+        }
+    }
+
+    fn reset_key_buf(&mut self) {
+        self.key_buf = Fifo::new(0);
     }
 }
 
@@ -68,7 +146,9 @@ pub fn init() {
 
 pub fn receive() {
     let data = KBD_DATA_REG_ADDR.in8();
-    KEYBOARD.lock().input(data);
+    if let Some(mut keyboard) = KEYBOARD.try_lock() {
+        keyboard.input(data);
+    }
 }
 
 fn wait_ready() {
