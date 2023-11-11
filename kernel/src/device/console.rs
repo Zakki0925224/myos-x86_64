@@ -1,11 +1,18 @@
 use core::fmt::{self, Write};
 
+use alloc::string::String;
 use lazy_static::lazy_static;
+use log::error;
 use spin::Mutex;
 
 use crate::{
+    bus::pci,
+    env,
     graphics::{color::*, frame_buf_console::FRAME_BUF_CONSOLE},
-    mem::buffer::fifo::{Fifo, FifoError},
+    mem::{
+        self,
+        buffer::fifo::{Fifo, FifoError},
+    },
     serial,
     util::ascii::AsciiCode,
 };
@@ -129,6 +136,27 @@ impl Console {
             Err(_) => None,
         }
     }
+
+    pub fn get_str(&mut self, buf_type: BufferType) -> String {
+        let buf = match buf_type {
+            BufferType::Input => &mut self.input_buf,
+            BufferType::Output => &mut self.output_buf,
+            BufferType::ErrorOutput => &mut self.err_output_buf,
+        };
+
+        let mut s = String::new();
+
+        loop {
+            let ascii_code = match buf.dequeue() {
+                Ok(value) => value.ascii_code,
+                Err(_) => break,
+            };
+
+            s.push(ascii_code as u8 as char);
+        }
+
+        s
+    }
 }
 
 impl fmt::Write for Console {
@@ -176,6 +204,8 @@ macro_rules! println
 }
 
 pub fn input(ascii_code: AsciiCode) {
+    let mut cmd = None;
+
     if let Some(mut console) = CONSOLE.try_lock() {
         if let Err(_) = console.write(ascii_code, BufferType::Input) {
             console.reset_buf(BufferType::Input);
@@ -190,5 +220,32 @@ pub fn input(ascii_code: AsciiCode) {
                 print!("{}", code as u8 as char);
             }
         }
+
+        if ascii_code != AsciiCode::CarriageReturn {
+            return;
+        }
+
+        cmd = Some(console.get_str(BufferType::Input));
     }
+
+    // execute command
+    if let Some(cmd) = cmd {
+        let cmd = cmd.trim();
+        match cmd {
+            "info" => env::print_info(),
+            "lspci" => {
+                if pci::lspci().is_err() {
+                    error!("PCI manager is now busy")
+                }
+            }
+            "free" => {
+                if mem::free().is_err() {
+                    error!("Memory manager is now busy");
+                }
+            }
+            _ => error!("Command {:?} was not found", cmd),
+        }
+    }
+
+    println!();
 }

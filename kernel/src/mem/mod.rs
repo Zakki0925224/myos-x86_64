@@ -1,6 +1,9 @@
 use common::mem_desc::MemoryDescriptor;
 
-use crate::{arch::addr::VirtualAddress, mem::paging::PAGE_MAN, println};
+use crate::{
+    arch::addr::VirtualAddress, error::Result, mem::paging::PAGE_MAN, println,
+    util::mutex::MutexError,
+};
 
 use self::bitmap::BITMAP_MEM_MAN;
 
@@ -29,13 +32,22 @@ pub fn init(mem_map: &[MemoryDescriptor]) {
             .get()
             == 0x1000
     );
+}
 
-    let used = BITMAP_MEM_MAN.lock().get_used_mem_size();
-    let total = BITMAP_MEM_MAN.lock().get_total_mem_size();
-    println!(
-        "Memory used: {}B/{}B ({}%)",
-        used,
-        total,
-        (used as f32 / total as f32) * 100f32
-    );
+pub fn free() -> Result<()> {
+    if let Some(mem_man) = BITMAP_MEM_MAN.try_lock() {
+        let used = mem_man.get_used_mem_size();
+        let total = mem_man.get_total_mem_size();
+
+        println!(
+            "Memory used: {}B/{}B ({}%)",
+            used,
+            total,
+            (used as f32 / total as f32) * 100f32
+        );
+
+        return Ok(());
+    } else {
+        return Err(MutexError::Locked.into());
+    }
 }
