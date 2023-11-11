@@ -18,8 +18,8 @@ mod key_event;
 mod key_map;
 mod scan_code;
 
-const KBD_DATA_REG_ADDR: IoPortAddress = IoPortAddress::new(0x60);
-const KBD_CMD_AND_STATE_REG_ADDR: IoPortAddress = IoPortAddress::new(0x64);
+const PS2_DATA_REG_ADDR: IoPortAddress = IoPortAddress::new(0x60);
+const PS2_CMD_AND_STATE_REG_ADDR: IoPortAddress = IoPortAddress::new(0x64);
 
 lazy_static! {
     static ref KEYBOARD: Mutex<Keyboard> = Mutex::new(Keyboard::new(ANSI_US_104_KEY_MAP));
@@ -136,23 +136,28 @@ impl Keyboard {
 }
 
 pub fn init() {
+    PS2_CMD_AND_STATE_REG_ADDR.out8(0x60); // write configuration byte
     wait_ready();
-    KBD_CMD_AND_STATE_REG_ADDR.out8(0x60); // wite mode
+    PS2_DATA_REG_ADDR.out8(0x47); // enable interrupt
     wait_ready();
-    KBD_CMD_AND_STATE_REG_ADDR.out8(0x47); // kbc mode
+
+    PS2_CMD_AND_STATE_REG_ADDR.out8(0x20); // read configuration byte
+    wait_ready();
+    let conf_byte = PS2_DATA_REG_ADDR.in8();
+    println!("conf byte: 0x{:x}", conf_byte);
 
     info!("ps2 kbd: Initialized");
 }
 
 pub fn receive() {
-    let data = KBD_DATA_REG_ADDR.in8();
+    let data = PS2_DATA_REG_ADDR.in8();
     if let Some(mut keyboard) = KEYBOARD.try_lock() {
         keyboard.input(data);
     }
 }
 
 fn wait_ready() {
-    while KBD_CMD_AND_STATE_REG_ADDR.in8() & 0x2 != 0 {
+    while PS2_CMD_AND_STATE_REG_ADDR.in8() & 0x2 != 0 {
         continue;
     }
 }
