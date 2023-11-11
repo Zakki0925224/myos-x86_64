@@ -1,9 +1,12 @@
 use crate::{
     arch::addr::IoPortAddress,
-    device::ps2_keyboard::{
-        key_event::{KeyState, ModifierKeysState},
-        key_map::ANSI_US_104_KEY_MAP,
-        scan_code::KeyCode,
+    device::{
+        console,
+        ps2_keyboard::{
+            key_event::{KeyState, ModifierKeysState},
+            key_map::ANSI_US_104_KEY_MAP,
+            scan_code::KeyCode,
+        },
     },
     mem::buffer::fifo::Fifo,
     println,
@@ -111,12 +114,11 @@ impl Keyboard {
             }
         }
 
-        println!("{:?}", self.key_event);
-        // if let Some(e) = self.key_event {
-        //     if let Some(a) = e.ascii {
-        //         println!("{}", a as u8 as char);
-        //     }
-        // }
+        if let Some(e) = self.key_event {
+            if let Some(a) = e.ascii {
+                console::input(a);
+            }
+        }
 
         if (self.key_buf.len() == 1 && key_buf_ref[0] != 0xe0 && key_buf_ref[0] != 0xe1)
             || (self.key_buf.len() == 2

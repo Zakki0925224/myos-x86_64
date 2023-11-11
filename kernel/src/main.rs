@@ -98,14 +98,6 @@ async fn console_task() {
         };
 
         console::input(ascii_code);
-        match ascii_code {
-            AsciiCode::CarriageReturn => {
-                println!();
-            }
-            code => {
-                print!("{}", code as u8 as char);
-            }
-        }
     }
 }
 

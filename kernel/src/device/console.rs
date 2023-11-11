@@ -181,5 +181,14 @@ pub fn input(ascii_code: AsciiCode) {
             console.reset_buf(BufferType::Input);
             console.write(ascii_code, BufferType::Input).unwrap();
         }
+
+        match ascii_code {
+            AsciiCode::CarriageReturn => {
+                println!();
+            }
+            code => {
+                print!("{}", code as u8 as char);
+            }
+        }
     }
 }
