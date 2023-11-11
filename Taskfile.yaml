@@ -19,7 +19,7 @@ vars:
     VDI_FILE: myos.vdi
     COZETTE_FILE: cozette.psf
     OVMF_CODE_FILE: OVMF_CODE.fd
-    OVMF_VARS_FILE: OVMF_VARS.fd
+    #OVMF_VARS_FILE: OVMF_VARS.fd
     QEMU_TRACE_FILE: qemu_trace
     INITRAMFS_IMG_FILE: initramfs.img
 
@@ -35,7 +35,7 @@ vars:
     QEMU_DRIVES: |
         id=disk,if=none,format=raw,file=./{{$.OUTPUT_DIR}}/{{$.IMG_FILE}}
         if=pflash,format=raw,readonly=on,file=./{{$.THIRD_PARTY_DIR}}/{{$.OVMF_CODE_FILE}}
-        if=pflash,format=raw,file=./{{$.THIRD_PARTY_DIR}}/{{$.OVMF_VARS_FILE}}
+    #        if=pflash,format=raw,file=./{{$.THIRD_PARTY_DIR}}/{{$.OVMF_VARS_FILE}}
     QEMU_ARGS: |
         -no-reboot
         -no-shutdown
