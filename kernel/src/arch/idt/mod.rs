@@ -1,6 +1,6 @@
 use core::mem::size_of;
 use lazy_static::lazy_static;
-use log::info;
+use log::{error, info};
 use modular_bitfield::{bitfield, specifiers::*, BitfieldSpecifier};
 use spin::Mutex;
 
@@ -169,14 +169,10 @@ extern "x86-interrupt" fn double_fault_handler() {
 }
 
 extern "x86-interrupt" fn xhc_primary_event_ring_handler() {
-    loop {
-        match XHC_DRIVER.try_lock() {
-            Some(mut xhc_driver) => {
-                xhc_driver.as_mut().unwrap().on_updated_event_ring();
-                break;
-            }
-            None => continue,
-        }
+    if let Some(mut xhc_driver) = XHC_DRIVER.try_lock() {
+        xhc_driver.as_mut().unwrap().on_updated_event_ring();
+    } else {
+        error!("Xhc driver is locked");
     }
 
     notify_end_of_int();

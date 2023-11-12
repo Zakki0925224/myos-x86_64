@@ -617,6 +617,10 @@ impl XhcDriver {
     }
 
     pub fn on_updated_event_ring(&mut self) {
+        if !self.is_init {
+            return;
+        }
+
         let trb = match self.pop_primary_event_ring() {
             Some(trb) => trb,
             None => return,
@@ -645,6 +649,12 @@ impl XhcDriver {
                         "xhc: Failed to process command (completion code: {:?})",
                         comp_code
                     );
+
+                    // TODO
+                    if comp_code == CompletionCode::TrbError {
+                        self.is_init = false;
+                    }
+
                     return;
                 }
 
@@ -674,6 +684,12 @@ impl XhcDriver {
                         "xhc: Might have been failed to process command (completion code: {:?})",
                         comp_code
                     );
+
+                    // TODO
+                    if comp_code == CompletionCode::TrbError {
+                        self.is_init = false;
+                    }
+
                     return;
                 }
 
@@ -706,15 +722,17 @@ impl XhcDriver {
                         "xhc: Might have been failed to process command (completion code: {:?})",
                         comp_code
                     );
+
+                    // TODO
+                    // if comp_code == CompletionCode::TrbError {
+                    //     self.is_init = false;
+                    // }
+
                     return;
                 }
             }
             _ => (),
         }
-    }
-
-    pub fn is_init(&self) -> bool {
-        self.is_init
     }
 
     pub fn is_running(&self) -> bool {
