@@ -12,7 +12,7 @@ lazy_static! {
         Mutex::new(BitmapMemoryManager::new());
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct MemoryFrameInfo {
     frame_start_virt_addr: VirtualAddress,
     frame_size: usize, // must be 4096B align
@@ -26,7 +26,7 @@ impl MemoryFrameInfo {
     }
 
     pub fn get_frame_start_phys_addr(&self) -> PhysicalAddress {
-        self.frame_start_virt_addr.get_phys_addr()
+        self.frame_start_virt_addr.get_phys_addr().unwrap()
     }
 
     pub fn get_frame_size(&self) -> usize {

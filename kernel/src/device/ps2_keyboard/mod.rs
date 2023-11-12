@@ -12,7 +12,7 @@ use crate::{
     println,
 };
 use lazy_static::lazy_static;
-use log::info;
+use log::{error, info};
 use spin::Mutex;
 
 use self::{key_event::KeyEvent, key_map::KeyMap};
@@ -116,7 +116,9 @@ impl Keyboard {
 
         if let Some(e) = self.key_event {
             if let Some(a) = e.ascii {
-                console::input(a);
+                if console::input(a).is_err() {
+                    error!("Console is locked");
+                }
             }
         }
 

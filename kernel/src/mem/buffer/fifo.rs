@@ -1,6 +1,7 @@
+use crate::error::Result;
 use core::sync::atomic::{AtomicUsize, Ordering};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum FifoError {
     BufferIsLocked,
     BufferIsFull,
@@ -38,13 +39,13 @@ impl<T: Sized + Copy, const SIZE: usize> Fifo<T, SIZE> {
         self.write_ptr.store(0, Ordering::Relaxed);
     }
 
-    pub fn enqueue(&mut self, value: T) -> Result<(), FifoError> {
+    pub fn enqueue(&mut self, value: T) -> Result<()> {
         let read_ptr = self.read_ptr.load(Ordering::Relaxed);
         let write_ptr = self.write_ptr.load(Ordering::Relaxed);
         let next_write_ptr = (write_ptr + 1) % self.size;
 
         if next_write_ptr == read_ptr {
-            return Err(FifoError::BufferIsFull);
+            return Err(FifoError::BufferIsFull.into());
         }
 
         if self
@@ -57,7 +58,7 @@ impl<T: Sized + Copy, const SIZE: usize> Fifo<T, SIZE> {
             )
             .is_err()
         {
-            return Err(FifoError::BufferIsLocked);
+            return Err(FifoError::BufferIsLocked.into());
         }
 
         self.buf[write_ptr] = value;
@@ -65,13 +66,13 @@ impl<T: Sized + Copy, const SIZE: usize> Fifo<T, SIZE> {
         Ok(())
     }
 
-    pub fn dequeue(&mut self) -> Result<T, FifoError> {
+    pub fn dequeue(&mut self) -> Result<T> {
         let read_ptr = self.read_ptr.load(Ordering::Relaxed);
         let write_ptr = self.write_ptr.load(Ordering::Relaxed);
         let next_read_ptr = (read_ptr + 1) % self.size;
 
         if read_ptr == write_ptr {
-            return Err(FifoError::BufferIsEmpty);
+            return Err(FifoError::BufferIsEmpty.into());
         }
 
         if self
@@ -84,7 +85,7 @@ impl<T: Sized + Copy, const SIZE: usize> Fifo<T, SIZE> {
             )
             .is_err()
         {
-            return Err(FifoError::BufferIsLocked);
+            return Err(FifoError::BufferIsLocked.into());
         }
 
         Ok(self.buf[read_ptr])

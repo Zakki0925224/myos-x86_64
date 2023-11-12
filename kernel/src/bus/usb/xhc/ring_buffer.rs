@@ -1,5 +1,6 @@
 use crate::{
     arch::addr::*,
+    error::Result,
     mem::bitmap::{MemoryFrameInfo, BITMAP_MEM_MAN},
     println,
 };
@@ -7,7 +8,7 @@ use core::mem::size_of;
 
 use super::{register::*, trb::*};
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum RingBufferError {
     NotInitialized,
     InvalidMemoryError {
@@ -44,18 +45,19 @@ impl RingBuffer {
         buf_len: usize,
         buf_type: RingBufferType,
         cycle_state_bit: bool,
-    ) -> Result<Self, RingBufferError> {
+    ) -> Result<Self> {
         if !buf_base_mem_info.is_allocated()
             || (buf_base_mem_info.get_frame_size() / size_of::<TransferRequestBlock>()) < buf_len
         {
             return Err(RingBufferError::InvalidMemoryError {
                 mem_frame_info: buf_base_mem_info,
                 buf_len,
-            });
+            }
+            .into());
         }
 
         if buf_len < 2 {
-            return Err(RingBufferError::RingBufferSizeIsTooSmallError(buf_len));
+            return Err(RingBufferError::RingBufferSizeIsTooSmallError(buf_len).into());
         }
 
         Ok(Self {
@@ -78,7 +80,7 @@ impl RingBuffer {
         // set Link TRB
         let mut trb = TransferRequestBlock::new();
         trb.set_trb_type(TransferRequestBlockType::Link);
-        trb.set_param(self.buf_base_virt_addr.get_phys_addr().get());
+        trb.set_param(self.buf_base_virt_addr.get_phys_addr().unwrap().get());
 
         self.write(self.buf_len - 1, trb).unwrap();
     }
@@ -99,15 +101,13 @@ impl RingBuffer {
         self.cycle_state
     }
 
-    pub fn enqueue(&mut self) -> Result<(), RingBufferError> {
+    pub fn enqueue(&mut self) -> Result<()> {
         if !self.is_init {
-            return Err(RingBufferError::NotInitialized);
+            return Err(RingBufferError::NotInitialized.into());
         }
 
         if self.buf_type != RingBufferType::TransferRing {
-            return Err(RingBufferError::UnsupportedRingBufferTypeError(
-                self.buf_type,
-            ));
+            return Err(RingBufferError::UnsupportedRingBufferTypeError(self.buf_type).into());
         }
 
         if self.enqueue_index == self.buf_len - 1 {
@@ -122,9 +122,7 @@ impl RingBuffer {
         let mut trb = match self.read(self.enqueue_index) {
             Some(trb) => trb,
             None => {
-                return Err(RingBufferError::InvalidRingBufferIndexError(
-                    self.enqueue_index,
-                ))
+                return Err(RingBufferError::InvalidRingBufferIndexError(self.enqueue_index).into())
             }
         };
 
@@ -140,15 +138,13 @@ impl RingBuffer {
         Ok(())
     }
 
-    pub fn push(&mut self, trb: TransferRequestBlock) -> Result<(), RingBufferError> {
+    pub fn push(&mut self, trb: TransferRequestBlock) -> Result<()> {
         if !self.is_init {
-            return Err(RingBufferError::NotInitialized);
+            return Err(RingBufferError::NotInitialized.into());
         }
 
         if self.buf_type == RingBufferType::EventRing {
-            return Err(RingBufferError::UnsupportedRingBufferTypeError(
-                self.buf_type,
-            ));
+            return Err(RingBufferError::UnsupportedRingBufferTypeError(self.buf_type).into());
         }
 
         if self.enqueue_index == self.buf_len - 1 {
@@ -176,20 +172,18 @@ impl RingBuffer {
     pub fn pop(
         &mut self,
         mut int_reg_set: InterrupterRegisterSet,
-    ) -> Result<(TransferRequestBlock, InterrupterRegisterSet), RingBufferError> {
+    ) -> Result<(TransferRequestBlock, InterrupterRegisterSet)> {
         if !self.is_init {
-            return Err(RingBufferError::NotInitialized);
+            return Err(RingBufferError::NotInitialized.into());
         }
 
         if self.buf_type != RingBufferType::EventRing {
-            return Err(RingBufferError::UnsupportedRingBufferTypeError(
-                self.buf_type,
-            ));
+            return Err(RingBufferError::UnsupportedRingBufferTypeError(self.buf_type).into());
         }
 
         if int_reg_set.event_ring_seg_table_size() != 1 || int_reg_set.dequeue_erst_seg_index() != 0
         {
-            return Err(RingBufferError::UnsupportedEventRingSegmentTableLengthError);
+            return Err(RingBufferError::UnsupportedEventRingSegmentTableLengthError.into());
         }
 
         let trb_size = size_of::<TransferRequestBlock>();
@@ -200,11 +194,11 @@ impl RingBuffer {
 
         let trb = match self.read(index) {
             Some(trb) => trb,
-            None => return Err(RingBufferError::InvalidRingBufferIndexError(index)),
+            None => return Err(RingBufferError::InvalidRingBufferIndexError(index).into()),
         };
 
         if trb.cycle_bit() != self.cycle_state {
-            return Err(RingBufferError::InvalidTransferRequestBlockError(index));
+            return Err(RingBufferError::InvalidTransferRequestBlockError(index).into());
         }
 
         index += 1;
@@ -215,25 +209,23 @@ impl RingBuffer {
         }
 
         dequeue_ptr = self.buf_base_virt_addr.offset(index * trb_size);
-        int_reg_set.set_event_ring_dequeue_ptr(dequeue_ptr.get_phys_addr().get() >> 4);
+        int_reg_set.set_event_ring_dequeue_ptr(dequeue_ptr.get_phys_addr().unwrap().get() >> 4);
         int_reg_set.set_event_handler_busy(false);
 
         Ok((trb, int_reg_set))
     }
 
-    pub fn fill(&mut self, fill_trb: TransferRequestBlock) -> Result<(), RingBufferError> {
+    pub fn fill(&mut self, fill_trb: TransferRequestBlock) -> Result<()> {
         if !self.is_init {
-            return Err(RingBufferError::NotInitialized);
+            return Err(RingBufferError::NotInitialized.into());
         }
 
         if self.buf_type != RingBufferType::TransferRing {
-            return Err(RingBufferError::UnsupportedRingBufferTypeError(
-                self.buf_type,
-            ));
+            return Err(RingBufferError::UnsupportedRingBufferTypeError(self.buf_type).into());
         }
 
         if self.buf_len < 3 {
-            return Err(RingBufferError::RingBufferSizeIsTooSmallError(self.buf_len));
+            return Err(RingBufferError::RingBufferSizeIsTooSmallError(self.buf_len).into());
         }
 
         for i in 0..self.buf_len - 1 {
@@ -279,21 +271,19 @@ impl RingBuffer {
         }
     }
 
-    fn toggle_cycle(&mut self) -> Result<(), RingBufferError> {
+    fn toggle_cycle(&mut self) -> Result<()> {
         if !self.is_init {
-            return Err(RingBufferError::NotInitialized);
+            return Err(RingBufferError::NotInitialized.into());
         }
 
         if self.buf_type == RingBufferType::EventRing {
-            return Err(RingBufferError::UnsupportedRingBufferTypeError(
-                self.buf_type,
-            ));
+            return Err(RingBufferError::UnsupportedRingBufferTypeError(self.buf_type).into());
         }
 
         let link_trb_index = self.buf_len - 1;
         let mut link_trb = match self.read(link_trb_index) {
             Some(trb) => trb,
-            None => return Err(RingBufferError::InvalidRingBufferIndexError(link_trb_index)),
+            None => return Err(RingBufferError::InvalidRingBufferIndexError(link_trb_index).into()),
         };
         link_trb.set_cycle_bit(!link_trb.cycle_bit());
         // true -> toggle, false -> reset
@@ -319,9 +309,9 @@ impl RingBuffer {
         Some(virt_addr.read_volatile())
     }
 
-    fn write(&self, index: usize, trb: TransferRequestBlock) -> Result<(), RingBufferError> {
+    fn write(&self, index: usize, trb: TransferRequestBlock) -> Result<()> {
         if index >= self.buf_len {
-            return Err(RingBufferError::InvalidRingBufferIndexError(index));
+            return Err(RingBufferError::InvalidRingBufferIndexError(index).into());
         }
 
         let virt_addr = self

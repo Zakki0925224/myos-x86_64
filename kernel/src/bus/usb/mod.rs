@@ -1,9 +1,12 @@
-use alloc::vec::Vec;
+use alloc::{boxed::Box, vec::Vec};
 use lazy_static::lazy_static;
 use log::{info, warn};
 use spin::Mutex;
 
-use crate::arch::asm;
+use crate::{
+    arch::asm,
+    error::{Error, Result},
+};
 
 use self::{
     descriptor::{Descriptor, DescriptorType},
@@ -20,10 +23,9 @@ lazy_static! {
     pub static ref USB_DRIVER: Mutex<UsbDriver> = Mutex::new(UsbDriver::new());
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum UsbDriverError {
-    UsbDeviceError { slot_id: usize, err: UsbDeviceError },
-    XhcDriverError(XhcDriverError),
+    UsbDeviceError { slot_id: usize, err: Box<Error> },
 }
 
 #[derive(Debug)]
@@ -38,25 +40,23 @@ impl UsbDriver {
         }
     }
 
-    pub fn init(&mut self) -> Result<(), UsbDriverError> {
+    pub fn init(&mut self) -> Result<()> {
         let mut result = Ok(());
         self.devices = Vec::new();
 
         asm::disabled_int_func(|| {
             if let Some(xhc_driver) = XHC_DRIVER.lock().as_mut() {
                 if let Err(err) = xhc_driver.init() {
-                    result = Err(UsbDriverError::XhcDriverError(err));
+                    result = Err(err);
                     return;
                 }
 
                 if let Err(err) = xhc_driver.start() {
-                    result = Err(UsbDriverError::XhcDriverError(err));
+                    result = Err(err);
                     return;
                 }
             } else {
-                result = Err(UsbDriverError::XhcDriverError(
-                    XhcDriverError::NotInitialized,
-                ));
+                result = Err(XhcDriverError::NotInitialized.into());
             }
         });
 
@@ -70,7 +70,7 @@ impl UsbDriver {
             if let Some(xhc_driver) = XHC_DRIVER.lock().as_mut() {
                 match xhc_driver.scan_ports() {
                     Ok(ids) => port_ids = ids,
-                    Err(err) => result = Err(UsbDriverError::XhcDriverError(err)),
+                    Err(err) => result = Err(err),
                 }
             }
         });
@@ -83,7 +83,7 @@ impl UsbDriver {
             asm::disabled_int_func(|| {
                 if let Some(xhc_driver) = XHC_DRIVER.lock().as_mut() {
                     if let Err(err) = xhc_driver.reset_port(port_id) {
-                        result = Err(UsbDriverError::XhcDriverError(err));
+                        result = Err(err);
                     }
                 }
             });
@@ -96,7 +96,7 @@ impl UsbDriver {
                 if let Some(xhc_driver) = XHC_DRIVER.lock().as_mut() {
                     match xhc_driver.alloc_address_to_device(port_id) {
                         Ok(device) => self.devices.push(device),
-                        Err(err) => result = Err(UsbDriverError::XhcDriverError(err)),
+                        Err(err) => result = Err(err),
                     }
                 }
             });
@@ -111,7 +111,11 @@ impl UsbDriver {
 
             asm::disabled_int_func(|| {
                 if let Err(err) = device.init() {
-                    result = Err(UsbDriverError::UsbDeviceError { slot_id, err });
+                    result = Err(UsbDriverError::UsbDeviceError {
+                        slot_id,
+                        err: Box::new(err),
+                    }
+                    .into());
                 }
             });
 
@@ -123,7 +127,11 @@ impl UsbDriver {
 
             asm::disabled_int_func(|| {
                 if let Err(err) = device.request_to_get_desc(DescriptorType::Configration, 0) {
-                    result = Err(UsbDriverError::UsbDeviceError { slot_id, err });
+                    result = Err(UsbDriverError::UsbDeviceError {
+                        slot_id,
+                        err: Box::new(err),
+                    }
+                    .into());
                 }
             });
 
@@ -155,7 +163,11 @@ impl UsbDriver {
 
             asm::disabled_int_func(|| {
                 if let Err(err) = device.configure_endpoint(EndpointType::InterruptIn) {
-                    result = Err(UsbDriverError::UsbDeviceError { slot_id, err });
+                    result = Err(UsbDriverError::UsbDeviceError {
+                        slot_id,
+                        err: Box::new(err),
+                    }
+                    .into());
                 }
             });
 
@@ -165,7 +177,11 @@ impl UsbDriver {
 
             asm::disabled_int_func(|| {
                 if let Err(err) = device.request_to_set_conf(conf_desc.conf_value()) {
-                    result = Err(UsbDriverError::UsbDeviceError { slot_id, err });
+                    result = Err(UsbDriverError::UsbDeviceError {
+                        slot_id,
+                        err: Box::new(err),
+                    }
+                    .into());
                 }
             });
 
@@ -175,7 +191,11 @@ impl UsbDriver {
 
             asm::disabled_int_func(|| {
                 if let Err(err) = device.request_to_set_interface(boot_interface) {
-                    result = Err(UsbDriverError::UsbDeviceError { slot_id, err });
+                    result = Err(UsbDriverError::UsbDeviceError {
+                        slot_id,
+                        err: Box::new(err),
+                    }
+                    .into());
                 }
             });
 
@@ -185,7 +205,11 @@ impl UsbDriver {
 
             asm::disabled_int_func(|| {
                 if let Err(err) = device.request_to_set_protocol(boot_interface, 0) {
-                    result = Err(UsbDriverError::UsbDeviceError { slot_id, err });
+                    result = Err(UsbDriverError::UsbDeviceError {
+                        slot_id,
+                        err: Box::new(err),
+                    }
+                    .into());
                 }
             });
 
@@ -195,7 +219,11 @@ impl UsbDriver {
 
             asm::disabled_int_func(|| {
                 if let Err(err) = device.configure_endpoint_transfer_ring() {
-                    result = Err(UsbDriverError::UsbDeviceError { slot_id, err });
+                    result = Err(UsbDriverError::UsbDeviceError {
+                        slot_id,
+                        err: Box::new(err),
+                    }
+                    .into());
                 }
             });
 

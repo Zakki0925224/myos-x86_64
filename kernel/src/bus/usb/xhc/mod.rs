@@ -11,7 +11,7 @@ use crate::{
         pci::{self, conf_space::BaseAddress, device_id::PCI_USB_XHCI_ID},
         usb::xhc::{port::ConfigState, register::*},
     },
-    error::Error,
+    error::Result,
     mem::bitmap::*,
 };
 
@@ -44,7 +44,7 @@ lazy_static! {
 const PORT_REG_SETS_START_VIRT_ADDR_OFFSET: usize = 1024;
 const RING_BUF_LEN: usize = 16;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum XhcDriverError {
     XhcDeviceWasNotFoundError,
     InvalidRegisterAddressError,
@@ -53,14 +53,11 @@ pub enum XhcDriverError {
     InvalidDoorbellRegisterIndexError(usize),
     InvalidDeviceContextArrayIndexError(usize),
     HostControllerIsNotHaltedError,
-    BitmapMemoryManagerError(Error),
-    RingBufferError(RingBufferError),
     OtherError(&'static str),
     NotInitialized,
     NotRunning,
     PortWasNotFoundError(usize),
     PortIsNotEnabledError(usize),
-    UsbDeviceError(UsbDeviceError),
 }
 
 #[derive(Debug)]
@@ -90,7 +87,7 @@ pub struct XhcDriver {
 }
 
 impl XhcDriver {
-    pub fn new() -> Result<Self, XhcDriverError> {
+    pub fn new() -> Result<Self> {
         let (class_code, subclass_code, prog_if) = PCI_USB_XHCI_ID;
         let xhci_controllers = loop {
             match pci::find_by_class(class_code, subclass_code, prog_if) {
@@ -139,10 +136,10 @@ impl XhcDriver {
             return Ok(usb);
         }
 
-        Err(XhcDriverError::XhcDeviceWasNotFoundError)
+        Err(XhcDriverError::XhcDeviceWasNotFoundError.into())
     }
 
-    pub fn init(&mut self) -> Result<(), XhcDriverError> {
+    pub fn init(&mut self) -> Result<()> {
         let controller = loop {
             match pci::find_by_bdf(
                 self.controller_pci_bus,
@@ -150,7 +147,7 @@ impl XhcDriver {
                 self.controller_pci_func,
             ) {
                 Ok(Some(device)) => break device,
-                Ok(None) => return Err(XhcDriverError::XhcDeviceWasNotFoundError),
+                Ok(None) => return Err(XhcDriverError::XhcDeviceWasNotFoundError.into()),
                 Err(_) => continue,
             }
         };
@@ -158,24 +155,24 @@ impl XhcDriver {
         // read base address registers
         let conf_space_non_bridge_field = match controller.read_conf_space_non_bridge_field() {
             Some(field) => field,
-            None => return Err(XhcDriverError::XhcDeviceWasNotFoundError),
+            None => return Err(XhcDriverError::XhcDeviceWasNotFoundError.into()),
         };
 
         let bars = conf_space_non_bridge_field.get_bars();
 
         if bars.len() == 0 {
-            return Err(XhcDriverError::XhcDeviceWasNotFoundError);
+            return Err(XhcDriverError::XhcDeviceWasNotFoundError.into());
         }
 
         self.cap_reg_virt_addr = match bars[0].1 {
             BaseAddress::MemoryAddress32BitSpace(addr, _) => addr,
             BaseAddress::MemoryAddress64BitSpace(addr, _) => addr,
-            _ => return Err(XhcDriverError::XhcDeviceWasNotFoundError),
+            _ => return Err(XhcDriverError::XhcDeviceWasNotFoundError.into()),
         }
         .get_virt_addr();
 
         if self.cap_reg_virt_addr.get() == 0 {
-            return Err(XhcDriverError::InvalidRegisterAddressError);
+            return Err(XhcDriverError::InvalidRegisterAddressError.into());
         }
 
         // set registers address
@@ -202,7 +199,7 @@ impl XhcDriver {
         // stop controller
         let ope_reg = self.read_ope_reg();
         if !ope_reg.usb_status().hchalted() {
-            return Err(XhcDriverError::HostControllerIsNotHaltedError);
+            return Err(XhcDriverError::HostControllerIsNotHaltedError.into());
         }
 
         // reset controller
@@ -265,7 +262,7 @@ impl XhcDriver {
         // initialize device context
         self.device_context_arr_virt_addr = match BITMAP_MEM_MAN.lock().alloc_single_mem_frame() {
             Ok(mem_info) => mem_info,
-            Err(err) => return Err(XhcDriverError::BitmapMemoryManagerError(err)),
+            Err(err) => return Err(err),
         }
         .get_frame_start_virt_addr();
 
@@ -282,7 +279,10 @@ impl XhcDriver {
 
         let mut ope_reg = self.read_ope_reg();
         ope_reg.set_device_context_base_addr_array_ptr(
-            self.device_context_arr_virt_addr.get_phys_addr().get(),
+            self.device_context_arr_virt_addr
+                .get_phys_addr()
+                .unwrap()
+                .get(),
         );
         self.write_ope_reg(ope_reg);
         info!("xhc: Initialized device context");
@@ -292,7 +292,7 @@ impl XhcDriver {
 
         let cmd_ring_mem_info = match BITMAP_MEM_MAN.lock().alloc_single_mem_frame() {
             Ok(mem_info) => mem_info,
-            Err(err) => return Err(XhcDriverError::BitmapMemoryManagerError(err)),
+            Err(err) => return Err(err),
         };
 
         self.cmd_ring_virt_addr = cmd_ring_mem_info.get_frame_start_virt_addr();
@@ -303,7 +303,7 @@ impl XhcDriver {
             pcs,
         ) {
             Ok(ring_buf) => Some(ring_buf),
-            Err(err) => return Err(XhcDriverError::RingBufferError(err)),
+            Err(err) => return Err(err),
         };
         self.cmd_ring_buf.as_mut().unwrap().init();
 
@@ -322,21 +322,25 @@ impl XhcDriver {
         let primary_event_ring_seg_table_virt_addr =
             match BITMAP_MEM_MAN.lock().alloc_single_mem_frame() {
                 Ok(mem_info) => mem_info,
-                Err(err) => return Err(XhcDriverError::BitmapMemoryManagerError(err)),
+                Err(err) => return Err(err),
             }
             .get_frame_start_virt_addr();
 
         let primary_event_ring_mem_info = match BITMAP_MEM_MAN.lock().alloc_single_mem_frame() {
             Ok(mem_info) => mem_info,
-            Err(err) => return Err(XhcDriverError::BitmapMemoryManagerError(err)),
+            Err(err) => return Err(err),
         };
 
         self.primary_event_ring_virt_addr = primary_event_ring_mem_info.get_frame_start_virt_addr();
 
         // initialize event ring segment table entry
         let mut seg_table_entry = EventRingSegmentTableEntry::new();
-        seg_table_entry
-            .set_ring_seg_base_addr(self.primary_event_ring_virt_addr.get_phys_addr().get());
+        seg_table_entry.set_ring_seg_base_addr(
+            self.primary_event_ring_virt_addr
+                .get_phys_addr()
+                .unwrap()
+                .get(),
+        );
         seg_table_entry.set_ring_seg_size(RING_BUF_LEN as u16);
         primary_event_ring_seg_table_virt_addr.write_volatile(seg_table_entry);
 
@@ -348,19 +352,27 @@ impl XhcDriver {
             pcs,
         ) {
             Ok(ring_buf) => Some(ring_buf),
-            Err(err) => return Err(XhcDriverError::RingBufferError(err)),
+            Err(err) => return Err(err),
         };
         self.primary_event_ring_buf.as_mut().unwrap().init();
 
         // initialize first interrupter register sets entry
         let mut intr_reg_sets_0 = self.read_intr_reg_sets(0).unwrap();
         intr_reg_sets_0.set_event_ring_seg_table_base_addr(
-            primary_event_ring_seg_table_virt_addr.get_phys_addr().get() >> 6,
+            primary_event_ring_seg_table_virt_addr
+                .get_phys_addr()
+                .unwrap()
+                .get()
+                >> 6,
         );
         intr_reg_sets_0.set_event_ring_seg_table_size(1);
         intr_reg_sets_0.set_dequeue_erst_seg_index(0);
         intr_reg_sets_0.set_event_ring_dequeue_ptr(
-            self.primary_event_ring_virt_addr.get_phys_addr().get() >> 4,
+            self.primary_event_ring_virt_addr
+                .get_phys_addr()
+                .unwrap()
+                .get()
+                >> 4,
         );
         self.write_intr_reg_sets(0, intr_reg_sets_0).unwrap();
 
@@ -403,9 +415,9 @@ impl XhcDriver {
         Ok(())
     }
 
-    pub fn start(&mut self) -> Result<(), XhcDriverError> {
+    pub fn start(&mut self) -> Result<()> {
         if !self.is_init {
-            return Err(XhcDriverError::NotInitialized);
+            return Err(XhcDriverError::NotInitialized.into());
         }
 
         // start controller
@@ -427,17 +439,15 @@ impl XhcDriver {
         // check status
         let usb_status = self.read_ope_reg().usb_status();
         if usb_status.hchalted() {
-            return Err(XhcDriverError::OtherError("xHC is halted"));
+            return Err(XhcDriverError::OtherError("xHC is halted").into());
         }
 
         if usb_status.host_system_err() {
-            return Err(XhcDriverError::OtherError(
-                "An error occured on the host system",
-            ));
+            return Err(XhcDriverError::OtherError("An error occured on the host system").into());
         }
 
         if usb_status.host_controller_err() {
-            return Err(XhcDriverError::OtherError("An error occured on xHC"));
+            return Err(XhcDriverError::OtherError("An error occured on xHC").into());
         }
 
         self.ring_doorbell(0, 0);
@@ -445,13 +455,13 @@ impl XhcDriver {
         Ok(())
     }
 
-    pub fn scan_ports(&mut self) -> Result<Vec<usize>, XhcDriverError> {
+    pub fn scan_ports(&mut self) -> Result<Vec<usize>> {
         if !self.is_init {
-            return Err(XhcDriverError::NotInitialized);
+            return Err(XhcDriverError::NotInitialized.into());
         }
 
         if !self.is_running() {
-            return Err(XhcDriverError::NotRunning);
+            return Err(XhcDriverError::NotRunning.into());
         }
 
         self.ports = Vec::new();
@@ -470,18 +480,18 @@ impl XhcDriver {
         Ok(port_ids)
     }
 
-    pub fn reset_port(&mut self, port_id: usize) -> Result<(), XhcDriverError> {
+    pub fn reset_port(&mut self, port_id: usize) -> Result<()> {
         if !self.is_init {
-            return Err(XhcDriverError::NotInitialized);
+            return Err(XhcDriverError::NotInitialized.into());
         }
 
         if !self.is_running() {
-            return Err(XhcDriverError::NotRunning);
+            return Err(XhcDriverError::NotRunning.into());
         }
 
         let port = match self.read_port(port_id) {
             Some(port) => port,
-            None => return Err(XhcDriverError::PortWasNotFoundError(port_id)),
+            None => return Err(XhcDriverError::PortWasNotFoundError(port_id).into()),
         };
 
         let mut port = port.clone();
@@ -509,29 +519,29 @@ impl XhcDriver {
         Ok(())
     }
 
-    pub fn alloc_address_to_device(&mut self, port_id: usize) -> Result<UsbDevice, XhcDriverError> {
+    pub fn alloc_address_to_device(&mut self, port_id: usize) -> Result<UsbDevice> {
         if !self.is_init {
-            return Err(XhcDriverError::NotInitialized);
+            return Err(XhcDriverError::NotInitialized.into());
         }
 
         if !self.is_running() {
-            return Err(XhcDriverError::NotRunning);
+            return Err(XhcDriverError::NotRunning.into());
         }
 
         let port = match self.read_port(port_id) {
             Some(port) => port,
-            None => return Err(XhcDriverError::PortWasNotFoundError(port_id)),
+            None => return Err(XhcDriverError::PortWasNotFoundError(port_id).into()),
         };
 
         if port.config_state != ConfigState::Enabled {
-            return Err(XhcDriverError::PortIsNotEnabledError(port_id));
+            return Err(XhcDriverError::PortIsNotEnabledError(port_id).into());
         }
 
         let slot_id = port.slot_id.unwrap();
 
         let input_context_base_virt_addr = match BITMAP_MEM_MAN.lock().alloc_single_mem_frame() {
             Ok(mem_info) => mem_info,
-            Err(err) => return Err(XhcDriverError::BitmapMemoryManagerError(err)),
+            Err(err) => return Err(err),
         }
         .get_frame_start_virt_addr();
 
@@ -580,7 +590,7 @@ impl XhcDriver {
 
         let trnasfer_ring_mem_info = match BITMAP_MEM_MAN.lock().alloc_single_mem_frame() {
             Ok(mem_info) => mem_info,
-            Err(err) => return Err(XhcDriverError::BitmapMemoryManagerError(err)),
+            Err(err) => return Err(err),
         };
 
         endpoint_context_0
@@ -592,13 +602,13 @@ impl XhcDriver {
 
         let mut trb = TransferRequestBlock::new();
         trb.set_trb_type(TransferRequestBlockType::AddressDeviceCommand);
-        trb.set_param(input_context_base_virt_addr.get_phys_addr().get());
+        trb.set_param(input_context_base_virt_addr.get_phys_addr().unwrap().get());
         trb.set_ctrl_regs((slot_id as u16) << 8);
         self.push_cmd_ring(trb).unwrap();
 
         match UsbDevice::new(slot_id, trnasfer_ring_mem_info, max_packet_size) {
             Ok(device) => Ok(device),
-            Err(err) => Err(XhcDriverError::UsbDeviceError(err)),
+            Err(err) => Err(err),
         }
     }
 
@@ -718,15 +728,15 @@ impl XhcDriver {
         None
     }
 
-    fn alloc_slot(&mut self, port_id: usize, slot_id: usize) -> Result<(), XhcDriverError> {
+    fn alloc_slot(&mut self, port_id: usize, slot_id: usize) -> Result<()> {
         let port = match self.read_port(port_id) {
             Some(port) => port,
-            None => return Err(XhcDriverError::PortWasNotFoundError(port_id)),
+            None => return Err(XhcDriverError::PortWasNotFoundError(port_id).into()),
         };
 
         let device_context_base_virt_addr = match BITMAP_MEM_MAN.lock().alloc_single_mem_frame() {
             Ok(mem_info) => mem_info,
-            Err(err) => return Err(XhcDriverError::BitmapMemoryManagerError(err)),
+            Err(err) => return Err(err),
         }
         .get_frame_start_virt_addr();
 
@@ -796,11 +806,9 @@ impl XhcDriver {
         &self,
         index: usize,
         intr_reg_set: InterrupterRegisterSet,
-    ) -> Result<(), XhcDriverError> {
+    ) -> Result<()> {
         if index > INTR_REG_SET_MAX_LEN {
-            return Err(XhcDriverError::InvalidInterrupterRegisterSetIndexError(
-                index,
-            ));
+            return Err(XhcDriverError::InvalidInterrupterRegisterSetIndexError(index).into());
         }
 
         let read = self.read_intr_reg_sets(index).unwrap();
@@ -829,13 +837,9 @@ impl XhcDriver {
         Some(PortRegisterSet::read(base_addr))
     }
 
-    fn write_port_reg_set(
-        &self,
-        index: usize,
-        port_reg_set: PortRegisterSet,
-    ) -> Result<(), XhcDriverError> {
+    fn write_port_reg_set(&self, index: usize, port_reg_set: PortRegisterSet) -> Result<()> {
         if index == 0 || index > self.num_of_ports {
-            return Err(XhcDriverError::InvalidPortRegisterSetIndexError(index));
+            return Err(XhcDriverError::InvalidPortRegisterSetIndexError(index).into());
         }
 
         let mut port_reg_set = port_reg_set;
@@ -848,13 +852,9 @@ impl XhcDriver {
         Ok(())
     }
 
-    fn write_doorbell_reg(
-        &self,
-        index: usize,
-        doorbell_reg: DoorbellRegister,
-    ) -> Result<(), XhcDriverError> {
+    fn write_doorbell_reg(&self, index: usize, doorbell_reg: DoorbellRegister) -> Result<()> {
         if index > DOORBELL_REG_MAX_LEN {
-            return Err(XhcDriverError::InvalidDoorbellRegisterIndexError(index));
+            return Err(XhcDriverError::InvalidDoorbellRegisterIndexError(index).into());
         }
 
         let base_addr = self
@@ -883,14 +883,14 @@ impl XhcDriver {
         &self,
         index: usize,
         base_addr: VirtualAddress,
-    ) -> Result<(), XhcDriverError> {
+    ) -> Result<()> {
         if index > self.num_of_slots + 1 {
-            return Err(XhcDriverError::InvalidDeviceContextArrayIndexError(index));
+            return Err(XhcDriverError::InvalidDeviceContextArrayIndexError(index).into());
         }
 
         self.device_context_arr_virt_addr
             .offset(index * size_of::<u64>())
-            .write_volatile(base_addr.get_phys_addr().get());
+            .write_volatile(base_addr.get_phys_addr().unwrap().get());
 
         Ok(())
     }
@@ -909,10 +909,10 @@ impl XhcDriver {
         self.write_doorbell_reg(index, doorbell_reg).unwrap();
     }
 
-    pub fn push_cmd_ring(&mut self, trb: TransferRequestBlock) -> Result<(), XhcDriverError> {
+    pub fn push_cmd_ring(&mut self, trb: TransferRequestBlock) -> Result<()> {
         match self.cmd_ring_buf.as_mut().unwrap().push(trb) {
             Ok(_) => self.ring_doorbell(0, 0),
-            Err(err) => return Err(XhcDriverError::RingBufferError(err)),
+            Err(err) => return Err(err),
         }
 
         Ok(())

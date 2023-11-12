@@ -1,6 +1,6 @@
 use core::ptr::{read_volatile, write_volatile};
 
-use crate::mem::paging::PAGE_MAN;
+use crate::{error::Result, mem::paging::PAGE_MAN, util::mutex::MutexError};
 
 use super::asm;
 
@@ -81,14 +81,14 @@ impl VirtualAddress {
         Self::new(self.0 + offset as u64)
     }
 
-    pub fn get_phys_addr(&self) -> PhysicalAddress {
-        if PAGE_MAN.is_locked() {
-            panic!("Page manager is locked");
-        }
-
-        match PAGE_MAN.lock().calc_phys_addr(*self) {
-            Ok(addr) => return addr,
-            Err(err) => panic!("mem: {:?}", err),
+    pub fn get_phys_addr(&self) -> Result<PhysicalAddress> {
+        if let Some(page_man) = PAGE_MAN.try_lock() {
+            return match page_man.calc_phys_addr(*self) {
+                Ok(addr) => Ok(addr),
+                Err(err) => Err(err),
+            };
+        } else {
+            return Err(MutexError::Locked.into());
         }
     }
 

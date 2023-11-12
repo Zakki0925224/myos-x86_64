@@ -3,7 +3,7 @@ use core::mem::size_of;
 use alloc::vec::Vec;
 
 use crate::{
-    arch::addr::*, device::usb::hid_keyboard::InputData, error::Error, mem::bitmap::*, println,
+    arch::addr::*, device::usb::hid_keyboard::InputData, error::Result, mem::bitmap::*, println,
 };
 
 use super::{
@@ -24,10 +24,8 @@ use super::{
 const RING_BUF_LEN: usize = 8;
 const DEFAULT_CONTROL_PIPE_ID: u8 = 1;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum UsbDeviceError {
-    RingBufferError(RingBufferError),
-    BitmapMemoryManagerError(Error),
     XhcPortNotFoundError,
     XhcDriverWasNotInitializedError,
     InvalidTransferRequestBlockTypeError,
@@ -56,7 +54,7 @@ impl UsbDevice {
         slot_id: usize,
         transfer_ring_mem_info: MemoryFrameInfo,
         max_packet_size: u16,
-    ) -> Result<Self, UsbDeviceError> {
+    ) -> Result<Self> {
         let mut dcp_ring_buf = match RingBuffer::new(
             transfer_ring_mem_info,
             RING_BUF_LEN,
@@ -64,19 +62,19 @@ impl UsbDevice {
             true,
         ) {
             Ok(transfer_ring_buf) => transfer_ring_buf,
-            Err(err) => return Err(UsbDeviceError::RingBufferError(err)),
+            Err(err) => return Err(err),
         };
 
         dcp_ring_buf.init();
 
         let dev_desc_buf_mem_info = match BITMAP_MEM_MAN.lock().alloc_single_mem_frame() {
             Ok(mem_info) => mem_info,
-            Err(err) => return Err(UsbDeviceError::BitmapMemoryManagerError(err)),
+            Err(err) => return Err(err),
         };
 
         let conf_desc_buf_mem_info = match BITMAP_MEM_MAN.lock().alloc_single_mem_frame() {
             Ok(mem_info) => mem_info,
-            Err(err) => return Err(UsbDeviceError::BitmapMemoryManagerError(err)),
+            Err(err) => return Err(err),
         };
 
         let mut transfer_ring_bufs = [None; 32];
@@ -98,7 +96,7 @@ impl UsbDevice {
         Ok(dev)
     }
 
-    pub fn init(&mut self) -> Result<(), UsbDeviceError> {
+    pub fn init(&mut self) -> Result<()> {
         self.request_to_get_desc(DescriptorType::Device, 0)
     }
 
@@ -175,7 +173,7 @@ impl UsbDevice {
         &mut self,
         desc_type: DescriptorType,
         desc_index: usize,
-    ) -> Result<(), UsbDeviceError> {
+    ) -> Result<()> {
         let buf_mem_info = match desc_type {
             DescriptorType::Device => self.dev_desc_buf_mem_info,
             DescriptorType::Configration => self.conf_desc_buf_mem_info,
@@ -206,7 +204,7 @@ impl UsbDevice {
         )
     }
 
-    pub fn request_to_set_conf(&mut self, conf_value: u8) -> Result<(), UsbDeviceError> {
+    pub fn request_to_set_conf(&mut self, conf_value: u8) -> Result<()> {
         self.ctrl_out(
             RequestType::Standard,
             RequestTypeRecipient::Device,
@@ -244,14 +242,11 @@ impl UsbDevice {
             .collect()
     }
 
-    pub fn configure_endpoint(
-        &mut self,
-        endpoint_type: EndpointType,
-    ) -> Result<(), UsbDeviceError> {
+    pub fn configure_endpoint(&mut self, endpoint_type: EndpointType) -> Result<()> {
         if let Some(xhc_driver) = XHC_DRIVER.lock().as_mut() {
             let port = match xhc_driver.find_port_by_slot_id(self.slot_id) {
                 Some(port) => port,
-                None => return Err(UsbDeviceError::XhcPortNotFoundError),
+                None => return Err(UsbDeviceError::XhcPortNotFoundError.into()),
             };
 
             let mut transfer_ring_bufs = self.transfer_ring_bufs;
@@ -277,7 +272,7 @@ impl UsbDevice {
                 let transfer_ring_buf_mem_info =
                     match BITMAP_MEM_MAN.lock().alloc_single_mem_frame() {
                         Ok(mem_info) => mem_info,
-                        Err(err) => return Err(UsbDeviceError::BitmapMemoryManagerError(err)),
+                        Err(err) => return Err(err),
                     };
 
                 let mut transfer_ring_buf = match RingBuffer::new(
@@ -287,7 +282,7 @@ impl UsbDevice {
                     true,
                 ) {
                     Ok(ring_buf) => ring_buf,
-                    Err(err) => return Err(UsbDeviceError::RingBufferError(err)),
+                    Err(err) => return Err(err),
                 };
 
                 transfer_ring_buf.init();
@@ -323,18 +318,23 @@ impl UsbDevice {
             let mut config_endpoint_trb = TransferRequestBlock::new();
             config_endpoint_trb.set_trb_type(TransferRequestBlockType::ConfigureEndpointCommnad);
             config_endpoint_trb.set_ctrl_regs((self.slot_id as u16) << 8);
-            config_endpoint_trb.set_param(port.input_context_base_virt_addr.get_phys_addr().get());
+            config_endpoint_trb.set_param(
+                port.input_context_base_virt_addr
+                    .get_phys_addr()
+                    .unwrap()
+                    .get(),
+            );
 
             return match xhc_driver.push_cmd_ring(config_endpoint_trb) {
                 Ok(_) => Ok(()),
                 Err(_) => unimplemented!(),
             };
         } else {
-            return Err(UsbDeviceError::XhcDriverWasNotInitializedError);
+            return Err(UsbDeviceError::XhcDriverWasNotInitializedError.into());
         }
     }
 
-    pub fn configure_endpoint_transfer_ring(&mut self) -> Result<(), UsbDeviceError> {
+    pub fn configure_endpoint_transfer_ring(&mut self) -> Result<()> {
         for endpoint_id in &self.configured_endpoint_dci {
             if let Some(ring_buf) = self.transfer_ring_bufs[*endpoint_id].as_mut() {
                 let mut trb = TransferRequestBlock::new();
@@ -344,7 +344,7 @@ impl UsbDevice {
                 trb.set_other_flags(0x12); // IOC, ISP bit
 
                 if let Err(err) = ring_buf.fill(trb) {
-                    return Err(UsbDeviceError::RingBufferError(err));
+                    return Err(err);
                 }
 
                 //ring_buf.debug();
@@ -359,10 +359,7 @@ impl UsbDevice {
         Ok(())
     }
 
-    pub fn request_to_set_interface(
-        &mut self,
-        interface_desc: InterfaceDescriptor,
-    ) -> Result<(), UsbDeviceError> {
+    pub fn request_to_set_interface(&mut self, interface_desc: InterfaceDescriptor) -> Result<()> {
         self.ctrl_out(
             RequestType::Standard,
             RequestTypeRecipient::Interface,
@@ -378,7 +375,7 @@ impl UsbDevice {
         &mut self,
         interface_desc: InterfaceDescriptor,
         protocol: u8,
-    ) -> Result<(), UsbDeviceError> {
+    ) -> Result<()> {
         self.ctrl_out(
             RequestType::Class,
             RequestTypeRecipient::Interface,
@@ -417,9 +414,9 @@ impl UsbDevice {
         setup_index: u16,
         setup_length: u16,
         data: Option<(PhysicalAddress, u32)>, // buf addr, buf size
-    ) -> Result<(), UsbDeviceError> {
+    ) -> Result<()> {
         if (setup_length > 0 && data == None) || (setup_length == 0 && data != None) {
-            return Err(UsbDeviceError::InvalidRequestError);
+            return Err(UsbDeviceError::InvalidRequestError.into());
         }
 
         let mut setup_stage_trb = TransferRequestBlock::new();
@@ -472,9 +469,9 @@ impl UsbDevice {
         setup_index: u16,
         setup_length: u16,
         data: Option<(PhysicalAddress, u32)>, // buf addr, buf size
-    ) -> Result<(), UsbDeviceError> {
+    ) -> Result<()> {
         if (setup_length > 0 && data == None) || (setup_length == 0 && data != None) {
-            return Err(UsbDeviceError::InvalidRequestError);
+            return Err(UsbDeviceError::InvalidRequestError.into());
         }
 
         let mut setup_stage_trb = TransferRequestBlock::new();
@@ -529,40 +526,40 @@ impl UsbDevice {
         setup_stage_trb: TransferRequestBlock,
         data_stage_trb: Option<TransferRequestBlock>,
         status_stage_trb: Option<TransferRequestBlock>,
-    ) -> Result<(), UsbDeviceError> {
+    ) -> Result<()> {
         if setup_stage_trb.trb_type() != TransferRequestBlockType::SetupStage
             || (data_stage_trb.is_some()
                 && data_stage_trb.unwrap().trb_type() != TransferRequestBlockType::DataStage)
             || (status_stage_trb.is_some()
                 && status_stage_trb.unwrap().trb_type() != TransferRequestBlockType::StatusStage)
         {
-            return Err(UsbDeviceError::InvalidTransferRequestBlockTypeError);
+            return Err(UsbDeviceError::InvalidTransferRequestBlockTypeError.into());
         }
 
         let dcp_transfer_ring = self.transfer_ring_bufs[1].as_mut().unwrap();
 
         match dcp_transfer_ring.push(setup_stage_trb) {
             Ok(_) => (),
-            Err(err) => return Err(UsbDeviceError::RingBufferError(err)),
+            Err(err) => return Err(err),
         }
 
         if let Some(trb) = data_stage_trb {
             match dcp_transfer_ring.push(trb) {
                 Ok(_) => (),
-                Err(err) => return Err(UsbDeviceError::RingBufferError(err)),
+                Err(err) => return Err(err),
             }
         }
 
         if let Some(trb) = status_stage_trb {
             match dcp_transfer_ring.push(trb) {
                 Ok(_) => (),
-                Err(err) => return Err(UsbDeviceError::RingBufferError(err)),
+                Err(err) => return Err(err),
             }
         }
 
         match XHC_DRIVER.lock().as_ref() {
             Some(xhc_driver) => xhc_driver.ring_doorbell(self.slot_id, DEFAULT_CONTROL_PIPE_ID),
-            None => return Err(UsbDeviceError::XhcDriverWasNotInitializedError),
+            None => return Err(UsbDeviceError::XhcDriverWasNotInitializedError.into()),
         }
 
         Ok(())

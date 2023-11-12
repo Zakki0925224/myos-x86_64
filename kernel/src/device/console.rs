@@ -1,6 +1,6 @@
 use core::fmt::{self, Write};
 
-use alloc::string::String;
+use alloc::{boxed::Box, string::String};
 use lazy_static::lazy_static;
 use log::error;
 use spin::Mutex;
@@ -8,13 +8,14 @@ use spin::Mutex;
 use crate::{
     bus::pci,
     env,
+    error::{Error, Result},
     graphics::{color::*, frame_buf_console::FRAME_BUF_CONSOLE},
     mem::{
         self,
         buffer::fifo::{Fifo, FifoError},
     },
     serial,
-    util::ascii::AsciiCode,
+    util::{ascii::AsciiCode, mutex::MutexError},
 };
 
 const IO_BUF_LEN: usize = 512;
@@ -38,11 +39,11 @@ pub struct ConsoleCharacter {
     pub ascii_code: AsciiCode,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ConsoleError {
     IoBufferError {
         buf_type: BufferType,
-        err: FifoError,
+        err: Box<Error>,
     },
 }
 
@@ -97,11 +98,7 @@ impl Console {
         self.buf_default_value.fore_color = IO_BUF_DEFAULT_VALUE.fore_color;
     }
 
-    pub fn write(
-        &mut self,
-        ascii_code: AsciiCode,
-        buf_type: BufferType,
-    ) -> Result<(), ConsoleError> {
+    pub fn write(&mut self, ascii_code: AsciiCode, buf_type: BufferType) -> Result<()> {
         let buf = match buf_type {
             BufferType::Input => &mut self.input_buf,
             BufferType::Output => &mut self.output_buf,
@@ -112,7 +109,13 @@ impl Console {
 
         match buf.enqueue(value) {
             Ok(_) => (),
-            Err(err) => return Err(ConsoleError::IoBufferError { buf_type, err }),
+            Err(err) => {
+                return Err(ConsoleError::IoBufferError {
+                    buf_type,
+                    err: Box::new(err),
+                }
+                .into())
+            }
         };
 
         if (buf_type == BufferType::Output || buf_type == BufferType::ErrorOutput)
@@ -203,7 +206,16 @@ macro_rules! println
     ($($arg:tt)*) => ($crate::print!("{}\n", format_args!($($arg)*)));
 }
 
-pub fn input(ascii_code: AsciiCode) {
+pub fn clear_input_buf() -> Result<()> {
+    if let Some(mut console) = CONSOLE.try_lock() {
+        console.reset_buf(BufferType::Input);
+        return Ok(());
+    } else {
+        return Err(MutexError::Locked.into());
+    }
+}
+
+pub fn input(ascii_code: AsciiCode) -> Result<()> {
     let mut cmd = None;
 
     if let Some(mut console) = CONSOLE.try_lock() {
@@ -221,11 +233,13 @@ pub fn input(ascii_code: AsciiCode) {
             }
         }
 
-        if ascii_code != AsciiCode::CarriageReturn {
-            return;
+        if ascii_code != AsciiCode::CarriageReturn && ascii_code != AsciiCode::NewLine {
+            return Ok(());
         }
 
         cmd = Some(console.get_str(BufferType::Input));
+    } else {
+        return Err(MutexError::Locked.into());
     }
 
     // execute command
@@ -235,17 +249,19 @@ pub fn input(ascii_code: AsciiCode) {
             "info" => env::print_info(),
             "lspci" => {
                 if pci::lspci().is_err() {
-                    error!("PCI manager is now busy")
+                    error!("PCI manager is locked")
                 }
             }
             "free" => {
                 if mem::free().is_err() {
-                    error!("Memory manager is now busy");
+                    error!("Memory manager is locked");
                 }
             }
             _ => error!("Command {:?} was not found", cmd),
         }
+
+        println!();
     }
 
-    println!();
+    Ok(())
 }

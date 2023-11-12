@@ -27,7 +27,7 @@ use arch::{
 use common::boot_info::BootInfo;
 use log::*;
 use serial::ComPort;
-use util::{ascii::AsciiCode, logger};
+use util::logger;
 
 use crate::{
     arch::{apic::timer::LOCAL_APIC_TIMER, idt},
@@ -97,7 +97,9 @@ async fn console_task() {
             None => continue,
         };
 
-        console::input(ascii_code);
+        if console::input(ascii_code).is_err() {
+            error!("Console is locked");
+        }
     }
 }
 

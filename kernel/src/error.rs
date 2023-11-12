@@ -1,10 +1,16 @@
 use crate::{
+    bus::usb::{
+        device::UsbDeviceError,
+        xhc::{ring_buffer::RingBufferError, XhcDriverError},
+        UsbDriverError,
+    },
+    device::console::ConsoleError,
     graphics::{frame_buf::FrameBufferError, frame_buf_console::FrameBufferConsoleError},
-    mem::{bitmap::BitmapMemoryManagerError, paging::PageManagerError},
+    mem::{bitmap::BitmapMemoryManagerError, buffer::fifo::FifoError, paging::PageManagerError},
     util::{ascii::AsciiCodeError, mutex::MutexError},
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Error {
     Failed(&'static str),
     MutexError(MutexError),
@@ -13,6 +19,12 @@ pub enum Error {
     FrameBufferConsoleError(FrameBufferConsoleError),
     BitmapMemoryManagerError(BitmapMemoryManagerError),
     PageManagerError(PageManagerError),
+    ConsoleError(ConsoleError),
+    UsbDriverError(UsbDriverError),
+    UsbDeviceError(UsbDeviceError),
+    XhcDriverError(XhcDriverError),
+    RingBufferError(RingBufferError),
+    FifoError(FifoError),
 }
 
 impl From<&'static str> for Error {
@@ -54,6 +66,42 @@ impl From<BitmapMemoryManagerError> for Error {
 impl From<PageManagerError> for Error {
     fn from(err: PageManagerError) -> Self {
         Error::PageManagerError(err)
+    }
+}
+
+impl From<ConsoleError> for Error {
+    fn from(err: ConsoleError) -> Self {
+        Error::ConsoleError(err)
+    }
+}
+
+impl From<UsbDriverError> for Error {
+    fn from(err: UsbDriverError) -> Self {
+        Error::UsbDriverError(err)
+    }
+}
+
+impl From<UsbDeviceError> for Error {
+    fn from(err: UsbDeviceError) -> Self {
+        Error::UsbDeviceError(err)
+    }
+}
+
+impl From<XhcDriverError> for Error {
+    fn from(err: XhcDriverError) -> Self {
+        Error::XhcDriverError(err)
+    }
+}
+
+impl From<RingBufferError> for Error {
+    fn from(err: RingBufferError) -> Self {
+        Error::RingBufferError(err)
+    }
+}
+
+impl From<FifoError> for Error {
+    fn from(err: FifoError) -> Self {
+        Error::FifoError(err)
     }
 }
 
