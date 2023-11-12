@@ -240,7 +240,7 @@ impl XhcDriver {
         // let num_of_bufs =
         //     (sp2.max_scratchpad_bufs_high() << 5 | sp2.max_scratchpad_bufs_low()) as usize;
 
-        // let scratchpad_buf_arr_virt_addr = match BITMAP_MEM_MAN.lock().alloc_single_mem_frame() {
+        // let scratchpad_buf_arr_virt_addr = match BITMAP_MEM_MAN.try_lock().unwrap().alloc_single_mem_frame() {
         //     Ok(mem_info) => mem_info,
         //     Err(err) => return Err(XhcDriverError::BitmapMemoryManagerError(err)),
         // }
@@ -249,7 +249,7 @@ impl XhcDriver {
         // let arr: &mut [u64] = scratchpad_buf_arr_virt_addr.read_volatile();
 
         // for i in 0..num_of_bufs {
-        //     let mem_frame_info = match BITMAP_MEM_MAN.lock().alloc_single_mem_frame() {
+        //     let mem_frame_info = match BITMAP_MEM_MAN.try_lock().unwrap().alloc_single_mem_frame() {
         //         Ok(mem_info) => mem_info,
         //         Err(err) => return Err(XhcDriverError::BitmapMemoryManagerError(err)),
         //     };
@@ -260,11 +260,12 @@ impl XhcDriver {
         // scratchpad_buf_arr_virt_addr.write_volatile(arr);
 
         // initialize device context
-        self.device_context_arr_virt_addr = match BITMAP_MEM_MAN.lock().alloc_single_mem_frame() {
-            Ok(mem_info) => mem_info,
-            Err(err) => return Err(err),
-        }
-        .get_frame_start_virt_addr();
+        self.device_context_arr_virt_addr =
+            match BITMAP_MEM_MAN.try_lock().unwrap().alloc_single_mem_frame() {
+                Ok(mem_info) => mem_info,
+                Err(err) => return Err(err),
+            }
+            .get_frame_start_virt_addr();
 
         // initialize device context array
         for i in 0..(self.num_of_slots + 1) {
@@ -290,7 +291,7 @@ impl XhcDriver {
         // register command ring
         let pcs = true;
 
-        let cmd_ring_mem_info = match BITMAP_MEM_MAN.lock().alloc_single_mem_frame() {
+        let cmd_ring_mem_info = match BITMAP_MEM_MAN.try_lock().unwrap().alloc_single_mem_frame() {
             Ok(mem_info) => mem_info,
             Err(err) => return Err(err),
         };
@@ -320,16 +321,17 @@ impl XhcDriver {
 
         // register event ring (primary)
         let primary_event_ring_seg_table_virt_addr =
-            match BITMAP_MEM_MAN.lock().alloc_single_mem_frame() {
+            match BITMAP_MEM_MAN.try_lock().unwrap().alloc_single_mem_frame() {
                 Ok(mem_info) => mem_info,
                 Err(err) => return Err(err),
             }
             .get_frame_start_virt_addr();
 
-        let primary_event_ring_mem_info = match BITMAP_MEM_MAN.lock().alloc_single_mem_frame() {
-            Ok(mem_info) => mem_info,
-            Err(err) => return Err(err),
-        };
+        let primary_event_ring_mem_info =
+            match BITMAP_MEM_MAN.try_lock().unwrap().alloc_single_mem_frame() {
+                Ok(mem_info) => mem_info,
+                Err(err) => return Err(err),
+            };
 
         self.primary_event_ring_virt_addr = primary_event_ring_mem_info.get_frame_start_virt_addr();
 
@@ -539,11 +541,12 @@ impl XhcDriver {
 
         let slot_id = port.slot_id.unwrap();
 
-        let input_context_base_virt_addr = match BITMAP_MEM_MAN.lock().alloc_single_mem_frame() {
-            Ok(mem_info) => mem_info,
-            Err(err) => return Err(err),
-        }
-        .get_frame_start_virt_addr();
+        let input_context_base_virt_addr =
+            match BITMAP_MEM_MAN.try_lock().unwrap().alloc_single_mem_frame() {
+                Ok(mem_info) => mem_info,
+                Err(err) => return Err(err),
+            }
+            .get_frame_start_virt_addr();
 
         let mut port = port.clone();
         port.config_state = ConfigState::AddressingDevice;
@@ -588,10 +591,11 @@ impl XhcDriver {
         endpoint_context_0.set_mult(0);
         endpoint_context_0.set_error_cnt(3);
 
-        let trnasfer_ring_mem_info = match BITMAP_MEM_MAN.lock().alloc_single_mem_frame() {
-            Ok(mem_info) => mem_info,
-            Err(err) => return Err(err),
-        };
+        let trnasfer_ring_mem_info =
+            match BITMAP_MEM_MAN.try_lock().unwrap().alloc_single_mem_frame() {
+                Ok(mem_info) => mem_info,
+                Err(err) => return Err(err),
+            };
 
         endpoint_context_0
             .set_tr_dequeue_ptr(trnasfer_ring_mem_info.get_frame_start_phys_addr().get() >> 1);
@@ -682,7 +686,11 @@ impl XhcDriver {
                     return;
                 }
 
-                if let Some(device) = USB_DRIVER.lock().find_device_by_slot_id(slot_id) {
+                if let Some(device) = USB_DRIVER
+                    .try_lock()
+                    .unwrap()
+                    .find_device_by_slot_id(slot_id)
+                {
                     if !device.is_configured {
                         return;
                     }
@@ -734,11 +742,12 @@ impl XhcDriver {
             None => return Err(XhcDriverError::PortWasNotFoundError(port_id).into()),
         };
 
-        let device_context_base_virt_addr = match BITMAP_MEM_MAN.lock().alloc_single_mem_frame() {
-            Ok(mem_info) => mem_info,
-            Err(err) => return Err(err),
-        }
-        .get_frame_start_virt_addr();
+        let device_context_base_virt_addr =
+            match BITMAP_MEM_MAN.try_lock().unwrap().alloc_single_mem_frame() {
+                Ok(mem_info) => mem_info,
+                Err(err) => return Err(err),
+            }
+            .get_frame_start_virt_addr();
 
         let mut port = port.clone();
         port.slot_id = Some(slot_id);

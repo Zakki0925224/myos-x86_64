@@ -16,7 +16,7 @@ pub fn init() {
     info!("pci: Initialized PCI device manager");
 
     // initialize usb driver
-    if let Err(err) = USB_DRIVER.lock().init() {
+    if let Err(err) = USB_DRIVER.try_lock().unwrap().init() {
         warn!("usb: {:?}", err);
     }
 }

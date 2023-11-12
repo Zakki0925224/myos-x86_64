@@ -45,7 +45,7 @@ impl UsbDriver {
         self.devices = Vec::new();
 
         asm::disabled_int_func(|| {
-            if let Some(xhc_driver) = XHC_DRIVER.lock().as_mut() {
+            if let Some(xhc_driver) = XHC_DRIVER.try_lock().unwrap().as_mut() {
                 if let Err(err) = xhc_driver.init() {
                     result = Err(err);
                     return;
@@ -67,7 +67,7 @@ impl UsbDriver {
         let mut port_ids = Vec::new();
 
         asm::disabled_int_func(|| {
-            if let Some(xhc_driver) = XHC_DRIVER.lock().as_mut() {
+            if let Some(xhc_driver) = XHC_DRIVER.try_lock().unwrap().as_mut() {
                 match xhc_driver.scan_ports() {
                     Ok(ids) => port_ids = ids,
                     Err(err) => result = Err(err),
@@ -81,7 +81,7 @@ impl UsbDriver {
 
         for port_id in port_ids {
             asm::disabled_int_func(|| {
-                if let Some(xhc_driver) = XHC_DRIVER.lock().as_mut() {
+                if let Some(xhc_driver) = XHC_DRIVER.try_lock().unwrap().as_mut() {
                     if let Err(err) = xhc_driver.reset_port(port_id) {
                         result = Err(err);
                     }
@@ -93,7 +93,7 @@ impl UsbDriver {
             }
 
             asm::disabled_int_func(|| {
-                if let Some(xhc_driver) = XHC_DRIVER.lock().as_mut() {
+                if let Some(xhc_driver) = XHC_DRIVER.try_lock().unwrap().as_mut() {
                     match xhc_driver.alloc_address_to_device(port_id) {
                         Ok(device) => self.devices.push(device),
                         Err(err) => result = Err(err),

@@ -54,7 +54,7 @@ const HEAP_SIZE: usize = UEFI_PAGE_SIZE * UEFI_PAGE_SIZE; // 16MiB
 //     pub fn init(&self) {
 //         // allocate for heap area
 //         if let Ok(mem_frame_info) = BITMAP_MEM_MAN
-//             .lock()
+//             .try_lock().unwrap()
 //             .alloc_multi_mem_frame(HEAP_SIZE / UEFI_PAGE_SIZE)
 //         {
 //             let virt_addr = mem_frame_info.get_frame_start_virt_addr();
@@ -76,7 +76,8 @@ static ALLOCATOR: LockedHeap = LockedHeap::empty();
 
 pub fn init_heap() {
     let mem_frame_info = match BITMAP_MEM_MAN
-        .lock()
+        .try_lock()
+        .unwrap()
         .alloc_multi_mem_frame(HEAP_SIZE / UEFI_PAGE_SIZE)
     {
         Ok(info) => info,
@@ -84,7 +85,7 @@ pub fn init_heap() {
     };
 
     unsafe {
-        ALLOCATOR.lock().init(
+        ALLOCATOR.try_lock().unwrap().init(
             mem_frame_info.get_frame_start_virt_addr().as_ptr_mut(),
             mem_frame_info.get_frame_size(),
         );

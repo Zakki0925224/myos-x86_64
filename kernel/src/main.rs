@@ -78,8 +78,7 @@ pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> ! {
     //initramfs_fat_volume.debug();
 
     let mut executor = Executor::new();
-    executor.spawn(Task::new(console_task()));
-    //executor.spawn(Task::new(serial_terminal_task()));
+    executor.spawn(Task::new(serial_receive_task()));
     executor.run();
 
     loop {
@@ -87,7 +86,7 @@ pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> ! {
     }
 }
 
-async fn console_task() {
+async fn serial_receive_task() {
     loop {
         let ascii_code = match serial::receive_data() {
             Some(data) => match data.try_into() {

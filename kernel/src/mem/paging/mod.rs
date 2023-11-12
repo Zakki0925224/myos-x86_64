@@ -112,12 +112,13 @@ impl PageManager {
 
     pub fn create_new_page_table(&mut self) -> Result<()> {
         let pml4_table_virt_addr = BITMAP_MEM_MAN
-            .lock()
+            .try_lock()
+            .unwrap()
             .alloc_single_mem_frame()?
             .get_frame_start_virt_addr();
         let mut pml4_page_table = PageTable::new();
 
-        let total_mem_size = BITMAP_MEM_MAN.lock().get_total_mem_size();
+        let total_mem_size = BITMAP_MEM_MAN.try_lock().unwrap().get_total_mem_size();
         println!("total: 0x{:x}", total_mem_size);
         //let total_mem_size = 0x0a000000 as usize;
         let total_mem_size = 0x09000000 as usize;
@@ -180,7 +181,10 @@ impl PageManager {
         let mut entry_phys_addr = entry.get_phys_addr();
 
         if !entry.p() {
-            let mem_info = BITMAP_MEM_MAN.lock().alloc_single_mem_frame()?;
+            let mem_info = BITMAP_MEM_MAN
+                .try_lock()
+                .unwrap()
+                .alloc_single_mem_frame()?;
             let phys_addr = self.calc_phys_addr(mem_info.get_frame_start_virt_addr())?;
             entry.set_entry(phys_addr, true, rw, mode, write_through_level);
             entry_phys_addr = phys_addr;
@@ -194,7 +198,10 @@ impl PageManager {
         let mut entry_phys_addr = entry.get_phys_addr();
 
         if !entry.p() {
-            let mem_info = BITMAP_MEM_MAN.lock().alloc_single_mem_frame()?;
+            let mem_info = BITMAP_MEM_MAN
+                .try_lock()
+                .unwrap()
+                .alloc_single_mem_frame()?;
             let phys_addr = self.calc_phys_addr(mem_info.get_frame_start_virt_addr())?;
 
             // 1GB page
@@ -217,7 +224,10 @@ impl PageManager {
         let mut entry_phys_addr = entry.get_phys_addr();
 
         if !entry.p() {
-            let mem_info = BITMAP_MEM_MAN.lock().alloc_single_mem_frame()?;
+            let mem_info = BITMAP_MEM_MAN
+                .try_lock()
+                .unwrap()
+                .alloc_single_mem_frame()?;
             let phys_addr = self.calc_phys_addr(mem_info.get_frame_start_virt_addr())?;
 
             // 2 MB page

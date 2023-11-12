@@ -67,15 +67,17 @@ impl UsbDevice {
 
         dcp_ring_buf.init();
 
-        let dev_desc_buf_mem_info = match BITMAP_MEM_MAN.lock().alloc_single_mem_frame() {
-            Ok(mem_info) => mem_info,
-            Err(err) => return Err(err),
-        };
+        let dev_desc_buf_mem_info =
+            match BITMAP_MEM_MAN.try_lock().unwrap().alloc_single_mem_frame() {
+                Ok(mem_info) => mem_info,
+                Err(err) => return Err(err),
+            };
 
-        let conf_desc_buf_mem_info = match BITMAP_MEM_MAN.lock().alloc_single_mem_frame() {
-            Ok(mem_info) => mem_info,
-            Err(err) => return Err(err),
-        };
+        let conf_desc_buf_mem_info =
+            match BITMAP_MEM_MAN.try_lock().unwrap().alloc_single_mem_frame() {
+                Ok(mem_info) => mem_info,
+                Err(err) => return Err(err),
+            };
 
         let mut transfer_ring_bufs = [None; 32];
         transfer_ring_bufs[1] = Some(dcp_ring_buf);
@@ -243,7 +245,7 @@ impl UsbDevice {
     }
 
     pub fn configure_endpoint(&mut self, endpoint_type: EndpointType) -> Result<()> {
-        if let Some(xhc_driver) = XHC_DRIVER.lock().as_mut() {
+        if let Some(xhc_driver) = XHC_DRIVER.try_lock().unwrap().as_mut() {
             let port = match xhc_driver.find_port_by_slot_id(self.slot_id) {
                 Some(port) => port,
                 None => return Err(UsbDeviceError::XhcPortNotFoundError.into()),
@@ -270,7 +272,7 @@ impl UsbDevice {
                 }
 
                 let transfer_ring_buf_mem_info =
-                    match BITMAP_MEM_MAN.lock().alloc_single_mem_frame() {
+                    match BITMAP_MEM_MAN.try_lock().unwrap().alloc_single_mem_frame() {
                         Ok(mem_info) => mem_info,
                         Err(err) => return Err(err),
                     };
@@ -349,7 +351,7 @@ impl UsbDevice {
 
                 //ring_buf.debug();
 
-                match XHC_DRIVER.lock().as_ref() {
+                match XHC_DRIVER.try_lock().unwrap().as_ref() {
                     Some(xhc_driver) => xhc_driver.ring_doorbell(self.slot_id, *endpoint_id as u8),
                     None => (),
                 }
@@ -557,7 +559,7 @@ impl UsbDevice {
             }
         }
 
-        match XHC_DRIVER.lock().as_ref() {
+        match XHC_DRIVER.try_lock().unwrap().as_ref() {
             Some(xhc_driver) => xhc_driver.ring_doorbell(self.slot_id, DEFAULT_CONTROL_PIPE_ID),
             None => return Err(UsbDeviceError::XhcDriverWasNotInitializedError.into()),
         }

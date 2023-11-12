@@ -13,20 +13,21 @@ pub mod buffer;
 pub mod paging;
 
 pub fn init(mem_map: &[MemoryDescriptor]) {
-    if let Err(err) = BITMAP_MEM_MAN.lock().init(mem_map) {
+    if let Err(err) = BITMAP_MEM_MAN.try_lock().unwrap().init(mem_map) {
         panic!("mem: {:?}", err);
     }
 
     allocator::init_heap();
 
     // TODO: not working
-    // match PAGE_MAN.lock().create_new_page_table() {
+    // match PAGE_MAN.try_lock().unwrap().create_new_page_table() {
     //     Ok(_) => (),
     //     Err(err) => println!("{:?}", err),
     // }
     assert!(
         PAGE_MAN
-            .lock()
+            .try_lock()
+            .unwrap()
             .calc_phys_addr(VirtualAddress::new(0x1000))
             .unwrap()
             .get()

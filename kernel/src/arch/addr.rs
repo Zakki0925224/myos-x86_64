@@ -26,10 +26,10 @@ impl PhysicalAddress {
     }
 
     pub fn get_virt_addr(&self) -> VirtualAddress {
-        // println!("{:?}", PAGING.lock());
+        // println!("{:?}", PAGING.try_lock().unwrap());
         // println!("a");
 
-        // return match PAGING.lock().mapping_type()
+        // return match PAGING.try_lock().unwrap().mapping_type()
         // {
         //     MappingType::Identity => VirtualAddress::new(self.0),
         //     _ => panic!("Unsupported mapping type"),

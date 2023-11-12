@@ -230,7 +230,8 @@ impl RingBuffer {
 
         for i in 0..self.buf_len - 1 {
             let data_buf_phys_addr = BITMAP_MEM_MAN
-                .lock()
+                .try_lock()
+                .unwrap()
                 .alloc_single_mem_frame()
                 .unwrap()
                 .get_frame_start_phys_addr();
