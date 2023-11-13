@@ -6,14 +6,12 @@ use log::error;
 use spin::Mutex;
 
 use crate::{
+    arch::qemu,
     bus::pci,
     env,
     error::{Error, Result},
     graphics::{color::*, frame_buf_console::FRAME_BUF_CONSOLE},
-    mem::{
-        self,
-        buffer::fifo::{Fifo, FifoError},
-    },
+    mem::{self, buffer::fifo::Fifo},
     serial,
     util::{ascii::AsciiCode, mutex::MutexError},
 };
@@ -224,22 +222,20 @@ pub fn input(ascii_code: AsciiCode) -> Result<()> {
             console.write(ascii_code, BufferType::Input).unwrap();
         }
 
-        match ascii_code {
-            AsciiCode::CarriageReturn => {
-                println!();
-            }
-            code => {
-                print!("{}", code as u8 as char);
-            }
+        if ascii_code == AsciiCode::CarriageReturn || ascii_code == AsciiCode::NewLine {
+            cmd = Some(console.get_str(BufferType::Input));
         }
-
-        if ascii_code != AsciiCode::CarriageReturn && ascii_code != AsciiCode::NewLine {
-            return Ok(());
-        }
-
-        cmd = Some(console.get_str(BufferType::Input));
     } else {
         return Err(MutexError::Locked.into());
+    }
+
+    match ascii_code {
+        AsciiCode::CarriageReturn => {
+            println!();
+        }
+        code => {
+            print!("{}", code as u8 as char);
+        }
     }
 
     // execute command
@@ -256,6 +252,9 @@ pub fn input(ascii_code: AsciiCode) -> Result<()> {
                 if mem::free().is_err() {
                     error!("Memory manager is locked");
                 }
+            }
+            "exit" => {
+                qemu::exit(0);
             }
             _ => error!("Command {:?} was not found", cmd),
         }
