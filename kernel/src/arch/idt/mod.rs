@@ -10,7 +10,7 @@ use crate::{
         register::control::Cr2,
     },
     bus::usb::xhc::XHC_DRIVER,
-    device::ps2_keyboard,
+    device::{ps2_keyboard, ps2_mouse},
 };
 
 use self::info::{InterruptStackFrame, PageFaultErrorCode};
@@ -25,33 +25,33 @@ lazy_static! {
 
 // idt
 const IDT_LEN: usize = 256;
-const _VEC_DIVIDE_ERR: usize = 0;
-const _VEC_DEBUG: usize = 1;
-const _VEC_NMI_INT: usize = 2;
-const VEC_BREAKPOINT: usize = 3;
-const _VEC_OVERFLOW: usize = 4;
-const _VEC_BOUND_RANGE_EXCEEDED: usize = 5;
-const _VEC_INVALID_OPCODE: usize = 6;
-const _VEC_DEVICE_NOT_AVAILABLE: usize = 7;
-const VEC_DOUBLE_FAULT: usize = 8;
-const _VEC_INVALID_TSS: usize = 10;
-const _VEC_SEG_NOT_PRESENT: usize = 11;
-const _VEC_STACK_SEG_FAULT: usize = 12;
-const _VEC_GENERAL_PROTECTION: usize = 13;
-const VEC_PAGE_FAULT: usize = 14;
-const _VEC_FLOATING_POINT_ERR: usize = 16;
-const _VEC_ALIGN_CHECK: usize = 17;
-const _VEC_MACHINE_CHECK: usize = 18;
-const _VEC_SIMD_FLOATING_POINT_EX: usize = 19;
-const _VEC_VIRT_EX: usize = 20;
-const _VEC_CTRL_PROTECTION_EX: usize = 21;
+const _VEC_DIVIDE_ERR: usize = 0x00;
+const _VEC_DEBUG: usize = 0x01;
+const _VEC_NMI_INT: usize = 0x02;
+const VEC_BREAKPOINT: usize = 0x03;
+const _VEC_OVERFLOW: usize = 0x04;
+const _VEC_BOUND_RANGE_EXCEEDED: usize = 0x05;
+const _VEC_INVALID_OPCODE: usize = 0x06;
+const _VEC_DEVICE_NOT_AVAILABLE: usize = 0x07;
+const VEC_DOUBLE_FAULT: usize = 0x08;
+const _VEC_INVALID_TSS: usize = 0x0a;
+const _VEC_SEG_NOT_PRESENT: usize = 0x0b;
+const _VEC_STACK_SEG_FAULT: usize = 0x0c;
+const _VEC_GENERAL_PROTECTION: usize = 0x0d;
+const VEC_PAGE_FAULT: usize = 0x0e;
+const _VEC_FLOATING_POINT_ERR: usize = 0x10;
+const _VEC_ALIGN_CHECK: usize = 0x11;
+const _VEC_MACHINE_CHECK: usize = 0x12;
+const _VEC_SIMD_FLOATING_POINT_EX: usize = 0x13;
+const _VEC_VIRT_EX: usize = 0x14;
+const _VEC_CTRL_PROTECTION_EX: usize = 0x15;
 pub const VEC_XHCI_INT: usize = 64;
 
 const END_OF_INT_REG_ADDR: u64 = 0xfee000b0;
 
 // pic
-const _VEC_PIC_IRQ0: usize = 32; // system timer
-const VEC_PIC_IRQ1: usize = 33; // ps/2 keyboard
+const VEC_PIC_IRQ1: usize = 0x21; // ps/2 keyboard
+const VEC_PIC_IRQ12: usize = 0x2c; // ps/2 mouse
 
 const MASTER_PIC_ADDR: IoPortAddress = IoPortAddress::new(0x20);
 const SLAVE_PIC_ADDR: IoPortAddress = IoPortAddress::new(0xa0);
@@ -183,6 +183,11 @@ extern "x86-interrupt" fn ps2_keyboard_handler() {
     pic_notify_end_of_int();
 }
 
+extern "x86-interrupt" fn ps2_mouse_handler() {
+    ps2_mouse::receive();
+    pic_notify_end_of_int();
+}
+
 pub fn init_pic() {
     // disallow all interrupts
     MASTER_PIC_ADDR.offset(1).out8(0xff);
@@ -238,6 +243,11 @@ pub fn init_idt() {
                 idt.set_handler(
                     VEC_PIC_IRQ1,
                     InterruptHandler::Normal(ps2_keyboard_handler),
+                    GateType::Interrupt,
+                );
+                idt.set_handler(
+                    VEC_PIC_IRQ12,
+                    InterruptHandler::Normal(ps2_mouse_handler),
                     GateType::Interrupt,
                 );
                 idt.load();
