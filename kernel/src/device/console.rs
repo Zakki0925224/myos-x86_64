@@ -6,7 +6,7 @@ use log::error;
 use spin::Mutex;
 
 use crate::{
-    arch::qemu,
+    arch::{asm, qemu},
     bus::pci,
     env,
     error::{Error, Result},
@@ -258,6 +258,9 @@ pub fn input(ascii_code: AsciiCode) -> Result<()> {
             }
             "echo" => {
                 println!("{}", &cmd[4..].trim());
+            }
+            "break" => {
+                asm::int3();
             }
             _ => error!("Command {:?} was not found", cmds),
         }
