@@ -1,6 +1,6 @@
 use core::fmt::{self, Write};
 
-use alloc::{boxed::Box, string::String};
+use alloc::{boxed::Box, string::String, vec::Vec};
 use lazy_static::lazy_static;
 use log::error;
 use spin::Mutex;
@@ -240,8 +240,8 @@ pub fn input(ascii_code: AsciiCode) -> Result<()> {
 
     // execute command
     if let Some(cmd) = cmd {
-        let cmd = cmd.trim();
-        match cmd {
+        let cmds: Vec<&str> = cmd.trim().split(" ").collect();
+        match cmds[0] {
             "info" => env::print_info(),
             "lspci" => {
                 if pci::lspci().is_err() {
@@ -256,7 +256,10 @@ pub fn input(ascii_code: AsciiCode) -> Result<()> {
             "exit" => {
                 qemu::exit(0);
             }
-            _ => error!("Command {:?} was not found", cmd),
+            "echo" => {
+                println!("{}", &cmd[4..].trim());
+            }
+            _ => error!("Command {:?} was not found", cmds),
         }
 
         println!();
