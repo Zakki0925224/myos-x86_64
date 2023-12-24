@@ -21,7 +21,7 @@ extern crate alloc;
 
 use alloc::alloc::Layout;
 use arch::{
-    asm,
+    asm, gdt,
     task::{executor::Executor, Task},
 };
 use common::boot_info::BootInfo;
@@ -55,8 +55,8 @@ pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> ! {
         (18, 202, 99).into(),
     );
 
-    // initialize GDT (TODO: not working correctly)
-    //gdt::init();
+    // initialize GDT
+    gdt::init();
     // initialize PIC and IDT
     idt::init_pic();
     idt::init_idt();
@@ -73,9 +73,9 @@ pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> ! {
     env::print_info();
 
     // initramfs
-    //let initramfs_start_virt_addr = VirtualAddress::new(boot_info.initramfs_start_virt_addr);
-    //let initramfs_fat_volume = FatVolume::new(initramfs_start_virt_addr);
-    //initramfs_fat_volume.debug();
+    // let initramfs_start_virt_addr = VirtualAddress::new(boot_info.initramfs_start_virt_addr);
+    // let initramfs_fat_volume = FatVolume::new(initramfs_start_virt_addr);
+    // initramfs_fat_volume.debug();
 
     let mut executor = Executor::new();
     executor.spawn(Task::new(serial_receive_task()));

@@ -120,10 +120,8 @@ pub fn init() {
     asm::set_es(0);
     asm::set_fs(0);
     asm::set_gs(0);
-    //asm::set_ss(1 << 3);
-    //asm::set_ss(0);
-    //asm::set_cs(2 << 3);
-    //asm::set_cs(0);
+    asm::set_ss(2 << 3);
+    asm::set_cs(1 << 3);
 
     info!("gdt: Initialized GDT");
 }
