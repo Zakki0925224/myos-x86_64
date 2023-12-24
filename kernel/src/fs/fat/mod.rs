@@ -1,8 +1,11 @@
+use core::mem::size_of;
+
 use self::{boot_sector::BootSector, dir_entry::DirectoryEntry, fs_info_sector::FsInfoSector};
 use crate::{arch::addr::VirtualAddress, println};
 
 pub mod boot_sector;
 pub mod dir_entry;
+pub mod file_allocation_table;
 pub mod fs_info_sector;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -31,7 +34,10 @@ impl FatVolume {
         match self.fat_type() {
             FatType::Fat32 => {
                 let boot_sector = self.read_boot_sector();
-                let fat32_other_field = unsafe { boot_sector.other_field.fat32 };
+                let fat32_other_field = match boot_sector.fat32_other_field() {
+                    Some(f) => f,
+                    None => return None,
+                };
 
                 Some(
                     self.volume_start_virt_addr
@@ -47,61 +53,55 @@ impl FatVolume {
 
     pub fn fat_type(&self) -> FatType {
         let boot_sector = self.read_boot_sector();
-
         boot_sector.fat_type()
     }
 
-    pub fn read_dir_entry(&self, cluster_num: usize) -> Option<DirectoryEntry> {
+    pub fn max_dir_entry_num(&self) -> usize {
         let boot_sector = self.read_boot_sector();
-        let data_start_sector = boot_sector.data_start_sector();
-        let data_clusters = boot_sector.data_clusters();
-        let bytes_per_sector = boot_sector.bytes_per_sector();
-        let sectors_per_cluster = boot_sector.sectors_per_cluster();
+        boot_sector.data_clusters()
+            * boot_sector.sectors_per_cluster()
+            * boot_sector.bytes_per_sector()
+            / size_of::<DirectoryEntry>()
+    }
 
-        if cluster_num < 2 {
+    pub fn read_dir_entry(&self, entry_num: usize) -> Option<DirectoryEntry> {
+        if entry_num >= self.max_dir_entry_num() {
             return None;
         }
 
-        if cluster_num > data_clusters - 2 {
-            return None;
-        }
-
-        let start_sector = data_start_sector + (cluster_num - 2) * sectors_per_cluster;
-        let offset = start_sector * bytes_per_sector;
-        println!("offset: 0x{:x}", offset);
-
-        Some(self.volume_start_virt_addr.offset(offset).read_volatile())
+        let boot_sector = self.read_boot_sector();
+        let data_area_start_offset =
+            boot_sector.data_start_sector() * boot_sector.bytes_per_sector();
+        let target_dir_entry_offset =
+            data_area_start_offset + entry_num * size_of::<DirectoryEntry>();
+        Some(
+            self.volume_start_virt_addr
+                .offset(target_dir_entry_offset)
+                .read_volatile(),
+        )
     }
 
-    pub fn read_root_dir_entry(&self) -> DirectoryEntry {
-        match self.fat_type() {
-            FatType::Fat32 => self.read_dir_entry(0).unwrap(),
-            _ => {
-                let boot_sector = self.read_boot_sector();
-                let root_dir_start_sector = boot_sector.root_dir_start_sector().unwrap();
-                let offset = root_dir_start_sector * boot_sector.bytes_per_sector();
-                self.volume_start_virt_addr.offset(offset).read_volatile()
-            }
-        }
-    }
+    // TODO: get root dir entry num
+    //pub fn read_root_dir_entry(&self) -> DirectoryEntry {}
 
     pub fn debug(&self) {
-        // for i in 2..10 {
-        //     println!("{:?}", self.read_dir_entry(i));
-        // }
+        //println!("{:?}", self.read_boot_sector());
+        //println!("{:?}", self.read_fs_info_sector());
+        println!("max dir entry num: {}", self.max_dir_entry_num());
+        for i in 0..self.max_dir_entry_num() {
+            let dir_entry = self.read_dir_entry(i).unwrap();
+            if dir_entry.attr().is_none() {
+                continue;
+            }
 
-        let boot_sector = self.read_boot_sector();
-        //println!("total sectors: {}", boot_sector.total_sectors());
-        //println!("data start sector: {}", boot_sector.data_start_sector());
-        //println!("data sectors: {}", boot_sector.data_sectors());
-        //println!("data clusters: {}", boot_sector.data_clusters());
-        // fat type() is not working (stopped qemu) => NO
-        println!(
-            "root dir start sector: {:?}",
-            boot_sector.root_dir_start_sector()
-        );
-        // println!("root dir sectors: {:?}", boot_sector.root_dir_sectors());
-        // println!("fat start sector: {}", boot_sector.reserved_sectors());
-        // println!("fat sectors: {}", boot_sector.fat_sectors());
+            println!(
+                "{}: name: {:?}, attr: {:?}, type: {:?}, first_cluster: {}",
+                i,
+                dir_entry.name(),
+                dir_entry.attr(),
+                dir_entry.entry_type(),
+                dir_entry.first_cluster_num()
+            );
+        }
     }
 }

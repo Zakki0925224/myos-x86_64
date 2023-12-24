@@ -92,7 +92,7 @@ tasks:
 
     makeinitramfs-img:
         cmds:
-            - dd if=/dev/zero of=./{{$.OUTPUT_DIR}}/{{$.INITRAMFS_IMG_FILE}} bs=1M count=128 # 128Mib
+            - dd if=/dev/zero of=./{{$.OUTPUT_DIR}}/{{$.INITRAMFS_IMG_FILE}} bs=1M count=1 # 1Mib
             - mkfs.fat -n "INITRAMFS" -F 32 -s 2 ./{{$.OUTPUT_DIR}}/{{$.INITRAMFS_IMG_FILE}} # format for FAT32
             - sudo mount -o loop ./{{$.OUTPUT_DIR}}/{{$.INITRAMFS_IMG_FILE}} /mnt
             - sudo cp -r ./{{$.INITRAMFS_DIR}}/* /mnt/

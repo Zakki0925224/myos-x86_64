@@ -121,7 +121,7 @@ impl PageManager {
         let total_mem_size = BITMAP_MEM_MAN.try_lock().unwrap().get_total_mem_size();
         println!("total: 0x{:x}", total_mem_size);
         //let total_mem_size = 0x0a000000 as usize;
-        let total_mem_size = 0x09000000 as usize;
+        //let total_mem_size = 0x09000000 as usize;
         let mut virt_addr = VirtualAddress::default();
 
         while virt_addr.get() < total_mem_size as u64 {

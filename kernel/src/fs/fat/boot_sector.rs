@@ -41,12 +41,7 @@ pub struct BootSectorFat16OtherField {
     boot_sign: [u8; 2],
 }
 
-#[repr(C)]
-pub union BootSectorOtherField {
-    pub fat32: BootSectorFat32OtherField,
-    pub fat16: BootSectorFat16OtherField,
-}
-
+#[derive(Debug)]
 #[repr(C)]
 pub struct BootSector {
     jmp_boot: [u8; 3],
@@ -63,7 +58,8 @@ pub struct BootSector {
     num_heads: [u8; 2],
     hidden_sectors: [u8; 4],
     total_sector32: [u8; 4],
-    pub other_field: BootSectorOtherField,
+    //pub other_field: BootSectorOtherField,
+    other_field: [u8; 476],
 }
 
 impl BootSector {
@@ -77,6 +73,22 @@ impl BootSector {
 
     pub fn oem_name(&self) -> String {
         String::from_utf8_lossy(&self.oem_name).into_owned()
+    }
+
+    pub fn fat32_other_field(&self) -> Option<BootSectorFat32OtherField> {
+        if self.fat_type() != FatType::Fat32 {
+            return None;
+        }
+
+        Some(unsafe { core::mem::transmute(self.other_field) })
+    }
+
+    pub fn fat16_other_field(&self) -> Option<BootSectorFat16OtherField> {
+        if self.fat_type() != FatType::Fat16 {
+            return None;
+        }
+
+        Some(unsafe { core::mem::transmute(self.other_field) })
     }
 
     pub fn data_clusters(&self) -> usize {
@@ -99,11 +111,10 @@ impl BootSector {
         let total_sector16 = u16::from_le_bytes(self.total_sector16);
         let total_sector32 = u32::from_le_bytes(self.total_sector32);
 
-        if total_sector16 == 0 {
-            return total_sector32 as usize;
+        match total_sector16 {
+            0 => total_sector32 as usize,
+            _ => total_sector16 as usize,
         }
-
-        total_sector16 as usize
     }
 
     // fat start sector
@@ -140,10 +151,7 @@ impl BootSector {
     }
 
     pub fn data_start_sector(&self) -> usize {
-        match self.fat_type() {
-            FatType::Fat32 => self.reserved_sectors() + self.fat_sectors(),
-            _ => self.root_dir_start_sector().unwrap() + self.root_dir_sectors().unwrap(),
-        }
+        self.reserved_sectors() + self.fat_sectors()
     }
 
     pub fn data_sectors(&self) -> usize {

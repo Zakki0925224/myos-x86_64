@@ -139,6 +139,12 @@ impl Default for VirtualAddress {
     }
 }
 
+impl From<u64> for VirtualAddress {
+    fn from(addr: u64) -> Self {
+        VirtualAddress::new(addr)
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(transparent)]
 pub struct IoPortAddress(u16);

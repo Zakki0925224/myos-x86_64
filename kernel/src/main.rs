@@ -25,6 +25,7 @@ use arch::{
     task::{executor::Executor, Task},
 };
 use common::boot_info::BootInfo;
+use fs::initramfs;
 use log::*;
 use serial::ComPort;
 use util::logger;
@@ -73,9 +74,7 @@ pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> ! {
     env::print_info();
 
     // initramfs
-    // let initramfs_start_virt_addr = VirtualAddress::new(boot_info.initramfs_start_virt_addr);
-    // let initramfs_fat_volume = FatVolume::new(initramfs_start_virt_addr);
-    // initramfs_fat_volume.debug();
+    initramfs::init(boot_info.initramfs_start_virt_addr.into());
 
     let mut executor = Executor::new();
     executor.spawn(Task::new(serial_receive_task()));
