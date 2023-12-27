@@ -81,27 +81,41 @@ impl FatVolume {
         )
     }
 
-    // TODO: get root dir entry num
-    //pub fn read_root_dir_entry(&self) -> DirectoryEntry {}
+    pub fn root_dir_entry_num(&self) -> usize {
+        let boot_sector = self.read_boot_sector();
+        boot_sector.root_dir_start_sector() * boot_sector.bytes_per_sector()
+            / size_of::<DirectoryEntry>()
+    }
 
     pub fn debug(&self) {
         //println!("{:?}", self.read_boot_sector());
         //println!("{:?}", self.read_fs_info_sector());
         println!("max dir entry num: {}", self.max_dir_entry_num());
-        for i in 0..self.max_dir_entry_num() {
-            let dir_entry = self.read_dir_entry(i).unwrap();
-            if dir_entry.attr().is_none() {
-                continue;
-            }
+        println!("root dir start sector: {}", self.root_dir_entry_num());
+        // for i in 0..self.max_dir_entry_num() {
+        //     let dir_entry = self.read_dir_entry(i).unwrap();
+        //     if dir_entry.attr().is_none() {
+        //         continue;
+        //     }
 
-            println!(
-                "{}: name: {:?}, attr: {:?}, type: {:?}, first_cluster: {}",
-                i,
-                dir_entry.name(),
-                dir_entry.attr(),
-                dir_entry.entry_type(),
-                dir_entry.first_cluster_num()
-            );
-        }
+        //     println!(
+        //         "{}: name: {:?}, attr: {:?}, type: {:?}, first_cluster: {}",
+        //         i,
+        //         dir_entry.name(),
+        //         dir_entry.attr(),
+        //         dir_entry.entry_type(),
+        //         dir_entry.first_cluster_num()
+        //     );
+        // }
+        let root_dir_entry_num = self.root_dir_entry_num();
+        let dir_entry = self.read_dir_entry(root_dir_entry_num).unwrap();
+        println!(
+            "{}: name: {:?}, attr: {:?}, type: {:?}, first_cluster: {}",
+            root_dir_entry_num,
+            dir_entry.name(),
+            dir_entry.attr(),
+            dir_entry.entry_type(),
+            dir_entry.first_cluster_num()
+        );
     }
 }

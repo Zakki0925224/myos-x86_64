@@ -130,24 +130,12 @@ impl BootSector {
         u16::from_le_bytes(self.root_entry_count) as usize
     }
 
-    pub fn root_dir_start_sector(&self) -> Option<usize> {
-        match self.fat_type() {
-            FatType::Fat32 => None,
-            _ => Some(self.reserved_sectors() + self.fat_sectors()),
-        }
+    pub fn root_dir_start_sector(&self) -> usize {
+        self.reserved_sectors() + self.fat_sectors()
     }
 
-    pub fn root_dir_sectors(&self) -> Option<usize> {
-        let root_dir_start_sector = match self.root_dir_start_sector() {
-            Some(sector) => sector,
-            None => return None,
-        };
-
-        Some(
-            root_dir_start_sector
-                + (self.root_entry_count() * 32 + self.bytes_per_sector() - 1)
-                    / self.bytes_per_sector(),
-        )
+    pub fn root_dir_sectors(&self) -> usize {
+        (self.root_entry_count() * 32 + self.bytes_per_sector() - 1) / self.bytes_per_sector()
     }
 
     pub fn data_start_sector(&self) -> usize {
