@@ -121,9 +121,10 @@ impl FrameBuffer {
     fn write_pixel(&self, x: usize, y: usize, data: u32) {
         let (res_x, _) = self.get_resolution();
 
-        if self.read_pixel(x, y) == data {
-            return;
-        }
+        // read_volatile is slow
+        // if self.read_pixel(x, y) == data {
+        //     return;
+        // }
 
         self.framebuf_virt_addr
             .offset(4 * (res_x * y) + 4 * x)

@@ -1,8 +1,8 @@
 #[derive(Debug, PartialEq, Eq)]
 pub enum ClusterType {
-    Free(usize),
-    Reserved(usize),
+    Free,
+    Reserved,
     Data(usize),
     Bad(usize),
-    EndOfChain(usize),
+    EndOfChain,
 }

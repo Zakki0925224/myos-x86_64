@@ -4,6 +4,7 @@
 #![feature(abi_x86_interrupt)]
 #![feature(panic_info_message)]
 #![feature(alloc_error_handler)]
+#![feature(string_remove_matches)]
 
 mod arch;
 mod bus;

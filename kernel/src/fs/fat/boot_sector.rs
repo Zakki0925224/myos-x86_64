@@ -26,19 +26,14 @@ impl BootSectorFat32OtherField {
     pub fn fs_info_sector_num(&self) -> usize {
         u16::from_le_bytes(self.fs_info) as usize
     }
-}
 
-#[derive(Debug, Clone, Copy)]
-#[repr(C)]
-pub struct BootSectorFat16OtherField {
-    drive_num: u8,
-    reserved: u8,
-    ext_boot_sign: u8,
-    volume_id: [u8; 4],
-    volume_label: [u8; 11],
-    fs_type: [u8; 8],
-    boot_code: [u8; 448],
-    boot_sign: [u8; 2],
+    pub fn fat_size(&self) -> usize {
+        u32::from_le_bytes(self.fat_size32) as usize
+    }
+
+    pub fn root_cluster_num(&self) -> usize {
+        u32::from_le_bytes(self.root_cluster) as usize
+    }
 }
 
 #[derive(Debug)]
@@ -83,16 +78,8 @@ impl BootSector {
         Some(unsafe { core::mem::transmute(self.other_field) })
     }
 
-    pub fn fat16_other_field(&self) -> Option<BootSectorFat16OtherField> {
-        if self.fat_type() != FatType::Fat16 {
-            return None;
-        }
-
-        Some(unsafe { core::mem::transmute(self.other_field) })
-    }
-
     pub fn data_clusters(&self) -> usize {
-        self.data_sectors() / self.sectors_per_cluster as usize
+        self.data_sectors16() / self.sectors_per_cluster as usize
     }
 
     pub fn bytes_per_sector(&self) -> usize {
@@ -103,8 +90,19 @@ impl BootSector {
         self.sectors_per_cluster as usize
     }
 
-    pub fn fat_sectors(&self) -> usize {
-        self.fat_size16() * self.num_fats as usize
+    pub fn num_fats(&self) -> usize {
+        self.num_fats as usize
+    }
+
+    pub fn fat_sectors16(&self) -> usize {
+        self.fat_size16() * self.num_fats()
+    }
+
+    pub fn fat_sectors32(&self) -> Option<usize> {
+        match self.fat32_other_field() {
+            Some(other_field) => Some(other_field.fat_size() * self.num_fats()),
+            None => None,
+        }
     }
 
     pub fn total_sectors(&self) -> usize {
@@ -130,19 +128,33 @@ impl BootSector {
         u16::from_le_bytes(self.root_entry_count) as usize
     }
 
-    pub fn root_dir_start_sector(&self) -> usize {
-        self.reserved_sectors() + self.fat_sectors()
+    pub fn root_dir_start_sector16(&self) -> usize {
+        self.reserved_sectors() + self.fat_sectors16()
     }
 
-    pub fn root_dir_sectors(&self) -> usize {
+    pub fn root_dir_sectors16(&self) -> usize {
         (self.root_entry_count() * 32 + self.bytes_per_sector() - 1) / self.bytes_per_sector()
     }
 
-    pub fn data_start_sector(&self) -> usize {
-        self.reserved_sectors() + self.fat_sectors()
+    pub fn data_start_sector16(&self) -> usize {
+        self.root_dir_start_sector16() + self.root_dir_sectors16()
     }
 
-    pub fn data_sectors(&self) -> usize {
-        self.total_sectors() - self.data_start_sector()
+    pub fn data_sectors16(&self) -> usize {
+        self.total_sectors() - self.data_start_sector16()
+    }
+
+    pub fn data_start_sector32(&self) -> Option<usize> {
+        match self.fat_sectors32() {
+            Some(fat_sectors) => Some(self.reserved_sectors() + fat_sectors),
+            None => None,
+        }
+    }
+
+    pub fn data_sectors32(&self) -> Option<usize> {
+        match self.data_start_sector32() {
+            Some(data_start_sector) => Some(self.total_sectors() - data_start_sector),
+            None => None,
+        }
     }
 }
