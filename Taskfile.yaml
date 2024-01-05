@@ -130,6 +130,12 @@ tasks:
             - cmd: "{{$.OWN_QEMU}}"
               ignore_error: true
 
+    run-nographic:
+        cmds:
+            - task: makeimg
+            - cmd: "{{$.OWN_QEMU}} -nographic"
+              ignore_error: true
+
     run-with-gdb:
         cmds:
             - task: makeimg
