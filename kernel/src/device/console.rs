@@ -10,6 +10,7 @@ use crate::{
     bus::pci,
     env,
     error::{Error, Result},
+    fs::initramfs,
     graphics::{color::*, frame_buf_console::FRAME_BUF_CONSOLE},
     mem::{self, buffer::fifo::Fifo},
     serial,
@@ -261,6 +262,19 @@ pub fn input(ascii_code: AsciiCode) -> Result<()> {
             }
             "break" => {
                 asm::int3();
+            }
+            "ls" => {
+                initramfs::ls();
+            }
+            "cd" => {
+                if cmds.len() == 2 {
+                    initramfs::cd(cmds[1]);
+                }
+            }
+            "cat" => {
+                if cmds.len() == 2 {
+                    initramfs::cat(cmds[1]);
+                }
             }
             _ => error!("Command {:?} was not found", cmds),
         }

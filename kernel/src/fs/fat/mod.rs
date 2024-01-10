@@ -43,10 +43,7 @@ impl FatVolume {
         match self.fat_type() {
             FatType::Fat32 => {
                 let boot_sector = self.read_boot_sector();
-                let fat32_other_field = match boot_sector.fat32_other_field() {
-                    Some(f) => f,
-                    None => return None,
-                };
+                let fat32_other_field = boot_sector.fat32_other_field().unwrap();
 
                 Some(
                     self.volume_start_virt_addr
@@ -65,17 +62,40 @@ impl FatVolume {
         boot_sector.fat_type()
     }
 
-    pub fn max_dir_entry_num(&self) -> usize {
-        let boot_sector = self.read_boot_sector();
-        let data_sectors = match self.fat_type() {
-            FatType::Fat12 | FatType::Fat16 => boot_sector.data_sectors16(),
-            FatType::Fat32 => boot_sector.data_sectors32().unwrap(),
-        };
+    pub fn root_cluster_num(&self) -> usize {
+        match self.fat_type() {
+            FatType::Fat12 => unimplemented!(),
+            FatType::Fat16 => unimplemented!(),
+            FatType::Fat32 => (),
+        }
 
-        data_sectors * boot_sector.bytes_per_sector() / size_of::<DirectoryEntry>()
+        let boot_sector = self.read_boot_sector();
+        let fat32_other_field = boot_sector.fat32_other_field().unwrap();
+        fat32_other_field.root_cluster_num()
     }
 
-    pub fn read_dir_entries(&self, cluster_num: usize) -> Vec<DirectoryEntry> {
+    pub fn read_chained_dir_entries(&self, start_cluster_num: usize) -> Vec<DirectoryEntry> {
+        let mut entries = Vec::new();
+        let mut current_cluster_num = start_cluster_num;
+        let mut next_cluster_num = self.next_cluster_num(current_cluster_num);
+
+        loop {
+            entries.extend(self.read_dir_entries(current_cluster_num));
+
+            match next_cluster_num {
+                Some(cluster_type) => match &cluster_type {
+                    ClusterType::Data(next_cluster_num) => current_cluster_num = *next_cluster_num,
+                    _ => break,
+                },
+                None => break,
+            }
+            next_cluster_num = self.next_cluster_num(current_cluster_num);
+        }
+
+        entries
+    }
+
+    fn read_dir_entries(&self, cluster_num: usize) -> Vec<DirectoryEntry> {
         let boot_sector = self.read_boot_sector();
         let mut entries = Vec::with_capacity(self.dir_entries_per_cluster());
 
@@ -103,7 +123,7 @@ impl FatVolume {
     }
 
     // read file allocation table
-    pub fn next_cluster_num(&self, cluster_num: usize) -> Option<ClusterType> {
+    fn next_cluster_num(&self, cluster_num: usize) -> Option<ClusterType> {
         let boot_sector = self.read_boot_sector();
         match self.fat_type() {
             FatType::Fat12 => unimplemented!(),
@@ -127,6 +147,16 @@ impl FatVolume {
         }
     }
 
+    fn max_dir_entry_num(&self) -> usize {
+        let boot_sector = self.read_boot_sector();
+        let data_sectors = match self.fat_type() {
+            FatType::Fat12 | FatType::Fat16 => boot_sector.data_sectors16(),
+            FatType::Fat32 => boot_sector.data_sectors32().unwrap(),
+        };
+
+        data_sectors * boot_sector.bytes_per_sector() / size_of::<DirectoryEntry>()
+    }
+
     fn dir_entries_per_cluster(&self) -> usize {
         let boot_sector = self.read_boot_sector();
         let cluster_size_bytes = boot_sector.bytes_per_sector() * boot_sector.sectors_per_cluster();
@@ -138,54 +168,56 @@ impl FatVolume {
         boot_sector.data_clusters()
     }
 
-    pub fn debug(&self) {
-        let boot_sector = self.read_boot_sector();
-        println!("{:?}", boot_sector);
-        println!("fat type: {:?}", boot_sector.fat_type());
-        println!("oem name: {:?}", boot_sector.oem_name());
-        println!("data clusters: {}", boot_sector.data_clusters());
-        println!("bytes per sector: {}", boot_sector.bytes_per_sector());
-        println!("sectors per cluster: {}", boot_sector.sectors_per_cluster());
-        println!("fat sectors16: {}", boot_sector.fat_sectors16());
-        println!("fat sectors32: {:?}", boot_sector.fat_sectors32());
-        println!("total sectors: {}", boot_sector.total_sectors());
-        println!("reserved sectors: {}", boot_sector.reserved_sectors());
-        println!(
-            "root dir start sector16: {}",
-            boot_sector.root_dir_start_sector16()
-        );
-        println!("root dir sectors16: {}", boot_sector.root_dir_sectors16());
-        println!("data start sector16: {}", boot_sector.data_start_sector16());
-        println!("data sectors16: {}", boot_sector.data_sectors16());
-        println!(
-            "data start sector32: {:?}",
-            boot_sector.data_start_sector32()
-        );
-        println!("data sectors32: {:?}", boot_sector.data_sectors32());
-        println!("max dir entry num: {}", self.max_dir_entry_num());
+    // pub fn debug(&self) {
+    //     let boot_sector = self.read_boot_sector();
+    //     println!("{:?}", boot_sector);
+    //     println!("fat type: {:?}", boot_sector.fat_type());
+    //     println!("oem name: {:?}", boot_sector.oem_name());
+    //     println!("data clusters: {}", boot_sector.data_clusters());
+    //     println!("bytes per sector: {}", boot_sector.bytes_per_sector());
+    //     println!("sectors per cluster: {}", boot_sector.sectors_per_cluster());
+    //     println!("fat sectors16: {}", boot_sector.fat_sectors16());
+    //     println!("fat sectors32: {:?}", boot_sector.fat_sectors32());
+    //     println!("total sectors: {}", boot_sector.total_sectors());
+    //     println!("reserved sectors: {}", boot_sector.reserved_sectors());
+    //     println!(
+    //         "root dir start sector16: {}",
+    //         boot_sector.root_dir_start_sector16()
+    //     );
+    //     println!("root dir sectors16: {}", boot_sector.root_dir_sectors16());
+    //     println!("data start sector16: {}", boot_sector.data_start_sector16());
+    //     println!("data sectors16: {}", boot_sector.data_sectors16());
+    //     println!(
+    //         "data start sector32: {:?}",
+    //         boot_sector.data_start_sector32()
+    //     );
+    //     println!("data sectors32: {:?}", boot_sector.data_sectors32());
+    //     println!("max dir entry num: {}", self.max_dir_entry_num());
 
-        for i in 2..self.clusters_cnt() {
-            let next_cluster_num = self.next_cluster_num(i);
-            let dir_entries = self.read_dir_entries(i);
-            println!(
-                "cluster num: {}, next cluster num: {:?}",
-                i, next_cluster_num
-            );
+    //     println!("root cluster num: {}", self.root_cluster_num());
 
-            for j in 0..dir_entries.len() {
-                let dir_entry = dir_entries[j];
-                println!(
-                    "\t{}: sfn: {:?}, lfn: {:?} (index: {:?}), attr: {:?}, type: {:?}, fcn: {}, file size: {}",
-                    j,
-                    dir_entry.sf_name(),
-                    dir_entry.lf_name(),
-                    dir_entry.lfn_entry_index(),
-                    dir_entry.attr(),
-                    dir_entry.entry_type(),
-                    dir_entry.first_cluster_num(),
-                    dir_entry.file_size()
-                );
-            }
-        }
-    }
+    //     for i in 2..self.clusters_cnt() {
+    //         let next_cluster_num = self.next_cluster_num(i);
+    //         let dir_entries = self.read_dir_entries(i);
+    //         println!(
+    //             "cluster num: {}, next cluster num: {:?}",
+    //             i, next_cluster_num
+    //         );
+
+    //         for j in 0..dir_entries.len() {
+    //             let dir_entry = dir_entries[j];
+    //             println!(
+    //                 "\t{}: sfn: {:?}, lfn: {:?} (index: {:?}), attr: {:?}, type: {:?}, fcn: {}, file size: {}",
+    //                 j,
+    //                 dir_entry.sf_name(),
+    //                 dir_entry.lf_name(),
+    //                 dir_entry.lfn_entry_index(),
+    //                 dir_entry.attr(),
+    //                 dir_entry.entry_type(),
+    //                 dir_entry.first_cluster_num(),
+    //                 dir_entry.file_size()
+    //             );
+    //         }
+    //     }
+    // }
 }
