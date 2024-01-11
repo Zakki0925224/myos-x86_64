@@ -20,7 +20,7 @@ struct File {
     pub name: String,
     pub attr: Attribute,
     pub size: usize,
-    pub pointing_cluster_num: usize,
+    pub target_cluster_num: usize,
 }
 
 struct Initramfs {
@@ -79,7 +79,7 @@ impl Initramfs {
             return;
         }
 
-        let cluster_num = dir.unwrap().pointing_cluster_num;
+        let cluster_num = dir.unwrap().target_cluster_num;
 
         self.current_cluster_num = if cluster_num != 0 {
             cluster_num
@@ -100,13 +100,10 @@ impl Initramfs {
         }
 
         let fat_volume = self.fat_volume.as_ref().unwrap();
-        let dir_entries = fat_volume.read_chained_dir_entries(file.unwrap().pointing_cluster_num);
+        let dir_entries = fat_volume.read_chained_dir_entries(file.unwrap().target_cluster_num);
         let bytes: Vec<u8> = dir_entries.iter().flat_map(|de| de.raw()).collect();
 
-        println!(
-            "{}",
-            String::from_utf8_lossy(&bytes[..file.unwrap().size]).trim_end()
-        );
+        println!("{}", String::from_utf8_lossy(&bytes[..file.unwrap().size]));
     }
 
     fn scan_current_dir(&self) -> Vec<File> {
@@ -153,7 +150,7 @@ impl Initramfs {
                             name: file_name,
                             attr,
                             size: dir_entry.file_size(),
-                            pointing_cluster_num: dir_entry.first_cluster_num(),
+                            target_cluster_num: dir_entry.first_cluster_num(),
                         };
 
                         files.push(file);
