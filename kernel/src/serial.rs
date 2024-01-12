@@ -1,7 +1,6 @@
 use lazy_static::lazy_static;
-use spin::Mutex;
 
-use crate::arch::addr::IoPortAddress;
+use crate::{arch::addr::IoPortAddress, util::mutex::Mutex};
 
 lazy_static! {
     static ref SERIAL: Mutex<Option<SerialPort>> = Mutex::new(None);
@@ -73,13 +72,13 @@ impl SerialPort {
 }
 
 pub fn init(com_port: ComPort) {
-    if let Some(mut serial) = SERIAL.try_lock() {
+    if let Ok(mut serial) = SERIAL.try_lock() {
         *serial = SerialPort::new(com_port);
     }
 }
 
 pub fn receive_data() -> Option<u8> {
-    if let Some(serial) = SERIAL.try_lock() {
+    if let Ok(serial) = SERIAL.try_lock() {
         if let Some(serial) = serial.as_ref() {
             return serial.receive_data();
         }
@@ -89,7 +88,7 @@ pub fn receive_data() -> Option<u8> {
 }
 
 pub fn send_data(data: u8) {
-    if let Some(serial) = SERIAL.try_lock() {
+    if let Ok(serial) = SERIAL.try_lock() {
         if let Some(serial) = serial.as_ref() {
             serial.send_data(data);
         }
