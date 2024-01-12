@@ -36,7 +36,7 @@ pub fn init(mem_map: &[MemoryDescriptor]) {
 }
 
 pub fn free() -> Result<()> {
-    if let Some(mem_man) = BITMAP_MEM_MAN.try_lock() {
+    if let Ok(mem_man) = BITMAP_MEM_MAN.try_lock() {
         let used = mem_man.get_used_mem_size();
         let total = mem_man.get_total_mem_size();
 

@@ -3,7 +3,6 @@ use core::fmt::{self, Write};
 use alloc::{boxed::Box, string::String, vec::Vec};
 use lazy_static::lazy_static;
 use log::error;
-use spin::Mutex;
 
 use crate::{
     arch::{asm, qemu},
@@ -14,7 +13,10 @@ use crate::{
     graphics::{color::*, frame_buf_console::FRAME_BUF_CONSOLE},
     mem::{self, buffer::fifo::Fifo},
     serial,
-    util::{ascii::AsciiCode, mutex::MutexError},
+    util::{
+        ascii::AsciiCode,
+        mutex::{Mutex, MutexError},
+    },
 };
 
 const IO_BUF_LEN: usize = 512;
@@ -182,11 +184,11 @@ impl fmt::Write for Console {
 
 #[doc(hidden)]
 pub fn _print(args: fmt::Arguments) {
-    if let Some(mut console) = CONSOLE.try_lock() {
+    if let Ok(mut console) = CONSOLE.try_lock() {
         console.write_fmt(args).unwrap();
     }
 
-    if let Some(mut frame_buf_console) = FRAME_BUF_CONSOLE.try_lock() {
+    if let Ok(mut frame_buf_console) = FRAME_BUF_CONSOLE.try_lock() {
         if let Some(frame_buf_console) = frame_buf_console.as_mut() {
             frame_buf_console.write_fmt(args).unwrap();
         }
@@ -206,7 +208,7 @@ macro_rules! println
 }
 
 pub fn clear_input_buf() -> Result<()> {
-    if let Some(mut console) = CONSOLE.try_lock() {
+    if let Ok(mut console) = CONSOLE.try_lock() {
         console.reset_buf(BufferType::Input);
         return Ok(());
     } else {
@@ -217,7 +219,7 @@ pub fn clear_input_buf() -> Result<()> {
 pub fn input(ascii_code: AsciiCode) -> Result<()> {
     let mut cmd = None;
 
-    if let Some(mut console) = CONSOLE.try_lock() {
+    if let Ok(mut console) = CONSOLE.try_lock() {
         if let Err(_) = console.write(ascii_code, BufferType::Input) {
             console.reset_buf(BufferType::Input);
             console.write(ascii_code, BufferType::Input).unwrap();

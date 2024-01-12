@@ -7,7 +7,6 @@ description = "A hobby operating system written in Rust."
 
 [dependencies]
 common = { path = "../common" }
-spin = "0.9.8"
 log = "0.4.18"
 modular-bitfield = "0.11.2"
 pci-ids = "0.2.5"

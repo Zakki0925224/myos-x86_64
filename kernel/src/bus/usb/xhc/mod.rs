@@ -3,7 +3,6 @@ use core::mem::size_of;
 use alloc::vec::Vec;
 use lazy_static::lazy_static;
 use log::{info, warn};
-use spin::Mutex;
 
 use crate::{
     arch::{addr::*, apic::read_local_apic_id, idt::VEC_XHCI_INT, register::msi::*},
@@ -13,6 +12,7 @@ use crate::{
     },
     error::Result,
     mem::bitmap::*,
+    util::mutex::Mutex,
 };
 
 use self::{

@@ -1,8 +1,7 @@
 use common::graphic_info::{GraphicInfo, PixelFormat};
 use lazy_static::lazy_static;
-use spin::Mutex;
 
-use crate::{arch::addr::*, error::Result};
+use crate::{arch::addr::*, error::Result, util::mutex::Mutex};
 
 use super::color::Color;
 

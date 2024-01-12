@@ -2,7 +2,6 @@ use core::mem::size_of;
 use lazy_static::lazy_static;
 use log::{error, info};
 use modular_bitfield::{bitfield, specifiers::*, BitfieldSpecifier};
-use spin::Mutex;
 
 use crate::{
     arch::{
@@ -11,6 +10,7 @@ use crate::{
     },
     bus::usb::xhc::XHC_DRIVER,
     device::{ps2_keyboard, ps2_mouse},
+    util::mutex::Mutex,
 };
 
 use self::info::{InterruptStackFrame, PageFaultErrorCode};
@@ -169,7 +169,7 @@ extern "x86-interrupt" fn double_fault_handler() {
 }
 
 extern "x86-interrupt" fn xhc_primary_event_ring_handler() {
-    if let Some(mut xhc_driver) = XHC_DRIVER.try_lock() {
+    if let Ok(mut xhc_driver) = XHC_DRIVER.try_lock() {
         xhc_driver.as_mut().unwrap().on_updated_event_ring();
     } else {
         error!("Xhc driver is locked");
@@ -219,7 +219,7 @@ pub fn init_pic() {
 pub fn init_idt() {
     loop {
         match IDT.try_lock() {
-            Some(mut idt) => {
+            Ok(mut idt) => {
                 idt.set_handler(
                     VEC_BREAKPOINT,
                     InterruptHandler::Normal(breakpoint_handler),
@@ -253,7 +253,7 @@ pub fn init_idt() {
                 idt.load();
                 break;
             }
-            None => continue,
+            Err(_) => continue,
         }
     }
 

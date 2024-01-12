@@ -33,7 +33,7 @@ impl log::Log for SimpleLogger {
 
         loop {
             match FRAME_BUF_CONSOLE.try_lock() {
-                Some(mut frame_buf_console) => {
+                Ok(mut frame_buf_console) => {
                     let frame_buf_console = match frame_buf_console.as_mut() {
                         Some(f) => f,
                         None => break,
@@ -49,7 +49,7 @@ impl log::Log for SimpleLogger {
 
                     break;
                 }
-                None => continue,
+                Err(_) => continue,
             }
         }
 
@@ -71,7 +71,7 @@ impl log::Log for SimpleLogger {
 
         loop {
             match FRAME_BUF_CONSOLE.try_lock() {
-                Some(mut frame_buf_console) => {
+                Ok(mut frame_buf_console) => {
                     let frame_buf_console = match frame_buf_console.as_mut() {
                         Some(f) => f,
                         None => break,
@@ -80,7 +80,7 @@ impl log::Log for SimpleLogger {
                     frame_buf_console.reset_fore_color();
                     break;
                 }
-                None => continue,
+                Err(_) => continue,
             }
         }
     }

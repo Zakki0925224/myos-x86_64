@@ -82,7 +82,7 @@ impl VirtualAddress {
     }
 
     pub fn get_phys_addr(&self) -> Result<PhysicalAddress> {
-        if let Some(page_man) = PAGE_MAN.try_lock() {
+        if let Ok(page_man) = PAGE_MAN.try_lock() {
             return match page_man.calc_phys_addr(*self) {
                 Ok(addr) => Ok(addr),
                 Err(err) => Err(err),

@@ -1,11 +1,11 @@
 use lazy_static::lazy_static;
-use spin::Mutex;
 
 use crate::arch::addr::VirtualAddress;
 use crate::arch::register::control::Cr0;
 use crate::arch::{addr::*, register::control::Cr3};
 use crate::error::Result;
 use crate::println;
+use crate::util::mutex::Mutex;
 
 use self::page_table::*;
 

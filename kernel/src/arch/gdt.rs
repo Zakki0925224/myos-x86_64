@@ -2,7 +2,8 @@ use core::mem::size_of;
 use lazy_static::lazy_static;
 use log::info;
 use modular_bitfield::{bitfield, specifiers::*, BitfieldSpecifier};
-use spin::Mutex;
+
+use crate::util::mutex::Mutex;
 
 use super::{
     asm::{self, DescriptorTableArgs},
@@ -106,13 +107,13 @@ pub fn init() {
 
     loop {
         match GDT.try_lock() {
-            Some(mut gdt) => {
+            Ok(mut gdt) => {
                 gdt.set_desc(1, gdt1);
                 gdt.set_desc(2, gdt2);
                 gdt.load();
                 break;
             }
-            None => continue,
+            Err(_) => continue,
         }
     }
 

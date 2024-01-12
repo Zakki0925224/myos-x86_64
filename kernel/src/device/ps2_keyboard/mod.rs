@@ -10,10 +10,10 @@ use crate::{
     },
     mem::buffer::fifo::Fifo,
     println,
+    util::mutex::Mutex,
 };
 use lazy_static::lazy_static;
 use log::{error, info};
-use spin::Mutex;
 
 use self::{key_event::KeyEvent, key_map::KeyMap};
 
@@ -155,7 +155,7 @@ pub fn init() {
 
 pub fn receive() {
     let data = PS2_DATA_REG_ADDR.in8();
-    if let Some(mut keyboard) = KEYBOARD.try_lock() {
+    if let Ok(mut keyboard) = KEYBOARD.try_lock() {
         keyboard.input(data);
     }
 }

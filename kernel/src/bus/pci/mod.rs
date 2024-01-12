@@ -1,8 +1,11 @@
 use self::{conf_space::*, device::PciDevice};
-use crate::{error::Result, println, util::mutex::MutexError};
+use crate::{
+    error::Result,
+    println,
+    util::mutex::{Mutex, MutexError},
+};
 use alloc::vec::Vec;
 use lazy_static::lazy_static;
-use spin::Mutex;
 
 pub mod conf_space;
 pub mod device;
@@ -93,7 +96,7 @@ impl PciDeviceManager {
 }
 
 pub fn scan_devices() -> Result<()> {
-    if let Some(mut pci_device_man) = PCI_DEVICE_MAN.try_lock() {
+    if let Ok(mut pci_device_man) = PCI_DEVICE_MAN.try_lock() {
         pci_device_man.scan_devices();
         return Ok(());
     } else {
@@ -102,7 +105,7 @@ pub fn scan_devices() -> Result<()> {
 }
 
 pub fn find_by_class(class_code: u8, subclass_code: u8, prog_if: u8) -> Result<Vec<PciDevice>> {
-    if let Some(pci_device_man) = PCI_DEVICE_MAN.try_lock() {
+    if let Ok(pci_device_man) = PCI_DEVICE_MAN.try_lock() {
         return Ok(pci_device_man.find_by_class(class_code, subclass_code, prog_if));
     } else {
         return Err(MutexError::Locked.into());
@@ -110,7 +113,7 @@ pub fn find_by_class(class_code: u8, subclass_code: u8, prog_if: u8) -> Result<V
 }
 
 pub fn find_by_bdf(bus: usize, device: usize, func: usize) -> Result<Option<PciDevice>> {
-    if let Some(pci_device_man) = PCI_DEVICE_MAN.try_lock() {
+    if let Ok(pci_device_man) = PCI_DEVICE_MAN.try_lock() {
         return Ok(pci_device_man.find_by_bdf(bus, device, func));
     } else {
         return Err(MutexError::Locked.into());
@@ -118,7 +121,7 @@ pub fn find_by_bdf(bus: usize, device: usize, func: usize) -> Result<Option<PciD
 }
 
 pub fn lspci() -> Result<()> {
-    if let Some(pci_device_man) = PCI_DEVICE_MAN.try_lock() {
+    if let Ok(pci_device_man) = PCI_DEVICE_MAN.try_lock() {
         pci_device_man.debug();
         return Ok(());
     } else {

@@ -39,6 +39,10 @@ impl<T: Sized> Mutex<T> {
     pub fn lock(&self) -> MutexGuard<T> {
         self.try_lock().unwrap_or_else(|e| panic!("{:?}", e))
     }
+
+    pub fn is_locked(&self) -> bool {
+        self.locked.load(Ordering::SeqCst)
+    }
 }
 
 unsafe impl<T> Sync for Mutex<T> {}

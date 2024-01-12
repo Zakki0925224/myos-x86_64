@@ -15,15 +15,15 @@ use crate::graphics::{
 pub fn init(graphic_info: GraphicInfo, back_color: RgbColor, fore_color: RgbColor) {
     loop {
         match FRAME_BUF.try_lock() {
-            Some(mut frame_buf) => *frame_buf = Some(FrameBuffer::new(graphic_info)),
-            None => continue,
+            Ok(mut frame_buf) => *frame_buf = Some(FrameBuffer::new(graphic_info)),
+            Err(_) => continue,
         }
 
         match FRAME_BUF_CONSOLE.try_lock() {
-            Some(mut frame_buf_console) => {
+            Ok(mut frame_buf_console) => {
                 *frame_buf_console = FrameBufferConsole::new(back_color, fore_color)
             }
-            None => continue,
+            Err(_) => continue,
         }
 
         break;

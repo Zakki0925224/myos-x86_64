@@ -1,11 +1,11 @@
 use alloc::{boxed::Box, vec::Vec};
 use lazy_static::lazy_static;
 use log::{info, warn};
-use spin::Mutex;
 
 use crate::{
     arch::asm,
     error::{Error, Result},
+    util::mutex::Mutex,
 };
 
 use self::{

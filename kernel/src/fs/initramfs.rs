@@ -1,4 +1,6 @@
-use crate::{arch::addr::VirtualAddress, fs::fat::dir_entry::LongFileNameEntry, println};
+use crate::{
+    arch::addr::VirtualAddress, fs::fat::dir_entry::LongFileNameEntry, println, util::mutex::Mutex,
+};
 
 use super::fat::{
     dir_entry::{Attribute, EntryType, ShortFileNameEntry},
@@ -7,7 +9,6 @@ use super::fat::{
 use alloc::{collections::VecDeque, string::String, vec::Vec};
 use lazy_static::lazy_static;
 use log::{error, info};
-use spin::Mutex;
 
 const PATH_SEPARATOR: &str = "/";
 
@@ -172,19 +173,19 @@ pub fn init(initramfs_start_virt_addr: VirtualAddress) {
 }
 
 pub fn ls() {
-    if let Some(initramfs) = INITRAMFS.try_lock() {
+    if let Ok(initramfs) = INITRAMFS.try_lock() {
         initramfs.ls();
     }
 }
 
 pub fn cd(dir_path: &str) {
-    if let Some(mut initramfs) = INITRAMFS.try_lock() {
+    if let Ok(mut initramfs) = INITRAMFS.try_lock() {
         initramfs.cd(dir_path);
     }
 }
 
 pub fn cat(file_path: &str) {
-    if let Some(initramfs) = INITRAMFS.try_lock() {
+    if let Ok(initramfs) = INITRAMFS.try_lock() {
         initramfs.cat(file_path);
     }
 }

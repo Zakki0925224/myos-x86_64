@@ -1,8 +1,7 @@
 use core::fmt;
 use lazy_static::lazy_static;
-use spin::Mutex;
 
-use crate::{error::Result, graphics::color::*};
+use crate::{error::Result, graphics::color::*, util::mutex::Mutex};
 
 use super::{color::COLOR_WHITE, font::PsfFont, frame_buf::FRAME_BUF};
 
@@ -35,7 +34,7 @@ impl FrameBufferConsole {
     pub fn new(back_color: RgbColor, fore_color: RgbColor) -> Option<Self> {
         loop {
             match FRAME_BUF.try_lock() {
-                Some(frame_buf) => {
+                Ok(frame_buf) => {
                     let frame_buf = match frame_buf.as_ref() {
                         Some(f) => f,
                         None => return None,
@@ -79,7 +78,7 @@ impl FrameBufferConsole {
                         cursor_y,
                     });
                 }
-                None => continue,
+                Err(_) => continue,
             }
         }
     }
@@ -136,12 +135,12 @@ impl FrameBufferConsole {
 
                 loop {
                     match FRAME_BUF.try_lock() {
-                        Some(mut frame_buf) => {
+                        Ok(mut frame_buf) => {
                             let frame_buf = frame_buf.as_mut().unwrap();
                             frame_buf.draw_rect(x1 + w, y1 + h, 1, 1, color)?;
                             break;
                         }
-                        None => continue,
+                        Err(_) => continue,
                     }
                 }
             }
@@ -193,7 +192,7 @@ impl FrameBufferConsole {
 
         loop {
             match FRAME_BUF.try_lock() {
-                Some(mut frame_buf) => {
+                Ok(mut frame_buf) => {
                     let frame_buf = frame_buf.as_mut().unwrap();
 
                     for y in font_glyph_size_y..self.max_y_res {
@@ -212,7 +211,7 @@ impl FrameBufferConsole {
 
                     break;
                 }
-                None => continue,
+                Err(_) => continue,
             }
         }
 

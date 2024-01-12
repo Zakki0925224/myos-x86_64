@@ -3,9 +3,8 @@ use core::mem::size_of;
 use common::mem_desc::*;
 use lazy_static::lazy_static;
 use log::info;
-use spin::Mutex;
 
-use crate::{arch::addr::*, error::Result};
+use crate::{arch::addr::*, error::Result, util::mutex::Mutex};
 
 lazy_static! {
     pub static ref BITMAP_MEM_MAN: Mutex<BitmapMemoryManager> =
