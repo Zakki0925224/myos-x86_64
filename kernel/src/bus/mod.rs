@@ -6,13 +6,7 @@ pub mod pci;
 pub mod usb;
 
 pub fn init() {
-    loop {
-        match pci::scan_devices() {
-            Ok(_) => break,
-            Err(_) => continue,
-        }
-    }
-
+    pci::scan_devices().unwrap();
     info!("pci: Initialized PCI device manager");
 
     // initialize usb driver

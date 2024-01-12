@@ -105,16 +105,11 @@ pub fn init() {
     gdt1.set_code_seg(SegmentType::ExecuteRead, 0, 0, 0xffff_f);
     gdt2.set_data_seg(SegmentType::ReadWrite, 0, 0, 0xffff_f);
 
-    loop {
-        match GDT.try_lock() {
-            Ok(mut gdt) => {
-                gdt.set_desc(1, gdt1);
-                gdt.set_desc(2, gdt2);
-                gdt.load();
-                break;
-            }
-            Err(_) => continue,
-        }
+    {
+        let mut gdt = GDT.try_lock().unwrap();
+        gdt.set_desc(1, gdt1);
+        gdt.set_desc(2, gdt2);
+        gdt.load();
     }
 
     asm::set_ds(0);

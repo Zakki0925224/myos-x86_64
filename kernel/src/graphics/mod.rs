@@ -13,6 +13,7 @@ use crate::graphics::{
 };
 
 pub fn init(graphic_info: GraphicInfo, back_color: RgbColor, fore_color: RgbColor) {
+    // TODO: remove loop
     loop {
         match FRAME_BUF.try_lock() {
             Ok(mut frame_buf) => *frame_buf = Some(FrameBuffer::new(graphic_info)),

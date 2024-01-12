@@ -217,45 +217,38 @@ pub fn init_pic() {
 }
 
 pub fn init_idt() {
-    loop {
-        match IDT.try_lock() {
-            Ok(mut idt) => {
-                idt.set_handler(
-                    VEC_BREAKPOINT,
-                    InterruptHandler::Normal(breakpoint_handler),
-                    GateType::Interrupt,
-                );
-                idt.set_handler(
-                    VEC_PAGE_FAULT,
-                    InterruptHandler::PageFault(page_fault_handler),
-                    GateType::Interrupt,
-                );
-                idt.set_handler(
-                    VEC_DOUBLE_FAULT,
-                    InterruptHandler::Normal(double_fault_handler),
-                    GateType::Interrupt,
-                );
-                idt.set_handler(
-                    VEC_XHCI_INT,
-                    InterruptHandler::Normal(xhc_primary_event_ring_handler),
-                    GateType::Interrupt,
-                );
-                idt.set_handler(
-                    VEC_PIC_IRQ1,
-                    InterruptHandler::Normal(ps2_keyboard_handler),
-                    GateType::Interrupt,
-                );
-                idt.set_handler(
-                    VEC_PIC_IRQ12,
-                    InterruptHandler::Normal(ps2_mouse_handler),
-                    GateType::Interrupt,
-                );
-                idt.load();
-                break;
-            }
-            Err(_) => continue,
-        }
-    }
+    let mut idt = IDT.try_lock().unwrap();
+    idt.set_handler(
+        VEC_BREAKPOINT,
+        InterruptHandler::Normal(breakpoint_handler),
+        GateType::Interrupt,
+    );
+    idt.set_handler(
+        VEC_PAGE_FAULT,
+        InterruptHandler::PageFault(page_fault_handler),
+        GateType::Interrupt,
+    );
+    idt.set_handler(
+        VEC_DOUBLE_FAULT,
+        InterruptHandler::Normal(double_fault_handler),
+        GateType::Interrupt,
+    );
+    idt.set_handler(
+        VEC_XHCI_INT,
+        InterruptHandler::Normal(xhc_primary_event_ring_handler),
+        GateType::Interrupt,
+    );
+    idt.set_handler(
+        VEC_PIC_IRQ1,
+        InterruptHandler::Normal(ps2_keyboard_handler),
+        GateType::Interrupt,
+    );
+    idt.set_handler(
+        VEC_PIC_IRQ12,
+        InterruptHandler::Normal(ps2_mouse_handler),
+        GateType::Interrupt,
+    );
+    idt.load();
 
     info!("idt: Initialized IDT");
 }
