@@ -244,8 +244,8 @@ fn convert_mem_type(mem_type: MemoryType) -> mem_desc::MemoryType {
     }
 }
 
-fn convert_mem_attr(mem_attr: MemoryAttribute) -> mem_desc::MemoryAttribute {
-    mem_desc::MemoryAttribute::from_bits_truncate(mem_attr.bits())
+fn convert_mem_attr(mem_attr: MemoryAttribute) -> u64 {
+    mem_attr.bits()
 }
 
 fn jump_to_entry(entry_base_addr: u64, bi: &BootInfo, stack_addr: u64, stack_size: u64) {
