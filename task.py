@@ -108,6 +108,7 @@ def task_build_kernel():
 
 def task_build():
     task_clear()
+    task_init()
     task_build_cozette()
     task_build_qemu()
     task_build_bootloader()
@@ -185,17 +186,12 @@ TASKS = [
 if __name__ == "__main__":
     args = sys.argv
 
-    if len(args) == 1:
-        task_run()
-        exit(0)
-
-    elif len(args) == 2:
+    if len(args) == 2:
         for task in TASKS:
             if task.__name__ == args[1]:
                 task()
                 exit(0)
 
         print("Invalid task name.")
-        print(f"Available tasks: {list(map(lambda x: x.__name__, TASKS))}")
     else:
-        print("Invalid args.")
+        print(f"Usage: {list(map(lambda x: x.__name__, TASKS))}")
