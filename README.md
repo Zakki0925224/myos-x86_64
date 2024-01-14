@@ -20,28 +20,24 @@ This is a replacement project for the previous **[myos](https://github.com/Zakki
     -   [x] PS/2 Keyboard
     -   [x] Serial connection (UART 16650A)
     -   [x] PCI devices
-    -   [ ] USB devices (xHC) (work in progress...)
--   [x] GUI support by using Graphics Output Protocol
--   [ ] Initramfs (but here we call FAT32 formatted image initramfs)
+    -   [ ] USB devices (xHC) (WIP)
+-   [x] GUI support by using UEFI GOP
+-   [x] Initramfs (but here we call FAT32 formatted image initramfs)
 
 ## How to build
 
-### Dependent tools
-
-#### myos
+### Minimum packages required to build
 
 -   Rust (nightly)
 -   Python3
-
-#### cozette
-
--   [python3, pip](https://www.python.org/)
--   [pipenv](https://pypi.org/project/pipenv/)
--   [fontforge](https://github.com/fontforge/fontforge)
--   bdf2psf
+-   dosfstools
+-   QEMU
+-   Some packages for build third party tools
 
 ```bash
 $ git clone https://github.com/Zakki0925224/myos-x86_64.git
 $ cd myos-x86_64
 $ python3 ./task.py task_build
 ```
+
+If you run `task.py` without an argument, you can see the list of commands.
