@@ -278,6 +278,12 @@ pub fn input(ascii_code: AsciiCode) -> Result<()> {
                     initramfs::cat(cmds[1]);
                 }
             }
+            // execute file
+            "exec" => {
+                if cmds.len() == 2 {
+                    initramfs::exec(cmds[1]);
+                }
+            }
             _ => error!("Command {:?} was not found", cmds),
         }
 

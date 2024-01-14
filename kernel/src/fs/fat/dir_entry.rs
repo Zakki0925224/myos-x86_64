@@ -1,6 +1,6 @@
 use alloc::{string::String, vec::Vec};
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[repr(u8)]
 pub enum Attribute {
     ReadOnly = 0x01,

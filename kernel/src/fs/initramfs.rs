@@ -1,3 +1,5 @@
+use core::mem;
+
 use crate::{
     arch::addr::VirtualAddress, fs::fat::dir_entry::LongFileNameEntry, println, util::mutex::Mutex,
 };
@@ -16,7 +18,7 @@ lazy_static! {
     static ref INITRAMFS: Mutex<Initramfs> = Mutex::new(Initramfs::new(2));
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct File {
     pub name: String,
     pub attr: Attribute,
@@ -90,21 +92,33 @@ impl Initramfs {
     }
 
     pub fn cat(&self, file_name: &str) {
+        let (_, data) = match self.get_file(file_name) {
+            Some((f, d)) => (f, d),
+            None => {
+                error!("initramfs: The file \"{}\" does not exist", file_name);
+                return;
+            }
+        };
+
+        println!("{}", String::from_utf8_lossy(&data));
+    }
+
+    pub fn get_file(&self, file_name: &str) -> Option<(File, Vec<u8>)> {
         let files = self.scan_current_dir();
         let file = files
             .iter()
             .find(|f| f.attr == Attribute::Archive && f.name.trim() == file_name);
 
         if file.is_none() {
-            error!("initramfs: The file \"{}\" does not exist", file_name);
-            return;
+            return None;
         }
 
         let fat_volume = self.fat_volume.as_ref().unwrap();
         let dir_entries = fat_volume.read_chained_dir_entries(file.unwrap().target_cluster_num);
-        let bytes: Vec<u8> = dir_entries.iter().flat_map(|de| de.raw()).collect();
+        let mut bytes: Vec<u8> = dir_entries.iter().flat_map(|de| de.raw()).collect();
+        bytes.resize(file.unwrap().size, 0);
 
-        println!("{}", String::from_utf8_lossy(&bytes[..file.unwrap().size]));
+        Some((file.unwrap().clone(), bytes))
     }
 
     fn scan_current_dir(&self) -> Vec<File> {
@@ -178,14 +192,30 @@ pub fn ls() {
     }
 }
 
-pub fn cd(dir_path: &str) {
+pub fn cd(dir_name: &str) {
     if let Ok(mut initramfs) = INITRAMFS.try_lock() {
-        initramfs.cd(dir_path);
+        initramfs.cd(dir_name);
     }
 }
 
-pub fn cat(file_path: &str) {
+pub fn cat(file_name: &str) {
     if let Ok(initramfs) = INITRAMFS.try_lock() {
-        initramfs.cat(file_path);
+        initramfs.cat(file_name);
+    }
+}
+
+pub fn exec(file_name: &str) {
+    if let Ok(initramfs) = INITRAMFS.try_lock() {
+        let (_, data) = match initramfs.get_file(file_name) {
+            Some((f, d)) => (f, d),
+            None => {
+                error!("exec: The file \"{}\" does not exist", file_name);
+                return;
+            }
+        };
+
+        let entry_point: extern "sysv64" fn() = unsafe { mem::transmute(data.as_ptr()) };
+        entry_point();
+        println!("exited");
     }
 }
