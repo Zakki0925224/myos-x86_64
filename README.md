@@ -30,8 +30,8 @@ This is a replacement project for the previous **[myos](https://github.com/Zakki
 
 #### myos
 
--   [rust (nightly)]()
--   [go-task](https://github.com/go-task/task)
+-   Rust (nightly)
+-   Python3
 
 #### cozette
 
@@ -41,6 +41,7 @@ This is a replacement project for the previous **[myos](https://github.com/Zakki
 -   bdf2psf
 
 ```bash
-$ git clone https://github.com/Zakki0925224/myos-x86_64.git --recursive
-$ task build
+$ git clone https://github.com/Zakki0925224/myos-x86_64.git
+$ cd myos-x86_64
+$ python3 ./task.py task_build
 ```
