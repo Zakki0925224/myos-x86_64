@@ -146,7 +146,7 @@ def task_run():
 
 def task_run_nographic():
     task_makeimg()
-    run_cmd(f"{own_qemu_cmd()} - nographic", ignore_error=True)
+    run_cmd(f"{own_qemu_cmd()} -nographic", ignore_error=True)
 
 def task_run_with_gdb():
     task_makeimg()
