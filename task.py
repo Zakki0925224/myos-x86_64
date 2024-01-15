@@ -115,7 +115,7 @@ def task_build():
     task_build_bootloader()
     task_build_kernel()
 
-def task_makeapps():
+def task_build_apps():
     d = f"./{APPS_DIR}"
     dirs = [f for f in os.listdir(d) if os.path.isdir(os.path.join(d, f))]
 
@@ -126,8 +126,8 @@ def task_makeapps():
     # copy apps dir to initramfs dir
     run_cmd(f"cp -r {d} ./{INITRAMFS_DIR}/")
 
-def task_makeinitramfs_img():
-    task_makeapps()
+def task_make_initramfs():
+    task_build_apps()
 
     run_cmd(f"dd if=/dev/zero of=./{OUTPUT_DIR}/{INITRAMFS_IMG_FILE} bs=1M count=128") # 128MiB
     run_cmd(f"mkfs.fat -n \"INITRAMFS\" -F 32 -s 2 ./{OUTPUT_DIR}/{INITRAMFS_IMG_FILE}") # format for FAT32
@@ -136,9 +136,9 @@ def task_makeinitramfs_img():
     run_cmd("sleep 0.5")
     run_cmd(f"sudo umount {MNT_DIR_PATH}")
 
-def task_makeimg():
+def task_make_img():
     task_build()
-    task_makeinitramfs_img()
+    task_make_initramfs()
     run_cmd(f"qemu-img create -f raw ./{OUTPUT_DIR}/{IMG_FILE} 200M")
     run_cmd(f"mkfs.fat -n \"MYOS\" -F 32 -s 2 ./{OUTPUT_DIR}/{IMG_FILE}") # format for FAT32
     run_cmd(f"sudo mount -o loop ./{OUTPUT_DIR}/{IMG_FILE} {MNT_DIR_PATH}")
@@ -150,20 +150,20 @@ def task_makeimg():
     run_cmd("sleep 0.5")
     run_cmd(f"sudo umount {MNT_DIR_PATH}")
 
-def task_makeiso():
-    task_makeimg()
+def task_make_iso():
+    task_make_img()
     run_cmd(f"dd if=./{OUTPUT_DIR}/{IMG_FILE} of=./{OUTPUT_DIR}/{ISO_FILE}")
 
 def task_run():
-    task_makeimg()
+    task_make_img()
     run_cmd(own_qemu_cmd(), ignore_error=True)
 
 def task_run_nographic():
-    task_makeimg()
+    task_make_img()
     run_cmd(f"{own_qemu_cmd()} -nographic", ignore_error=True)
 
 def task_run_with_gdb():
-    task_makeimg()
+    task_make_img()
     run_cmd(f"{qemu_cmd()} -S")
 
 def task_monitor():
@@ -186,10 +186,10 @@ TASKS = [
     task_build_bootloader,
     task_build_kernel,
     task_build,
-    task_makeapps,
-    task_makeinitramfs_img,
-    task_makeimg,
-    task_makeiso,
+    task_build_apps,
+    task_make_initramfs,
+    task_make_img,
+    task_make_iso,
     task_run,
     task_run_nographic,
     task_run_with_gdb,
