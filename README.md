@@ -4,12 +4,6 @@
 
 This is a replacement project for the previous **[myos](https://github.com/Zakki0925224/myos)**.
 
-## Third party
-
--   OVMF from [EDK II](https://github.com/tianocore/edk2.git) (included)
--   [Cozette](https://github.com/slavfox/Cozette.git)
--   [QEMU](https://gitlab.com/qemu-project/qemu.git) (for debugging)
-
 ## Features
 
 -   [x] Written in Rust
@@ -24,6 +18,12 @@ This is a replacement project for the previous **[myos](https://github.com/Zakki
 -   [x] GUI support by using UEFI GOP
 -   [x] Initramfs (but here we call FAT32 formatted image initramfs)
 
+## Third party
+
+-   OVMF from [EDK II](https://github.com/tianocore/edk2.git) (included)
+-   [Cozette](https://github.com/slavfox/Cozette.git)
+-   [QEMU](https://gitlab.com/qemu-project/qemu.git) (for debugging)
+
 ## How to build
 
 ### Minimum packages required to build
@@ -32,6 +32,7 @@ This is a replacement project for the previous **[myos](https://github.com/Zakki
 -   Python3
 -   dosfstools
 -   QEMU
+-   make, ld, nasm
 -   Some packages for build third party tools
 
 ```bash

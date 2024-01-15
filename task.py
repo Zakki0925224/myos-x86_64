@@ -2,6 +2,7 @@ import os
 import subprocess
 import sys
 
+APPS_DIR = "apps"
 OUTPUT_DIR = "build"
 BOOTLOADER_DIR = "bootloader"
 KERNEL_DIR = "kernel"
@@ -114,7 +115,20 @@ def task_build():
     task_build_bootloader()
     task_build_kernel()
 
+def task_makeapps():
+    d = f"./{APPS_DIR}"
+    dirs = [f for f in os.listdir(d) if os.path.isdir(os.path.join(d, f))]
+
+    for dir_name in dirs:
+        pwd = f"{d}/{dir_name}"
+        run_cmd("make", dir=pwd)
+
+    # copy apps dir to initramfs dir
+    run_cmd(f"cp -r {d} ./{INITRAMFS_DIR}/")
+
 def task_makeinitramfs_img():
+    task_makeapps()
+
     run_cmd(f"dd if=/dev/zero of=./{OUTPUT_DIR}/{INITRAMFS_IMG_FILE} bs=1M count=128") # 128MiB
     run_cmd(f"mkfs.fat -n \"INITRAMFS\" -F 32 -s 2 ./{OUTPUT_DIR}/{INITRAMFS_IMG_FILE}") # format for FAT32
     run_cmd(f"sudo mount -o loop ./{OUTPUT_DIR}/{INITRAMFS_IMG_FILE} {MNT_DIR_PATH}")
@@ -172,6 +186,7 @@ TASKS = [
     task_build_bootloader,
     task_build_kernel,
     task_build,
+    task_makeapps,
     task_makeinitramfs_img,
     task_makeimg,
     task_makeiso,

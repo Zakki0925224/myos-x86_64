@@ -4,3 +4,6 @@ qemu_debug.log
 third-party/cozette.psf
 third-party/OVMF_VARS.fd
 initramfs/*
+
+*.elf
+*.o
