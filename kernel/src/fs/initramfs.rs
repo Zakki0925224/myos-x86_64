@@ -230,6 +230,6 @@ pub fn exec(file_name: &str) {
         let entry_point: extern "sysv64" fn() -> i32 =
             unsafe { mem::transmute(data.as_ptr().offset(header.entry_point as isize)) };
         let ret = entry_point();
-        println!("exec: Exited ({})", ret);
+        info!("exec: Exited ({})", ret);
     }
 }

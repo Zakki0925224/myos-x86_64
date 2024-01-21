@@ -12,6 +12,7 @@ extern crate alloc;
 use alloc::vec::Vec;
 use common::{
     boot_info::BootInfo,
+    elf::{Elf64, SegmentType},
     graphic_info::{self, GraphicInfo},
     mem_desc::{self, UEFI_PAGE_SIZE},
 };
@@ -25,7 +26,6 @@ use uefi::{
     table::boot::*,
     CStr16,
 };
-use xmas_elf::{program, ElfFile};
 
 use crate::config::DEFAULT_BOOT_CONFIG;
 
@@ -124,18 +124,20 @@ fn load_elf(bs: &BootServices, path: &str) -> u64 {
     file.read(&mut buf).unwrap();
 
     // load elf
-    let elf = ElfFile::new(&buf).unwrap();
+    let elf = Elf64::new(&buf).unwrap();
 
     let mut dest_start = usize::MAX;
     let mut dest_end = 0;
 
-    for p in elf.program_iter() {
-        if p.get_type().unwrap() != program::Type::Load {
+    let phs = elf.program_headers();
+
+    for p in &phs {
+        if p.segment_type() != SegmentType::Load {
             continue;
         }
 
-        dest_start = dest_start.min(p.virtual_addr() as usize);
-        dest_end = dest_end.max((p.virtual_addr() + p.mem_size()) as usize);
+        dest_start = dest_start.min(p.vart_addr as usize);
+        dest_end = dest_end.max((p.vart_addr + p.mem_size) as usize);
     }
 
     let pages = (dest_end - dest_start + UEFI_PAGE_SIZE - 1) / UEFI_PAGE_SIZE;
@@ -146,21 +148,21 @@ fn load_elf(bs: &BootServices, path: &str) -> u64 {
     )
     .unwrap();
 
-    for p in elf.program_iter() {
-        if p.get_type().unwrap() != program::Type::Load {
+    for p in &phs {
+        if p.segment_type() != SegmentType::Load {
             continue;
         }
 
-        let offset = p.offset() as usize;
-        let file_size = p.file_size() as usize;
-        let mem_size = p.mem_size() as usize;
-        let dest = unsafe { from_raw_parts_mut(p.virtual_addr() as *mut u8, mem_size) };
+        let offset = p.offset as usize;
+        let file_size = p.file_size as usize;
+        let mem_size = p.mem_size as usize;
+        let dest = unsafe { from_raw_parts_mut(p.vart_addr as *mut u8, mem_size) };
         dest[..file_size].copy_from_slice(&buf[offset..offset + file_size]);
         dest[file_size..].fill(0);
     }
 
     info!("Loaded ELF at: 0x{:x}", dest_start);
-    elf.header.pt2.entry_point()
+    elf.read_header().entry_point
 }
 
 fn load_initramfs(bs: &BootServices, path: &str) -> (u64, u64) {

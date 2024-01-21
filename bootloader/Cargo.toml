@@ -9,4 +9,3 @@ common = { path = "../common" }
 uefi = { version = "0.24.0", features = ["alloc"] }
 uefi-services = "0.21.0"
 log = "0.4.18"
-xmas-elf = "0.9.0"
