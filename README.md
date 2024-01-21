@@ -32,7 +32,7 @@ This is a replacement project for the previous **[myos](https://github.com/Zakki
 -   Python3
 -   dosfstools
 -   QEMU
--   make, ld, nasm
+-   make, ld, gcc
 -   Some packages for build third party tools
 
 ```bash

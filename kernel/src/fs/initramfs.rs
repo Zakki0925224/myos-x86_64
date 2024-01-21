@@ -9,6 +9,7 @@ use super::fat::{
     FatType, FatVolume,
 };
 use alloc::{collections::VecDeque, string::String, vec::Vec};
+use common::elf::{self, Elf64};
 use lazy_static::lazy_static;
 use log::{error, info};
 
@@ -51,14 +52,6 @@ impl Initramfs {
         self.current_cluster_num = fat_volume.root_cluster_num();
 
         info!("initramfs: Initialized");
-        info!(
-            "initramfs: Boot sector: {:?}",
-            fat_volume.read_boot_sector()
-        );
-        info!(
-            "initramfs: FS info sector: {:?}",
-            fat_volume.read_fs_info_sector()
-        );
 
         self.fat_volume = Some(fat_volume);
     }
@@ -214,8 +207,29 @@ pub fn exec(file_name: &str) {
             }
         };
 
-        let entry_point: extern "sysv64" fn() = unsafe { mem::transmute(data.as_ptr()) };
-        entry_point();
-        println!("exited");
+        let elf64 = match Elf64::new(&data) {
+            Ok(e) => e,
+            Err(_) => {
+                error!("exec: The file \"{}\" is not an executable file", file_name);
+                return;
+            }
+        };
+
+        let header = elf64.read_header();
+
+        if header.elf_type() != elf::Type::Executable {
+            error!("exec: The file \"{}\" is not an executable file", file_name);
+            return;
+        }
+
+        if header.machine() != elf::Machine::X8664 {
+            error!("exec: Unsupported ISA");
+            return;
+        }
+
+        let entry_point: extern "sysv64" fn() -> i32 =
+            unsafe { mem::transmute(data.as_ptr().offset(header.entry_point as isize)) };
+        let ret = entry_point();
+        println!("exec: Exited ({})", ret);
     }
 }
