@@ -1,46 +1,21 @@
-use modular_bitfield::{bitfield, specifiers::*, BitfieldSpecifier};
-
 use crate::arch::{addr::*, asm};
 
 // https://en.wikipedia.org/wiki/Control_register
-#[derive(BitfieldSpecifier, Debug, Clone, Copy)]
-#[bits = 1]
-pub enum ExtensionType {
-    I287 = 0,
-    I387 = 1,
-}
-
-#[bitfield]
 #[derive(Debug, Clone, Copy)]
-pub struct Cr0 {
-    pub protected_mode_enable: bool,
-    pub monitor_coprocessor: bool,
-    pub emulation: bool,
-    pub task_switched: bool,
-    pub extension_type: ExtensionType,
-    pub numeric_error: bool,
-    #[skip]
-    reserved0: B11,
-    pub write_protect: bool,
-    #[skip]
-    reserved1: B1,
-    pub alignment_mask: bool,
-    #[skip]
-    reserved2: B11,
-    pub not_write_through: bool,
-    pub cache_disable: bool,
-    pub paging: bool,
-    #[skip]
-    reserved3: B30,
-}
+pub struct Cr0(u64);
 
 impl Cr0 {
-    pub fn read() -> Cr0 {
-        Cr0::from_bytes(asm::read_cr0().to_le_bytes())
+    pub fn read() -> Self {
+        Self(asm::read_cr0())
     }
 
     pub fn write(&self) {
-        asm::write_cr0(u64::from_le_bytes(self.bytes));
+        asm::write_cr0(self.0);
+    }
+
+    pub fn set_paging(&mut self, value: bool) {
+        let value = if value { 0x1 } else { 0x0 };
+        self.0 = (self.0 & !0x8000_0000) | (value << 31);
     }
 }
 
