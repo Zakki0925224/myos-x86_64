@@ -23,7 +23,7 @@ use self::{
     trb::*,
 };
 
-use super::{device::*, USB_DRIVER};
+use super::device::*;
 
 pub mod context;
 pub mod port;

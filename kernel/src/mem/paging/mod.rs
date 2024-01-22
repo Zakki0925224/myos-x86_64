@@ -1,11 +1,9 @@
-use lazy_static::lazy_static;
-
 use crate::arch::addr::VirtualAddress;
 use crate::arch::register::control::Cr0;
 use crate::arch::{addr::*, register::control::Cr3};
 use crate::error::Result;
 use crate::println;
-use crate::util::mutex::Mutex;
+use crate::util::mutex::{Mutex, MutexError};
 
 use self::page_table::*;
 
@@ -13,9 +11,7 @@ use super::bitmap::BITMAP_MEM_MAN;
 
 pub mod page_table;
 
-lazy_static! {
-    pub static ref PAGE_MAN: Mutex<PageManager> = Mutex::new(PageManager::new());
-}
+static mut PAGE_MAN: Mutex<PageManager> = Mutex::new(PageManager::new());
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MappingType {
@@ -36,11 +32,15 @@ pub struct PageManager {
 }
 
 impl PageManager {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
-            pml4_table_virt_addr: Cr3::read().get_virt_addr(),
+            pml4_table_virt_addr: VirtualAddress::new(0),
             mapping_type: MappingType::Identity,
         }
+    }
+
+    pub fn load_cr3(&mut self) {
+        self.pml4_table_virt_addr = Cr3::read().get_virt_addr();
     }
 
     pub fn calc_phys_addr(&self, virt_addr: VirtualAddress) -> Result<PhysicalAddress> {
@@ -101,13 +101,6 @@ impl PageManager {
         }
 
         Err(PageManagerError::InvalidPageTableEntryError(1, entry).into())
-    }
-
-    pub fn debug_page_fault(&self) {
-        let ptr = 0x10_0000_0000 as *mut u8;
-        unsafe {
-            *ptr = 42;
-        }
     }
 
     pub fn create_new_page_table(&mut self) -> Result<()> {
@@ -262,4 +255,29 @@ impl PageManager {
 
         Ok(())
     }
+}
+
+pub fn load_cr3() -> Result<()> {
+    if let Ok(mut page_man) = unsafe { PAGE_MAN.try_lock() } {
+        page_man.load_cr3();
+        return Ok(());
+    }
+
+    Err(MutexError::Locked.into())
+}
+
+pub fn calc_phys_addr(virt_addr: VirtualAddress) -> Result<PhysicalAddress> {
+    if let Ok(page_man) = unsafe { PAGE_MAN.try_lock() } {
+        return page_man.calc_phys_addr(virt_addr);
+    }
+
+    Err(MutexError::Locked.into())
+}
+
+pub fn create_new_page_table() -> Result<()> {
+    if let Ok(mut page_man) = unsafe { PAGE_MAN.try_lock() } {
+        return page_man.create_new_page_table();
+    }
+
+    Err(MutexError::Locked.into())
 }

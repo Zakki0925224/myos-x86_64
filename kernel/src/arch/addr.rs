@@ -1,6 +1,6 @@
 use core::ptr::{read_volatile, write_volatile};
 
-use crate::{error::Result, mem::paging::PAGE_MAN, util::mutex::MutexError};
+use crate::{error::Result, mem::paging};
 
 use super::asm;
 
@@ -25,7 +25,7 @@ impl PhysicalAddress {
         Self::new(self.0 + offset as u64)
     }
 
-    pub fn get_virt_addr(&self) -> VirtualAddress {
+    pub const fn get_virt_addr(&self) -> VirtualAddress {
         // println!("{:?}", PAGING.try_lock().unwrap());
         // println!("a");
 
@@ -82,14 +82,7 @@ impl VirtualAddress {
     }
 
     pub fn get_phys_addr(&self) -> Result<PhysicalAddress> {
-        if let Ok(page_man) = PAGE_MAN.try_lock() {
-            return match page_man.calc_phys_addr(*self) {
-                Ok(addr) => Ok(addr),
-                Err(err) => Err(err),
-            };
-        } else {
-            return Err(MutexError::Locked.into());
-        }
+        paging::calc_phys_addr(*self)
     }
 
     pub fn get_pml4_entry_index(&self) -> usize {

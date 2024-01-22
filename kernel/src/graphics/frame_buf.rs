@@ -1,13 +1,12 @@
-use common::graphic_info::{GraphicInfo, PixelFormat};
-use lazy_static::lazy_static;
-
-use crate::{arch::addr::*, error::Result, util::mutex::Mutex};
-
 use super::color::Color;
+use crate::{
+    arch::addr::*,
+    error::Result,
+    util::mutex::{Mutex, MutexError},
+};
+use common::graphic_info::{GraphicInfo, PixelFormat};
 
-lazy_static! {
-    pub static ref FRAME_BUF: Mutex<Option<FrameBuffer>> = Mutex::new(None);
-}
+static mut FRAME_BUF: Mutex<Option<FrameBuffer>> = Mutex::new(None);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FrameBufferError {
@@ -129,4 +128,70 @@ impl FrameBuffer {
             .offset(4 * (res_x * y) + 4 * x)
             .write_volatile(data);
     }
+}
+
+pub fn init(graphic_info: GraphicInfo) -> Result<()> {
+    if let Ok(mut frame_buf) = unsafe { FRAME_BUF.try_lock() } {
+        *frame_buf = Some(FrameBuffer::new(graphic_info));
+    }
+
+    Err(MutexError::Locked.into())
+}
+
+pub fn get_resolution() -> (usize, usize) {
+    if let Ok(frame_buf) = unsafe { FRAME_BUF.try_lock() } {
+        return frame_buf.as_ref().unwrap().get_resolution();
+    }
+
+    (0, 0)
+}
+
+pub fn get_stride() -> usize {
+    if let Ok(frame_buf) = unsafe { FRAME_BUF.try_lock() } {
+        return frame_buf.as_ref().unwrap().get_stride();
+    }
+
+    0
+}
+
+pub fn get_pixel_format() -> PixelFormat {
+    if let Ok(frame_buf) = unsafe { FRAME_BUF.try_lock() } {
+        return frame_buf.as_ref().unwrap().get_pixel_format();
+    }
+
+    PixelFormat::Rgb
+}
+
+pub fn draw_rect<C: Color>(
+    x1: usize,
+    y1: usize,
+    width: usize,
+    height: usize,
+    color: &C,
+) -> Result<()> {
+    if let Ok(frame_buf) = unsafe { FRAME_BUF.try_lock() } {
+        return frame_buf
+            .as_ref()
+            .unwrap()
+            .draw_rect(x1, y1, width, height, color);
+    }
+
+    Err(MutexError::Locked.into())
+}
+
+pub fn copy_pixel(x: usize, y: usize, to_x: usize, to_y: usize) -> Result<()> {
+    if let Ok(frame_buf) = unsafe { FRAME_BUF.try_lock() } {
+        return frame_buf.as_ref().unwrap().copy_pixel(x, y, to_x, to_y);
+    }
+
+    Err(MutexError::Locked.into())
+}
+
+pub fn clear<C: Color>(color: &C) -> Result<()> {
+    if let Ok(frame_buf) = unsafe { FRAME_BUF.try_lock() } {
+        frame_buf.as_ref().unwrap().clear(color);
+        return Ok(());
+    }
+
+    Err(MutexError::Locked.into())
 }

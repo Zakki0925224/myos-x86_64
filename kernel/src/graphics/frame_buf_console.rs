@@ -3,7 +3,7 @@ use lazy_static::lazy_static;
 
 use crate::{error::Result, graphics::color::*, util::mutex::Mutex};
 
-use super::{color::COLOR_WHITE, font::PsfFont, frame_buf::FRAME_BUF};
+use super::{color::COLOR_WHITE, font::PsfFont, frame_buf};
 
 const TAB_DISP_CHAR: char = ' ';
 const TAB_INDENT_SIZE: usize = 4;
@@ -32,36 +32,30 @@ pub struct FrameBufferConsole {
 
 impl FrameBufferConsole {
     pub fn new(back_color: RgbColor, fore_color: RgbColor) -> Option<Self> {
-        let frame_buf = FRAME_BUF.try_lock().unwrap();
-        let frame_buf = match frame_buf.as_ref() {
-            Some(f) => f,
-            None => return None,
-        };
-
         let font = PsfFont::new();
-        let max_x_res = frame_buf.get_stride();
-        let max_y_res = frame_buf.get_resolution().1;
+        let max_x_res = frame_buf::get_stride();
+        let max_y_res = frame_buf::get_resolution().1;
         let char_max_x_len = max_x_res / font.get_width() - 1;
         let char_max_y_len = max_y_res / font.get_height() - 1;
         let cursor_x = 0;
         let cursor_y = 2;
 
-        frame_buf.clear(&back_color);
-        frame_buf.draw_rect(0, 0, 20, 20, &COLOR_WHITE).unwrap();
-        frame_buf.draw_rect(20, 0, 20, 20, &COLOR_OLIVE).unwrap();
-        frame_buf.draw_rect(40, 0, 20, 20, &COLOR_YELLOW).unwrap();
-        frame_buf.draw_rect(60, 0, 20, 20, &COLOR_FUCHSIA).unwrap();
-        frame_buf.draw_rect(80, 0, 20, 20, &COLOR_SILVER).unwrap();
-        frame_buf.draw_rect(100, 0, 20, 20, &COLOR_CYAN).unwrap();
-        frame_buf.draw_rect(120, 0, 20, 20, &COLOR_GREEN).unwrap();
-        frame_buf.draw_rect(140, 0, 20, 20, &COLOR_RED).unwrap();
-        frame_buf.draw_rect(160, 0, 20, 20, &COLOR_GRAY).unwrap();
-        frame_buf.draw_rect(180, 0, 20, 20, &COLOR_BLUE).unwrap();
-        frame_buf.draw_rect(200, 0, 20, 20, &COLOR_PURPLE).unwrap();
-        frame_buf.draw_rect(220, 0, 20, 20, &COLOR_BLACK).unwrap();
-        frame_buf.draw_rect(240, 0, 20, 20, &COLOR_NAVY).unwrap();
-        frame_buf.draw_rect(260, 0, 20, 20, &COLOR_TEAL).unwrap();
-        frame_buf.draw_rect(280, 0, 20, 20, &COLOR_MAROON).unwrap();
+        frame_buf::clear(&back_color).unwrap();
+        frame_buf::draw_rect(0, 0, 20, 20, &COLOR_WHITE).unwrap();
+        frame_buf::draw_rect(20, 0, 20, 20, &COLOR_OLIVE).unwrap();
+        frame_buf::draw_rect(40, 0, 20, 20, &COLOR_YELLOW).unwrap();
+        frame_buf::draw_rect(60, 0, 20, 20, &COLOR_FUCHSIA).unwrap();
+        frame_buf::draw_rect(80, 0, 20, 20, &COLOR_SILVER).unwrap();
+        frame_buf::draw_rect(100, 0, 20, 20, &COLOR_CYAN).unwrap();
+        frame_buf::draw_rect(120, 0, 20, 20, &COLOR_GREEN).unwrap();
+        frame_buf::draw_rect(140, 0, 20, 20, &COLOR_RED).unwrap();
+        frame_buf::draw_rect(160, 0, 20, 20, &COLOR_GRAY).unwrap();
+        frame_buf::draw_rect(180, 0, 20, 20, &COLOR_BLUE).unwrap();
+        frame_buf::draw_rect(200, 0, 20, 20, &COLOR_PURPLE).unwrap();
+        frame_buf::draw_rect(220, 0, 20, 20, &COLOR_BLACK).unwrap();
+        frame_buf::draw_rect(240, 0, 20, 20, &COLOR_NAVY).unwrap();
+        frame_buf::draw_rect(260, 0, 20, 20, &COLOR_TEAL).unwrap();
+        frame_buf::draw_rect(280, 0, 20, 20, &COLOR_MAROON).unwrap();
 
         return Some(Self {
             font,
@@ -127,16 +121,7 @@ impl FrameBufferConsole {
                     continue;
                 }
 
-                loop {
-                    match FRAME_BUF.try_lock() {
-                        Ok(mut frame_buf) => {
-                            let frame_buf = frame_buf.as_mut().unwrap();
-                            frame_buf.draw_rect(x1 + w, y1 + h, 1, 1, color)?;
-                            break;
-                        }
-                        Err(_) => continue,
-                    }
-                }
+                frame_buf::draw_rect(x1 + w, y1 + h, 1, 1, color)?;
             }
         }
 
@@ -184,23 +169,19 @@ impl FrameBufferConsole {
     fn scroll(&self) -> Result<()> {
         let font_glyph_size_y = self.font.get_height();
 
-        if let Ok(mut frame_buf) = FRAME_BUF.try_lock() {
-            let frame_buf = frame_buf.as_mut().unwrap();
-
-            for y in font_glyph_size_y..self.max_y_res {
-                for x in 0..self.max_x_res {
-                    frame_buf.copy_pixel(x, y, x, y - font_glyph_size_y)?;
-                }
+        for y in font_glyph_size_y..self.max_y_res {
+            for x in 0..self.max_x_res {
+                frame_buf::copy_pixel(x, y, x, y - font_glyph_size_y)?;
             }
-
-            frame_buf.draw_rect(
-                0,
-                self.max_y_res - font_glyph_size_y,
-                self.max_x_res - 1,
-                font_glyph_size_y - 1,
-                &self.back_color,
-            )?;
         }
+
+        frame_buf::draw_rect(
+            0,
+            self.max_y_res - font_glyph_size_y,
+            self.max_x_res - 1,
+            font_glyph_size_y - 1,
+            &self.back_color,
+        )?;
 
         Ok(())
     }

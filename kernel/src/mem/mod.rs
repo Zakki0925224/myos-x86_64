@@ -1,9 +1,7 @@
 use common::mem_desc::MemoryDescriptor;
+use log::error;
 
-use crate::{
-    arch::addr::VirtualAddress, error::Result, mem::paging::PAGE_MAN, println,
-    util::mutex::MutexError,
-};
+use crate::{arch::addr::VirtualAddress, error::Result, println, util::mutex::MutexError};
 
 use self::bitmap::BITMAP_MEM_MAN;
 
@@ -19,16 +17,18 @@ pub fn init(mem_map: &[MemoryDescriptor]) {
 
     allocator::init_heap();
 
+    match paging::load_cr3() {
+        Ok(_) => (),
+        Err(_) => panic!("mem: Failed to load CR3 register"),
+    }
+
     // TODO: not working
-    // match PAGE_MAN.try_lock().unwrap().create_new_page_table() {
+    // match paging::create_new_page_table() {
     //     Ok(_) => (),
     //     Err(err) => println!("{:?}", err),
     // }
     assert!(
-        PAGE_MAN
-            .try_lock()
-            .unwrap()
-            .calc_phys_addr(VirtualAddress::new(0x1000))
+        paging::calc_phys_addr(VirtualAddress::new(0x1000))
             .unwrap()
             .get()
             == 0x1000

@@ -8,26 +8,16 @@ use log::info;
 
 use crate::graphics::{
     color::RgbColor,
-    frame_buf::{FrameBuffer, FRAME_BUF},
     frame_buf_console::{FrameBufferConsole, FRAME_BUF_CONSOLE},
 };
 
 pub fn init(graphic_info: GraphicInfo, back_color: RgbColor, fore_color: RgbColor) {
-    // TODO: remove loop
-    loop {
-        match FRAME_BUF.try_lock() {
-            Ok(mut frame_buf) => *frame_buf = Some(FrameBuffer::new(graphic_info)),
-            Err(_) => continue,
+    frame_buf::init(graphic_info);
+    match FRAME_BUF_CONSOLE.try_lock() {
+        Ok(mut frame_buf_console) => {
+            *frame_buf_console = FrameBufferConsole::new(back_color, fore_color)
         }
-
-        match FRAME_BUF_CONSOLE.try_lock() {
-            Ok(mut frame_buf_console) => {
-                *frame_buf_console = FrameBufferConsole::new(back_color, fore_color)
-            }
-            Err(_) => continue,
-        }
-
-        break;
+        Err(_) => panic!(""),
     }
 
     info!("graphics: Initialized frame buffer");
