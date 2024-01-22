@@ -1,20 +1,3 @@
-use core::mem::size_of;
-
-use alloc::vec::Vec;
-use lazy_static::lazy_static;
-use log::{error, info, warn};
-
-use crate::{
-    arch::{addr::*, apic::read_local_apic_id, idt::VEC_XHCI_INT, register::msi::*},
-    bus::{
-        pci::{self, conf_space::BaseAddress, device_id::PCI_USB_XHCI_ID},
-        usb::xhc::{port::ConfigState, register::*},
-    },
-    error::Result,
-    mem::bitmap::*,
-    util::mutex::Mutex,
-};
-
 use self::{
     context::{device::DeviceContext, endpoint::*, input::InputContext, slot::SlotContext},
     port::Port,
@@ -22,8 +5,20 @@ use self::{
     ring_buffer::*,
     trb::*,
 };
-
 use super::device::*;
+use crate::{
+    arch::{addr::*, apic::read_local_apic_id, idt::VEC_XHCI_INT, register::msi::*},
+    bus::{
+        pci::{self, conf_space::BaseAddress, device_id::PCI_USB_XHCI_ID},
+        usb::xhc::{port::ConfigState, register::*},
+    },
+    error::Result,
+    mem::bitmap,
+    util::mutex::{Mutex, MutexError},
+};
+use alloc::vec::Vec;
+use core::mem::size_of;
+use log::{error, info, warn};
 
 pub mod context;
 pub mod port;
@@ -31,15 +26,7 @@ pub mod register;
 pub mod ring_buffer;
 pub mod trb;
 
-lazy_static! {
-    pub static ref XHC_DRIVER: Mutex<Option<XhcDriver>> = Mutex::new(match XhcDriver::new() {
-        Ok(xhc_driver) => Some(xhc_driver),
-        Err(err) => {
-            warn!("xhc: {:?}", err);
-            None
-        }
-    });
-}
+static mut XHC_DRIVER: Mutex<Option<XhcDriver>> = Mutex::new(None);
 
 const PORT_REG_SETS_START_VIRT_ADDR_OFFSET: usize = 1024;
 const RING_BUF_LEN: usize = 16;
@@ -260,12 +247,7 @@ impl XhcDriver {
         // scratchpad_buf_arr_virt_addr.write_volatile(arr);
 
         // initialize device context
-        self.device_context_arr_virt_addr =
-            match BITMAP_MEM_MAN.try_lock().unwrap().alloc_single_mem_frame() {
-                Ok(mem_info) => mem_info,
-                Err(err) => return Err(err),
-            }
-            .get_frame_start_virt_addr();
+        self.device_context_arr_virt_addr = bitmap::alloc_mem_frame(1)?.get_frame_start_virt_addr();
 
         // initialize device context array
         for i in 0..(self.num_of_slots + 1) {
@@ -291,10 +273,7 @@ impl XhcDriver {
         // register command ring
         let pcs = true;
 
-        let cmd_ring_mem_info = match BITMAP_MEM_MAN.try_lock().unwrap().alloc_single_mem_frame() {
-            Ok(mem_info) => mem_info,
-            Err(err) => return Err(err),
-        };
+        let cmd_ring_mem_info = bitmap::alloc_mem_frame(1)?;
 
         self.cmd_ring_virt_addr = cmd_ring_mem_info.get_frame_start_virt_addr();
         self.cmd_ring_buf = match RingBuffer::new(
@@ -321,18 +300,9 @@ impl XhcDriver {
 
         // register event ring (primary)
         let primary_event_ring_seg_table_virt_addr =
-            match BITMAP_MEM_MAN.try_lock().unwrap().alloc_single_mem_frame() {
-                Ok(mem_info) => mem_info,
-                Err(err) => return Err(err),
-            }
-            .get_frame_start_virt_addr();
+            bitmap::alloc_mem_frame(1)?.get_frame_start_virt_addr();
 
-        let primary_event_ring_mem_info =
-            match BITMAP_MEM_MAN.try_lock().unwrap().alloc_single_mem_frame() {
-                Ok(mem_info) => mem_info,
-                Err(err) => return Err(err),
-            };
-
+        let primary_event_ring_mem_info = bitmap::alloc_mem_frame(1)?;
         self.primary_event_ring_virt_addr = primary_event_ring_mem_info.get_frame_start_virt_addr();
 
         // initialize event ring segment table entry
@@ -541,12 +511,7 @@ impl XhcDriver {
 
         let slot_id = port.slot_id.unwrap();
 
-        let input_context_base_virt_addr =
-            match BITMAP_MEM_MAN.try_lock().unwrap().alloc_single_mem_frame() {
-                Ok(mem_info) => mem_info,
-                Err(err) => return Err(err),
-            }
-            .get_frame_start_virt_addr();
+        let input_context_base_virt_addr = bitmap::alloc_mem_frame(1)?.get_frame_start_virt_addr();
 
         let mut port = port.clone();
         port.config_state = ConfigState::AddressingDevice;
@@ -591,11 +556,7 @@ impl XhcDriver {
         endpoint_context_0.set_mult(0);
         endpoint_context_0.set_error_cnt(3);
 
-        let trnasfer_ring_mem_info =
-            match BITMAP_MEM_MAN.try_lock().unwrap().alloc_single_mem_frame() {
-                Ok(mem_info) => mem_info,
-                Err(err) => return Err(err),
-            };
+        let trnasfer_ring_mem_info = bitmap::alloc_mem_frame(1)?;
 
         endpoint_context_0
             .set_tr_dequeue_ptr(trnasfer_ring_mem_info.get_frame_start_phys_addr().get() >> 1);
@@ -736,19 +697,11 @@ impl XhcDriver {
         !self.read_ope_reg().usb_status().hchalted()
     }
 
-    pub fn find_port_by_slot_id(&self, slot_id: usize) -> Option<&Port> {
-        for port in self.ports.iter() {
-            match port.slot_id {
-                Some(id) => {
-                    if id == slot_id {
-                        return Some(port);
-                    }
-                }
-                None => continue,
-            }
-        }
-
-        None
+    pub fn find_port_by_slot_id(&self, slot_id: usize) -> Option<Port> {
+        self.ports
+            .iter()
+            .find(|p| p.slot_id == Some(slot_id))
+            .map(|p| p.clone())
     }
 
     fn alloc_slot(&mut self, port_id: usize, slot_id: usize) -> Result<()> {
@@ -757,12 +710,7 @@ impl XhcDriver {
             None => return Err(XhcDriverError::PortWasNotFoundError(port_id).into()),
         };
 
-        let device_context_base_virt_addr =
-            match BITMAP_MEM_MAN.try_lock().unwrap().alloc_single_mem_frame() {
-                Ok(mem_info) => mem_info,
-                Err(err) => return Err(err),
-            }
-            .get_frame_start_virt_addr();
+        let device_context_base_virt_addr = bitmap::alloc_mem_frame(1)?.get_frame_start_virt_addr();
 
         let mut port = port.clone();
         port.slot_id = Some(slot_id);
@@ -961,4 +909,125 @@ impl XhcDriver {
             }
         }
     }
+}
+
+pub fn init() -> Result<()> {
+    if let Ok(mut xhc_driver) = unsafe { XHC_DRIVER.try_lock() } {
+        *xhc_driver = match XhcDriver::new() {
+            Ok(mut d) => {
+                d.init()?;
+                Some(d)
+            }
+            Err(e) => return Err(e),
+        };
+
+        return Ok(());
+    }
+
+    Err(MutexError::Locked.into())
+}
+
+pub fn start() -> Result<()> {
+    if let Ok(mut xhc_driver) = unsafe { XHC_DRIVER.try_lock() } {
+        if let Some(xhc_driver) = xhc_driver.as_mut() {
+            return xhc_driver.start();
+        } else {
+            return Err(XhcDriverError::NotInitialized.into());
+        }
+    }
+
+    Err(MutexError::Locked.into())
+}
+pub fn find_port_by_slot_id(slot_id: usize) -> Option<Port> {
+    if let Ok(mut xhc_driver) = unsafe { XHC_DRIVER.try_lock() } {
+        if let Some(xhc_driver) = xhc_driver.as_mut() {
+            return xhc_driver.find_port_by_slot_id(slot_id);
+        }
+    }
+
+    None
+}
+
+pub fn read_device_context(slot_id: usize) -> Option<DeviceContext> {
+    if let Ok(xhc_driver) = unsafe { XHC_DRIVER.try_lock() } {
+        if let Some(xhc_driver) = xhc_driver.as_ref() {
+            return xhc_driver.read_device_context(slot_id);
+        }
+    }
+
+    None
+}
+
+pub fn push_cmd_ring(trb: TransferRequestBlock) -> Result<()> {
+    if let Ok(mut xhc_driver) = unsafe { XHC_DRIVER.try_lock() } {
+        if let Some(xhc_driver) = xhc_driver.as_mut() {
+            return xhc_driver.push_cmd_ring(trb);
+        } else {
+            return Err(XhcDriverError::NotInitialized.into());
+        }
+    }
+
+    Err(MutexError::Locked.into())
+}
+
+pub fn ring_doorbell(index: usize, value: u8) -> Result<()> {
+    if let Ok(xhc_driver) = unsafe { XHC_DRIVER.try_lock() } {
+        if let Some(xhc_driver) = xhc_driver.as_ref() {
+            xhc_driver.ring_doorbell(index, value);
+            return Ok(());
+        } else {
+            return Err(XhcDriverError::NotInitialized.into());
+        }
+    }
+
+    Err(MutexError::Locked.into())
+}
+
+pub fn scan_ports() -> Result<Vec<usize>> {
+    if let Ok(mut xhc_driver) = unsafe { XHC_DRIVER.try_lock() } {
+        if let Some(xhc_driver) = xhc_driver.as_mut() {
+            return xhc_driver.scan_ports();
+        } else {
+            return Err(XhcDriverError::NotInitialized.into());
+        }
+    }
+
+    Err(MutexError::Locked.into())
+}
+
+pub fn reset_port(port_id: usize) -> Result<()> {
+    if let Ok(mut xhc_driver) = unsafe { XHC_DRIVER.try_lock() } {
+        if let Some(xhc_driver) = xhc_driver.as_mut() {
+            return xhc_driver.reset_port(port_id);
+        } else {
+            return Err(XhcDriverError::NotInitialized.into());
+        }
+    }
+
+    Err(MutexError::Locked.into())
+}
+
+pub fn alloc_address_to_device(port_id: usize) -> Result<UsbDevice> {
+    if let Ok(mut xhc_driver) = unsafe { XHC_DRIVER.try_lock() } {
+        if let Some(xhc_driver) = xhc_driver.as_mut() {
+            return xhc_driver.alloc_address_to_device(port_id);
+        } else {
+            return Err(XhcDriverError::NotInitialized.into());
+        }
+    }
+
+    Err(MutexError::Locked.into())
+}
+
+pub fn on_updated_event_ring() -> Result<()> {
+    if let Ok(mut xhc_driver) = unsafe { XHC_DRIVER.try_lock() } {
+        if let Some(xhc_driver) = xhc_driver.as_mut() {
+            xhc_driver.on_updated_event_ring();
+            return Ok(());
+        } else {
+            return Err(XhcDriverError::NotInitialized.into());
+        }
+    }
+
+    Err(MutexError::Locked.into())
 }

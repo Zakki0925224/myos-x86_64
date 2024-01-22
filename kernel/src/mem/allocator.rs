@@ -1,7 +1,7 @@
 use common::mem_desc::UEFI_PAGE_SIZE;
 use linked_list_allocator::LockedHeap;
 
-use super::bitmap::BITMAP_MEM_MAN;
+use super::bitmap;
 
 const HEAP_SIZE: usize = UEFI_PAGE_SIZE * UEFI_PAGE_SIZE; // 16MiB
 
@@ -75,11 +75,7 @@ const HEAP_SIZE: usize = UEFI_PAGE_SIZE * UEFI_PAGE_SIZE; // 16MiB
 static ALLOCATOR: LockedHeap = LockedHeap::empty();
 
 pub fn init_heap() {
-    let mem_frame_info = match BITMAP_MEM_MAN
-        .try_lock()
-        .unwrap()
-        .alloc_multi_mem_frame(HEAP_SIZE / UEFI_PAGE_SIZE)
-    {
+    let mem_frame_info = match bitmap::alloc_mem_frame(HEAP_SIZE / UEFI_PAGE_SIZE) {
         Ok(info) => info,
         Err(_) => panic!("Failed to allocate memory for heap allocator"),
     };

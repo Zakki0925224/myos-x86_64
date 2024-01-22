@@ -9,7 +9,7 @@ use crate::{
     env,
     error::{Error, Result},
     fs::initramfs,
-    graphics::{color::*, frame_buf_console::FRAME_BUF_CONSOLE},
+    graphics::{color::*, frame_buf_console},
     mem::{self, buffer::fifo::Fifo},
     serial,
     util::{
@@ -185,11 +185,7 @@ pub fn _print(args: fmt::Arguments) {
         console.write_fmt(args).unwrap();
     }
 
-    if let Ok(mut frame_buf_console) = FRAME_BUF_CONSOLE.try_lock() {
-        if let Some(frame_buf_console) = frame_buf_console.as_mut() {
-            frame_buf_console.write_fmt(args).unwrap();
-        }
-    }
+    let _ = frame_buf_console::write_fmt(args);
 }
 
 #[macro_export]
@@ -248,11 +244,7 @@ pub fn input(ascii_code: AsciiCode) -> Result<()> {
                     error!("PCI manager is locked")
                 }
             }
-            "free" => {
-                if mem::free().is_err() {
-                    error!("Memory manager is locked");
-                }
-            }
+            "free" => mem::free(),
             "exit" => {
                 qemu::exit(0);
             }

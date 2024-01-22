@@ -1,19 +1,20 @@
-use core::fmt;
-use lazy_static::lazy_static;
-
-use crate::{error::Result, graphics::color::*, util::mutex::Mutex};
+use core::fmt::{self, Write};
 
 use super::{color::COLOR_WHITE, font::PsfFont, frame_buf};
+use crate::{
+    error::Result,
+    graphics::color::*,
+    util::mutex::{Mutex, MutexError},
+};
 
 const TAB_DISP_CHAR: char = ' ';
 const TAB_INDENT_SIZE: usize = 4;
 
-lazy_static! {
-    pub static ref FRAME_BUF_CONSOLE: Mutex<Option<FrameBufferConsole>> = Mutex::new(None);
-}
+static mut FRAME_BUF_CONSOLE: Mutex<Option<FrameBufferConsole>> = Mutex::new(None);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FrameBufferConsoleError {
+    NotInitialized,
     FontGlyphError,
 }
 
@@ -31,7 +32,7 @@ pub struct FrameBufferConsole {
 }
 
 impl FrameBufferConsole {
-    pub fn new(back_color: RgbColor, fore_color: RgbColor) -> Option<Self> {
+    pub fn new(back_color: RgbColor, fore_color: RgbColor) -> Result<Self> {
         let font = PsfFont::new();
         let max_x_res = frame_buf::get_stride();
         let max_y_res = frame_buf::get_resolution().1;
@@ -40,24 +41,24 @@ impl FrameBufferConsole {
         let cursor_x = 0;
         let cursor_y = 2;
 
-        frame_buf::clear(&back_color).unwrap();
-        frame_buf::draw_rect(0, 0, 20, 20, &COLOR_WHITE).unwrap();
-        frame_buf::draw_rect(20, 0, 20, 20, &COLOR_OLIVE).unwrap();
-        frame_buf::draw_rect(40, 0, 20, 20, &COLOR_YELLOW).unwrap();
-        frame_buf::draw_rect(60, 0, 20, 20, &COLOR_FUCHSIA).unwrap();
-        frame_buf::draw_rect(80, 0, 20, 20, &COLOR_SILVER).unwrap();
-        frame_buf::draw_rect(100, 0, 20, 20, &COLOR_CYAN).unwrap();
-        frame_buf::draw_rect(120, 0, 20, 20, &COLOR_GREEN).unwrap();
-        frame_buf::draw_rect(140, 0, 20, 20, &COLOR_RED).unwrap();
-        frame_buf::draw_rect(160, 0, 20, 20, &COLOR_GRAY).unwrap();
-        frame_buf::draw_rect(180, 0, 20, 20, &COLOR_BLUE).unwrap();
-        frame_buf::draw_rect(200, 0, 20, 20, &COLOR_PURPLE).unwrap();
-        frame_buf::draw_rect(220, 0, 20, 20, &COLOR_BLACK).unwrap();
-        frame_buf::draw_rect(240, 0, 20, 20, &COLOR_NAVY).unwrap();
-        frame_buf::draw_rect(260, 0, 20, 20, &COLOR_TEAL).unwrap();
-        frame_buf::draw_rect(280, 0, 20, 20, &COLOR_MAROON).unwrap();
+        frame_buf::clear(&back_color)?;
+        frame_buf::draw_rect(0, 0, 20, 20, &COLOR_WHITE)?;
+        frame_buf::draw_rect(20, 0, 20, 20, &COLOR_OLIVE)?;
+        frame_buf::draw_rect(40, 0, 20, 20, &COLOR_YELLOW)?;
+        frame_buf::draw_rect(60, 0, 20, 20, &COLOR_FUCHSIA)?;
+        frame_buf::draw_rect(80, 0, 20, 20, &COLOR_SILVER)?;
+        frame_buf::draw_rect(100, 0, 20, 20, &COLOR_CYAN)?;
+        frame_buf::draw_rect(120, 0, 20, 20, &COLOR_GREEN)?;
+        frame_buf::draw_rect(140, 0, 20, 20, &COLOR_RED)?;
+        frame_buf::draw_rect(160, 0, 20, 20, &COLOR_GRAY)?;
+        frame_buf::draw_rect(180, 0, 20, 20, &COLOR_BLUE)?;
+        frame_buf::draw_rect(200, 0, 20, 20, &COLOR_PURPLE)?;
+        frame_buf::draw_rect(220, 0, 20, 20, &COLOR_BLACK)?;
+        frame_buf::draw_rect(240, 0, 20, 20, &COLOR_NAVY)?;
+        frame_buf::draw_rect(260, 0, 20, 20, &COLOR_TEAL)?;
+        frame_buf::draw_rect(280, 0, 20, 20, &COLOR_MAROON)?;
 
-        return Some(Self {
+        return Ok(Self {
             font,
             back_color,
             default_fore_color: fore_color,
@@ -192,4 +193,79 @@ impl fmt::Write for FrameBufferConsole {
         self.write_string(s).unwrap();
         Ok(())
     }
+}
+
+pub fn init(back_color: RgbColor, fore_color: RgbColor) -> Result<()> {
+    if let Ok(mut frame_buf_console) = unsafe { FRAME_BUF_CONSOLE.try_lock() } {
+        *frame_buf_console = match FrameBufferConsole::new(back_color, fore_color) {
+            Ok(c) => Some(c),
+            Err(e) => return Err(e),
+        };
+        return Ok(());
+    }
+
+    Err(MutexError::Locked.into())
+}
+
+pub fn set_fore_color(fore_color: RgbColor) -> Result<()> {
+    if let Ok(mut frame_buf_console) = unsafe { FRAME_BUF_CONSOLE.try_lock() } {
+        if let Some(frame_buf_console) = frame_buf_console.as_mut() {
+            frame_buf_console.set_fore_color(fore_color);
+            return Ok(());
+        } else {
+            return Err(FrameBufferConsoleError::NotInitialized.into());
+        }
+    }
+
+    Err(MutexError::Locked.into())
+}
+
+pub fn reset_fore_color() -> Result<()> {
+    if let Ok(mut frame_buf_console) = unsafe { FRAME_BUF_CONSOLE.try_lock() } {
+        if let Some(frame_buf_console) = frame_buf_console.as_mut() {
+            frame_buf_console.reset_fore_color();
+            return Ok(());
+        } else {
+            return Err(FrameBufferConsoleError::NotInitialized.into());
+        }
+    }
+
+    Err(MutexError::Locked.into())
+}
+
+pub fn write_char(c: char) -> Result<()> {
+    if let Ok(mut frame_buf_console) = unsafe { FRAME_BUF_CONSOLE.try_lock() } {
+        if let Some(frame_buf_console) = frame_buf_console.as_mut() {
+            return frame_buf_console.write_char(c);
+        } else {
+            return Err(FrameBufferConsoleError::NotInitialized.into());
+        }
+    }
+
+    Err(MutexError::Locked.into())
+}
+
+pub fn write_string(string: &str) -> Result<()> {
+    if let Ok(mut frame_buf_console) = unsafe { FRAME_BUF_CONSOLE.try_lock() } {
+        if let Some(frame_buf_console) = frame_buf_console.as_mut() {
+            return frame_buf_console.write_string(string);
+        } else {
+            return Err(FrameBufferConsoleError::NotInitialized.into());
+        }
+    }
+
+    Err(MutexError::Locked.into())
+}
+
+pub fn write_fmt(args: fmt::Arguments) -> Result<()> {
+    if let Ok(mut frame_buf_console) = unsafe { FRAME_BUF_CONSOLE.try_lock() } {
+        if let Some(frame_buf_console) = frame_buf_console.as_mut() {
+            frame_buf_console.write_fmt(args).unwrap();
+            return Ok(());
+        } else {
+            return Err(FrameBufferConsoleError::NotInitialized.into());
+        }
+    }
+
+    Err(MutexError::Locked.into())
 }

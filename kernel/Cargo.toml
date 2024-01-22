@@ -10,5 +10,4 @@ common = { path = "../common" }
 log = "0.4.18"
 modular-bitfield = "0.11.2"
 pci-ids = "0.2.5"
-lazy_static = { version = "1.4.0", features = ["spin_no_std"]}
 linked_list_allocator = "0.10.5"

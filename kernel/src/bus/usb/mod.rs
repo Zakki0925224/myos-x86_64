@@ -10,7 +10,7 @@ use crate::{
 use self::{
     descriptor::{Descriptor, DescriptorType},
     device::*,
-    xhc::{context::endpoint::EndpointType, *},
+    xhc::context::endpoint::EndpointType,
 };
 
 pub mod descriptor;
@@ -43,18 +43,14 @@ impl UsbDriver {
         self.devices = Vec::new();
 
         asm::disabled_int_func(|| {
-            if let Some(xhc_driver) = XHC_DRIVER.try_lock().unwrap().as_mut() {
-                if let Err(err) = xhc_driver.init() {
-                    result = Err(err);
-                    return;
-                }
+            if let Err(err) = xhc::init() {
+                result = Err(err);
+                return;
+            }
 
-                if let Err(err) = xhc_driver.start() {
-                    result = Err(err);
-                    return;
-                }
-            } else {
-                result = Err(XhcDriverError::NotInitialized.into());
+            if let Err(err) = xhc::start() {
+                result = Err(err);
+                return;
             }
         });
 
@@ -65,11 +61,12 @@ impl UsbDriver {
         let mut port_ids = Vec::new();
 
         asm::disabled_int_func(|| {
-            if let Some(xhc_driver) = XHC_DRIVER.try_lock().unwrap().as_mut() {
-                match xhc_driver.scan_ports() {
-                    Ok(ids) => port_ids = ids,
-                    Err(err) => result = Err(err),
+            result = match xhc::scan_ports() {
+                Ok(ids) => {
+                    port_ids = ids;
+                    Ok(())
                 }
+                Err(err) => Err(err),
             }
         });
 
@@ -79,11 +76,7 @@ impl UsbDriver {
 
         for port_id in port_ids {
             asm::disabled_int_func(|| {
-                if let Some(xhc_driver) = XHC_DRIVER.try_lock().unwrap().as_mut() {
-                    if let Err(err) = xhc_driver.reset_port(port_id) {
-                        result = Err(err);
-                    }
-                }
+                result = xhc::reset_port(port_id);
             });
 
             if result.is_err() {
@@ -91,11 +84,12 @@ impl UsbDriver {
             }
 
             asm::disabled_int_func(|| {
-                if let Some(xhc_driver) = XHC_DRIVER.try_lock().unwrap().as_mut() {
-                    match xhc_driver.alloc_address_to_device(port_id) {
-                        Ok(device) => self.devices.push(device),
-                        Err(err) => result = Err(err),
+                result = match xhc::alloc_address_to_device(port_id) {
+                    Ok(device) => {
+                        self.devices.push(device);
+                        Ok(())
                     }
+                    Err(err) => Err(err),
                 }
             });
 
@@ -244,7 +238,7 @@ impl UsbDriver {
     }
 
     pub fn update_device(&mut self, device: UsbDevice) -> Result<()> {
-        if let Some(mut d) = self
+        if let Some(d) = self
             .devices
             .iter_mut()
             .find(|d| d.slot_id() == device.slot_id())
@@ -267,7 +261,7 @@ pub fn init() -> Result<()> {
 }
 
 pub fn find_device_by_slot_id(slot_id: usize) -> Option<UsbDevice> {
-    if let Ok(mut usb_driver) = unsafe { USB_DRIVER.try_lock() } {
+    if let Ok(usb_driver) = unsafe { USB_DRIVER.try_lock() } {
         return usb_driver.find_device_by_slot_id(slot_id);
     }
 

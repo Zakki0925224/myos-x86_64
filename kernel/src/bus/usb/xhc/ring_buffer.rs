@@ -1,7 +1,7 @@
 use crate::{
     arch::addr::*,
     error::Result,
-    mem::bitmap::{MemoryFrameInfo, BITMAP_MEM_MAN},
+    mem::bitmap::{self, MemoryFrameInfo},
     println,
 };
 use core::mem::size_of;
@@ -229,12 +229,7 @@ impl RingBuffer {
         }
 
         for i in 0..self.buf_len - 1 {
-            let data_buf_phys_addr = BITMAP_MEM_MAN
-                .try_lock()
-                .unwrap()
-                .alloc_single_mem_frame()
-                .unwrap()
-                .get_frame_start_phys_addr();
+            let data_buf_phys_addr = bitmap::alloc_mem_frame(1)?.get_frame_start_phys_addr();
 
             let mut trb = fill_trb;
             trb.set_param(data_buf_phys_addr.get());

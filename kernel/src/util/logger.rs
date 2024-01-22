@@ -1,7 +1,7 @@
 use log::{Level, LevelFilter, Record};
 
 use crate::{
-    graphics::{color::*, frame_buf_console::FRAME_BUF_CONSOLE},
+    graphics::{color::*, frame_buf_console},
     print,
 };
 
@@ -31,27 +31,15 @@ impl log::Log for SimpleLogger {
             return;
         }
 
-        loop {
-            match FRAME_BUF_CONSOLE.try_lock() {
-                Ok(mut frame_buf_console) => {
-                    let frame_buf_console = match frame_buf_console.as_mut() {
-                        Some(f) => f,
-                        None => break,
-                    };
+        let fore_color = match record.level() {
+            Level::Error => LOG_COLOR_ERROR,
+            Level::Warn => LOG_COLOR_WARN,
+            Level::Info => LOG_COLOR_INFO,
+            Level::Debug => LOG_COLOR_DEBUG,
+            Level::Trace => LOG_COLOR_TRACE,
+        };
 
-                    match record.level() {
-                        Level::Error => frame_buf_console.set_fore_color(LOG_COLOR_ERROR),
-                        Level::Warn => frame_buf_console.set_fore_color(LOG_COLOR_WARN),
-                        Level::Info => frame_buf_console.set_fore_color(LOG_COLOR_INFO),
-                        Level::Debug => frame_buf_console.set_fore_color(LOG_COLOR_DEBUG),
-                        Level::Trace => frame_buf_console.set_fore_color(LOG_COLOR_TRACE),
-                    }
-
-                    break;
-                }
-                Err(_) => continue,
-            }
-        }
+        let _ = frame_buf_console::set_fore_color(fore_color);
 
         if record.level() == Level::Error || record.level() == Level::Debug {
             print!("[{}]: ", record.level());
@@ -69,20 +57,7 @@ impl log::Log for SimpleLogger {
 
         print!("{:?}\n", record.args());
 
-        loop {
-            match FRAME_BUF_CONSOLE.try_lock() {
-                Ok(mut frame_buf_console) => {
-                    let frame_buf_console = match frame_buf_console.as_mut() {
-                        Some(f) => f,
-                        None => break,
-                    };
-
-                    frame_buf_console.reset_fore_color();
-                    break;
-                }
-                Err(_) => continue,
-            }
-        }
+        let _ = frame_buf_console::reset_fore_color();
     }
 
     fn flush(&self) {}

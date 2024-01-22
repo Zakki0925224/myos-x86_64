@@ -6,18 +6,15 @@ pub mod frame_buf_console;
 use common::graphic_info::GraphicInfo;
 use log::info;
 
-use crate::graphics::{
-    color::RgbColor,
-    frame_buf_console::{FrameBufferConsole, FRAME_BUF_CONSOLE},
-};
+use crate::graphics::color::RgbColor;
 
 pub fn init(graphic_info: GraphicInfo, back_color: RgbColor, fore_color: RgbColor) {
-    frame_buf::init(graphic_info);
-    match FRAME_BUF_CONSOLE.try_lock() {
-        Ok(mut frame_buf_console) => {
-            *frame_buf_console = FrameBufferConsole::new(back_color, fore_color)
-        }
-        Err(_) => panic!(""),
+    if frame_buf::init(graphic_info).is_err() {
+        panic!("graphics: Failed to initialize frame buffer");
+    }
+
+    if frame_buf_console::init(back_color, fore_color).is_err() {
+        panic!("graphics: Failed to initlaize frame buffer console");
     }
 
     info!("graphics: Initialized frame buffer");

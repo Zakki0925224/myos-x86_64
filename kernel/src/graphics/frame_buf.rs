@@ -133,6 +133,7 @@ impl FrameBuffer {
 pub fn init(graphic_info: GraphicInfo) -> Result<()> {
     if let Ok(mut frame_buf) = unsafe { FRAME_BUF.try_lock() } {
         *frame_buf = Some(FrameBuffer::new(graphic_info));
+        return Ok(());
     }
 
     Err(MutexError::Locked.into())

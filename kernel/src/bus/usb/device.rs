@@ -1,11 +1,3 @@
-use core::mem::size_of;
-
-use alloc::vec::Vec;
-
-use crate::{
-    arch::addr::*, device::usb::hid_keyboard::InputData, error::Result, mem::bitmap::*, println,
-};
-
 use super::{
     descriptor::{
         config::ConfigurationDescriptor, device::DeviceDescriptor, endpoint::EndpointDescriptor,
@@ -14,12 +6,21 @@ use super::{
     },
     setup_trb::*,
     xhc::{
+        self,
         context::{endpoint::*, input::InputControlContext},
         ring_buffer::*,
         trb::*,
-        XHC_DRIVER,
     },
 };
+use crate::{
+    arch::addr::*,
+    device::usb::hid_keyboard::InputData,
+    error::Result,
+    mem::bitmap::{self, *},
+    println,
+};
+use alloc::vec::Vec;
+use core::mem::size_of;
 
 const RING_BUF_LEN: usize = 8;
 const DEFAULT_CONTROL_PIPE_ID: u8 = 1;
@@ -27,7 +28,6 @@ const DEFAULT_CONTROL_PIPE_ID: u8 = 1;
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum UsbDeviceError {
     XhcPortNotFoundError,
-    XhcDriverWasNotInitializedError,
     InvalidTransferRequestBlockTypeError,
     InvalidRequestError,
 }
@@ -67,17 +67,8 @@ impl UsbDevice {
 
         dcp_ring_buf.init();
 
-        let dev_desc_buf_mem_info =
-            match BITMAP_MEM_MAN.try_lock().unwrap().alloc_single_mem_frame() {
-                Ok(mem_info) => mem_info,
-                Err(err) => return Err(err),
-            };
-
-        let conf_desc_buf_mem_info =
-            match BITMAP_MEM_MAN.try_lock().unwrap().alloc_single_mem_frame() {
-                Ok(mem_info) => mem_info,
-                Err(err) => return Err(err),
-            };
+        let dev_desc_buf_mem_info = bitmap::alloc_mem_frame(1)?;
+        let conf_desc_buf_mem_info = bitmap::alloc_mem_frame(1)?;
 
         let mut transfer_ring_bufs = [None; 32];
         transfer_ring_bufs[1] = Some(dcp_ring_buf);
@@ -245,95 +236,81 @@ impl UsbDevice {
     }
 
     pub fn configure_endpoint(&mut self, endpoint_type: EndpointType) -> Result<()> {
-        if let Some(xhc_driver) = XHC_DRIVER.try_lock().unwrap().as_mut() {
-            let port = match xhc_driver.find_port_by_slot_id(self.slot_id) {
-                Some(port) => port,
-                None => return Err(UsbDeviceError::XhcPortNotFoundError.into()),
-            };
+        let port = match xhc::find_port_by_slot_id(self.slot_id) {
+            Some(port) => port,
+            None => return Err(UsbDeviceError::XhcPortNotFoundError.into()),
+        };
 
-            let mut transfer_ring_bufs = self.transfer_ring_bufs;
-            let mut configured_endpoint_dci = self.configured_endpoint_dci.clone();
+        let mut transfer_ring_bufs = self.transfer_ring_bufs;
+        let mut configured_endpoint_dci = self.configured_endpoint_dci.clone();
 
-            let device_context = xhc_driver.read_device_context(self.slot_id).unwrap();
-            let mut input_context = port.read_input_context();
-            input_context.device_context.slot_context = device_context.slot_context;
-            let mut input_ctrl_context = InputControlContext::new();
-            input_ctrl_context.set_add_context_flag(0, true).unwrap();
+        let device_context = xhc::read_device_context(self.slot_id).unwrap();
+        let mut input_context = port.read_input_context();
+        input_context.device_context.slot_context = device_context.slot_context;
+        let mut input_ctrl_context = InputControlContext::new();
+        input_ctrl_context.set_add_context_flag(0, true).unwrap();
 
-            for endpoint_desc in self.get_endpoint_descs() {
-                let endpoint_addr = endpoint_desc.endpoint_addr();
-                let dci = endpoint_desc.dci();
+        for endpoint_desc in self.get_endpoint_descs() {
+            let endpoint_addr = endpoint_desc.endpoint_addr();
+            let dci = endpoint_desc.dci();
 
-                let mut endpoint_context = EndpointContext::new();
-                let desc_endpoint_type =
-                    EndpointType::new(endpoint_addr, endpoint_desc.bitmap_attrs());
-                if desc_endpoint_type != endpoint_type {
-                    continue;
-                }
-
-                let transfer_ring_buf_mem_info =
-                    match BITMAP_MEM_MAN.try_lock().unwrap().alloc_single_mem_frame() {
-                        Ok(mem_info) => mem_info,
-                        Err(err) => return Err(err),
-                    };
-
-                let mut transfer_ring_buf = match RingBuffer::new(
-                    transfer_ring_buf_mem_info,
-                    RING_BUF_LEN,
-                    RingBufferType::TransferRing,
-                    true,
-                ) {
-                    Ok(ring_buf) => ring_buf,
-                    Err(err) => return Err(err),
-                };
-
-                transfer_ring_buf.init();
-
-                endpoint_context.set_endpoint_type(endpoint_type);
-                endpoint_context.set_max_packet_size(self.max_packet_size);
-                endpoint_context
-                    .set_max_endpoint_service_interval_payload_low(self.max_packet_size);
-                endpoint_context.set_max_burst_size(0);
-                endpoint_context.set_dequeue_cycle_state(true); // initial cycle state of transfer ring buffer
-                endpoint_context.set_tr_dequeue_ptr(
-                    transfer_ring_buf_mem_info.get_frame_start_phys_addr().get() >> 1,
-                );
-                endpoint_context.set_interval(endpoint_desc.interval() - 1);
-                endpoint_context.set_max_primary_streams(0);
-                endpoint_context.set_mult(0);
-                endpoint_context.set_error_cnt(3);
-                endpoint_context.set_average_trb_len(1);
-
-                input_context.device_context.endpoint_contexts[dci - 1] = endpoint_context;
-                input_ctrl_context.set_add_context_flag(dci, true).unwrap();
-
-                transfer_ring_bufs[dci] = Some(transfer_ring_buf);
-                configured_endpoint_dci.push(dci);
+            let mut endpoint_context = EndpointContext::new();
+            let desc_endpoint_type = EndpointType::new(endpoint_addr, endpoint_desc.bitmap_attrs());
+            if desc_endpoint_type != endpoint_type {
+                continue;
             }
 
-            input_context.input_ctrl_context = input_ctrl_context;
-            port.write_input_context(input_context);
-
-            self.transfer_ring_bufs = transfer_ring_bufs;
-            self.configured_endpoint_dci = configured_endpoint_dci;
-
-            let mut config_endpoint_trb = TransferRequestBlock::new();
-            config_endpoint_trb.set_trb_type(TransferRequestBlockType::ConfigureEndpointCommnad);
-            config_endpoint_trb.set_ctrl_regs((self.slot_id as u16) << 8);
-            config_endpoint_trb.set_param(
-                port.input_context_base_virt_addr
-                    .get_phys_addr()
-                    .unwrap()
-                    .get(),
-            );
-
-            return match xhc_driver.push_cmd_ring(config_endpoint_trb) {
-                Ok(_) => Ok(()),
-                Err(_) => unimplemented!(),
+            let transfer_ring_buf_mem_info = bitmap::alloc_mem_frame(1)?;
+            let mut transfer_ring_buf = match RingBuffer::new(
+                transfer_ring_buf_mem_info,
+                RING_BUF_LEN,
+                RingBufferType::TransferRing,
+                true,
+            ) {
+                Ok(ring_buf) => ring_buf,
+                Err(err) => return Err(err),
             };
-        } else {
-            return Err(UsbDeviceError::XhcDriverWasNotInitializedError.into());
+
+            transfer_ring_buf.init();
+
+            endpoint_context.set_endpoint_type(endpoint_type);
+            endpoint_context.set_max_packet_size(self.max_packet_size);
+            endpoint_context.set_max_endpoint_service_interval_payload_low(self.max_packet_size);
+            endpoint_context.set_max_burst_size(0);
+            endpoint_context.set_dequeue_cycle_state(true); // initial cycle state of transfer ring buffer
+            endpoint_context.set_tr_dequeue_ptr(
+                transfer_ring_buf_mem_info.get_frame_start_phys_addr().get() >> 1,
+            );
+            endpoint_context.set_interval(endpoint_desc.interval() - 1);
+            endpoint_context.set_max_primary_streams(0);
+            endpoint_context.set_mult(0);
+            endpoint_context.set_error_cnt(3);
+            endpoint_context.set_average_trb_len(1);
+
+            input_context.device_context.endpoint_contexts[dci - 1] = endpoint_context;
+            input_ctrl_context.set_add_context_flag(dci, true).unwrap();
+
+            transfer_ring_bufs[dci] = Some(transfer_ring_buf);
+            configured_endpoint_dci.push(dci);
         }
+
+        input_context.input_ctrl_context = input_ctrl_context;
+        port.write_input_context(input_context);
+
+        self.transfer_ring_bufs = transfer_ring_bufs;
+        self.configured_endpoint_dci = configured_endpoint_dci;
+
+        let mut config_endpoint_trb = TransferRequestBlock::new();
+        config_endpoint_trb.set_trb_type(TransferRequestBlockType::ConfigureEndpointCommnad);
+        config_endpoint_trb.set_ctrl_regs((self.slot_id as u16) << 8);
+        config_endpoint_trb.set_param(
+            port.input_context_base_virt_addr
+                .get_phys_addr()
+                .unwrap()
+                .get(),
+        );
+
+        xhc::push_cmd_ring(config_endpoint_trb)
     }
 
     pub fn configure_endpoint_transfer_ring(&mut self) -> Result<()> {
@@ -349,12 +326,7 @@ impl UsbDevice {
                     return Err(err);
                 }
 
-                //ring_buf.debug();
-
-                match XHC_DRIVER.try_lock().unwrap().as_ref() {
-                    Some(xhc_driver) => xhc_driver.ring_doorbell(self.slot_id, *endpoint_id as u8),
-                    None => (),
-                }
+                xhc::ring_doorbell(self.slot_id, *endpoint_id as u8).unwrap();
             }
         }
 
@@ -559,11 +531,6 @@ impl UsbDevice {
             }
         }
 
-        match XHC_DRIVER.try_lock().unwrap().as_ref() {
-            Some(xhc_driver) => xhc_driver.ring_doorbell(self.slot_id, DEFAULT_CONTROL_PIPE_ID),
-            None => return Err(UsbDeviceError::XhcDriverWasNotInitializedError.into()),
-        }
-
-        Ok(())
+        xhc::ring_doorbell(self.slot_id, DEFAULT_CONTROL_PIPE_ID)
     }
 }

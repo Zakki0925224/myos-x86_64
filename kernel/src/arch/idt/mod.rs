@@ -5,7 +5,7 @@ use crate::{
         asm::{self, DescriptorTableArgs},
         register::control::Cr2,
     },
-    bus::usb::xhc::XHC_DRIVER,
+    bus::usb::xhc,
     device::{ps2_keyboard, ps2_mouse},
     util::mutex::Mutex,
 };
@@ -163,10 +163,8 @@ extern "x86-interrupt" fn double_fault_handler() {
 }
 
 extern "x86-interrupt" fn xhc_primary_event_ring_handler() {
-    if let Ok(mut xhc_driver) = XHC_DRIVER.try_lock() {
-        xhc_driver.as_mut().unwrap().on_updated_event_ring();
-    } else {
-        error!("Xhc driver is locked");
+    if let Err(err) = xhc::on_updated_event_ring() {
+        error!("xhc: {:?}", err);
     }
 
     notify_end_of_int();
