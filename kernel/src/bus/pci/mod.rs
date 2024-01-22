@@ -5,16 +5,13 @@ use crate::{
     util::mutex::{Mutex, MutexError},
 };
 use alloc::vec::Vec;
-use lazy_static::lazy_static;
 
 pub mod conf_space;
 pub mod device;
 pub mod device_id;
 pub mod vendor_id;
 
-lazy_static! {
-    static ref PCI_DEVICE_MAN: Mutex<PciDeviceManager> = Mutex::new(PciDeviceManager::new());
-}
+static mut PCI_DEVICE_MAN: Mutex<PciDeviceManager> = Mutex::new(PciDeviceManager::new());
 
 #[derive(Debug)]
 pub struct PciDeviceManager {
@@ -22,7 +19,7 @@ pub struct PciDeviceManager {
 }
 
 impl PciDeviceManager {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         PciDeviceManager {
             devices: Vec::new(),
         }
@@ -96,7 +93,7 @@ impl PciDeviceManager {
 }
 
 pub fn scan_devices() -> Result<()> {
-    if let Ok(mut pci_device_man) = PCI_DEVICE_MAN.try_lock() {
+    if let Ok(mut pci_device_man) = unsafe { PCI_DEVICE_MAN.try_lock() } {
         pci_device_man.scan_devices();
         return Ok(());
     } else {
@@ -105,7 +102,7 @@ pub fn scan_devices() -> Result<()> {
 }
 
 pub fn find_by_class(class_code: u8, subclass_code: u8, prog_if: u8) -> Result<Vec<PciDevice>> {
-    if let Ok(pci_device_man) = PCI_DEVICE_MAN.try_lock() {
+    if let Ok(pci_device_man) = unsafe { PCI_DEVICE_MAN.try_lock() } {
         return Ok(pci_device_man.find_by_class(class_code, subclass_code, prog_if));
     } else {
         return Err(MutexError::Locked.into());
@@ -113,7 +110,7 @@ pub fn find_by_class(class_code: u8, subclass_code: u8, prog_if: u8) -> Result<V
 }
 
 pub fn find_by_bdf(bus: usize, device: usize, func: usize) -> Result<Option<PciDevice>> {
-    if let Ok(pci_device_man) = PCI_DEVICE_MAN.try_lock() {
+    if let Ok(pci_device_man) = unsafe { PCI_DEVICE_MAN.try_lock() } {
         return Ok(pci_device_man.find_by_bdf(bus, device, func));
     } else {
         return Err(MutexError::Locked.into());
@@ -121,7 +118,7 @@ pub fn find_by_bdf(bus: usize, device: usize, func: usize) -> Result<Option<PciD
 }
 
 pub fn lspci() -> Result<()> {
-    if let Ok(pci_device_man) = PCI_DEVICE_MAN.try_lock() {
+    if let Ok(pci_device_man) = unsafe { PCI_DEVICE_MAN.try_lock() } {
         pci_device_man.debug();
         return Ok(());
     } else {

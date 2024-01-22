@@ -12,7 +12,6 @@ use crate::{
     println,
     util::mutex::Mutex,
 };
-use lazy_static::lazy_static;
 use log::{error, info};
 
 use self::{key_event::KeyEvent, key_map::KeyMap};
@@ -24,9 +23,7 @@ mod scan_code;
 const PS2_DATA_REG_ADDR: IoPortAddress = IoPortAddress::new(0x60);
 const PS2_CMD_AND_STATE_REG_ADDR: IoPortAddress = IoPortAddress::new(0x64);
 
-lazy_static! {
-    static ref KEYBOARD: Mutex<Keyboard> = Mutex::new(Keyboard::new(ANSI_US_104_KEY_MAP));
-}
+static mut KEYBOARD: Mutex<Keyboard> = Mutex::new(Keyboard::new(ANSI_US_104_KEY_MAP));
 
 struct Keyboard {
     key_map: KeyMap,
@@ -36,10 +33,15 @@ struct Keyboard {
 }
 
 impl Keyboard {
-    pub fn new(key_map: KeyMap) -> Self {
+    pub const fn new(key_map: KeyMap) -> Self {
         Self {
             key_map,
-            mod_keys_state: ModifierKeysState::default(),
+            mod_keys_state: ModifierKeysState {
+                shift: false,
+                ctrl: false,
+                gui: false,
+                alt: false,
+            },
             key_event: None,
             key_buf: Fifo::new(0),
         }
@@ -155,7 +157,7 @@ pub fn init() {
 
 pub fn receive() {
     let data = PS2_DATA_REG_ADDR.in8();
-    if let Ok(mut keyboard) = KEYBOARD.try_lock() {
+    if let Ok(mut keyboard) = unsafe { KEYBOARD.try_lock() } {
         keyboard.input(data);
     }
 }

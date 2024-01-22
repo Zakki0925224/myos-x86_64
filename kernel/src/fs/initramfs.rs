@@ -10,14 +10,11 @@ use super::fat::{
 };
 use alloc::{collections::VecDeque, string::String, vec::Vec};
 use common::elf::{self, Elf64};
-use lazy_static::lazy_static;
 use log::{error, info};
 
 const PATH_SEPARATOR: &str = "/";
 
-lazy_static! {
-    static ref INITRAMFS: Mutex<Initramfs> = Mutex::new(Initramfs::new(2));
-}
+static mut INITRAMFS: Mutex<Initramfs> = Mutex::new(Initramfs::new(2));
 
 #[derive(Debug, Clone)]
 struct File {
@@ -34,7 +31,7 @@ struct Initramfs {
 }
 
 impl Initramfs {
-    pub fn new(init_cluster_num: usize) -> Self {
+    pub const fn new(init_cluster_num: usize) -> Self {
         Self {
             fat_volume: None,
             root_cluster_num: init_cluster_num,
@@ -176,29 +173,29 @@ impl Initramfs {
 
 pub fn init(initramfs_start_virt_addr: VirtualAddress) {
     let fat_volume = FatVolume::new(initramfs_start_virt_addr);
-    INITRAMFS.try_lock().unwrap().init(fat_volume);
+    unsafe { INITRAMFS.try_lock() }.unwrap().init(fat_volume);
 }
 
 pub fn ls() {
-    if let Ok(initramfs) = INITRAMFS.try_lock() {
+    if let Ok(initramfs) = unsafe { INITRAMFS.try_lock() } {
         initramfs.ls();
     }
 }
 
 pub fn cd(dir_name: &str) {
-    if let Ok(mut initramfs) = INITRAMFS.try_lock() {
+    if let Ok(mut initramfs) = unsafe { INITRAMFS.try_lock() } {
         initramfs.cd(dir_name);
     }
 }
 
 pub fn cat(file_name: &str) {
-    if let Ok(initramfs) = INITRAMFS.try_lock() {
+    if let Ok(initramfs) = unsafe { INITRAMFS.try_lock() } {
         initramfs.cat(file_name);
     }
 }
 
 pub fn exec(file_name: &str) {
-    if let Ok(initramfs) = INITRAMFS.try_lock() {
+    if let Ok(initramfs) = unsafe { INITRAMFS.try_lock() } {
         let (_, data) = match initramfs.get_file(file_name) {
             Some((f, d)) => (f, d),
             None => {

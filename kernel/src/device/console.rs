@@ -1,7 +1,6 @@
 use core::fmt::{self, Write};
 
 use alloc::{boxed::Box, string::String, vec::Vec};
-use lazy_static::lazy_static;
 use log::error;
 
 use crate::{
@@ -29,9 +28,7 @@ const IO_BUF_DEFAULT_VALUE: ConsoleCharacter = ConsoleCharacter {
 type IoBufferType = Fifo<ConsoleCharacter, IO_BUF_LEN>;
 
 // kernel console
-lazy_static! {
-    static ref CONSOLE: Mutex<Console> = Mutex::new(Console::new(true));
-}
+static mut CONSOLE: Mutex<Console> = Mutex::new(Console::new(true));
 
 #[derive(Debug, Clone, Copy)]
 pub struct ConsoleCharacter {
@@ -66,7 +63,7 @@ pub struct Console {
 }
 
 impl Console {
-    pub fn new(use_serial_port: bool) -> Self {
+    pub const fn new(use_serial_port: bool) -> Self {
         Self {
             input_buf: Fifo::new(IO_BUF_DEFAULT_VALUE),
             output_buf: Fifo::new(IO_BUF_DEFAULT_VALUE),
@@ -184,7 +181,7 @@ impl fmt::Write for Console {
 
 #[doc(hidden)]
 pub fn _print(args: fmt::Arguments) {
-    if let Ok(mut console) = CONSOLE.try_lock() {
+    if let Ok(mut console) = unsafe { CONSOLE.try_lock() } {
         console.write_fmt(args).unwrap();
     }
 
@@ -208,7 +205,7 @@ macro_rules! println
 }
 
 pub fn clear_input_buf() -> Result<()> {
-    if let Ok(mut console) = CONSOLE.try_lock() {
+    if let Ok(mut console) = unsafe { CONSOLE.try_lock() } {
         console.reset_buf(BufferType::Input);
         return Ok(());
     } else {
@@ -219,7 +216,7 @@ pub fn clear_input_buf() -> Result<()> {
 pub fn input(ascii_code: AsciiCode) -> Result<()> {
     let mut cmd = None;
 
-    if let Ok(mut console) = CONSOLE.try_lock() {
+    if let Ok(mut console) = unsafe { CONSOLE.try_lock() } {
         if let Err(_) = console.write(ascii_code, BufferType::Input) {
             console.reset_buf(BufferType::Input);
             console.write(ascii_code, BufferType::Input).unwrap();

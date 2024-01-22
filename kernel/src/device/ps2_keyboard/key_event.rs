@@ -16,17 +16,6 @@ pub struct ModifierKeysState {
     pub alt: bool,
 }
 
-impl Default for ModifierKeysState {
-    fn default() -> Self {
-        Self {
-            shift: false,
-            ctrl: false,
-            gui: false,
-            alt: false,
-        }
-    }
-}
-
 #[derive(Debug, Clone, Copy)]
 pub struct KeyEvent {
     pub code: KeyCode,

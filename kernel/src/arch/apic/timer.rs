@@ -1,10 +1,6 @@
-use lazy_static::lazy_static;
-
 use crate::arch::addr::*;
 
-lazy_static! {
-    pub static ref LOCAL_APIC_TIMER: Timer = Timer::new();
-}
+static LOCAL_APIC_TIMER: Timer = Timer::new();
 
 pub struct Timer {
     lvt_timer_virt_addr: VirtualAddress,
@@ -14,7 +10,7 @@ pub struct Timer {
 }
 
 impl Timer {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             lvt_timer_virt_addr: VirtualAddress::new(0xfee00320),
             initial_cnt_virt_addr: VirtualAddress::new(0xfee00380),
@@ -46,4 +42,24 @@ impl Timer {
     pub fn is_measuring(&self) -> bool {
         self.elapsed() != u32::MAX
     }
+}
+
+pub fn init() {
+    LOCAL_APIC_TIMER.init();
+}
+
+pub fn start() {
+    LOCAL_APIC_TIMER.start();
+}
+
+pub fn stop() {
+    LOCAL_APIC_TIMER.stop();
+}
+
+pub fn elapsed() -> u32 {
+    LOCAL_APIC_TIMER.elapsed()
+}
+
+pub fn is_measuring() -> bool {
+    LOCAL_APIC_TIMER.is_measuring()
 }

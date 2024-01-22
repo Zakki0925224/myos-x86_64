@@ -1,5 +1,4 @@
 use core::mem::size_of;
-use lazy_static::lazy_static;
 use log::info;
 use modular_bitfield::{bitfield, specifiers::*, BitfieldSpecifier};
 
@@ -10,9 +9,7 @@ use super::{
     idt::GateDescriptor,
 };
 
-lazy_static! {
-    static ref GDT: Mutex<GlobalDescriptorTable> = Mutex::new(GlobalDescriptorTable::new());
-}
+static mut GDT: Mutex<GlobalDescriptorTable> = Mutex::new(GlobalDescriptorTable::new());
 
 const GDT_LEN: usize = 3;
 
@@ -73,7 +70,7 @@ struct GlobalDescriptorTable {
 }
 
 impl GlobalDescriptorTable {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             entries: [SegmentDescriptor::new(); GDT_LEN],
         }
@@ -106,7 +103,7 @@ pub fn init() {
     gdt2.set_data_seg(SegmentType::ReadWrite, 0, 0, 0xffff_f);
 
     {
-        let mut gdt = GDT.try_lock().unwrap();
+        let mut gdt = unsafe { GDT.try_lock() }.unwrap();
         gdt.set_desc(1, gdt1);
         gdt.set_desc(2, gdt2);
         gdt.load();

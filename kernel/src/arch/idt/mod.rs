@@ -1,8 +1,5 @@
-use core::mem::size_of;
-use lazy_static::lazy_static;
-use log::{error, info};
-use modular_bitfield::{bitfield, specifiers::*, BitfieldSpecifier};
-
+use self::info::{InterruptStackFrame, PageFaultErrorCode};
+use super::addr::*;
 use crate::{
     arch::{
         asm::{self, DescriptorTableArgs},
@@ -12,16 +9,13 @@ use crate::{
     device::{ps2_keyboard, ps2_mouse},
     util::mutex::Mutex,
 };
-
-use self::info::{InterruptStackFrame, PageFaultErrorCode};
-
-use super::addr::*;
+use core::mem::size_of;
+use log::{error, info};
+use modular_bitfield::{bitfield, specifiers::*, BitfieldSpecifier};
 
 pub mod info;
 
-lazy_static! {
-    static ref IDT: Mutex<InterruptDescriptorTable> = Mutex::new(InterruptDescriptorTable::new());
-}
+static mut IDT: Mutex<InterruptDescriptorTable> = Mutex::new(InterruptDescriptorTable::new());
 
 // idt
 const IDT_LEN: usize = 256;
@@ -111,7 +105,7 @@ struct InterruptDescriptorTable {
 }
 
 impl InterruptDescriptorTable {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             entries: [GateDescriptor::new(); IDT_LEN],
         }
@@ -217,7 +211,7 @@ pub fn init_pic() {
 }
 
 pub fn init_idt() {
-    let mut idt = IDT.try_lock().unwrap();
+    let mut idt = unsafe { IDT.try_lock() }.unwrap();
     idt.set_handler(
         VEC_BREAKPOINT,
         InterruptHandler::Normal(breakpoint_handler),

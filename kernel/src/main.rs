@@ -22,7 +22,7 @@ extern crate alloc;
 
 use alloc::alloc::Layout;
 use arch::{
-    asm, gdt,
+    apic, asm, gdt,
     task::{executor::Executor, Task},
 };
 use common::boot_info::BootInfo;
@@ -31,10 +31,7 @@ use log::*;
 use serial::ComPort;
 use util::logger;
 
-use crate::{
-    arch::{apic::timer::LOCAL_APIC_TIMER, idt},
-    device::console,
-};
+use crate::{arch::idt, device::console};
 
 #[no_mangle]
 #[start]
@@ -42,7 +39,7 @@ pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> ! {
     let boot_info = unsafe { boot_info.read() };
 
     // initialize local APIC timer
-    LOCAL_APIC_TIMER.init();
+    apic::timer::init();
 
     // initialize serial
     serial::init(ComPort::Com1);
