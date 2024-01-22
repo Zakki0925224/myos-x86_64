@@ -560,6 +560,8 @@ pub fn alloc_mem_frame(len: usize) -> Result<MemoryFrameInfo> {
         if let Some(bitmap_mem_man) = bitmap_mem_man.as_mut() {
             return bitmap_mem_man.alloc_multi_mem_frame(len);
         }
+
+        return Err(BitmapMemoryManagerError::NotInitialized.into());
     }
 
     Err(MutexError::Locked.into())

@@ -97,30 +97,6 @@ impl PsfFont {
         self.width
     }
 
-    pub fn get_glyphs_len(&self) -> usize {
-        self.glyphs_len
-    }
-
-    pub fn get_glyph_size(&self) -> usize {
-        self.glyph_size
-    }
-
-    pub fn has_unicode_table(&self) -> bool {
-        self.has_unicode_table
-    }
-
-    pub fn get_header_size(&self) -> usize {
-        self.header_size
-    }
-
-    pub fn get_unicode_table_offset(&self) -> Option<usize> {
-        if !self.has_unicode_table {
-            return None;
-        }
-
-        Some(self.unicode_table_offset)
-    }
-
     // ascii char only
     pub fn unicode_char_to_glyph_index(&self, c: char) -> usize {
         if !self.has_unicode_table {

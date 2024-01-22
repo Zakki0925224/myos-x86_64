@@ -233,30 +233,6 @@ pub fn reset_fore_color() -> Result<()> {
     Err(MutexError::Locked.into())
 }
 
-pub fn write_char(c: char) -> Result<()> {
-    if let Ok(mut frame_buf_console) = unsafe { FRAME_BUF_CONSOLE.try_lock() } {
-        if let Some(frame_buf_console) = frame_buf_console.as_mut() {
-            return frame_buf_console.write_char(c);
-        } else {
-            return Err(FrameBufferConsoleError::NotInitialized.into());
-        }
-    }
-
-    Err(MutexError::Locked.into())
-}
-
-pub fn write_string(string: &str) -> Result<()> {
-    if let Ok(mut frame_buf_console) = unsafe { FRAME_BUF_CONSOLE.try_lock() } {
-        if let Some(frame_buf_console) = frame_buf_console.as_mut() {
-            return frame_buf_console.write_string(string);
-        } else {
-            return Err(FrameBufferConsoleError::NotInitialized.into());
-        }
-    }
-
-    Err(MutexError::Locked.into())
-}
-
 pub fn write_fmt(args: fmt::Arguments) -> Result<()> {
     if let Ok(mut frame_buf_console) = unsafe { FRAME_BUF_CONSOLE.try_lock() } {
         if let Some(frame_buf_console) = frame_buf_console.as_mut() {
