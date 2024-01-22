@@ -2,7 +2,7 @@ use core::mem::size_of;
 
 use alloc::vec::Vec;
 use lazy_static::lazy_static;
-use log::{info, warn};
+use log::{error, info, warn};
 
 use crate::{
     arch::{addr::*, apic::read_local_apic_id, idt::VEC_XHCI_INT, register::msi::*},
@@ -698,22 +698,19 @@ impl XhcDriver {
 
                 //info!("slot id: {}, endpoint id: {}", slot_id, endpoint_id);
 
-                if USB_DRIVER.is_locked() {
-                    return;
-                }
-
-                if let Some(device) = USB_DRIVER
-                    .try_lock()
-                    .unwrap()
-                    .find_device_by_slot_id(slot_id)
-                {
+                if let Some(mut device) = super::find_device_by_slot_id(slot_id) {
                     if !device.is_configured {
                         return;
                     }
 
                     device.update(endpoint_id, trb);
-                    self.ring_doorbell(slot_id, endpoint_id as u8);
-                };
+
+                    if super::update_device(device).is_ok() {
+                        self.ring_doorbell(slot_id, endpoint_id as u8);
+                    } else {
+                        error!("xhc: Failed to update USB device");
+                    }
+                }
             }
             TransferRequestBlockType::HostControllerEvent => {
                 let comp_code = trb.completion_code().unwrap();

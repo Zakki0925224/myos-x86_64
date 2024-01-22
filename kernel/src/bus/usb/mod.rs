@@ -1,11 +1,10 @@
 use alloc::{boxed::Box, vec::Vec};
-use lazy_static::lazy_static;
 use log::{info, warn};
 
 use crate::{
     arch::asm,
     error::{Error, Result},
-    util::mutex::Mutex,
+    util::mutex::{Mutex, MutexError},
 };
 
 use self::{
@@ -19,13 +18,12 @@ pub mod device;
 pub mod setup_trb;
 pub mod xhc;
 
-lazy_static! {
-    pub static ref USB_DRIVER: Mutex<UsbDriver> = Mutex::new(UsbDriver::new());
-}
+static mut USB_DRIVER: Mutex<UsbDriver> = Mutex::new(UsbDriver::new());
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum UsbDriverError {
     UsbDeviceError { slot_id: usize, err: Box<Error> },
+    UsbDeviceNotExitstError,
 }
 
 #[derive(Debug)]
@@ -34,7 +32,7 @@ pub struct UsbDriver {
 }
 
 impl UsbDriver {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             devices: Vec::new(),
         }
@@ -238,7 +236,48 @@ impl UsbDriver {
         return result;
     }
 
-    pub fn find_device_by_slot_id(&mut self, slot_id: usize) -> Option<&mut UsbDevice> {
-        self.devices.iter_mut().find(|d| d.slot_id() == slot_id)
+    pub fn find_device_by_slot_id(&self, slot_id: usize) -> Option<UsbDevice> {
+        self.devices
+            .iter()
+            .find(|d| d.slot_id() == slot_id)
+            .cloned()
     }
+
+    pub fn update_device(&mut self, device: UsbDevice) -> Result<()> {
+        if let Some(mut d) = self
+            .devices
+            .iter_mut()
+            .find(|d| d.slot_id() == device.slot_id())
+        {
+            *d = device;
+        } else {
+            return Err(UsbDriverError::UsbDeviceNotExitstError.into());
+        }
+
+        Ok(())
+    }
+}
+
+pub fn init() -> Result<()> {
+    if let Ok(mut usb_driver) = unsafe { USB_DRIVER.try_lock() } {
+        return usb_driver.init();
+    }
+
+    Err(MutexError::Locked.into())
+}
+
+pub fn find_device_by_slot_id(slot_id: usize) -> Option<UsbDevice> {
+    if let Ok(mut usb_driver) = unsafe { USB_DRIVER.try_lock() } {
+        return usb_driver.find_device_by_slot_id(slot_id);
+    }
+
+    None
+}
+
+pub fn update_device(device: UsbDevice) -> Result<()> {
+    if let Ok(mut usb_driver) = unsafe { USB_DRIVER.try_lock() } {
+        return usb_driver.update_device(device);
+    }
+
+    Err(MutexError::Locked.into())
 }

@@ -32,7 +32,7 @@ pub enum UsbDeviceError {
     InvalidRequestError,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct UsbDevice {
     pub is_configured: bool,
 
