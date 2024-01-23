@@ -1,8 +1,58 @@
+use core::arch::global_asm;
+
 use crate::{arch::register::model_specific::*, println};
 use log::info;
 
-extern "sysv64" fn syscall_handler() {
+global_asm!(
+    ".global syscall_handler",
+    ".global asm_syscall_handler",
+    "asm_syscall_handler:",
+    " push rcx",
+    " push r11",
+    " push rbx",
+    " push rbp",
+    " push r15",
+    " push r14",
+    " push r13",
+    " push r12",
+    " push r10",
+    " push r9",
+    " push r8",
+    " push rdi",
+    " push rsi",
+    " push rdx",
+    " push rax",
+    " mov rbp, rsp",
+    " mov rdi, rsp",
+    " and rsp, -16",
+    " call syscall_handler",
+    " mov rsp, rbp",
+    " pop rax",
+    " pop rdx",
+    " pop rsi",
+    " pop rdi",
+    " pop r8",
+    " pop r9",
+    " pop r10",
+    " pop r12",
+    " pop r13",
+    " pop r14",
+    " pop r15",
+    " pop rbp",
+    " pop rbx",
+    " pop r11",
+    " pop rcx",
+    " sysretq"
+);
+
+extern "C" {
+    fn asm_syscall_handler();
+}
+
+#[no_mangle]
+extern "sysv64" fn syscall_handler(args: &[u64; 16]) {
     println!("Called syscall!");
+    println!("{:?}", args);
 }
 
 pub fn enable_system_call() {
@@ -11,7 +61,7 @@ pub fn enable_system_call() {
     efer.write();
 
     let mut lstar = LongModeSystemCallTargetAddressRegister::read();
-    lstar.set_target_addr(syscall_handler as *const () as u64);
+    lstar.set_target_addr(asm_syscall_handler as *const () as u64);
     lstar.write();
 
     let mut star = SystemCallTargetAddressRegister::read();
