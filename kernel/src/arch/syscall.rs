@@ -1,6 +1,5 @@
+use crate::arch::register::model_specific::*;
 use core::arch::global_asm;
-
-use crate::{arch::register::model_specific::*, println};
 use log::info;
 
 global_asm!(
@@ -51,11 +50,10 @@ extern "C" {
 
 #[no_mangle]
 extern "sysv64" fn syscall_handler(args: &[u64; 16]) {
-    println!("Called syscall!");
-    println!("{:?}", args);
+    info!("syscall: Called!(args: {:?})", args);
 }
 
-pub fn enable_system_call() {
+pub fn init() {
     let mut efer = ExtendedFeatureEnableRegister::read();
     efer.set_system_call_enable(true);
     efer.write();
@@ -72,5 +70,5 @@ pub fn enable_system_call() {
     fmask.set_value(0);
     fmask.write();
 
-    info!("arch: Enabled system call");
+    info!("arch: Enabled syscall");
 }

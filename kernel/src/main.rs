@@ -20,6 +20,7 @@ mod util;
 
 extern crate alloc;
 
+use crate::{arch::idt, device::console};
 use alloc::alloc::Layout;
 use arch::{
     apic, asm, gdt, syscall,
@@ -30,8 +31,6 @@ use fs::initramfs;
 use log::*;
 use serial::ComPort;
 use util::logger;
-
-use crate::{arch::idt, device::console};
 
 #[no_mangle]
 #[start]
@@ -63,8 +62,8 @@ pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> ! {
     // initialize memory management
     mem::init(boot_info.get_mem_map());
 
-    // enable system call
-    syscall::enable_system_call();
+    // initialize syscall configurations
+    syscall::init();
 
     // initialize pci, usb
     bus::init();
