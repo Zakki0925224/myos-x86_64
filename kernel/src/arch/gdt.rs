@@ -11,7 +11,7 @@ use super::{
 
 static mut GDT: Mutex<GlobalDescriptorTable> = Mutex::new(GlobalDescriptorTable::new());
 
-const GDT_LEN: usize = 3;
+const GDT_LEN: usize = 5;
 
 #[derive(BitfieldSpecifier, Debug, Clone, Copy)]
 #[bits = 4]
@@ -98,14 +98,20 @@ impl GlobalDescriptorTable {
 pub fn init() {
     let mut gdt1 = SegmentDescriptor::new();
     let mut gdt2 = SegmentDescriptor::new();
+    let mut gdt3 = SegmentDescriptor::new();
+    let mut gdt4 = SegmentDescriptor::new();
 
     gdt1.set_code_seg(SegmentType::ExecuteRead, 0, 0, 0xffff_f);
     gdt2.set_data_seg(SegmentType::ReadWrite, 0, 0, 0xffff_f);
+    gdt3.set_data_seg(SegmentType::ReadWrite, 3, 0, 0xffff_f);
+    gdt4.set_code_seg(SegmentType::ExecuteRead, 3, 0, 0xffff_f);
 
     {
         let mut gdt = unsafe { GDT.try_lock() }.unwrap();
         gdt.set_desc(1, gdt1);
         gdt.set_desc(2, gdt2);
+        gdt.set_desc(3, gdt3);
+        gdt.set_desc(4, gdt4);
         gdt.load();
     }
 

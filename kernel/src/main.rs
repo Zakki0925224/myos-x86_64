@@ -22,7 +22,7 @@ extern crate alloc;
 
 use alloc::alloc::Layout;
 use arch::{
-    apic, asm, gdt,
+    apic, asm, gdt, syscall,
     task::{executor::Executor, Task},
 };
 use common::boot_info::BootInfo;
@@ -62,6 +62,9 @@ pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> ! {
 
     // initialize memory management
     mem::init(boot_info.get_mem_map());
+
+    // enable system call
+    syscall::enable_system_call();
 
     // initialize pci, usb
     bus::init();

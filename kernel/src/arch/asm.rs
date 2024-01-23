@@ -175,3 +175,23 @@ pub fn write_cr3(value: u64) {
         asm!("mov cr3, {}", in(reg) value);
     }
 }
+
+pub fn read_msr(addr: u32) -> u64 {
+    let mut low: u32 = 0;
+    let mut high: u32 = 0;
+
+    unsafe {
+        asm!("rdmsr", in("ecx") addr, out("eax") low, out("edx") high);
+    }
+
+    ((high as u64) << 32) | (low as u64)
+}
+
+pub fn write_msr(addr: u32, value: u64) {
+    let low = value as u32;
+    let high = (value >> 32) as u32;
+
+    unsafe {
+        asm!("wrmsr", in("ecx") addr, in("eax") low, in("edx") high);
+    }
+}

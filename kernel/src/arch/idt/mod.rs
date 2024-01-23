@@ -31,7 +31,7 @@ const VEC_DOUBLE_FAULT: usize = 0x08;
 const _VEC_INVALID_TSS: usize = 0x0a;
 const _VEC_SEG_NOT_PRESENT: usize = 0x0b;
 const _VEC_STACK_SEG_FAULT: usize = 0x0c;
-const _VEC_GENERAL_PROTECTION: usize = 0x0d;
+const VEC_GENERAL_PROTECTION: usize = 0x0d;
 const VEC_PAGE_FAULT: usize = 0x0e;
 const _VEC_FLOATING_POINT_ERR: usize = 0x10;
 const _VEC_ALIGN_CHECK: usize = 0x11;
@@ -146,6 +146,10 @@ extern "x86-interrupt" fn breakpoint_handler() {
     panic!("int: BREAKPOINT");
 }
 
+extern "x86-interrupt" fn general_protection_fault_handler() {
+    panic!("int: GENERAL PROTECTION FAULT");
+}
+
 extern "x86-interrupt" fn page_fault_handler(
     stack_frame: InterruptStackFrame,
     error_code: PageFaultErrorCode,
@@ -213,6 +217,11 @@ pub fn init_idt() {
     idt.set_handler(
         VEC_BREAKPOINT,
         InterruptHandler::Normal(breakpoint_handler),
+        GateType::Interrupt,
+    );
+    idt.set_handler(
+        VEC_GENERAL_PROTECTION,
+        InterruptHandler::Normal(general_protection_fault_handler),
         GateType::Interrupt,
     );
     idt.set_handler(
