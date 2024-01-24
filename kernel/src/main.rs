@@ -20,7 +20,10 @@ mod util;
 
 extern crate alloc;
 
-use crate::{arch::idt, device::console};
+use crate::{
+    arch::{idt, task},
+    device::console,
+};
 use alloc::alloc::Layout;
 use arch::{
     apic, asm, gdt, syscall,
@@ -77,6 +80,8 @@ pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> ! {
     initramfs::init(boot_info.initramfs_start_virt_addr.into());
 
     let mut executor = Executor::new();
+    executor.spawn(Task::new(test()));
+    executor.spawn(Task::new(test2()));
     executor.spawn(Task::new(serial_receive_task()));
     executor.run();
 
@@ -85,14 +90,34 @@ pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> ! {
     }
 }
 
+async fn test() {
+    for i in 0..100 {
+        println!("hoge({})", i);
+        task::exec_yield().await;
+    }
+}
+
+async fn test2() {
+    for i in 0..100 {
+        println!("huga({})", i);
+        task::exec_yield().await;
+    }
+}
+
 async fn serial_receive_task() {
     loop {
         let ascii_code = match serial::receive_data() {
             Some(data) => match data.try_into() {
                 Ok(c) => c,
-                Err(_) => continue,
+                Err(_) => {
+                    task::exec_yield().await;
+                    continue;
+                }
             },
-            None => continue,
+            None => {
+                task::exec_yield().await;
+                continue;
+            }
         };
 
         if console::input(ascii_code).is_err() {

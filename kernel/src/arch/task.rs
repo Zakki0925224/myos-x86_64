@@ -3,10 +3,27 @@ use core::{
     future::Future,
     pin::Pin,
     ptr::null,
-    sync::atomic::{AtomicU64, Ordering},
+    sync::atomic::{AtomicBool, AtomicU64, Ordering},
     task::{Context, Poll, RawWaker, RawWakerVTable, Waker},
 };
 use log::info;
+
+#[derive(Default)]
+struct Yield {
+    polled: AtomicBool,
+}
+
+impl Future for Yield {
+    type Output = ();
+
+    fn poll(self: Pin<&mut Self>, _: &mut Context) -> Poll<()> {
+        if self.polled.fetch_or(true, Ordering::SeqCst) {
+            Poll::Ready(())
+        } else {
+            Poll::Pending
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct TaskId(u64);
@@ -53,11 +70,8 @@ impl Executor {
             let waker = dummy_waker();
             let mut context = Context::from_waker(&waker);
             match task.poll(&mut context) {
-                Poll::Ready(()) => info!("task: Done a task: (id: {})", task.id.0),
-                Poll::Pending => {
-                    info!("task: Pending a task: (id: {})", task.id.0);
-                    self.task_queue().push_back(task)
-                }
+                Poll::Ready(()) => info!("task: Done (id: {})", task.id.0),
+                Poll::Pending => self.task_queue().push_back(task),
             }
         }
     }
@@ -85,4 +99,8 @@ fn dummy_raw_waker() -> RawWaker {
 
 fn dummy_waker() -> Waker {
     unsafe { Waker::from_raw(dummy_raw_waker()) }
+}
+
+pub async fn exec_yield() {
+    Yield::default().await
 }
