@@ -25,10 +25,7 @@ use crate::{
     device::console,
 };
 use alloc::alloc::Layout;
-use arch::{
-    apic, asm, gdt, syscall,
-    task::{Executor, Task},
-};
+use arch::{apic, asm, gdt, syscall};
 use common::boot_info::BootInfo;
 use fs::initramfs;
 use log::*;
@@ -79,12 +76,13 @@ pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> ! {
     // initramfs
     initramfs::init(boot_info.initramfs_start_virt_addr.into());
 
-    let mut executor = Executor::new();
-    executor.spawn(Task::new(test()));
-    executor.spawn(Task::new(test2()));
-    executor.spawn(Task::new(serial_receive_task()));
-    executor.run();
+    // tasks
+    task::spawn(test()).unwrap();
+    task::spawn(test2()).unwrap();
+    task::spawn(serial_receive_task()).unwrap();
+    task::run().unwrap();
 
+    // unreachable?
     loop {
         asm::hlt();
     }

@@ -1,3 +1,7 @@
+use crate::{
+    error::Result,
+    util::mutex::{Mutex, MutexError},
+};
 use alloc::{boxed::Box, collections::VecDeque};
 use core::{
     future::Future,
@@ -7,6 +11,8 @@ use core::{
     task::{Context, Poll, RawWaker, RawWakerVTable, Waker},
 };
 use log::info;
+
+static mut TASK_EXECUTOR: Mutex<Executor> = Mutex::new(Executor::new());
 
 #[derive(Default)]
 struct Yield {
@@ -35,7 +41,7 @@ impl TaskId {
     }
 }
 
-pub struct Task {
+struct Task {
     id: TaskId,
     future: Pin<Box<dyn Future<Output = ()>>>,
 }
@@ -53,12 +59,12 @@ impl Task {
     }
 }
 
-pub struct Executor {
+struct Executor {
     task_queue: Option<VecDeque<Task>>,
 }
 
 impl Executor {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         // if use VecDeque::new(), occures unsafe precondition violated when push data
         // -> this is a bug for my own allocator
         //task_queue: VecDeque::with_capacity(16),
@@ -103,4 +109,23 @@ fn dummy_waker() -> Waker {
 
 pub async fn exec_yield() {
     Yield::default().await
+}
+
+pub fn spawn(future: impl Future<Output = ()> + 'static) -> Result<()> {
+    if let Ok(mut executor) = unsafe { TASK_EXECUTOR.try_lock() } {
+        let task = Task::new(future);
+        executor.spawn(task);
+        return Ok(());
+    }
+
+    Err(MutexError::Locked.into())
+}
+
+pub fn run() -> Result<()> {
+    if let Ok(mut executor) = unsafe { TASK_EXECUTOR.try_lock() } {
+        executor.run();
+        return Ok(());
+    }
+
+    Err(MutexError::Locked.into())
 }
