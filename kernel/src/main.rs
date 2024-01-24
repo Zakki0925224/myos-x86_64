@@ -24,7 +24,7 @@ use crate::{arch::idt, device::console};
 use alloc::alloc::Layout;
 use arch::{
     apic, asm, gdt, syscall,
-    task::{executor::Executor, Task},
+    task::{Executor, Task},
 };
 use common::boot_info::BootInfo;
 use fs::initramfs;
