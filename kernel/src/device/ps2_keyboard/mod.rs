@@ -1,3 +1,4 @@
+use self::{key_event::KeyEvent, key_map::KeyMap};
 use crate::{
     arch::addr::IoPortAddress,
     device::{
@@ -8,13 +9,10 @@ use crate::{
             scan_code::KeyCode,
         },
     },
-    mem::buffer::fifo::Fifo,
     println,
-    util::mutex::Mutex,
+    util::{fifo::Fifo, mutex::Mutex},
 };
 use log::{error, info};
-
-use self::{key_event::KeyEvent, key_map::KeyMap};
 
 mod key_event;
 mod key_map;

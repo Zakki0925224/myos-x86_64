@@ -10,10 +10,10 @@ use crate::{
     error::{Error, Result},
     fs::initramfs,
     graphics::{color::*, frame_buf_console},
-    mem::{self, buffer::fifo::Fifo},
-    serial,
+    mem, serial,
     util::{
         ascii::AsciiCode,
+        fifo::Fifo,
         mutex::{Mutex, MutexError},
     },
 };

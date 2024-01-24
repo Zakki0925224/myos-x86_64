@@ -6,8 +6,8 @@ use crate::{
     },
     device::console::ConsoleError,
     graphics::{frame_buf::FrameBufferError, frame_buf_console::FrameBufferConsoleError},
-    mem::{bitmap::BitmapMemoryManagerError, buffer::fifo::FifoError, paging::PageManagerError},
-    util::{ascii::AsciiCodeError, mutex::MutexError},
+    mem::{bitmap::BitmapMemoryManagerError, paging::PageManagerError},
+    util::{ascii::AsciiCodeError, fifo::FifoError, mutex::MutexError},
 };
 
 #[derive(Debug, Clone, PartialEq)]

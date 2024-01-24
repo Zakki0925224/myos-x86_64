@@ -63,12 +63,12 @@ pub fn init() {
     lstar.write();
 
     let mut star = SystemCallTargetAddressRegister::read();
-    star.set_target_addr((8 << 32) | ((16 | 3) << 48));
+    star.set_target_addr((8 << 32) | ((16 | 3) << 48)); // set CS and SS to kernel segment
     star.write();
 
     let mut fmask = SystemCallFlagMaskRegister::read();
     fmask.set_value(0);
     fmask.write();
 
-    info!("arch: Enabled syscall");
+    info!("arch: Initialized syscall");
 }
