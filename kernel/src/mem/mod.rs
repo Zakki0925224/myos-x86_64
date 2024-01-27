@@ -18,10 +18,10 @@ pub fn init(mem_map: &[MemoryDescriptor]) {
     }
 
     // TODO: not working
-    // match paging::create_new_page_table() {
-    //     Ok(_) => (),
-    //     Err(err) => println!("{:?}", err),
-    // }
+    match paging::create_new_page_table() {
+        Ok(_) => (),
+        Err(err) => println!("{:?}", err),
+    }
     assert!(
         paging::calc_phys_addr(VirtualAddress::new(0x1000))
             .unwrap()

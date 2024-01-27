@@ -1,6 +1,5 @@
 use self::page_table::*;
 use crate::arch::addr::VirtualAddress;
-use crate::arch::register::control::Cr0;
 use crate::arch::{addr::*, register::control::Cr3};
 use crate::error::Result;
 use crate::mem::bitmap;
@@ -107,39 +106,40 @@ impl PageManager {
 
         let (_, total_mem_size) = bitmap::get_mem_size();
         println!("total: 0x{:x}", total_mem_size);
-        //let total_mem_size = 0x0a000000 as usize;
-        //let total_mem_size = 0x09000000 as usize;
+        println!("addr: 0x{:x}", pml4_table_virt_addr.get());
+        // not work -> 0xb000000 - 0xfffa3000
         let mut virt_addr = VirtualAddress::default();
 
         while virt_addr.get() < total_mem_size as u64 {
-            // info!(
-            //     "mem: Mapping {}%...",
-            //     ((virt_addr.get() as f64) / (total_mem_size as f64)) * 100f64
-            // );
+            if virt_addr.get() >= 0xb000000 && virt_addr.get() < 0xfffa4000 {
+                virt_addr = virt_addr.offset(PAGE_SIZE);
+                continue;
+            }
 
-            if let Err(err) = self.map_to_identity(
+            self.map_to_identity(
                 virt_addr,
                 &mut pml4_page_table,
                 ReadWrite::Write,
                 EntryMode::Supervisor,
                 PageWriteThroughLevel::WriteBack,
-            ) {
-                return Err(err);
-            }
+            )?;
 
             virt_addr = virt_addr.offset(PAGE_SIZE);
         }
+
+        println!("ok");
 
         pml4_table_virt_addr.write_volatile(pml4_page_table);
         let pml4_table_phys_addr = self.calc_phys_addr(pml4_table_virt_addr).unwrap();
 
         // disable current paging
-        let mut cr0 = Cr0::read();
-        cr0.set_paging(false);
-        cr0.write();
+        // if disable paging bit, CR3 value is fixed at 0x10033
+        //let mut cr0 = Cr0::read();
+        //cr0.set_paging(false);
+        //cr0.write();
         Cr3::write(pml4_table_phys_addr);
-        cr0.set_paging(true);
-        cr0.write();
+        //cr0.set_paging(true);
+        //cr0.write();
 
         Ok(())
     }
