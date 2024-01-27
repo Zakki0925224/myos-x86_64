@@ -55,15 +55,12 @@ impl UsbDevice {
         transfer_ring_mem_info: MemoryFrameInfo,
         max_packet_size: u16,
     ) -> Result<Self> {
-        let mut dcp_ring_buf = match RingBuffer::new(
+        let mut dcp_ring_buf = RingBuffer::new(
             transfer_ring_mem_info,
             RING_BUF_LEN,
             RingBufferType::TransferRing,
             true,
-        ) {
-            Ok(transfer_ring_buf) => transfer_ring_buf,
-            Err(err) => return Err(err),
-        };
+        )?;
 
         dcp_ring_buf.init();
 
@@ -261,15 +258,12 @@ impl UsbDevice {
             }
 
             let transfer_ring_buf_mem_info = bitmap::alloc_mem_frame(1)?;
-            let mut transfer_ring_buf = match RingBuffer::new(
+            let mut transfer_ring_buf = RingBuffer::new(
                 transfer_ring_buf_mem_info,
                 RING_BUF_LEN,
                 RingBufferType::TransferRing,
                 true,
-            ) {
-                Ok(ring_buf) => ring_buf,
-                Err(err) => return Err(err),
-            };
+            )?;
 
             transfer_ring_buf.init();
 
@@ -322,10 +316,7 @@ impl UsbDevice {
                 trb.set_status(8); // TRB Transfer Length
                 trb.set_other_flags(0x12); // IOC, ISP bit
 
-                if let Err(err) = ring_buf.fill(trb) {
-                    return Err(err);
-                }
-
+                ring_buf.fill(trb)?;
                 xhc::ring_doorbell(self.slot_id, *endpoint_id as u8).unwrap();
             }
         }
@@ -512,23 +503,14 @@ impl UsbDevice {
 
         let dcp_transfer_ring = self.transfer_ring_bufs[1].as_mut().unwrap();
 
-        match dcp_transfer_ring.push(setup_stage_trb) {
-            Ok(_) => (),
-            Err(err) => return Err(err),
-        }
+        dcp_transfer_ring.push(setup_stage_trb)?;
 
         if let Some(trb) = data_stage_trb {
-            match dcp_transfer_ring.push(trb) {
-                Ok(_) => (),
-                Err(err) => return Err(err),
-            }
+            dcp_transfer_ring.push(trb)?;
         }
 
         if let Some(trb) = status_stage_trb {
-            match dcp_transfer_ring.push(trb) {
-                Ok(_) => (),
-                Err(err) => return Err(err),
-            }
+            dcp_transfer_ring.push(trb)?;
         }
 
         xhc::ring_doorbell(self.slot_id, DEFAULT_CONTROL_PIPE_ID)

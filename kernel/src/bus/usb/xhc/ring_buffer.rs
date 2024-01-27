@@ -111,11 +111,7 @@ impl RingBuffer {
         }
 
         if self.enqueue_index == self.buf_len - 1 {
-            match self.toggle_cycle() {
-                Err(err) => return Err(err),
-                _ => (),
-            }
-
+            self.toggle_cycle()?;
             self.enqueue_index = 0;
         }
 
@@ -128,11 +124,7 @@ impl RingBuffer {
 
         trb.set_cycle_bit(!trb.cycle_bit());
 
-        match self.write(self.enqueue_index, trb) {
-            Err(err) => return Err(err),
-            _ => (),
-        }
-
+        self.write(self.enqueue_index, trb)?;
         self.enqueue_index += 1;
 
         Ok(())
@@ -148,22 +140,14 @@ impl RingBuffer {
         }
 
         if self.enqueue_index == self.buf_len - 1 {
-            match self.toggle_cycle() {
-                Err(err) => return Err(err),
-                _ => (),
-            }
-
+            self.toggle_cycle()?;
             self.enqueue_index = 0;
         }
 
         let mut trb = trb;
         trb.set_cycle_bit(self.cycle_state);
 
-        match self.write(self.enqueue_index, trb) {
-            Err(err) => return Err(err),
-            _ => (),
-        }
-
+        self.write(self.enqueue_index, trb)?;
         self.enqueue_index += 1;
 
         Ok(())
@@ -239,9 +223,7 @@ impl RingBuffer {
                 !self.cycle_state
             });
 
-            if let Err(err) = self.write(i, trb) {
-                return Err(err);
-            }
+            self.write(i, trb)?;
         }
 
         self.enqueue_index = self.buf_len - 3;
@@ -284,10 +266,7 @@ impl RingBuffer {
         link_trb.set_cycle_bit(!link_trb.cycle_bit());
         // true -> toggle, false -> reset
         link_trb.set_toggle_cycle(self.cycle_state);
-        match self.write(link_trb_index, link_trb) {
-            Err(err) => return Err(err),
-            _ => (),
-        };
+        self.write(link_trb_index, link_trb)?;
 
         self.cycle_state = !self.cycle_state;
 

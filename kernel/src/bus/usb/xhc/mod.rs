@@ -718,12 +718,7 @@ impl XhcDriver {
         port.output_context_base_virt_addr = device_context_base_virt_addr;
         self.write_port(port);
 
-        if let Err(err) =
-            self.write_device_context_base_addr(slot_id, device_context_base_virt_addr)
-        {
-            return Err(err);
-        }
-
+        self.write_device_context_base_addr(slot_id, device_context_base_virt_addr)?;
         info!("xhc: Allocated slot: {} (port id: {})", slot_id, port_id);
 
         Ok(())
