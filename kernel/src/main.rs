@@ -37,8 +37,9 @@ use util::logger;
 pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> ! {
     let boot_info = unsafe { boot_info.read() };
 
-    // initialize local APIC timer
+    // initialize and start local APIC timer
     apic::timer::init();
+    apic::timer::start();
 
     // initialize serial
     serial::init(ComPort::Com1);
@@ -71,34 +72,18 @@ pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> ! {
     // initialize device drivers
     device::init();
 
-    env::print_info();
-
     // initramfs
     initramfs::init(boot_info.initramfs_start_virt_addr.into());
 
+    env::print_info();
+
     // tasks
-    task::spawn(test()).unwrap();
-    task::spawn(test2()).unwrap();
     task::spawn(serial_receive_task()).unwrap();
     task::run().unwrap();
 
     // unreachable?
     loop {
         asm::hlt();
-    }
-}
-
-async fn test() {
-    for i in 0..100 {
-        println!("hoge({})", i);
-        task::exec_yield().await;
-    }
-}
-
-async fn test2() {
-    for i in 0..100 {
-        println!("huga({})", i);
-        task::exec_yield().await;
     }
 }
 

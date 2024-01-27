@@ -1,6 +1,7 @@
 use super::addr::*;
 use crate::{
     arch::{
+        self,
         asm::{self, DescriptorTableArgs},
         register::control::Cr2,
     },
@@ -111,7 +112,8 @@ const _VEC_MACHINE_CHECK: usize = 0x12;
 const _VEC_SIMD_FLOATING_POINT_EX: usize = 0x13;
 const _VEC_VIRT_EX: usize = 0x14;
 const _VEC_CTRL_PROTECTION_EX: usize = 0x15;
-pub const VEC_XHCI_INT: usize = 64;
+pub const VEC_XHCI_INT: usize = 0x40;
+pub const VEC_LOCAL_APIC_TIMER_INT: usize = 0x41;
 
 const END_OF_INT_REG_ADDR: u64 = 0xfee000b0;
 
@@ -246,6 +248,14 @@ extern "x86-interrupt" fn xhc_primary_event_ring_handler() {
     notify_end_of_int();
 }
 
+extern "x86-interrupt" fn local_apic_timer_handler() {
+    asm::disabled_int_func(|| {
+        //info!("int: Local APIC timer");
+        arch::apic::timer::tick();
+        notify_end_of_int();
+    });
+}
+
 extern "x86-interrupt" fn ps2_keyboard_handler() {
     ps2_keyboard::receive();
     pic_notify_end_of_int();
@@ -309,6 +319,11 @@ pub fn init_idt() {
     idt.set_handler(
         VEC_XHCI_INT,
         InterruptHandler::Normal(xhc_primary_event_ring_handler),
+        GateType::Interrupt,
+    );
+    idt.set_handler(
+        VEC_LOCAL_APIC_TIMER_INT,
+        InterruptHandler::Normal(local_apic_timer_handler),
         GateType::Interrupt,
     );
     idt.set_handler(

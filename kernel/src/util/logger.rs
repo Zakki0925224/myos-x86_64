@@ -1,6 +1,7 @@
 use log::{Level, LevelFilter, Record};
 
 use crate::{
+    arch,
     graphics::{color::*, frame_buf_console},
     print,
 };
@@ -41,11 +42,18 @@ impl log::Log for SimpleLogger {
 
         let _ = frame_buf_console::set_fore_color(fore_color);
 
-        if record.level() == Level::Error || record.level() == Level::Debug {
-            print!("[{}]: ", record.level());
-        } else {
-            print!("[ {}]: ", record.level());
-        }
+        let local_apic_timer_tick = arch::apic::timer::get_current_tick();
+
+        print!(
+            "[tk={}][{}{}]: ",
+            local_apic_timer_tick,
+            if record.level() == Level::Error || record.level() == Level::Debug {
+                ""
+            } else {
+                " "
+            },
+            record.level()
+        );
 
         if record.level() == Level::Error {
             print!(
