@@ -1,3 +1,7 @@
+use super::paging::{
+    self,
+    page_table::{EntryMode, ReadWrite},
+};
 use crate::{
     arch::addr::*,
     error::Result,
@@ -36,6 +40,10 @@ impl MemoryFrameInfo {
 
     pub fn is_allocated(&self) -> bool {
         self.is_allocated
+    }
+
+    pub fn set_permissions(&self, rw: ReadWrite, mode: EntryMode) -> Result<()> {
+        paging::set_page_permissions(self.frame_start_virt_addr, rw, mode)
     }
 }
 
@@ -559,6 +567,18 @@ pub fn alloc_mem_frame(len: usize) -> Result<MemoryFrameInfo> {
     if let Ok(mut bitmap_mem_man) = unsafe { BITMAP_MEM_MAN.try_lock() } {
         if let Some(bitmap_mem_man) = bitmap_mem_man.as_mut() {
             return bitmap_mem_man.alloc_multi_mem_frame(len);
+        }
+
+        return Err(BitmapMemoryManagerError::NotInitialized.into());
+    }
+
+    Err(MutexError::Locked.into())
+}
+
+pub fn dealloc_mem_frame(mem_frame_info: MemoryFrameInfo) -> Result<()> {
+    if let Ok(mut bitmap_mem_man) = unsafe { BITMAP_MEM_MAN.try_lock() } {
+        if let Some(bitmap_mem_man) = bitmap_mem_man.as_mut() {
+            return bitmap_mem_man.dealloc_mem_frame(mem_frame_info);
         }
 
         return Err(BitmapMemoryManagerError::NotInitialized.into());

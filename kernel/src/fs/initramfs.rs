@@ -1,15 +1,23 @@
-use core::mem;
-
-use crate::{
-    arch::addr::VirtualAddress, fs::fat::dir_entry::LongFileNameEntry, println, util::mutex::Mutex,
-};
-
 use super::fat::{
     dir_entry::{Attribute, EntryType, ShortFileNameEntry},
     FatType, FatVolume,
 };
+use crate::{
+    arch::addr::VirtualAddress,
+    fs::fat::dir_entry::LongFileNameEntry,
+    mem::{
+        bitmap,
+        paging::{
+            page_table::{EntryMode, ReadWrite},
+            PAGE_SIZE,
+        },
+    },
+    println,
+    util::mutex::Mutex,
+};
 use alloc::{collections::VecDeque, string::String, vec::Vec};
 use common::elf::{self, Elf64};
+use core::mem;
 use log::{error, info};
 
 const PATH_SEPARATOR: &str = "/";
@@ -224,9 +232,42 @@ pub fn exec(file_name: &str) {
             return;
         }
 
-        let entry_point: extern "sysv64" fn() -> i32 =
-            unsafe { mem::transmute(data.as_ptr().offset(header.entry_point as isize)) };
+        let app_stack = bitmap::alloc_mem_frame(1).unwrap();
+        let app_mem = bitmap::alloc_mem_frame(data.len() / PAGE_SIZE + 1).unwrap();
+
+        let mut copied_data: Vec<u8> = app_mem.get_frame_start_virt_addr().read_volatile();
+        copied_data = data;
+        app_mem
+            .get_frame_start_virt_addr()
+            .write_volatile(copied_data);
+
+        app_stack
+            .set_permissions(ReadWrite::Write, EntryMode::User)
+            .unwrap();
+        app_mem
+            .set_permissions(ReadWrite::Write, EntryMode::User)
+            .unwrap();
+
+        // TODO: set segments and jump to app
+        let entry_point: extern "sysv64" fn() -> i32 = unsafe {
+            mem::transmute(
+                app_mem
+                    .get_frame_start_virt_addr()
+                    .offset(header.entry_point as usize),
+            )
+        };
         let ret = entry_point();
+
+        app_stack
+            .set_permissions(ReadWrite::Write, EntryMode::Supervisor)
+            .unwrap();
+        app_mem
+            .set_permissions(ReadWrite::Write, EntryMode::Supervisor)
+            .unwrap();
+
+        bitmap::dealloc_mem_frame(app_stack).unwrap();
+        bitmap::dealloc_mem_frame(app_mem).unwrap();
+
         info!("exec: Exited ({})", ret);
     }
 }

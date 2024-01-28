@@ -34,7 +34,7 @@ impl Cr3 {
         PhysicalAddress::new(asm::read_cr3())
     }
 
-    pub fn write(pml4_table_addr: PhysicalAddress) {
-        asm::write_cr3(pml4_table_addr.get());
+    pub fn write(pml4_table_addr: u64) {
+        asm::write_cr3(pml4_table_addr);
     }
 }

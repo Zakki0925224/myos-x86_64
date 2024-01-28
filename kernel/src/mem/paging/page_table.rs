@@ -1,7 +1,4 @@
-use crate::arch::addr::*;
-
 const PAGE_TABLE_ENTRY_LEN: usize = 512;
-pub const PAGE_SIZE: usize = 4096;
 
 #[derive(Debug, Clone, Copy)]
 #[repr(u8)]
@@ -28,10 +25,6 @@ pub enum PageWriteThroughLevel {
 pub struct PageTableEntry(u64);
 
 impl PageTableEntry {
-    pub fn new() -> Self {
-        Self(0)
-    }
-
     pub fn set_p(&mut self, value: bool) {
         let value = if value { 0x1 } else { 0x0 };
         self.0 = (self.0 & !0x1) | value;
@@ -96,7 +89,7 @@ impl PageTableEntry {
 
     pub fn set_entry(
         &mut self,
-        addr: PhysicalAddress,
+        addr: u64,
         is_page_table_addr: bool,
         rw: ReadWrite,
         mode: EntryMode,
@@ -110,12 +103,8 @@ impl PageTableEntry {
         self.set_accessed(true);
         self.set_is_page(!is_page_table_addr);
         self.set_restart(false);
-        self.set_addr(addr.get());
+        self.set_addr(addr);
         self.set_disable_execute(false);
-    }
-
-    pub fn get_phys_addr(&self) -> PhysicalAddress {
-        PhysicalAddress::new(self.addr() << 12)
     }
 }
 
@@ -123,12 +112,4 @@ impl PageTableEntry {
 #[repr(C, align(4096))]
 pub struct PageTable {
     pub entries: [PageTableEntry; PAGE_TABLE_ENTRY_LEN],
-}
-
-impl PageTable {
-    pub fn new() -> Self {
-        Self {
-            entries: [PageTableEntry::new(); PAGE_TABLE_ENTRY_LEN],
-        }
-    }
 }

@@ -1,5 +1,6 @@
 use crate::{arch::addr::VirtualAddress, println};
 use common::mem_desc::MemoryDescriptor;
+use log::error;
 
 pub mod allocator;
 pub mod bitmap;
@@ -18,15 +19,16 @@ pub fn init(mem_map: &[MemoryDescriptor]) {
     }
 
     // TODO: not working
-    match paging::create_new_page_table() {
-        Ok(_) => (),
-        Err(err) => println!("{:?}", err),
-    }
+    // match paging::create_new_page_table() {
+    //     Ok(_) => (),
+    //     Err(err) => error!("mem: {:?}", err),
+    // }
+
     assert!(
-        paging::calc_phys_addr(VirtualAddress::new(0x1000))
+        paging::calc_phys_addr(VirtualAddress::new(0xabcd000))
             .unwrap()
             .get()
-            == 0x1000
+            == 0xabcd000
     );
 }
 
