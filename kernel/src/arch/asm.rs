@@ -1,5 +1,5 @@
 use super::context::Context;
-use core::{arch::asm, mem::transmute};
+use core::arch::asm;
 
 pub fn hlt() {
     unsafe {
@@ -142,12 +142,19 @@ pub struct DescriptorTableArgs {
     pub base: u64,
 }
 
-pub fn sidt() -> DescriptorTableArgs {
-    let mut data = [0; 10];
-    unsafe {
-        asm!("sidt [{}]", in(reg) &mut data);
+impl Default for DescriptorTableArgs {
+    fn default() -> Self {
+        Self { limit: 0, base: 0 }
     }
-    unsafe { transmute::<[u8; 10], DescriptorTableArgs>(data) }
+}
+
+pub fn sidt() -> DescriptorTableArgs {
+    let mut args = DescriptorTableArgs::default();
+    unsafe {
+        asm!("sidt [{}]", in(reg) &mut args);
+    }
+
+    args
 }
 
 pub fn lidt(desc_table_args: &DescriptorTableArgs) {
@@ -157,11 +164,12 @@ pub fn lidt(desc_table_args: &DescriptorTableArgs) {
 }
 
 pub fn sgdt() -> DescriptorTableArgs {
-    let mut data = [0; 10];
+    let mut args = DescriptorTableArgs::default();
     unsafe {
-        asm!("sgdt [{}]", in(reg) &mut data);
+        asm!("sgdt [{}]", in(reg) &mut args);
     }
-    unsafe { transmute::<[u8; 10], DescriptorTableArgs>(data) }
+
+    args
 }
 
 pub fn lgdt(desc_table_args: &DescriptorTableArgs) {
@@ -173,7 +181,7 @@ pub fn lgdt(desc_table_args: &DescriptorTableArgs) {
 pub fn read_cs() -> u16 {
     let mut cs = 0;
     unsafe {
-        asm!("mov {}, cs", out(reg) cs);
+        asm!("mov {0:r}, cs", out(reg) cs);
     }
     cs
 }
