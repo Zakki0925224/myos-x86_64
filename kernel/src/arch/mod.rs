@@ -1,6 +1,7 @@
 pub mod addr;
 pub mod apic;
 pub mod asm;
+pub mod context;
 pub mod gdt;
 pub mod idt;
 pub mod qemu;

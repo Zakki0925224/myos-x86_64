@@ -1,3 +1,4 @@
+use super::context::Context;
 use core::{arch::asm, mem::transmute};
 
 pub fn hlt() {
@@ -231,4 +232,61 @@ pub fn write_msr(addr: u32, value: u64) {
     unsafe {
         asm!("wrmsr", in("ecx") addr, in("eax") low, in("edx") high);
     }
+}
+
+// TODO
+pub fn save_context() -> Context {
+    let mut ctx = Context::default();
+
+    ctx.cr3 = read_cr3();
+    //ctx.rip =
+    //ctx.rflags =
+    ctx.cs = read_cs() as u64;
+
+    unsafe {
+        asm!(
+            "mov {}, ss",
+            "mov {}, fs",
+            "mov {}, gs",
+            "mov {}, rax",
+            "mov {}, rbx",
+            "mov {}, rcx",
+            "mov {}, rdx",
+            "mov {}, rdi",
+            "mov {}, rsi",
+            "mov {}, rsp",
+            "mov {}, rbp",
+            "mov {}, r8",
+            "mov {}, r9",
+            "mov {}, r10",
+            "mov {}, r11",
+            "mov {}, r12",
+            "mov {}, r13",
+            "mov {}, r14",
+            "mov {}, r15",
+            "fxsave [{}]",
+            out(reg) ctx.ss,
+            out(reg) ctx.fs,
+            out(reg) ctx.gs,
+            out(reg) ctx.rax,
+            out(reg) ctx.rbx,
+            out(reg) ctx.rcx,
+            out(reg) ctx.rdx,
+            out(reg) ctx.rdi,
+            out(reg) ctx.rsi,
+            out(reg) ctx.rsp,
+            out(reg) ctx.rbp,
+            out(reg) ctx.r8,
+            out(reg) ctx.r9,
+            out(reg) ctx.r10,
+            out(reg) ctx.r11,
+            out(reg) ctx.r12,
+            out(reg) ctx.r13,
+            out(reg) ctx.r14,
+            out(reg) ctx.r15,
+            in(reg) &mut ctx.fpu_context
+        );
+    }
+
+    ctx
 }

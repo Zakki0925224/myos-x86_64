@@ -135,8 +135,8 @@ pub fn set_seg_reg_to_kernel() {
 }
 
 pub fn set_seg_reg_to_user() {
-    asm::set_ss(4 << 3);
-    asm::set_cs(3 << 3);
+    asm::set_ss(4 << 3 | 3); // RPL = 3
+    asm::set_cs((3 << 3) | 3); // RPL = 3
 
-    assert_eq!(asm::read_cs() >> 3, 3);
+    assert_eq!(asm::read_cs(), (3 << 3) | 3);
 }

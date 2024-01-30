@@ -63,7 +63,6 @@ pub fn exec_elf(file_name: &str, args: &[&str]) {
         .set_permissions(ReadWrite::Write, EntryMode::User)
         .unwrap();
 
-    // TODO: set segments and jump to app
     let entry_point: extern "sysv64" fn() -> i32 = unsafe {
         mem::transmute(
             app_mem
@@ -72,6 +71,7 @@ pub fn exec_elf(file_name: &str, args: &[&str]) {
         )
     };
 
+    // TODO
     // set to user segment
     gdt::set_seg_reg_to_user();
 
