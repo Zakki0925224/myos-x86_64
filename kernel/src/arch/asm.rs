@@ -32,68 +32,105 @@ pub fn int3() {
 
 pub fn out8(port: u16, data: u8) {
     unsafe {
-        asm!("out dx, al", in("dx") port, in("al") data);
+        asm!(
+            "out dx, al",
+            in("dx") port,
+            in("al") data
+        );
     }
 }
 
 pub fn in8(port: u16) -> u8 {
     let mut data: u8;
     unsafe {
-        asm!("in al, dx", out("al") data, in("dx") port);
+        asm!(
+            "in al, dx",
+            out("al") data,
+            in("dx") port
+        );
     }
     data
 }
 
 pub fn out32(port: u32, data: u32) {
     unsafe {
-        asm!("out dx, eax", in("edx") port, in("eax") data);
+        asm!(
+            "out dx, eax",
+            in("edx") port,
+            in("eax") data
+        );
     }
 }
 
 pub fn in32(port: u32) -> u32 {
     let mut data: u32;
     unsafe {
-        asm!("in eax, dx", out("eax") data, in("edx") port);
+        asm!(
+            "in eax, dx",
+            out("eax") data,
+            in("edx") port
+        );
     }
     data
 }
 
 pub fn set_ds(value: u16) {
     unsafe {
-        asm!("mov ds, {}", in(reg) value);
+        asm!(
+            "mov ds, ax",
+            in("ax") value
+        );
     }
 }
 
 pub fn set_es(value: u16) {
     unsafe {
-        asm!("mov es, {}", in(reg) value);
+        asm!(
+            "mov es, ax",
+            in("ax") value
+        );
     }
 }
 
 pub fn set_fs(value: u16) {
     unsafe {
-        asm!("mov fs, {}", in(reg) value);
+        asm!(
+            "mov fs, ax",
+            in("ax") value
+        );
     }
 }
 
 pub fn set_gs(value: u16) {
     unsafe {
-        asm!("mov gs, {}", in(reg) value);
+        asm!(
+            "mov gs, ax",
+            in("ax") value
+        );
     }
 }
 
 pub fn set_ss(value: u16) {
     unsafe {
-        asm!("mov ss, {}", in(reg) value);
+        asm!(
+            "mov ss, ax",
+            in("ax") value
+        );
     }
 }
 
 pub fn set_cs(value: u16) {
-    // TODO
+    // reference: https://github.com/hikalium/wasabi/blob/main/os/src/x86_64.rs
     unsafe {
-        asm!("push {}", in(reg) value);
-        asm!("lea {tmp}, [1f + rip]", "push {tmp}", tmp = lateout(reg) _);
-        asm!("retfq", "1:");
+        asm!(
+            "lea rax, [rip + 1f]",
+            "push cx",
+            "push rax",
+            "ljmp [rsp]",
+            "1:",
+            "add rsp, 8 + 2",
+            in("cx") value
+        );
     }
 }
 

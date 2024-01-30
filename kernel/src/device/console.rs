@@ -8,7 +8,7 @@ use crate::{
     bus::pci,
     env,
     error::{Error, Result},
-    fs::initramfs,
+    fs::{exec, initramfs},
     graphics::{color::*, frame_buf_console},
     mem, serial,
     util::{
@@ -269,8 +269,8 @@ pub fn input(ascii_code: AsciiCode) -> Result<()> {
             }
             // execute file
             "exec" => {
-                if cmds.len() == 2 {
-                    initramfs::exec(cmds[1]);
+                if cmds.len() >= 2 {
+                    exec::exec_elf(cmds[1], &cmds[2..]);
                 }
             }
             _ => error!("Command {:?} was not found", cmds),

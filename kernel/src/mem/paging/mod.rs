@@ -150,6 +150,8 @@ impl PageManager {
             return Err(PageManagerError::AddressNotAlignedError(virt_addr).into());
         }
 
+        self.calc_phys_addr(virt_addr)?;
+
         let pml4e_index = virt_addr.get_pml4_entry_index();
         let pml3e_index = virt_addr.get_pml3_entry_index();
         let pml2e_index = virt_addr.get_pml2_entry_index();
@@ -200,13 +202,10 @@ impl PageManager {
         let mut table: PageTable = table_addr.read_volatile();
         let entry = &mut table.entries[pml1e_index];
 
-        if !entry.p() {
-            entry.set_rw(rw);
-            entry.set_us(mode);
-            table_addr.write_volatile(table);
-        } else {
-            return Err(PageManagerError::AddressNotMappedError(virt_addr).into());
-        }
+        // do not check present bit for rust optimization
+        entry.set_rw(rw);
+        entry.set_us(mode);
+        table_addr.write_volatile(table);
 
         Ok(())
     }

@@ -4,20 +4,12 @@ use super::fat::{
 };
 use crate::{
     arch::addr::VirtualAddress,
+    error::Result,
     fs::fat::dir_entry::LongFileNameEntry,
-    mem::{
-        bitmap,
-        paging::{
-            page_table::{EntryMode, ReadWrite},
-            PAGE_SIZE,
-        },
-    },
     println,
-    util::mutex::Mutex,
+    util::mutex::{Mutex, MutexError},
 };
 use alloc::{collections::VecDeque, string::String, vec::Vec};
-use common::elf::{self, Elf64};
-use core::mem;
 use log::{error, info};
 
 const PATH_SEPARATOR: &str = "/";
@@ -25,7 +17,7 @@ const PATH_SEPARATOR: &str = "/";
 static mut INITRAMFS: Mutex<Initramfs> = Mutex::new(Initramfs::new(2));
 
 #[derive(Debug, Clone)]
-struct File {
+pub struct FileMetaData {
     pub name: String,
     pub attr: Attribute,
     pub size: usize,
@@ -101,7 +93,7 @@ impl Initramfs {
         println!("{}", String::from_utf8_lossy(&data));
     }
 
-    pub fn get_file(&self, file_name: &str) -> Option<(File, Vec<u8>)> {
+    pub fn get_file(&self, file_name: &str) -> Option<(FileMetaData, Vec<u8>)> {
         let files = self.scan_current_dir();
         let file = files
             .iter()
@@ -119,7 +111,7 @@ impl Initramfs {
         Some((file.unwrap().clone(), bytes))
     }
 
-    fn scan_current_dir(&self) -> Vec<File> {
+    fn scan_current_dir(&self) -> Vec<FileMetaData> {
         let mut files = Vec::new();
 
         if self.fat_volume.is_none() {
@@ -159,7 +151,7 @@ impl Initramfs {
                             dir_entry.sf_name().unwrap()
                         };
 
-                        let file = File {
+                        let file = FileMetaData {
                             name: file_name,
                             attr,
                             size: dir_entry.file_size(),
@@ -184,6 +176,14 @@ pub fn init(initramfs_start_virt_addr: VirtualAddress) {
     unsafe { INITRAMFS.try_lock() }.unwrap().init(fat_volume);
 }
 
+pub fn get_file(file_name: &str) -> Result<Option<(FileMetaData, Vec<u8>)>> {
+    if let Ok(initramfs) = unsafe { INITRAMFS.try_lock() } {
+        return Ok(initramfs.get_file(file_name));
+    }
+
+    Err(MutexError::Locked.into())
+}
+
 pub fn ls() {
     if let Ok(initramfs) = unsafe { INITRAMFS.try_lock() } {
         initramfs.ls();
@@ -199,75 +199,5 @@ pub fn cd(dir_name: &str) {
 pub fn cat(file_name: &str) {
     if let Ok(initramfs) = unsafe { INITRAMFS.try_lock() } {
         initramfs.cat(file_name);
-    }
-}
-
-pub fn exec(file_name: &str) {
-    if let Ok(initramfs) = unsafe { INITRAMFS.try_lock() } {
-        let (_, data) = match initramfs.get_file(file_name) {
-            Some((f, d)) => (f, d),
-            None => {
-                error!("exec: The file \"{}\" does not exist", file_name);
-                return;
-            }
-        };
-
-        let elf64 = match Elf64::new(&data) {
-            Ok(e) => e,
-            Err(_) => {
-                error!("exec: The file \"{}\" is not an executable file", file_name);
-                return;
-            }
-        };
-
-        let header = elf64.read_header();
-
-        if header.elf_type() != elf::Type::Executable {
-            error!("exec: The file \"{}\" is not an executable file", file_name);
-            return;
-        }
-
-        if header.machine() != elf::Machine::X8664 {
-            error!("exec: Unsupported ISA");
-            return;
-        }
-
-        let app_stack = bitmap::alloc_mem_frame(1).unwrap();
-        let app_mem = bitmap::alloc_mem_frame(data.len() / PAGE_SIZE + 1).unwrap();
-
-        let mut copied_data: Vec<u8> = app_mem.get_frame_start_virt_addr().read_volatile();
-        copied_data = data;
-        app_mem
-            .get_frame_start_virt_addr()
-            .write_volatile(copied_data);
-
-        app_stack
-            .set_permissions(ReadWrite::Write, EntryMode::User)
-            .unwrap();
-        app_mem
-            .set_permissions(ReadWrite::Write, EntryMode::User)
-            .unwrap();
-
-        // TODO: set segments and jump to app
-        let entry_point: extern "sysv64" fn() -> i32 = unsafe {
-            mem::transmute(
-                app_mem
-                    .get_frame_start_virt_addr()
-                    .offset(header.entry_point as usize),
-            )
-        };
-        let ret = entry_point();
-
-        app_stack
-            .set_permissions(ReadWrite::Write, EntryMode::Supervisor)
-            .unwrap();
-        app_mem
-            .set_permissions(ReadWrite::Write, EntryMode::Supervisor)
-            .unwrap();
-
-        bitmap::dealloc_mem_frame(app_stack).unwrap();
-        bitmap::dealloc_mem_frame(app_mem).unwrap();
-
-        info!("exec: Exited ({})", ret);
     }
 }

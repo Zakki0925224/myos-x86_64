@@ -24,11 +24,11 @@ pub fn init(mem_map: &[MemoryDescriptor]) {
     //     Err(err) => error!("mem: {:?}", err),
     // }
 
-    assert!(
+    assert_eq!(
         paging::calc_phys_addr(VirtualAddress::new(0xabcd000))
             .unwrap()
-            .get()
-            == 0xabcd000
+            .get(),
+        0xabcd000
     );
 }
 

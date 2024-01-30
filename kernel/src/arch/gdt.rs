@@ -101,8 +101,11 @@ pub fn init() {
     let mut gdt3 = SegmentDescriptor::new();
     let mut gdt4 = SegmentDescriptor::new();
 
+    // kernel segments
     gdt1.set_code_seg(SegmentType::ExecuteRead, 0, 0, 0xffff_f);
     gdt2.set_data_seg(SegmentType::ReadWrite, 0, 0, 0xffff_f);
+
+    // user segments
     gdt3.set_data_seg(SegmentType::ReadWrite, 3, 0, 0xffff_f);
     gdt4.set_code_seg(SegmentType::ExecuteRead, 3, 0, 0xffff_f);
 
@@ -119,8 +122,21 @@ pub fn init() {
     asm::set_es(0);
     asm::set_fs(0);
     asm::set_gs(0);
+    set_seg_reg_to_kernel();
+
+    info!("gdt: Initialized GDT");
+}
+
+pub fn set_seg_reg_to_kernel() {
     asm::set_ss(2 << 3);
     asm::set_cs(1 << 3);
 
-    info!("gdt: Initialized GDT");
+    assert_eq!(asm::read_cs() >> 3, 1);
+}
+
+pub fn set_seg_reg_to_user() {
+    asm::set_ss(4 << 3);
+    asm::set_cs(3 << 3);
+
+    assert_eq!(asm::read_cs() >> 3, 3);
 }
