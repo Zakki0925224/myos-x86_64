@@ -42,6 +42,7 @@ QEMU_DRIVES = [
 ]
 
 QEMU_ARGS = [
+    "-accel kvm",
     "-no-reboot",
     "-no-shutdown",
     "-m 4G",
@@ -55,7 +56,7 @@ def qemu_cmd() -> str:
     qemu_drives = " ".join(QEMU_DRIVES)
     qemu_devices = " ".join(QEMU_DEVICES)
 
-    return f"{QEMU_ARCH} -accel kvm {qemu_args} {qemu_drives} {qemu_devices}"
+    return f"{QEMU_ARCH} {qemu_args} {qemu_drives} {qemu_devices}"
 
 def own_qemu_cmd() -> str:
     return f"./{THIRD_PARTY_DIR}/{QEMU_DIR}/build/{QEMU_TARGET_ARCH}/{qemu_cmd()} --display sdl --trace events=./{QEMU_TRACE_FILE}"

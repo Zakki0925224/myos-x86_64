@@ -9,14 +9,16 @@ This is a replacement project for the previous **[myos](https://github.com/Zakki
 -   [x] Written in Rust
 -   [x] My own UEFI boot loader by using [uefi-rs](https://github.com/rust-osdev/uefi-rs)
 -   [x] x86_64 kernel
--   [x] Programmable Interrupt Controller (Intel 8259A)
+-   [x] PIC (Intel 8259A)
 -   Device support
-    -   [x] PS/2 Keyboard
+    -   [x] PS/2 Keyboard, Mouse
     -   [x] Serial connection (UART 16650A)
     -   [x] PCI devices
     -   [ ] USB devices (xHC) (WIP)
 -   [x] GUI support by using UEFI GOP
+-   [x] Kernel console (input from PS/2 Keyboard)
 -   [x] Initramfs (but here we call FAT32 formatted image initramfs)
+-   [ ] Userland applications
 
 ## Third party
 
@@ -26,14 +28,30 @@ This is a replacement project for the previous **[myos](https://github.com/Zakki
 
 ## How to build
 
-### Minimum packages required to build
+### Minimum packages required to build and run
 
--   Rust (nightly)
--   Python3
--   dosfstools
--   QEMU
--   make, ld, gcc
--   Some packages for build third party tools
+-   For build kernel
+
+    -   rustup (and Rust toolchain)
+    -   python3
+    -   build-essential
+    -   lld
+    -   qemu
+    -   dosfstools
+
+-   For build Cozette
+
+    -   pipenv
+    -   fontforge
+    -   openjdk-8-jdk (or latest)
+    -   bdf2psf
+
+-   For build QEMU
+
+    -   ninja-build
+    -   meson
+    -   libglib2.0-dev
+    -   libsdl2-dev
 
 ```bash
 $ git clone https://github.com/Zakki0925224/myos-x86_64.git
