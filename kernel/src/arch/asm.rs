@@ -1,4 +1,3 @@
-use super::context::Context;
 use core::arch::asm;
 
 pub fn hlt() {
@@ -75,66 +74,6 @@ pub fn in32(port: u32) -> u32 {
     data
 }
 
-pub fn set_ds(value: u16) {
-    unsafe {
-        asm!(
-            "mov ds, ax",
-            in("ax") value
-        );
-    }
-}
-
-pub fn set_es(value: u16) {
-    unsafe {
-        asm!(
-            "mov es, ax",
-            in("ax") value
-        );
-    }
-}
-
-pub fn set_fs(value: u16) {
-    unsafe {
-        asm!(
-            "mov fs, ax",
-            in("ax") value
-        );
-    }
-}
-
-pub fn set_gs(value: u16) {
-    unsafe {
-        asm!(
-            "mov gs, ax",
-            in("ax") value
-        );
-    }
-}
-
-pub fn set_ss(value: u16) {
-    unsafe {
-        asm!(
-            "mov ss, ax",
-            in("ax") value
-        );
-    }
-}
-
-pub fn set_cs(value: u16) {
-    // reference: https://github.com/hikalium/wasabi/blob/main/os/src/x86_64.rs
-    unsafe {
-        asm!(
-            "lea rax, [rip + 1f]",
-            "push cx",
-            "push rax",
-            "ljmp [rsp]",
-            "1:",
-            "add rsp, 8 + 2",
-            in("cx") value
-        );
-    }
-}
-
 #[repr(C, packed(2))]
 #[derive(Debug)]
 pub struct DescriptorTableArgs {
@@ -178,50 +117,6 @@ pub fn lgdt(desc_table_args: &DescriptorTableArgs) {
     }
 }
 
-pub fn read_cs() -> u16 {
-    let mut cs = 0;
-    unsafe {
-        asm!("mov {0:r}, cs", out(reg) cs);
-    }
-    cs
-}
-
-pub fn read_cr0() -> u64 {
-    let mut cr0 = 0;
-    unsafe {
-        asm!("mov {}, cr0", out(reg) cr0);
-    }
-    cr0
-}
-
-pub fn write_cr0(value: u64) {
-    unsafe {
-        asm!("mov cr3, {}", in(reg) value);
-    }
-}
-
-pub fn read_cr2() -> u64 {
-    let mut cr2 = 0;
-    unsafe {
-        asm!("mov {}, cr2", out(reg) cr2);
-    }
-    cr2
-}
-
-pub fn read_cr3() -> u64 {
-    let mut cr3 = 0;
-    unsafe {
-        asm!("mov {}, cr3", out(reg) cr3);
-    }
-    cr3
-}
-
-pub fn write_cr3(value: u64) {
-    unsafe {
-        asm!("mov cr3, {}", in(reg) value);
-    }
-}
-
 pub fn read_msr(addr: u32) -> u64 {
     let mut low: u32 = 0;
     let mut high: u32 = 0;
@@ -240,61 +135,4 @@ pub fn write_msr(addr: u32, value: u64) {
     unsafe {
         asm!("wrmsr", in("ecx") addr, in("eax") low, in("edx") high);
     }
-}
-
-// TODO
-pub fn save_context() -> Context {
-    let mut ctx = Context::default();
-
-    ctx.cr3 = read_cr3();
-    //ctx.rip =
-    //ctx.rflags =
-    ctx.cs = read_cs() as u64;
-
-    unsafe {
-        asm!(
-            "mov {}, ss",
-            "mov {}, fs",
-            "mov {}, gs",
-            "mov {}, rax",
-            "mov {}, rbx",
-            "mov {}, rcx",
-            "mov {}, rdx",
-            "mov {}, rdi",
-            "mov {}, rsi",
-            "mov {}, rsp",
-            "mov {}, rbp",
-            "mov {}, r8",
-            "mov {}, r9",
-            "mov {}, r10",
-            "mov {}, r11",
-            "mov {}, r12",
-            "mov {}, r13",
-            "mov {}, r14",
-            "mov {}, r15",
-            "fxsave [{}]",
-            out(reg) ctx.ss,
-            out(reg) ctx.fs,
-            out(reg) ctx.gs,
-            out(reg) ctx.rax,
-            out(reg) ctx.rbx,
-            out(reg) ctx.rcx,
-            out(reg) ctx.rdx,
-            out(reg) ctx.rdi,
-            out(reg) ctx.rsi,
-            out(reg) ctx.rsp,
-            out(reg) ctx.rbp,
-            out(reg) ctx.r8,
-            out(reg) ctx.r9,
-            out(reg) ctx.r10,
-            out(reg) ctx.r11,
-            out(reg) ctx.r12,
-            out(reg) ctx.r13,
-            out(reg) ctx.r14,
-            out(reg) ctx.r15,
-            in(reg) &mut ctx.fpu_context
-        );
-    }
-
-    ctx
 }

@@ -1,40 +1,98 @@
-use crate::arch::{addr::*, asm};
+use super::Register;
+use core::arch::asm;
 
 // https://en.wikipedia.org/wiki/Control_register
 #[derive(Debug, Clone, Copy)]
 pub struct Cr0(u64);
+impl Register<u64> for Cr0 {
+    fn read() -> Self {
+        let cr0;
+
+        unsafe {
+            asm!("mov {}, cr0", out(reg) cr0);
+        }
+
+        Self(cr0)
+    }
+
+    fn write(&self) {
+        unsafe {
+            asm!("mov cr3, {}", in(reg) self.0);
+        }
+    }
+
+    fn raw(&self) -> u64 {
+        self.0
+    }
+
+    fn set_raw(&mut self, value: u64) {
+        self.0 = value;
+    }
+}
 
 impl Cr0 {
-    pub fn read() -> Self {
-        Self(asm::read_cr0())
-    }
-
-    pub fn write(&self) {
-        asm::write_cr0(self.0);
-    }
-
     pub fn set_paging(&mut self, value: bool) {
         let value = if value { 0x1 } else { 0x0 };
         self.0 = (self.0 & !0x8000_0000) | (value << 31);
     }
 }
 
-pub struct Cr2;
+pub struct Cr2(u64);
 
-impl Cr2 {
-    pub fn read() -> VirtualAddress {
-        VirtualAddress::new(asm::read_cr2())
+impl Register<u64> for Cr2 {
+    fn read() -> Self {
+        let cr2;
+
+        unsafe {
+            asm!("mov {}, cr2", out(reg) cr2);
+        }
+
+        Self(cr2)
+    }
+
+    fn write(&self) {
+        panic!();
+    }
+
+    fn raw(&self) -> u64 {
+        self.0
+    }
+
+    fn set_raw(&mut self, _value: u64) {
+        panic!()
     }
 }
 
-pub struct Cr3;
+#[derive(Debug)]
+pub struct Cr3(u64);
 
-impl Cr3 {
-    pub fn read() -> PhysicalAddress {
-        PhysicalAddress::new(asm::read_cr3())
+impl Register<u64> for Cr3 {
+    fn read() -> Self {
+        let cr3;
+        unsafe {
+            asm!("mov {}, cr3", out(reg) cr3);
+        }
+
+        Self(cr3)
     }
 
-    pub fn write(pml4_table_addr: u64) {
-        asm::write_cr3(pml4_table_addr);
+    fn write(&self) {
+        unsafe {
+            asm!("mov cr3, {}", in(reg) self.0);
+        }
+    }
+
+    fn raw(&self) -> u64 {
+        self.0
+    }
+
+    fn set_raw(&mut self, value: u64) {
+        self.0 = value;
+    }
+}
+
+impl Cr3 {
+    pub const fn default() -> Self {
+        Self(0)
     }
 }

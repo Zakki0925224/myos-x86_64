@@ -1,9 +1,9 @@
-use super::addr::*;
+use super::{addr::*, register::segment::Cs};
 use crate::{
     arch::{
         self,
         asm::{self, DescriptorTableArgs},
-        register::control::Cr2,
+        register::{control::Cr2, Register},
     },
     bus::usb::xhc,
     device::{ps2_keyboard, ps2_mouse},
@@ -160,7 +160,7 @@ pub struct GateDescriptor {
 }
 
 impl GateDescriptor {
-    pub fn set_handler(&mut self, handler: InterruptHandler, cs: u16, gate_type: GateType) {
+    pub fn set_handler(&mut self, handler: InterruptHandler, gate_type: GateType) {
         let handler_addr = match handler {
             InterruptHandler::Normal(handler) => handler as *const () as u64,
             InterruptHandler::PageFault(handler) => handler as *const () as u64,
@@ -168,7 +168,7 @@ impl GateDescriptor {
         self.set_handler_offset_low(handler_addr as u16);
         self.set_handler_offset_middle((handler_addr >> 16) as u16);
         self.set_handler_offset_high((handler_addr >> 32) as u32);
-        self.set_selector(cs);
+        self.set_selector(Cs::read().raw());
         self.set_gate_type(gate_type);
         self.set_present(true);
     }
@@ -191,7 +191,7 @@ impl InterruptDescriptorTable {
         }
 
         let mut desc = GateDescriptor::new();
-        desc.set_handler(handler, asm::read_cs(), gate_type);
+        desc.set_handler(handler, gate_type);
         self.entries[vec_num] = desc;
     }
 
@@ -230,7 +230,7 @@ extern "x86-interrupt" fn page_fault_handler(
 ) {
     panic!(
         "int: PAGE FAULT, Accessed virtual address: 0x{:x}, Error code: {:?}, Stack frame: {:?}",
-        Cr2::read().get(),
+        Cr2::read().raw(),
         error_code,
         stack_frame
     );

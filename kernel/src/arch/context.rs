@@ -1,14 +1,16 @@
+use core::arch::asm;
+
+use super::register::{control::Cr3, segment::*, Register};
+
 #[derive(Debug)]
-#[repr(C)]
 pub struct Context {
     pub cr3: u64,
     pub rip: u64,
     pub rflags: u64,
-    reserved: u64,
-    pub cs: u64,
-    pub ss: u64,
-    pub fs: u64,
-    pub gs: u64,
+    pub cs: u16,
+    pub ss: u16,
+    pub fs: u16,
+    pub gs: u16,
     pub rax: u64,
     pub rbx: u64,
     pub rcx: u64,
@@ -34,7 +36,6 @@ impl Default for Context {
             cr3: 0,
             rip: 0,
             rflags: 0,
-            reserved: 0,
             cs: 0,
             ss: 0,
             fs: 0,
@@ -57,5 +58,60 @@ impl Default for Context {
             r15: 0,
             fpu_context: [0; 512],
         }
+    }
+}
+
+impl Context {
+    pub fn save_context() -> Self {
+        let mut ctx = Self::default();
+
+        ctx.cr3 = Cr3::read().raw();
+        //ctx.rip =
+        //ctx.rflags =
+        ctx.cs = Cs::read().raw();
+        ctx.ss = Ss::read().raw();
+        ctx.fs = Fs::read().raw();
+        ctx.gs = Gs::read().raw();
+
+        unsafe {
+            asm!(
+                "mov {}, rax",
+                "mov {}, rbx",
+                "mov {}, rcx",
+                "mov {}, rdx",
+                "mov {}, rdi",
+                "mov {}, rsi",
+                "mov {}, rsp",
+                "mov {}, rbp",
+                "mov {}, r8",
+                "mov {}, r9",
+                "mov {}, r10",
+                "mov {}, r11",
+                "mov {}, r12",
+                "mov {}, r13",
+                "mov {}, r14",
+                "mov {}, r15",
+                "fxsave [{}]",
+                out(reg) ctx.rax,
+                out(reg) ctx.rbx,
+                out(reg) ctx.rcx,
+                out(reg) ctx.rdx,
+                out(reg) ctx.rdi,
+                out(reg) ctx.rsi,
+                out(reg) ctx.rsp,
+                out(reg) ctx.rbp,
+                out(reg) ctx.r8,
+                out(reg) ctx.r9,
+                out(reg) ctx.r10,
+                out(reg) ctx.r11,
+                out(reg) ctx.r12,
+                out(reg) ctx.r13,
+                out(reg) ctx.r14,
+                out(reg) ctx.r15,
+                in(reg) &mut ctx.fpu_context
+            );
+        }
+
+        ctx
     }
 }

@@ -2,7 +2,13 @@ use core::mem::size_of;
 use log::info;
 use modular_bitfield::{bitfield, specifiers::*, BitfieldSpecifier};
 
-use crate::util::mutex::Mutex;
+use crate::{
+    arch::register::{
+        segment::{self, Cs},
+        Register,
+    },
+    util::mutex::Mutex,
+};
 
 use super::{
     asm::{self, DescriptorTableArgs},
@@ -118,25 +124,18 @@ pub fn init() {
         gdt.load();
     }
 
-    asm::set_ds(0);
-    asm::set_es(0);
-    asm::set_fs(0);
-    asm::set_gs(0);
+    segment::set_ds_es_fs_gs(0);
     set_seg_reg_to_kernel();
 
     info!("gdt: Initialized GDT");
 }
 
 pub fn set_seg_reg_to_kernel() {
-    asm::set_ss(2 << 3);
-    asm::set_cs(1 << 3);
-
-    assert_eq!(asm::read_cs() >> 3, 1);
+    segment::set_ss_cs(2 << 3, 1 << 3);
+    assert_eq!(Cs::read().raw() >> 3, 1);
 }
 
 pub fn set_seg_reg_to_user() {
-    asm::set_ss(4 << 3 | 3); // RPL = 3
-    asm::set_cs((3 << 3) | 3); // RPL = 3
-
-    assert_eq!(asm::read_cs(), (3 << 3) | 3);
+    segment::set_ss_cs(4 << 3 | 3, (3 << 3) | 3); // RPL = 3
+    assert_eq!(Cs::read().raw(), (3 << 3) | 3);
 }

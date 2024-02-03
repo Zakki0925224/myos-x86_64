@@ -1,22 +1,16 @@
-use core::fmt::{self, Write};
-
-use alloc::{boxed::Box, string::String, vec::Vec};
-use log::error;
-
 use crate::{
-    arch::{asm, qemu},
-    bus::pci,
-    env,
-    error::{Error, Result},
-    fs::{exec, initramfs},
+    error::Error,
+    error::Result,
     graphics::{color::*, frame_buf_console},
-    mem, serial,
+    serial,
     util::{
         ascii::AsciiCode,
         fifo::Fifo,
         mutex::{Mutex, MutexError},
     },
 };
+use alloc::{boxed::Box, string::String};
+use core::fmt::{self, Write};
 
 const IO_BUF_LEN: usize = 512;
 const IO_BUF_DEFAULT_VALUE: ConsoleCharacter = ConsoleCharacter {
@@ -209,8 +203,8 @@ pub fn clear_input_buf() -> Result<()> {
     }
 }
 
-pub fn input(ascii_code: AsciiCode) -> Result<()> {
-    let mut cmd = None;
+pub fn input(ascii_code: AsciiCode) -> Result<Option<String>> {
+    let mut input_str = None;
 
     if let Ok(mut console) = unsafe { CONSOLE.try_lock() } {
         if let Err(_) = console.write(ascii_code, BufferType::Input) {
@@ -219,65 +213,58 @@ pub fn input(ascii_code: AsciiCode) -> Result<()> {
         }
 
         if ascii_code == AsciiCode::CarriageReturn || ascii_code == AsciiCode::NewLine {
-            cmd = Some(console.get_str(BufferType::Input));
+            input_str = Some(console.get_str(BufferType::Input));
         }
     } else {
         return Err(MutexError::Locked.into());
     }
 
-    match ascii_code {
-        AsciiCode::CarriageReturn => {
-            println!();
-        }
-        code => {
-            print!("{}", code as u8 as char);
-        }
-    }
+    Ok(input_str)
 
-    // execute command
-    if let Some(cmd) = cmd {
-        let cmds: Vec<&str> = cmd.trim().split(" ").collect();
-        match cmds[0] {
-            "info" => env::print_info(),
-            "lspci" => {
-                if pci::lspci().is_err() {
-                    error!("PCI manager is locked")
-                }
-            }
-            "free" => mem::free(),
-            "exit" => {
-                qemu::exit(0);
-            }
-            "echo" => {
-                println!("{}", &cmd[4..].trim());
-            }
-            "break" => {
-                asm::int3();
-            }
-            "ls" => {
-                initramfs::ls();
-            }
-            "cd" => {
-                if cmds.len() == 2 {
-                    initramfs::cd(cmds[1]);
-                }
-            }
-            "cat" => {
-                if cmds.len() == 2 {
-                    initramfs::cat(cmds[1]);
-                }
-            }
-            // execute file
-            "exec" => {
-                if cmds.len() >= 2 {
-                    exec::exec_elf(cmds[1], &cmds[2..]);
-                }
-            }
-            _ => error!("Command {:?} was not found", cmds),
-        }
+    // // execute command
+    // if let Some(cmd) = cmd {
+    //     let cmds: Vec<&str> = cmd.trim().split(" ").collect();
+    //     match cmds[0] {
+    //         "info" => env::print_info(),
+    //         "lspci" => {
+    //             if pci::lspci().is_err() {
+    //                 error!("PCI manager is locked")
+    //             }
+    //         }
+    //         "free" => mem::free(),
+    //         "exit" => {
+    //             qemu::exit(0);
+    //         }
+    //         "echo" => {
+    //             println!("{}", &cmd[4..].trim());
+    //         }
+    //         "break" => {
+    //             asm::int3();
+    //         }
+    //         "ls" => {
+    //             initramfs::ls();
+    //         }
+    //         "cd" => {
+    //             if cmds.len() == 2 {
+    //                 initramfs::cd(cmds[1]);
+    //             }
+    //         }
+    //         "cat" => {
+    //             if cmds.len() == 2 {
+    //                 initramfs::cat(cmds[1]);
+    //             }
+    //         }
+    //         // execute file
+    //         "exec" => {
+    //             if cmds.len() >= 2 {
+    //                 exec::exec_elf(cmds[1], &cmds[2..]);
+    //             }
+    //         }
+    //         _ => error!("Command {:?} was not found", cmds),
+    //     }
 
-        println!();
-    }
+    //     println!();
+    // }
 
-    Ok(())
+    // Ok(())
 }

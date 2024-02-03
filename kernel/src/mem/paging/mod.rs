@@ -1,5 +1,6 @@
 use self::page_table::*;
 use crate::arch::addr::VirtualAddress;
+use crate::arch::register::Register;
 use crate::arch::{addr::*, register::control::Cr3};
 use crate::error::Result;
 use crate::mem::bitmap;
@@ -27,20 +28,20 @@ pub enum PageManagerError {
 
 #[derive(Debug)]
 pub struct PageManager {
-    pml4_table_virt_addr: VirtualAddress,
+    cr3: Cr3,
     mapping_type: MappingType,
 }
 
 impl PageManager {
     pub const fn new() -> Self {
         Self {
-            pml4_table_virt_addr: VirtualAddress::new(0),
+            cr3: Cr3::default(),
             mapping_type: MappingType::Identity,
         }
     }
 
     pub fn load_cr3(&mut self) {
-        self.pml4_table_virt_addr = Cr3::read().get_virt_addr();
+        self.cr3 = Cr3::read();
     }
 
     pub fn calc_phys_addr(&self, virt_addr: VirtualAddress) -> Result<PhysicalAddress> {
@@ -51,7 +52,7 @@ impl PageManager {
         let page_offset = virt_addr.get_page_offset();
 
         // pml4 table
-        let table: PageTable = self.pml4_table_virt_addr.read_volatile();
+        let table: PageTable = self.pml4_table_virt_addr().read_volatile();
         let entry = table.entries[pml4e_index];
 
         if !entry.p() {
@@ -132,7 +133,8 @@ impl PageManager {
         //cr0.write();
 
         // do not use PhysicalAddress
-        Cr3::write(pml4_table_virt_addr.get());
+        self.cr3.set_raw(pml4_table_virt_addr.get());
+        self.cr3.write();
 
         //cr0.set_paging(true);
         //cr0.write();
@@ -157,7 +159,7 @@ impl PageManager {
         let pml2e_index = virt_addr.get_pml2_entry_index();
         let pml1e_index = virt_addr.get_pml1_entry_index();
 
-        let mut table_addr = self.pml4_table_virt_addr;
+        let mut table_addr = self.pml4_table_virt_addr();
 
         // pml4 table
         let mut table: PageTable = table_addr.read_volatile();
@@ -208,6 +210,10 @@ impl PageManager {
         table_addr.write_volatile(table);
 
         Ok(())
+    }
+
+    fn pml4_table_virt_addr(&self) -> VirtualAddress {
+        VirtualAddress::new(self.cr3.raw())
     }
 
     fn map_to_identity(
