@@ -21,7 +21,7 @@ mod util;
 extern crate alloc;
 
 use alloc::{string::String, vec::Vec};
-use arch::{apic, asm, gdt, idt, qemu, syscall, task};
+use arch::{apic, asm, context, gdt, idt, qemu, syscall, task};
 use bus::pci;
 use common::boot_info::BootInfo;
 use core::alloc::Layout;
@@ -34,6 +34,11 @@ use util::{ascii::AsciiCode, logger};
 
 #[no_mangle]
 #[start]
+pub extern "sysv64" fn kernel_entry(boot_info: *const BootInfo) -> ! {
+    context::switch_kernel_stack(kernel_main, boot_info);
+}
+
+#[no_mangle]
 pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> ! {
     let boot_info = unsafe { boot_info.read() };
 
@@ -77,8 +82,9 @@ pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> ! {
 
     env::print_info();
 
-    //let ctx = Context::save_context();
-    //println!("ctx: {:?}", ctx);
+    // let ctx = Context::save_context();
+    // println!("ctx: {:?}", ctx);
+    context::check_stack();
 
     // tasks
     task::spawn(serial_receive_task()).unwrap();

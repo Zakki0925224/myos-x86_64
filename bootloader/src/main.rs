@@ -4,11 +4,9 @@
 mod config;
 
 #[macro_use]
-extern crate log;
-
-#[macro_use]
 extern crate alloc;
 
+use crate::config::DEFAULT_BOOT_CONFIG;
 use alloc::vec::Vec;
 use common::{
     boot_info::BootInfo,
@@ -17,6 +15,7 @@ use common::{
     mem_desc::{self, UEFI_PAGE_SIZE},
 };
 use core::{mem, slice::from_raw_parts_mut};
+use log::info;
 use uefi::{
     prelude::*,
     proto::{
@@ -26,8 +25,6 @@ use uefi::{
     table::boot::*,
     CStr16,
 };
-
-use crate::config::DEFAULT_BOOT_CONFIG;
 
 #[entry]
 fn efi_main(handle: Handle, mut st: SystemTable<Boot>) -> Status {
@@ -82,12 +79,7 @@ fn efi_main(handle: Handle, mut st: SystemTable<Boot>) -> Status {
         initramfs_page_cnt,
     );
 
-    jump_to_entry(
-        kernel_entry_point_addr,
-        &bi,
-        config.kernel_stack_addr,
-        config.kernel_stack_size,
-    );
+    jump_to_entry(kernel_entry_point_addr, &bi);
 
     Status::SUCCESS
 }
@@ -250,8 +242,7 @@ fn convert_mem_attr(mem_attr: MemoryAttribute) -> u64 {
     mem_attr.bits()
 }
 
-fn jump_to_entry(entry_base_addr: u64, bi: &BootInfo, stack_addr: u64, stack_size: u64) {
-    let _stacktop = stack_addr + stack_size * UEFI_PAGE_SIZE as u64;
+fn jump_to_entry(entry_base_addr: u64, bi: &BootInfo) {
     let entry_point: extern "sysv64" fn(*const BootInfo) =
         unsafe { mem::transmute(entry_base_addr) };
     entry_point(bi);

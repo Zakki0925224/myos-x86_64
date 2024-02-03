@@ -1,16 +1,62 @@
-use core::arch::asm;
+use common::boot_info::BootInfo;
+
+use crate::println;
 
 use super::register::{control::Cr3, segment::*, Register};
+use core::arch::asm;
+
+const KERNEL_STACK_SIZE: usize = 1024 * 1024;
+static KERNEL_STACK: KernelStack = KernelStack::new();
+
+#[repr(align(16))]
+struct KernelStack([u8; KERNEL_STACK_SIZE]);
+
+impl KernelStack {
+    pub const fn new() -> Self {
+        Self([0; KERNEL_STACK_SIZE])
+    }
+}
+
+pub fn switch_kernel_stack(
+    new_entry: extern "sysv64" fn(*const BootInfo) -> !,
+    boot_info: *const BootInfo,
+) -> ! {
+    unsafe {
+        asm!(
+            "mov rdi, {}",
+            "mov rsp, {}",
+            "call {}",
+            in(reg) boot_info,
+            in(reg) KERNEL_STACK.0.as_ptr() as u64 + KERNEL_STACK_SIZE as u64,
+            in(reg) new_entry
+        );
+    }
+    unreachable!();
+}
+
+pub fn check_stack() {
+    let rsp: u64;
+    unsafe {
+        asm!("mov {}, rsp", out(reg) rsp);
+    }
+
+    println!("rsp: 0x{:x}", rsp);
+    println!(
+        "stack: 0x{:x}",
+        KERNEL_STACK.0.as_ptr() as u64 + KERNEL_STACK_SIZE as u64
+    );
+}
 
 #[derive(Debug)]
+#[repr(C)]
 pub struct Context {
     pub cr3: u64,
     pub rip: u64,
     pub rflags: u64,
-    pub cs: u16,
-    pub ss: u16,
-    pub fs: u16,
-    pub gs: u16,
+    pub cs: u64,
+    pub ss: u64,
+    pub fs: u64,
+    pub gs: u64,
     pub rax: u64,
     pub rbx: u64,
     pub rcx: u64,
@@ -62,16 +108,17 @@ impl Default for Context {
 }
 
 impl Context {
+    // TODO
     pub fn save_context() -> Self {
         let mut ctx = Self::default();
 
         ctx.cr3 = Cr3::read().raw();
         //ctx.rip =
         //ctx.rflags =
-        ctx.cs = Cs::read().raw();
-        ctx.ss = Ss::read().raw();
-        ctx.fs = Fs::read().raw();
-        ctx.gs = Gs::read().raw();
+        ctx.cs = Cs::read().raw() as u64;
+        ctx.ss = Ss::read().raw() as u64;
+        ctx.fs = Fs::read().raw() as u64;
+        ctx.gs = Gs::read().raw() as u64;
 
         unsafe {
             asm!(
