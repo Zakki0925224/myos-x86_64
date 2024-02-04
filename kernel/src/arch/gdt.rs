@@ -4,7 +4,7 @@ use modular_bitfield::{bitfield, specifiers::*, BitfieldSpecifier};
 
 use crate::{
     arch::register::{
-        segment::{self, Cs},
+        segment::{self, *},
         Register,
     },
     util::mutex::Mutex,
@@ -132,10 +132,12 @@ pub fn init() {
 
 pub fn set_seg_reg_to_kernel() {
     segment::set_ss_cs(2 << 3, 1 << 3);
-    assert_eq!(Cs::read().raw() >> 3, 1);
+    assert_eq!(Ss::read().raw(), 2 << 3);
+    assert_eq!(Cs::read().raw(), 1 << 3);
 }
 
 pub fn set_seg_reg_to_user() {
     segment::set_ss_cs(4 << 3 | 3, (3 << 3) | 3); // RPL = 3
+    assert_eq!(Ss::read().raw(), 4 << 3 | 3);
     assert_eq!(Cs::read().raw(), (3 << 3) | 3);
 }

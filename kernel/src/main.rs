@@ -24,7 +24,6 @@ use alloc::{string::String, vec::Vec};
 use arch::{apic, asm, context, gdt, idt, qemu, syscall, task};
 use bus::pci;
 use common::boot_info::BootInfo;
-use core::alloc::Layout;
 use device::console;
 use error::Result;
 use fs::{exec, initramfs};
@@ -38,7 +37,6 @@ pub extern "sysv64" fn kernel_entry(boot_info: *const BootInfo) -> ! {
     context::switch_kernel_stack(kernel_main, boot_info);
 }
 
-#[no_mangle]
 pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> ! {
     let boot_info = unsafe { boot_info.read() };
 
@@ -82,9 +80,7 @@ pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> ! {
 
     env::print_info();
 
-    // let ctx = Context::save_context();
-    // println!("ctx: {:?}", ctx);
-    context::check_stack();
+    context::save_kernel_context();
 
     // tasks
     task::spawn(serial_receive_task()).unwrap();
@@ -174,9 +170,4 @@ async fn exec_cmd(cmd: String) -> Result<()> {
     }
 
     Ok(())
-}
-
-#[alloc_error_handler]
-fn alloc_error_handler(layout: Layout) -> ! {
-    panic!("Allocation error: {:?}", layout);
 }

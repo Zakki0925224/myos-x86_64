@@ -1,9 +1,8 @@
-use common::mem_desc::UEFI_PAGE_SIZE;
+use super::{bitmap, paging::PAGE_SIZE};
+use core::alloc::Layout;
 use linked_list_allocator::LockedHeap;
 
-use super::bitmap;
-
-const HEAP_SIZE: usize = UEFI_PAGE_SIZE * UEFI_PAGE_SIZE; // 16MiB
+const HEAP_SIZE: usize = PAGE_SIZE * PAGE_SIZE; // 16MiB
 
 // #[global_allocator]
 // pub static ALLOCATOR: Allocator = Allocator {
@@ -75,7 +74,7 @@ const HEAP_SIZE: usize = UEFI_PAGE_SIZE * UEFI_PAGE_SIZE; // 16MiB
 static ALLOCATOR: LockedHeap = LockedHeap::empty();
 
 pub fn init_heap() {
-    let mem_frame_info = match bitmap::alloc_mem_frame(HEAP_SIZE / UEFI_PAGE_SIZE) {
+    let mem_frame_info = match bitmap::alloc_mem_frame(HEAP_SIZE / PAGE_SIZE) {
         Ok(info) => info,
         Err(_) => panic!("Failed to allocate memory for heap allocator"),
     };
@@ -86,4 +85,9 @@ pub fn init_heap() {
             mem_frame_info.get_frame_size(),
         );
     }
+}
+
+#[alloc_error_handler]
+fn alloc_error_handler(layout: Layout) -> ! {
+    panic!("Allocation error: {:?}", layout);
 }

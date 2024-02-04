@@ -1,6 +1,6 @@
 use super::initramfs;
 use crate::{
-    arch::gdt,
+    arch::{context::USER_STACK_SIZE, gdt},
     mem::{
         bitmap,
         paging::{
@@ -50,7 +50,7 @@ pub fn exec_elf(file_name: &str, args: &[&str]) {
         return;
     }
 
-    let app_stack = bitmap::alloc_mem_frame(8).unwrap();
+    let app_stack = bitmap::alloc_mem_frame(USER_STACK_SIZE / PAGE_SIZE + 1).unwrap();
     let app_mem = bitmap::alloc_mem_frame(elf_data.len() / PAGE_SIZE + 1).unwrap();
 
     // copy elf data
@@ -71,9 +71,9 @@ pub fn exec_elf(file_name: &str, args: &[&str]) {
         )
     };
 
-    // TODO
     // set to user segment
     gdt::set_seg_reg_to_user();
+    // GP fault here
 
     let ret = entry_point();
 
