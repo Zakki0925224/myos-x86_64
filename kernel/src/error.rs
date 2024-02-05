@@ -5,7 +5,10 @@ use crate::{
         UsbDriverError,
     },
     device::console::ConsoleError,
-    graphics::{frame_buf::FrameBufferError, frame_buf_console::FrameBufferConsoleError},
+    graphics::{
+        frame_buf::FrameBufferError, frame_buf_console::FrameBufferConsoleError,
+        multi_layer::LayerError,
+    },
     mem::{bitmap::BitmapMemoryManagerError, paging::PageManagerError},
     util::{ascii::AsciiCodeError, fifo::FifoError, mutex::MutexError},
 };
@@ -16,6 +19,7 @@ pub enum Error {
     MutexError(MutexError),
     AsciiCodeError(AsciiCodeError),
     FrameBufferError(FrameBufferError),
+    LayerError(LayerError),
     FrameBufferConsoleError(FrameBufferConsoleError),
     BitmapMemoryManagerError(BitmapMemoryManagerError),
     PageManagerError(PageManagerError),
@@ -48,6 +52,12 @@ impl From<AsciiCodeError> for Error {
 impl From<FrameBufferError> for Error {
     fn from(err: FrameBufferError) -> Self {
         Error::FrameBufferError(err)
+    }
+}
+
+impl From<LayerError> for Error {
+    fn from(err: LayerError) -> Self {
+        Error::LayerError(err)
     }
 }
 

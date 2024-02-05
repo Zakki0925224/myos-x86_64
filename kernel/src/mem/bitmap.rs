@@ -1,12 +1,14 @@
 use super::paging::{
     self,
     page_table::{EntryMode, ReadWrite},
+    PAGE_SIZE,
 };
 use crate::{
     arch::addr::*,
     error::Result,
     util::mutex::{Mutex, MutexError},
 };
+use alloc::vec::Vec;
 use common::mem_desc::*;
 use core::mem::size_of;
 use log::info;
@@ -43,7 +45,28 @@ impl MemoryFrameInfo {
     }
 
     pub fn set_permissions(&self, rw: ReadWrite, mode: EntryMode) -> Result<()> {
-        paging::set_page_permissions(self.frame_start_virt_addr, rw, mode)
+        let page_len = self.frame_size / PAGE_SIZE;
+        let mut start_virt_addr = self.frame_start_virt_addr;
+
+        for _ in 0..page_len {
+            paging::set_page_permissions(start_virt_addr, rw, mode)?;
+            start_virt_addr = start_virt_addr.offset(PAGE_SIZE);
+        }
+
+        Ok(())
+    }
+
+    pub fn get_permissions(&self) -> Result<Vec<(ReadWrite, EntryMode)>> {
+        let page_len = self.frame_size / PAGE_SIZE;
+        let mut start_virt_addr = self.frame_start_virt_addr;
+        let mut res = Vec::new();
+
+        for _ in 0..page_len {
+            res.push(paging::get_page_permissions(start_virt_addr)?);
+            start_virt_addr = start_virt_addr.offset(PAGE_SIZE);
+        }
+
+        Ok(res)
     }
 }
 
@@ -332,6 +355,7 @@ impl BitmapMemoryManager {
         };
 
         self.alloc_frame(found_mem_frame_index)?;
+        mem_frame_info.set_permissions(ReadWrite::Write, EntryMode::Supervisor)?;
         self.mem_clear(&mem_frame_info);
 
         Ok(mem_frame_info)
@@ -410,6 +434,8 @@ impl BitmapMemoryManager {
             is_allocated: true,
         };
 
+        mem_frame_info.set_permissions(ReadWrite::Write, EntryMode::Supervisor)?;
+        self.mem_clear(&mem_frame_info);
         Ok(mem_frame_info)
     }
 

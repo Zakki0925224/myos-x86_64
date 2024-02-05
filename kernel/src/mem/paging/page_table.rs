@@ -39,9 +39,23 @@ impl PageTableEntry {
         self.0 = (self.0 & !0x2) | (rw << 1);
     }
 
+    pub fn rw(&self) -> ReadWrite {
+        match (self.0 & 0x2) != 0 {
+            true => ReadWrite::Write,
+            false => ReadWrite::Read,
+        }
+    }
+
     pub fn set_us(&mut self, us: EntryMode) {
         let us = us as u64;
         self.0 = (self.0 & !0x4) | (us << 2);
+    }
+
+    pub fn us(&self) -> EntryMode {
+        match (self.0 & 0x4) != 0 {
+            true => EntryMode::User,
+            false => EntryMode::Supervisor,
+        }
     }
 
     pub fn set_pwt(&mut self, pwt: PageWriteThroughLevel) {

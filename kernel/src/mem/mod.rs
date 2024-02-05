@@ -11,8 +11,6 @@ pub fn init(mem_map: &[MemoryDescriptor]) {
         panic!("mem: {:?}", err);
     }
 
-    allocator::init_heap();
-
     match paging::load_cr3() {
         Ok(_) => (),
         Err(_) => panic!("mem: Failed to load CR3 register"),
@@ -30,6 +28,8 @@ pub fn init(mem_map: &[MemoryDescriptor]) {
             .get(),
         0xabcd000
     );
+
+    allocator::init_heap();
 }
 
 pub fn free() {

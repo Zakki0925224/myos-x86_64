@@ -142,6 +142,61 @@ impl PageManager {
         Ok(())
     }
 
+    pub fn get_page_permissions(
+        &self,
+        virt_addr: VirtualAddress,
+    ) -> Result<(ReadWrite, EntryMode)> {
+        if virt_addr.get() % PAGE_SIZE as u64 != 0 {
+            return Err(PageManagerError::AddressNotAlignedError(virt_addr).into());
+        }
+
+        self.calc_phys_addr(virt_addr)?;
+
+        let pml4e_index = virt_addr.get_pml4_entry_index();
+        let pml3e_index = virt_addr.get_pml3_entry_index();
+        let pml2e_index = virt_addr.get_pml2_entry_index();
+        let pml1e_index = virt_addr.get_pml1_entry_index();
+
+        let mut table_addr = self.pml4_table_virt_addr();
+
+        // pml4 table
+        let mut table: PageTable = table_addr.read_volatile();
+        let entry = &mut table.entries[pml4e_index];
+
+        if !entry.p() {
+            return Ok((entry.rw(), entry.us()));
+        }
+
+        table_addr = entry.addr().into();
+
+        // pml3 table
+        let mut table: PageTable = table_addr.read_volatile();
+        let entry = &mut table.entries[pml3e_index];
+
+        if !entry.p() {
+            return Ok((entry.rw(), entry.us()));
+        }
+
+        table_addr = entry.addr().into();
+
+        // pml2
+        let mut table: PageTable = table_addr.read_volatile();
+        let entry = &mut table.entries[pml2e_index];
+
+        if !entry.p() {
+            return Ok((entry.rw(), entry.us()));
+        }
+
+        table_addr = entry.addr().into();
+
+        // pml1
+        let mut table: PageTable = table_addr.read_volatile();
+        let entry = &mut table.entries[pml1e_index];
+
+        // do not check present bit for rust optimization
+        return Ok((entry.rw(), entry.us()));
+    }
+
     pub fn set_page_permissions(
         &self,
         virt_addr: VirtualAddress,
@@ -338,6 +393,14 @@ pub fn set_page_permissions(
 ) -> Result<()> {
     if let Ok(page_man) = unsafe { PAGE_MAN.try_lock() } {
         return page_man.set_page_permissions(virt_addr, rw, mode);
+    }
+
+    Err(MutexError::Locked.into())
+}
+
+pub fn get_page_permissions(virt_addr: VirtualAddress) -> Result<(ReadWrite, EntryMode)> {
+    if let Ok(page_man) = unsafe { PAGE_MAN.try_lock() } {
+        return page_man.get_page_permissions(virt_addr);
     }
 
     Err(MutexError::Locked.into())
