@@ -1,7 +1,7 @@
-use core::mem::size_of;
-use log::info;
-use modular_bitfield::{bitfield, specifiers::*, BitfieldSpecifier};
-
+use super::{
+    asm::{self, DescriptorTableArgs},
+    idt::GateDescriptor,
+};
 use crate::{
     arch::register::{
         segment::{self, *},
@@ -9,65 +9,105 @@ use crate::{
     },
     util::mutex::Mutex,
 };
-
-use super::{
-    asm::{self, DescriptorTableArgs},
-    idt::GateDescriptor,
-};
+use core::mem::size_of;
+use log::info;
 
 static mut GDT: Mutex<GlobalDescriptorTable> = Mutex::new(GlobalDescriptorTable::new());
 
 const GDT_LEN: usize = 5;
 
-#[derive(BitfieldSpecifier, Debug, Clone, Copy)]
-#[bits = 4]
+#[derive(Debug, Clone, Copy)]
+#[repr(u8)]
 pub enum SegmentType {
     ExecuteRead = 0xa,
     ReadWrite = 0x2,
 }
 
-#[bitfield]
 #[derive(Debug, Clone, Copy)]
 #[repr(C, align(8))]
-pub struct SegmentDescriptor {
-    limit_low: B16,
-    base_low: B16,
-    base_mid: B8,
-    seg_type: SegmentType,
-    is_not_system_seg: bool,
-    dpl: B2,
-    p: bool,
-    limit_high: B4,
-    available: B1,
-    is_long_mode: bool,
-    default_op_size: B1,
-    granularity: B1,
-    base_high: B8,
-}
+pub struct SegmentDescriptor(u64);
 
 impl SegmentDescriptor {
-    pub fn set_code_seg(&mut self, seg_type: SegmentType, dpl: u8, base: u32, limit: u32) {
-        self.set_base_low(base as u16);
-        self.set_base_mid((base >> 16) as u8);
-        self.set_base_high((base >> 24) as u8);
+    pub const fn new() -> Self {
+        Self(0)
+    }
 
-        self.set_limit_low(limit as u16);
-        self.set_limit_high((limit >> 16) as u8);
+    pub fn set_code_seg(&mut self, seg_type: SegmentType, dpl: u8, base: u32, limit: u32) {
+        self.set_base(base);
+        self.set_limit(limit);
 
         self.set_seg_type(seg_type);
-        self.set_is_not_system_seg(true);
+        self.set_is_not_sys_seg(true);
         self.set_dpl(dpl);
         self.set_p(true);
-        self.set_available(0);
+        self.set_available(false);
         self.set_is_long_mode(true);
-        self.set_default_op_size(0);
-        self.set_granularity(1);
+        self.set_default_op_size(false);
+        self.set_granularity(true);
     }
 
     pub fn set_data_seg(&mut self, seg_type: SegmentType, dpl: u8, base: u32, limit: u32) {
         self.set_code_seg(seg_type, dpl, base, limit);
         self.set_is_long_mode(false);
-        self.set_default_op_size(1);
+        self.set_default_op_size(true);
+    }
+
+    fn set_base(&mut self, base: u32) {
+        let base_low = base as u16;
+        let base_mid = (base << 16) as u8;
+        let base_high = (base << 24) as u8;
+
+        self.0 = (self.0 & !0xffff_0000) | ((base_low as u64) << 16);
+        self.0 = (self.0 & !0x00ff_0000_0000) | ((base_mid as u64) << 32);
+        self.0 = (self.0 & !0xff00_0000_0000_0000) | ((base_high as u64) << 55);
+    }
+
+    fn set_limit(&mut self, limit: u32) {
+        let limit_low = limit as u16;
+        let limit_high = (limit >> 16) as u8;
+
+        self.0 = (self.0 & !0xffff) | (limit_low as u64);
+        self.0 = (self.0 & !0x000f_ffff_ffff_ffff) | ((limit_high as u64) << 48);
+    }
+
+    fn set_seg_type(&mut self, seg_type: SegmentType) {
+        let seg_type = seg_type as u8 & 0xf; // 4 bits
+        self.0 = (self.0 & !0x0f00_0000_0000) | ((seg_type as u64) << 40);
+    }
+
+    fn set_is_not_sys_seg(&mut self, value: bool) {
+        let value = if value { 0x1 } else { 0x0 };
+        self.0 = (self.0 & !0x1000_0000_0000) | ((value as u64) << 44);
+    }
+
+    fn set_dpl(&mut self, dpl: u8) {
+        let dpl = dpl & 0b11; // allow 0 ~ 3
+        self.0 = (self.0 & !0x6000_0000_0000) | ((dpl as u64) << 45);
+    }
+
+    fn set_p(&mut self, value: bool) {
+        let value = if value { 0x1 } else { 0x0 };
+        self.0 = (self.0 & !0x8000_0000_0000) | ((value as u64) << 47);
+    }
+
+    fn set_available(&mut self, value: bool) {
+        let value = if value { 0x1 } else { 0x0 };
+        self.0 = (self.0 & !0x0010_0000_0000_0000) | ((value as u64) << 52);
+    }
+
+    fn set_is_long_mode(&mut self, value: bool) {
+        let value = if value { 0x1 } else { 0x0 };
+        self.0 = (self.0 & !0x0020_0000_0000_0000) | ((value as u64) << 53);
+    }
+
+    fn set_default_op_size(&mut self, value: bool) {
+        let value = if value { 0x1 } else { 0x0 };
+        self.0 = (self.0 & !0x0040_0000_0000_0000) | ((value as u64) << 54);
+    }
+
+    fn set_granularity(&mut self, value: bool) {
+        let value = if value { 0x1 } else { 0x0 };
+        self.0 = (self.0 & !0x0040_0000_0000_0000) | ((value as u64) << 55);
     }
 }
 
@@ -96,8 +136,6 @@ impl GlobalDescriptorTable {
 
         let args = DescriptorTableArgs { limit, base };
         asm::lgdt(&args);
-
-        //info!("gdt: Loaded GDT: {:?}", args);
     }
 }
 

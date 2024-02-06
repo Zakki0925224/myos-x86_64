@@ -153,17 +153,17 @@ impl GateDescriptor {
         self.set_handler_offset(handler_addr);
         self.set_selector(Cs::read().raw());
         self.set_gate_type(gate_type);
-        self.set_present(true);
+        self.set_p(true);
     }
 
-    fn set_handler_offset(&mut self, addr: u64) {
-        let addr_low = addr as u16;
-        let addr_middle = (addr >> 16) as u16;
-        let addr_high = (addr >> 32) as u16;
+    fn set_handler_offset(&mut self, offset: u64) {
+        let offset_low = offset as u16;
+        let offset_middle = (offset >> 16) as u16;
+        let offset_high = (offset >> 32) as u16;
 
-        self.0 = (self.0 & !0xffff) | (addr_low as u128);
-        self.0 = (self.0 & !0xffff_0000_0000_0000) | ((addr_middle as u128) << 48);
-        self.0 = (self.0 & !0xffff_ffff_0000_0000_0000_0000) | ((addr_high as u128) << 64);
+        self.0 = (self.0 & !0xffff) | (offset_low as u128);
+        self.0 = (self.0 & !0xffff_0000_0000_0000) | ((offset_middle as u128) << 48);
+        self.0 = (self.0 & !0xffff_ffff_0000_0000_0000_0000) | ((offset_high as u128) << 64);
     }
 
     fn set_selector(&mut self, selector: u16) {
@@ -175,7 +175,7 @@ impl GateDescriptor {
         self.0 = (self.0 & !0x0f00_0000_0000) | ((gate_type as u128) << 40);
     }
 
-    fn set_present(&mut self, value: bool) {
+    fn set_p(&mut self, value: bool) {
         let value = if value { 0x1 } else { 0x0 };
         self.0 = (self.0 & !0x8000_0000_0000) | ((value as u128) << 47);
     }
