@@ -12,7 +12,6 @@ use crate::{
 use alloc::{format, string::String};
 use core::mem::size_of;
 use log::{error, info};
-use modular_bitfield::{bitfield, specifiers::*, BitfieldSpecifier};
 
 static mut IDT: Mutex<InterruptDescriptorTable> = Mutex::new(InterruptDescriptorTable::new());
 
@@ -130,47 +129,55 @@ pub enum InterruptHandler {
     PageFault(extern "x86-interrupt" fn(InterruptStackFrame, PageFaultErrorCode)),
 }
 
-#[derive(BitfieldSpecifier, Debug, Clone, Copy)]
-#[bits = 4]
+#[derive(Debug, Clone, Copy)]
+#[repr(u8)]
 pub enum GateType {
     Interrupt = 0xe,
     Trap = 0xf,
 }
 
-#[bitfield]
 #[derive(Debug, Clone, Copy)]
 #[repr(C, align(16))]
-pub struct GateDescriptor {
-    handler_offset_low: B16,
-    selector: B16,
-    // attributes
-    int_stack_table: B3,
-    #[skip]
-    reserved0: B5,
-    gate_type: GateType,
-    #[skip]
-    reserved1: B1,
-    desc_privilege_level: B2,
-    present: bool,
-
-    handler_offset_middle: B16,
-    handler_offset_high: B32,
-    #[skip]
-    reserved2: B32,
-}
+pub struct GateDescriptor(u128);
 
 impl GateDescriptor {
+    pub const fn new() -> Self {
+        Self(0)
+    }
+
     pub fn set_handler(&mut self, handler: InterruptHandler, gate_type: GateType) {
         let handler_addr = match handler {
             InterruptHandler::Normal(handler) => handler as *const () as u64,
             InterruptHandler::PageFault(handler) => handler as *const () as u64,
         };
-        self.set_handler_offset_low(handler_addr as u16);
-        self.set_handler_offset_middle((handler_addr >> 16) as u16);
-        self.set_handler_offset_high((handler_addr >> 32) as u32);
+        self.set_handler_offset(handler_addr);
         self.set_selector(Cs::read().raw());
         self.set_gate_type(gate_type);
         self.set_present(true);
+    }
+
+    fn set_handler_offset(&mut self, addr: u64) {
+        let addr_low = addr as u16;
+        let addr_middle = (addr >> 16) as u16;
+        let addr_high = (addr >> 32) as u16;
+
+        self.0 = (self.0 & !0xffff) | (addr_low as u128);
+        self.0 = (self.0 & !0xffff_0000_0000_0000) | ((addr_middle as u128) << 48);
+        self.0 = (self.0 & !0xffff_ffff_0000_0000_0000_0000) | ((addr_high as u128) << 64);
+    }
+
+    fn set_selector(&mut self, selector: u16) {
+        self.0 = (self.0 & !0xffff_0000) | ((selector as u128) << 16);
+    }
+
+    fn set_gate_type(&mut self, gate_type: GateType) {
+        let gate_type = gate_type as u8 & 0xf; // 4 bits
+        self.0 = (self.0 & !0x0f00_0000_0000) | ((gate_type as u128) << 40);
+    }
+
+    fn set_present(&mut self, value: bool) {
+        let value = if value { 0x1 } else { 0x0 };
+        self.0 = (self.0 & !0x8000_0000_0000) | ((value as u128) << 47);
     }
 }
 
