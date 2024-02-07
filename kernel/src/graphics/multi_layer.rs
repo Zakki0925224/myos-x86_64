@@ -1,10 +1,6 @@
 use super::{color::ColorCode, draw::Draw, frame_buf};
 use crate::{
     error::Result,
-    mem::{
-        bitmap::{self, MemoryFrameInfo},
-        paging::PAGE_SIZE,
-    },
     util::mutex::{Mutex, MutexError},
 };
 use alloc::vec::Vec;
@@ -27,20 +23,14 @@ pub struct Layer {
     pub y: usize,
     pub width: usize,
     pub height: usize,
-    buf_mem_frame_info: MemoryFrameInfo,
+    pub buf: Vec<u8>,
     pub disabled: bool,
     pub format: PixelFormat,
 }
 
-impl Drop for Layer {
-    fn drop(&mut self) {
-        bitmap::dealloc_mem_frame(self.buf_mem_frame_info).unwrap();
-    }
-}
-
 impl Draw for Layer {
     fn draw_rect(
-        &self,
+        &mut self,
         x: usize,
         y: usize,
         width: usize,
@@ -56,7 +46,7 @@ impl Draw for Layer {
         Ok(())
     }
 
-    fn fill(&self, color_code: ColorCode) -> Result<()> {
+    fn fill(&mut self, color_code: ColorCode) -> Result<()> {
         for y in 0..self.height {
             for x in 0..self.width {
                 self.write(x, y, color_code)?;
@@ -66,7 +56,7 @@ impl Draw for Layer {
         Ok(())
     }
 
-    fn copy(&self, x: usize, y: usize, to_x: usize, to_y: usize) -> Result<()> {
+    fn copy(&mut self, x: usize, y: usize, to_x: usize, to_y: usize) -> Result<()> {
         let data = self.read(x, y)?;
         self.write(to_x, to_y, data)?;
 
@@ -78,7 +68,7 @@ impl Draw for Layer {
         Ok(ColorCode::from_pixel_data(data, self.format))
     }
 
-    fn write(&self, x: usize, y: usize, color_code: ColorCode) -> Result<()> {
+    fn write(&mut self, x: usize, y: usize, color_code: ColorCode) -> Result<()> {
         self.write_pixel(x, y, color_code.to_color_code(self.format))
     }
 }
@@ -93,7 +83,6 @@ impl Layer {
     ) -> Result<Self> {
         static NEXT_ID: AtomicUsize = AtomicUsize::new(0);
         let id = NEXT_ID.fetch_add(1, Ordering::Relaxed);
-        let buf_mem_frame_info = bitmap::alloc_mem_frame((width * height * 4) / PAGE_SIZE + 1)?;
 
         Ok(Self {
             id,
@@ -101,10 +90,14 @@ impl Layer {
             y,
             width,
             height,
-            buf_mem_frame_info,
+            buf: vec![0; width * height * 4],
             disabled: false,
             format,
         })
+    }
+
+    pub fn get_resolution(&self) -> (usize, usize) {
+        (self.width, self.height)
     }
 
     pub fn move_to(&mut self, x: usize, y: usize) -> Result<()> {
@@ -126,7 +119,7 @@ impl Layer {
     }
 
     fn read_pixel(&self, x: usize, y: usize) -> Result<u32> {
-        let offset = 4 * (self.width * y) + 4 * x;
+        let offset = (self.width * y + x) * 4;
 
         if x >= self.width || y >= self.height {
             return Err(LayerError::OutsideBufferAreaError {
@@ -137,12 +130,18 @@ impl Layer {
             .into());
         }
 
-        let virt_addr = self.buf_mem_frame_info.get_frame_start_virt_addr();
-        Ok(virt_addr.offset(offset).read_volatile())
+        let value = u32::from_le_bytes([
+            self.buf[offset + 0],
+            self.buf[offset + 1],
+            self.buf[offset + 2],
+            self.buf[offset + 3],
+        ]);
+
+        Ok(value)
     }
 
-    fn write_pixel(&self, x: usize, y: usize, data: u32) -> Result<()> {
-        let offset = 4 * (self.width * y) + 4 * x;
+    fn write_pixel(&mut self, x: usize, y: usize, data: u32) -> Result<()> {
+        let offset = (self.width * y + x) * 4;
 
         if x >= self.width || y >= self.height {
             return Err(LayerError::OutsideBufferAreaError {
@@ -153,8 +152,11 @@ impl Layer {
             .into());
         }
 
-        let virt_addr = self.buf_mem_frame_info.get_frame_start_virt_addr();
-        virt_addr.offset(offset).write_volatile(data);
+        let [a, b, c, d] = data.to_le_bytes();
+        self.buf[offset + 0] = a;
+        self.buf[offset + 1] = b;
+        self.buf[offset + 2] = c;
+        self.buf[offset + 3] = d;
 
         Ok(())
     }
@@ -198,17 +200,7 @@ impl LayerManager {
                 continue;
             }
 
-            for y in layer.y..layer.y + layer.height {
-                for x in layer.x..layer.x + layer.width {
-                    let color_code = layer.read(x - layer.x, y - layer.y)?;
-
-                    if color_code == self.transparent_color {
-                        continue;
-                    }
-
-                    frame_buf::write(x, y, color_code)?;
-                }
-            }
+            frame_buf::apply_layer_buf(layer, self.transparent_color)?;
         }
 
         Ok(())
@@ -219,18 +211,6 @@ pub fn init(transparent_color: ColorCode) -> Result<()> {
     if let Ok(mut layer_man) = unsafe { LAYER_MAN.try_lock() } {
         *layer_man = Some(LayerManager::new(transparent_color));
         return Ok(());
-    }
-
-    Err(MutexError::Locked.into())
-}
-
-pub fn transparent_color() -> Result<ColorCode> {
-    if let Ok(layer_man) = unsafe { LAYER_MAN.try_lock() } {
-        if let Some(layer_man) = layer_man.as_ref() {
-            return Ok(layer_man.transparent_color);
-        }
-
-        return Err(LayerError::LayerManagerNotInitialized.into());
     }
 
     Err(MutexError::Locked.into())
@@ -261,7 +241,19 @@ pub fn draw_to_frame_buf() -> Result<()> {
     Err(MutexError::Locked.into())
 }
 
-pub fn draw_layer<F: Fn(&dyn Draw) -> Result<()>>(layer_id: usize, draw: F) -> Result<()> {
+pub fn get_layer_resolution(layer_id: usize) -> Result<(usize, usize)> {
+    if let Ok(mut layer_man) = unsafe { LAYER_MAN.try_lock() } {
+        if let Some(layer_man) = layer_man.as_mut() {
+            return Ok(layer_man.get_layer(layer_id)?.get_resolution());
+        }
+
+        return Err(LayerError::LayerManagerNotInitialized.into());
+    }
+
+    Err(MutexError::Locked.into())
+}
+
+pub fn draw_layer<F: Fn(&mut dyn Draw) -> Result<()>>(layer_id: usize, draw: F) -> Result<()> {
     if let Ok(mut layer_man) = unsafe { LAYER_MAN.try_lock() } {
         if let Some(layer_man) = layer_man.as_mut() {
             let layer_inst = layer_man.get_layer(layer_id)?;

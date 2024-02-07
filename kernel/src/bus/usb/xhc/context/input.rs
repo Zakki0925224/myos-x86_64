@@ -1,37 +1,36 @@
-use modular_bitfield::{bitfield, specifiers::*};
-
 use super::device::DeviceContext;
 
-#[bitfield]
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct InputControlContext {
-    drop_context_flags: B32,
-    add_context_flags: B32,
-    #[skip]
-    reserved1: B32,
-    #[skip]
-    reserved2: B32,
-    #[skip]
-    reserved3: B32,
-    #[skip]
-    reserved4: B32,
-    #[skip]
-    reserved5: B32,
-    pub conf_value: B8,
-    pub interface_num: B8,
-    pub alternate_setting: B8,
-    #[skip]
-    reserved6: B8,
+    drop_context_flags: u32,
+    add_context_flags: u32,
+    reserved1: [u32; 5],
+    pub conf_value: u8,
+    pub interface_num: u8,
+    pub alternate_setting: u8,
+    reserved2: u8,
 }
 
 impl InputControlContext {
+    pub const fn new() -> Self {
+        Self {
+            drop_context_flags: 0,
+            add_context_flags: 0,
+            reserved1: [0; 5],
+            conf_value: 0,
+            interface_num: 0,
+            alternate_setting: 0,
+            reserved2: 0,
+        }
+    }
+
     pub fn drop_context_flag(&self, index: usize) -> Option<bool> {
         if index < 2 || index > 31 {
             return None;
         }
 
-        Some(((self.drop_context_flags() >> index) & 0x1) != 0)
+        Some(((self.drop_context_flags >> index) & 0x1) != 0)
     }
 
     pub fn set_drop_context_flag(&mut self, index: usize, flag: bool) -> Result<(), &'static str> {
@@ -40,8 +39,8 @@ impl InputControlContext {
         }
 
         let mask = !(0x1 << index);
-        let flags = (self.drop_context_flags() & mask) | (if flag { 0x1 } else { 0 } << index);
-        self.set_drop_context_flags(flags);
+        let flags = (self.drop_context_flags & mask) | (if flag { 0x1 } else { 0 } << index);
+        self.drop_context_flags = flags;
 
         Ok(())
     }
@@ -51,7 +50,7 @@ impl InputControlContext {
             return None;
         }
 
-        Some(((self.add_context_flags() >> index) & 0x1) != 0)
+        Some(((self.add_context_flags >> index) & 0x1) != 0)
     }
 
     pub fn set_add_context_flag(&mut self, index: usize, flag: bool) -> Result<(), &'static str> {
@@ -60,8 +59,8 @@ impl InputControlContext {
         }
 
         let mask = !(0x1 << index);
-        let flags = (self.add_context_flags() & mask) | (if flag { 0x1 } else { 0 } << index);
-        self.set_add_context_flags(flags);
+        let flags = (self.add_context_flags & mask) | (if flag { 0x1 } else { 0 } << index);
+        self.add_context_flags = flags;
 
         Ok(())
     }

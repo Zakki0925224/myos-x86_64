@@ -55,6 +55,14 @@ impl FrameBufferConsole {
     }
 
     pub fn init_console(&mut self) -> Result<()> {
+        if let Some(layer_id) = self.target_layer_id {
+            let (x_res, y_res) = multi_layer::get_layer_resolution(layer_id)?;
+            self.max_x_res = x_res;
+            self.max_y_res = y_res;
+            self.char_max_x_len = self.max_x_res / self.font.get_width() - 1;
+            self.char_max_y_len = self.max_y_res / self.font.get_height() - 1;
+        }
+
         self.cursor_x = 0;
         self.cursor_y = 2;
 
@@ -140,6 +148,11 @@ impl FrameBufferConsole {
             }
         }
 
+        if self.target_layer_id.is_some() {
+            multi_layer::draw_to_frame_buf()?;
+        }
+        frame_buf::apply_shadow_buf()?;
+
         Ok(())
     }
 
@@ -193,12 +206,10 @@ impl FrameBufferConsole {
         self.draw_rect(
             0,
             self.max_y_res - font_glyph_size_y,
-            self.max_x_res - 1,
-            font_glyph_size_y - 1,
+            self.max_x_res,
+            font_glyph_size_y,
             self.back_color,
         )?;
-
-        //frame_buf::apply_shadow_buf()?;
 
         Ok(())
     }
@@ -206,7 +217,6 @@ impl FrameBufferConsole {
     fn fill(&self, color_code: ColorCode) -> Result<()> {
         if let Some(layer_id) = self.target_layer_id {
             multi_layer::draw_layer(layer_id, |l| l.fill(color_code))?;
-            //multi_layer::draw_to_frame_buf()?;
         } else {
             frame_buf::fill(color_code)?;
         }
@@ -224,7 +234,6 @@ impl FrameBufferConsole {
     ) -> Result<()> {
         if let Some(layer_id) = self.target_layer_id {
             multi_layer::draw_layer(layer_id, |l| l.draw_rect(x, y, width, height, color_code))?;
-            multi_layer::draw_to_frame_buf()?;
         } else {
             frame_buf::draw_rect(x, y, width, height, color_code)?;
         }
@@ -235,7 +244,6 @@ impl FrameBufferConsole {
     fn copy(&self, x: usize, y: usize, to_x: usize, to_y: usize) -> Result<()> {
         if let Some(layer_id) = self.target_layer_id {
             multi_layer::draw_layer(layer_id, |l| l.copy(x, y, to_x, to_y))?;
-            //multi_layer::draw_to_frame_buf()?;
         } else {
             frame_buf::copy(x, y, to_x, to_y)?;
         }

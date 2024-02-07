@@ -18,6 +18,7 @@ mod panic;
 mod serial;
 mod util;
 
+#[macro_use]
 extern crate alloc;
 
 use alloc::{string::String, vec::Vec};
@@ -27,6 +28,7 @@ use common::boot_info::BootInfo;
 use device::console;
 use error::Result;
 use fs::{exec, initramfs};
+use graphics::color::ColorCode;
 use log::error;
 use serial::ComPort;
 use util::{ascii::AsciiCode, logger};
@@ -66,9 +68,9 @@ pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> ! {
     // initialize memory management
     mem::init(boot_info.get_mem_map());
 
-    // initialize graphics layer manager
-    // TODO
-    //graphics::init_layer_man(boot_info.graphic_info, ColorCode::Rgb { r: 0, g: 0, b: 0 });
+    // initialize graphics shadow buffer and layer manager
+    graphics::enable_shadow_buf();
+    graphics::init_layer_man(boot_info.graphic_info, ColorCode::Rgb { r: 0, g: 0, b: 0 });
 
     // initialize syscall configurations
     syscall::init();
