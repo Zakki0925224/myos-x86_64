@@ -37,7 +37,7 @@ pub struct UsbDevice {
     pub is_configured: bool,
 
     slot_id: usize,
-    transfer_ring_bufs: [Option<RingBuffer>; 32],
+    transfer_ring_bufs: [Option<RingBuffer<RING_BUF_LEN>>; 32],
     dev_desc_buf_mem_info: MemoryFrameInfo,
     conf_desc_buf_mem_info: MemoryFrameInfo,
 
@@ -52,22 +52,15 @@ pub struct UsbDevice {
 impl UsbDevice {
     pub fn new(
         slot_id: usize,
-        transfer_ring_mem_info: MemoryFrameInfo,
         max_packet_size: u16,
+        mut dcp_ring_buf: RingBuffer<RING_BUF_LEN>,
     ) -> Result<Self> {
-        let mut dcp_ring_buf = RingBuffer::new(
-            transfer_ring_mem_info,
-            RING_BUF_LEN,
-            RingBufferType::TransferRing,
-            true,
-        )?;
-
-        dcp_ring_buf.init();
+        dcp_ring_buf.set_link_trb()?;
 
         let dev_desc_buf_mem_info = bitmap::alloc_mem_frame(1)?;
         let conf_desc_buf_mem_info = bitmap::alloc_mem_frame(1)?;
 
-        let mut transfer_ring_bufs = [None; 32];
+        let mut transfer_ring_bufs: [Option<RingBuffer<RING_BUF_LEN>>; 32] = Default::default();
         transfer_ring_bufs[1] = Some(dcp_ring_buf);
 
         let dev = Self {
@@ -117,7 +110,7 @@ impl UsbDevice {
                 .conf_desc_buf_mem_info
                 .get_frame_start_virt_addr()
                 .offset(offset);
-            let desc_header = addr.read_volatile::<DescriptorHeader>();
+            let desc_header: DescriptorHeader = addr.read_volatile();
 
             if desc_header.length() == 0 {
                 break;
@@ -238,7 +231,6 @@ impl UsbDevice {
             None => return Err(UsbDeviceError::XhcPortNotFoundError.into()),
         };
 
-        let mut transfer_ring_bufs = self.transfer_ring_bufs;
         let mut configured_endpoint_dci = self.configured_endpoint_dci.clone();
 
         let device_context = xhc::read_device_context(self.slot_id).unwrap();
@@ -247,6 +239,7 @@ impl UsbDevice {
         let mut input_ctrl_context = InputControlContext::new();
         input_ctrl_context.set_add_context_flag(0, true).unwrap();
 
+        let mut ring_buf_buf = Vec::new();
         for endpoint_desc in self.get_endpoint_descs() {
             let endpoint_addr = endpoint_desc.endpoint_addr();
             let dci = endpoint_desc.dci();
@@ -257,24 +250,15 @@ impl UsbDevice {
                 continue;
             }
 
-            let transfer_ring_buf_mem_info = bitmap::alloc_mem_frame(1)?;
-            let mut transfer_ring_buf = RingBuffer::new(
-                transfer_ring_buf_mem_info,
-                RING_BUF_LEN,
-                RingBufferType::TransferRing,
-                true,
-            )?;
-
-            transfer_ring_buf.init();
+            let mut transfer_ring_buf = RingBuffer::new(RingBufferType::TransferRing, true)?;
+            transfer_ring_buf.set_link_trb()?;
 
             endpoint_context.set_endpoint_type(endpoint_type);
             endpoint_context.set_max_packet_size(self.max_packet_size);
             endpoint_context.set_max_endpoint_service_interval_payload_low(self.max_packet_size);
             endpoint_context.set_max_burst_size(0);
             endpoint_context.set_dequeue_cycle_state(true); // initial cycle state of transfer ring buffer
-            endpoint_context.set_tr_dequeue_ptr(
-                transfer_ring_buf_mem_info.get_frame_start_phys_addr().get() >> 1,
-            );
+            endpoint_context.set_tr_dequeue_ptr((transfer_ring_buf.buf_ptr() as u64) >> 1);
             endpoint_context.set_interval(endpoint_desc.interval() - 1);
             endpoint_context.set_max_primary_streams(0);
             endpoint_context.set_mult(0);
@@ -284,14 +268,17 @@ impl UsbDevice {
             input_context.device_context.endpoint_contexts[dci - 1] = endpoint_context;
             input_ctrl_context.set_add_context_flag(dci, true).unwrap();
 
-            transfer_ring_bufs[dci] = Some(transfer_ring_buf);
+            ring_buf_buf.push((dci, transfer_ring_buf));
             configured_endpoint_dci.push(dci);
+        }
+
+        for (dci, ring_buf) in ring_buf_buf {
+            self.transfer_ring_bufs[dci] = Some(ring_buf);
         }
 
         input_context.input_ctrl_context = input_ctrl_context;
         port.write_input_context(input_context);
 
-        self.transfer_ring_bufs = transfer_ring_bufs;
         self.configured_endpoint_dci = configured_endpoint_dci;
 
         let mut config_endpoint_trb = TransferRequestBlock::new();
@@ -317,7 +304,7 @@ impl UsbDevice {
                 trb.set_other_flags(0x12); // IOC, ISP bit
 
                 ring_buf.fill(trb)?;
-                xhc::ring_doorbell(self.slot_id, *endpoint_id as u8).unwrap();
+                xhc::ring_doorbell(self.slot_id, *endpoint_id as u8)?;
             }
         }
 
@@ -354,16 +341,13 @@ impl UsbDevice {
 
     pub fn update(&mut self, endpoint_id: usize, transfer_event_trb: TransferRequestBlock) {
         if let Some(ring_buf) = self.transfer_ring_bufs[endpoint_id].as_mut() {
-            //ring_buf.debug();
+            ring_buf.debug();
 
-            let target_trb_virt_addr =
-                PhysicalAddress::new(transfer_event_trb.param()).get_virt_addr();
-            let target_trb: TransferRequestBlock = target_trb_virt_addr.read_volatile();
-
-            let data: InputData = PhysicalAddress::new(target_trb.param())
-                .get_virt_addr()
-                .read_volatile();
-            //println!("target trb addr: 0x{:x}", target_trb_virt_addr.get());
+            let data_trb_ptr = transfer_event_trb.param() as *const TransferRequestBlock;
+            let data_trb = unsafe { data_trb_ptr.read_volatile() };
+            let data_ptr = data_trb.param() as *const InputData;
+            println!("data_trb: {:p}, data: {:p}", data_trb_ptr, data_ptr);
+            let data = unsafe { data_ptr.read_volatile() };
             println!("{:?}", data);
 
             ring_buf.enqueue().unwrap();

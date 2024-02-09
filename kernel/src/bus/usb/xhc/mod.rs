@@ -59,13 +59,11 @@ pub struct XhcDriver {
     intr_reg_sets_virt_addr: VirtualAddress,
     port_reg_sets_virt_addr: VirtualAddress,
     doorbell_reg_virt_addr: VirtualAddress,
-    cmd_ring_virt_addr: VirtualAddress,
-    primary_event_ring_virt_addr: VirtualAddress,
     device_context_arr_virt_addr: VirtualAddress,
     num_of_ports: usize,
     num_of_slots: usize,
-    primary_event_ring_buf: Option<RingBuffer>,
-    cmd_ring_buf: Option<RingBuffer>,
+    primary_event_ring_buf: Option<RingBuffer<RING_BUF_LEN>>,
+    cmd_ring_buf: Option<RingBuffer<RING_BUF_LEN>>,
 
     ports: Vec<Port>,
 
@@ -102,9 +100,7 @@ impl XhcDriver {
                 intr_reg_sets_virt_addr: VirtualAddress::default(),
                 port_reg_sets_virt_addr: VirtualAddress::default(),
                 doorbell_reg_virt_addr: VirtualAddress::default(),
-                cmd_ring_virt_addr: VirtualAddress::default(),
                 device_context_arr_virt_addr: VirtualAddress::default(),
-                primary_event_ring_virt_addr: VirtualAddress::default(),
                 num_of_ports: 0,
                 num_of_slots: 0,
                 primary_event_ring_buf: None,
@@ -273,22 +269,12 @@ impl XhcDriver {
         // register command ring
         let pcs = true;
 
-        let cmd_ring_mem_info = bitmap::alloc_mem_frame(1)?;
-
-        self.cmd_ring_virt_addr = cmd_ring_mem_info.get_frame_start_virt_addr();
-        self.cmd_ring_buf = match RingBuffer::new(
-            cmd_ring_mem_info,
-            RING_BUF_LEN,
-            RingBufferType::CommandRing,
-            pcs,
-        ) {
-            Ok(ring_buf) => Some(ring_buf),
-            Err(err) => return Err(err),
-        };
-        self.cmd_ring_buf.as_mut().unwrap().init();
+        let mut cmd_ring_buf = RingBuffer::new(RingBufferType::CommandRing, pcs)?;
+        cmd_ring_buf.set_link_trb()?;
+        self.cmd_ring_buf = Some(cmd_ring_buf);
 
         let mut crcr = CommandRingControlRegister::new();
-        crcr.set_cmd_ring_ptr(cmd_ring_mem_info.get_frame_start_phys_addr().get() >> 6);
+        crcr.set_cmd_ring_ptr(self.cmd_ring_buf.as_ref().unwrap().buf_ptr() as u64 >> 6);
         crcr.set_ring_cycle_state(pcs);
         crcr.set_cmd_stop(false);
         crcr.set_cmd_abort(false);
@@ -302,31 +288,16 @@ impl XhcDriver {
         let primary_event_ring_seg_table_virt_addr =
             bitmap::alloc_mem_frame(1)?.get_frame_start_virt_addr();
 
-        let primary_event_ring_mem_info = bitmap::alloc_mem_frame(1)?;
-        self.primary_event_ring_virt_addr = primary_event_ring_mem_info.get_frame_start_virt_addr();
+        // initialized event ring buffer (support only segment table length is 1)
+        let primary_event_ring_buf = RingBuffer::new(RingBufferType::EventRing, pcs)?;
+        self.primary_event_ring_buf = Some(primary_event_ring_buf);
 
         // initialize event ring segment table entry
         let mut seg_table_entry = EventRingSegmentTableEntry::new();
-        seg_table_entry.set_ring_seg_base_addr(
-            self.primary_event_ring_virt_addr
-                .get_phys_addr()
-                .unwrap()
-                .get(),
-        );
+        seg_table_entry
+            .set_ring_seg_base_addr(self.primary_event_ring_buf.as_ref().unwrap().buf_ptr() as u64);
         seg_table_entry.set_ring_seg_size(RING_BUF_LEN as u16);
         primary_event_ring_seg_table_virt_addr.write_volatile(seg_table_entry);
-
-        // initialized event ring buffer (support only segment table length is 1)
-        self.primary_event_ring_buf = match RingBuffer::new(
-            primary_event_ring_mem_info,
-            RING_BUF_LEN,
-            RingBufferType::EventRing,
-            pcs,
-        ) {
-            Ok(ring_buf) => Some(ring_buf),
-            Err(err) => return Err(err),
-        };
-        self.primary_event_ring_buf.as_mut().unwrap().init();
 
         // initialize first interrupter register sets entry
         let mut intr_reg_sets_0 = self.read_intr_reg_sets(0).unwrap();
@@ -340,11 +311,7 @@ impl XhcDriver {
         intr_reg_sets_0.set_event_ring_seg_table_size(1);
         intr_reg_sets_0.set_dequeue_erst_seg_index(0);
         intr_reg_sets_0.set_event_ring_dequeue_ptr(
-            self.primary_event_ring_virt_addr
-                .get_phys_addr()
-                .unwrap()
-                .get()
-                >> 4,
+            self.primary_event_ring_buf.as_ref().unwrap().buf_ptr() as u64 >> 4,
         );
         self.write_intr_reg_sets(0, intr_reg_sets_0).unwrap();
 
@@ -556,13 +523,10 @@ impl XhcDriver {
         endpoint_context_0.set_mult(0);
         endpoint_context_0.set_error_cnt(3);
 
-        let trnasfer_ring_mem_info = bitmap::alloc_mem_frame(1)?;
+        let transfer_ring_buf = RingBuffer::new(RingBufferType::TransferRing, true)?;
 
-        endpoint_context_0
-            .set_tr_dequeue_ptr(trnasfer_ring_mem_info.get_frame_start_phys_addr().get() >> 1);
-
+        endpoint_context_0.set_tr_dequeue_ptr(transfer_ring_buf.buf_ptr() as u64 >> 1);
         input_context.device_context.endpoint_contexts[0] = endpoint_context_0;
-
         input_context_base_virt_addr.write_volatile(input_context);
 
         let mut trb = TransferRequestBlock::new();
@@ -571,10 +535,7 @@ impl XhcDriver {
         trb.set_ctrl_regs((slot_id as u16) << 8);
         self.push_cmd_ring(trb).unwrap();
 
-        match UsbDevice::new(slot_id, trnasfer_ring_mem_info, max_packet_size) {
-            Ok(device) => Ok(device),
-            Err(err) => Err(err),
-        }
+        return UsbDevice::new(slot_id, max_packet_size, transfer_ring_buf);
     }
 
     pub fn on_updated_event_ring(&mut self) {
@@ -886,16 +847,15 @@ impl XhcDriver {
     }
 
     fn pop_primary_event_ring(&mut self) -> Option<TransferRequestBlock> {
-        let intr_reg_sets_0 = self.read_intr_reg_sets(0).unwrap();
+        let mut intr_reg_sets_0 = self.read_intr_reg_sets(0)?;
         match self
             .primary_event_ring_buf
             .as_mut()
             .unwrap()
-            .pop(intr_reg_sets_0)
+            .pop(&mut intr_reg_sets_0)
         {
-            Ok((trb, intr_reg_set)) => {
-                self.write_intr_reg_sets(0, intr_reg_set).unwrap();
-                //info!("xhc: Poped from event ring: {:?}", trb);
+            Ok(trb) => {
+                self.write_intr_reg_sets(0, intr_reg_sets_0).unwrap();
                 Some(trb)
             }
             Err(err) => {

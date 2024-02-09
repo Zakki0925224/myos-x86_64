@@ -1,10 +1,4 @@
-use super::{
-    bitmap,
-    paging::{
-        page_table::{EntryMode, ReadWrite},
-        PAGE_SIZE,
-    },
-};
+use super::{bitmap, paging::PAGE_SIZE};
 use core::alloc::Layout;
 use linked_list_allocator::LockedHeap;
 
@@ -84,10 +78,7 @@ pub fn init_heap() {
         Ok(info) => info,
         Err(_) => panic!("Failed to allocate memory for heap allocator"),
     };
-    if mem_frame_info
-        .set_permissions(ReadWrite::Write, EntryMode::Supervisor)
-        .is_err()
-    {
+    if mem_frame_info.set_permissions_to_supervisor().is_err() {
         panic!("Failed to set permissions to heap memory");
     }
 

@@ -1,17 +1,15 @@
-use alloc::{boxed::Box, vec::Vec};
-use log::{info, warn};
-
-use crate::{
-    arch::asm,
-    error::{Error, Result},
-    util::mutex::{Mutex, MutexError},
-};
-
 use self::{
     descriptor::{Descriptor, DescriptorType},
     device::*,
     xhc::context::endpoint::EndpointType,
 };
+use crate::{
+    arch::asm,
+    error::{Error, Result},
+    util::mutex::{Mutex, MutexError},
+};
+use alloc::{boxed::Box, vec::Vec};
+use log::{info, warn};
 
 pub mod descriptor;
 pub mod device;
@@ -208,7 +206,6 @@ impl UsbDriver {
             if result.is_err() {
                 return result;
             }
-
             asm::disabled_int_func(|| {
                 if let Err(err) = device.configure_endpoint_transfer_ring() {
                     result = Err(UsbDriverError::UsbDeviceError {
