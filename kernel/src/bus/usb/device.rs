@@ -22,7 +22,7 @@ use crate::{
 use alloc::vec::Vec;
 use core::mem::size_of;
 
-const RING_BUF_LEN: usize = 8;
+const RING_BUF_LEN: usize = 16;
 const DEFAULT_CONTROL_PIPE_ID: u8 = 1;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -341,13 +341,13 @@ impl UsbDevice {
 
     pub fn update(&mut self, endpoint_id: usize, transfer_event_trb: TransferRequestBlock) {
         if let Some(ring_buf) = self.transfer_ring_bufs[endpoint_id].as_mut() {
-            ring_buf.debug();
+            //ring_buf.debug();
 
             let data_trb_ptr = transfer_event_trb.param() as *const TransferRequestBlock;
-            let data_trb = unsafe { data_trb_ptr.read_volatile() };
+            let data_trb = unsafe { data_trb_ptr.read() };
             let data_ptr = data_trb.param() as *const InputData;
-            println!("data_trb: {:p}, data: {:p}", data_trb_ptr, data_ptr);
-            let data = unsafe { data_ptr.read_volatile() };
+            //println!("data_trb: {:p}, data: {:p}", data_trb_ptr, data_ptr);
+            let data = unsafe { data_ptr.read() };
             println!("{:?}", data);
 
             ring_buf.enqueue().unwrap();

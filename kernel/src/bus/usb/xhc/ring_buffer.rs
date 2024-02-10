@@ -19,7 +19,7 @@ pub enum RingBufferType {
 }
 
 #[derive(Debug, Clone)]
-#[repr(C, align(64))]
+#[repr(C, align(4096))]
 struct RingBufferInner<const N: usize>(pub [TransferRequestBlock; N]);
 
 #[derive(Debug, Clone)]
