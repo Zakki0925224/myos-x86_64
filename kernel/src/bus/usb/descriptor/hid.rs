@@ -1,13 +1,10 @@
-use modular_bitfield::{bitfield, specifiers::*};
+use super::DescriptorHeader;
 
-use super::*;
-
-#[bitfield]
-#[derive(Debug, Clone)]
-#[repr(C)]
+#[derive(Debug, Clone, Copy)]
+#[repr(packed)]
 pub struct HumanInterfaceDeviceDescriptor {
     pub header: DescriptorHeader,
-    pub bcd_hid_version: B16,
-    pub country_code: B8,
-    pub num_descs: B8,
+    pub bcd_hid_version: u16,
+    pub country_code: u8,
+    pub num_descs: u8,
 }

@@ -72,7 +72,7 @@ impl UsbDevice {
             max_packet_size,
             configured_endpoint_dci: Vec::new(),
             current_conf_index: 0,
-            dev_desc: DeviceDescriptor::new(),
+            dev_desc: DeviceDescriptor::default(),
             conf_descs: Vec::new(),
         };
 
@@ -101,7 +101,7 @@ impl UsbDevice {
             .read_volatile();
 
         let mut descs = Vec::new();
-        let mut offset = conf_desc.header().length() as usize;
+        let mut offset = conf_desc.header.length as usize;
 
         descs.push(Descriptor::Configuration(conf_desc));
 
@@ -112,20 +112,20 @@ impl UsbDevice {
                 .offset(offset);
             let desc_header: DescriptorHeader = addr.read_volatile();
 
-            if desc_header.length() == 0 {
+            if desc_header.length == 0 {
                 break;
             }
 
-            offset += desc_header.length() as usize;
+            offset += desc_header.length as usize;
 
-            let desc = match desc_header.ty() {
+            let desc = match desc_header.ty {
                 DescriptorType::Device => Descriptor::Device(addr.read_volatile()),
                 DescriptorType::Configration => Descriptor::Configuration(addr.read_volatile()),
                 DescriptorType::Endpoint => Descriptor::Endpoint(addr.read_volatile()),
                 DescriptorType::Interface => Descriptor::Interface(addr.read_volatile()),
                 DescriptorType::HumanInterfaceDevice => {
                     let hid_desc: HumanInterfaceDeviceDescriptor = addr.read_volatile();
-                    let num_descs = hid_desc.num_descs() as usize;
+                    let num_descs = hid_desc.num_descs as usize;
                     let mut class_desc_headers = Vec::new();
 
                     for i in 0..num_descs {
@@ -135,9 +135,8 @@ impl UsbDevice {
 
                     Descriptor::HumanInterfaceDevice(hid_desc, class_desc_headers)
                 }
-                other => Descriptor::Unsupported(other),
+                other => Descriptor::Unsupported((other, addr.read_volatile())),
             };
-
             descs.push(desc);
         }
 
@@ -200,7 +199,7 @@ impl UsbDevice {
     }
 
     pub fn get_num_confs(&self) -> usize {
-        self.get_dev_desc().num_configs() as usize
+        self.get_dev_desc().num_configs as usize
     }
 
     pub fn get_interface_descs(&self) -> Vec<&InterfaceDescriptor> {
@@ -241,11 +240,11 @@ impl UsbDevice {
 
         let mut ring_buf_buf = Vec::new();
         for endpoint_desc in self.get_endpoint_descs() {
-            let endpoint_addr = endpoint_desc.endpoint_addr();
+            let endpoint_addr = endpoint_desc.endpoint_addr;
             let dci = endpoint_desc.dci();
 
             let mut endpoint_context = EndpointContext::new();
-            let desc_endpoint_type = EndpointType::new(endpoint_addr, endpoint_desc.bitmap_attrs());
+            let desc_endpoint_type = EndpointType::new(endpoint_addr, endpoint_desc.bitmap_attrs);
             if desc_endpoint_type != endpoint_type {
                 continue;
             }
@@ -259,7 +258,7 @@ impl UsbDevice {
             endpoint_context.set_max_burst_size(0);
             endpoint_context.set_dequeue_cycle_state(true); // initial cycle state of transfer ring buffer
             endpoint_context.set_tr_dequeue_ptr((transfer_ring_buf.buf_ptr() as u64) >> 1);
-            endpoint_context.set_interval(endpoint_desc.interval() - 1);
+            endpoint_context.set_interval(endpoint_desc.interval - 1);
             endpoint_context.set_max_primary_streams(0);
             endpoint_context.set_mult(0);
             endpoint_context.set_error_cnt(3);
@@ -315,8 +314,8 @@ impl UsbDevice {
             RequestType::Standard,
             RequestTypeRecipient::Interface,
             SetupRequest::SetInterface,
-            interface_desc.alternate_setting() as u16,
-            interface_desc.interface_num() as u16,
+            interface_desc.alternate_setting as u16,
+            interface_desc.interface_num as u16,
             0,
             None,
         )
@@ -332,7 +331,7 @@ impl UsbDevice {
             RequestTypeRecipient::Interface,
             SetupRequest::SET_PROTOCOL,
             protocol as u16,
-            interface_desc.interface_num() as u16,
+            interface_desc.interface_num as u16,
             0,
             None,
         )

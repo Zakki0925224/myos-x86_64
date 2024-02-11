@@ -1,10 +1,8 @@
-use alloc::vec::Vec;
-use modular_bitfield::{bitfield, specifiers::*, BitfieldSpecifier};
-
 use self::{
     config::ConfigurationDescriptor, device::DeviceDescriptor, endpoint::EndpointDescriptor,
     hid::HumanInterfaceDeviceDescriptor, interface::InterfaceDescriptor,
 };
+use alloc::vec::Vec;
 
 pub mod config;
 pub mod device;
@@ -19,11 +17,12 @@ pub enum Descriptor {
     Endpoint(EndpointDescriptor),
     Interface(InterfaceDescriptor),
     HumanInterfaceDevice(HumanInterfaceDeviceDescriptor, Vec<DescriptorHeader>),
-    Unsupported(DescriptorType),
+    Unsupported((DescriptorType, DescriptorHeader)),
 }
 
-#[derive(BitfieldSpecifier, Debug, Clone, Copy)]
-#[bits = 8]
+#[derive(Debug, Clone, Copy)]
+#[allow(unused)]
+#[repr(u8)]
 pub enum DescriptorType {
     Device = 0x1,
     Configration = 0x2,
@@ -49,10 +48,21 @@ pub enum DescriptorType {
     UsbHub = 0x29,
 }
 
-#[bitfield]
-#[derive(BitfieldSpecifier, Debug, Clone)]
-#[repr(C)]
+impl Default for DescriptorType {
+    fn default() -> Self {
+        Self::Device
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+#[repr(packed)]
 pub struct DescriptorHeader {
-    pub length: B8, // bytes
+    pub length: u8,
     pub ty: DescriptorType,
 }
+
+// impl DescriptorHeader {
+//     pub fn ty(&self) -> DescriptorType {
+//         DescriptorType::from(self.ty)
+//     }
+// }

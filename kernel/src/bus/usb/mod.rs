@@ -6,6 +6,7 @@ use self::{
 use crate::{
     arch::asm,
     error::{Error, Result},
+    println,
     util::mutex::{Mutex, MutexError},
 };
 use alloc::{boxed::Box, vec::Vec};
@@ -134,7 +135,7 @@ impl UsbDriver {
             let boot_interface = match device
                 .get_interface_descs()
                 .iter()
-                .find(|d| d.class() == 3 && d.sub_class() == 1 && d.protocol() == 1)
+                .find(|d| d.class == 3 && d.sub_class == 1 && d.protocol == 1)
             {
                 Some(d) => **d,
                 None => {
@@ -166,7 +167,7 @@ impl UsbDriver {
             }
 
             asm::disabled_int_func(|| {
-                if let Err(err) = device.request_to_set_conf(conf_desc.conf_value()) {
+                if let Err(err) = device.request_to_set_conf(conf_desc.conf_value) {
                     result = Err(UsbDriverError::UsbDeviceError {
                         slot_id,
                         err: Box::new(err),
