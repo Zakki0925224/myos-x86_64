@@ -281,15 +281,14 @@ impl UsbDevice {
 
         self.configured_endpoint_dci = configured_endpoint_dci;
 
-        let mut config_endpoint_trb = TransferRequestBlock::new();
+        let mut config_endpoint_trb = TransferRequestBlock::default();
         config_endpoint_trb.set_trb_type(TransferRequestBlockType::ConfigureEndpointCommnad);
-        config_endpoint_trb.set_ctrl_regs((self.slot_id as u16) << 8);
-        config_endpoint_trb.set_param(
-            port.input_context_base_virt_addr
-                .get_phys_addr()
-                .unwrap()
-                .get(),
-        );
+        config_endpoint_trb.ctrl_regs = (self.slot_id as u16) << 8;
+        config_endpoint_trb.param = port
+            .input_context_base_virt_addr
+            .get_phys_addr()
+            .unwrap()
+            .get();
 
         xhc::push_cmd_ring(config_endpoint_trb)
     }
@@ -297,13 +296,13 @@ impl UsbDevice {
     pub fn configure_endpoint_transfer_ring(&mut self) -> Result<()> {
         for endpoint_id in &self.configured_endpoint_dci {
             if let Some(ring_buf) = self.transfer_ring_bufs[*endpoint_id].as_mut() {
-                let mut trb = TransferRequestBlock::new();
+                let mut trb = TransferRequestBlock::default();
                 trb.set_trb_type(TransferRequestBlockType::Normal);
-                trb.set_param(0);
-                trb.set_status(8); // TRB Transfer Length
+                trb.param = 0;
+                trb.status = 8; // TRB Transfer Length
                 trb.set_other_flags(0x12); // IOC, ISP bit
 
-                ring_buf.fill(trb)?;
+                ring_buf.fill_and_alloc_buf(trb)?;
                 xhc::ring_doorbell(self.slot_id, *endpoint_id as u8)?;
             }
         }
@@ -343,9 +342,9 @@ impl UsbDevice {
         if let Some(ring_buf) = self.transfer_ring_bufs[endpoint_id].as_mut() {
             //ring_buf.debug();
 
-            let data_trb_ptr = transfer_event_trb.param() as *const TransferRequestBlock;
+            let data_trb_ptr = transfer_event_trb.param as *const TransferRequestBlock;
             let data_trb = unsafe { data_trb_ptr.read() };
-            let data_ptr = data_trb.param() as *const InputData;
+            let data_ptr = data_trb.param as *const InputData;
             //println!("data_trb: {:p}, data: {:p}", data_trb_ptr, data_ptr);
             let data = unsafe { data_ptr.read() };
             println!("{:?}", data);
@@ -368,10 +367,10 @@ impl UsbDevice {
             return Err(UsbDeviceError::InvalidRequestError.into());
         }
 
-        let mut setup_stage_trb = TransferRequestBlock::new();
+        let mut setup_stage_trb = TransferRequestBlock::default();
         setup_stage_trb.set_trb_type(TransferRequestBlockType::SetupStage);
 
-        let mut setup_req_type = SetupRequestType::new();
+        let mut setup_req_type = SetupRequestType::default();
         setup_req_type.set_direction(RequestTypeDirection::Out);
         setup_req_type.set_ty(req_type);
         setup_req_type.set_recipient(req_type_recipient);
@@ -381,18 +380,18 @@ impl UsbDevice {
         setup_stage_trb.set_setup_index(setup_index);
         setup_stage_trb.set_setup_value(setup_value);
         setup_stage_trb.set_setup_length(setup_length);
-        setup_stage_trb.set_status(8); // TRB transfer length
+        setup_stage_trb.status = 8; // TRB transfer length
         setup_stage_trb.set_other_flags(1 << 5); // IDT bit
 
         let data_stage_trb = match data {
             Some((buf_phys_addr, buf_size)) => {
                 setup_stage_trb.set_transfer_type(TransferType::OutDataStage);
-                let mut trb = TransferRequestBlock::new();
+                let mut trb = TransferRequestBlock::default();
                 trb.set_trb_type(TransferRequestBlockType::DataStage);
-                trb.set_param(buf_phys_addr.get());
-                trb.set_status(buf_size);
+                trb.param = buf_phys_addr.get();
+                trb.status = buf_size;
                 trb.set_other_flags(1 << 4); // IOC bit
-                trb.set_ctrl_regs(0); // DIR bit
+                trb.ctrl_regs = 0; // DIR bit
                 Some(trb)
             }
             None => {
@@ -402,9 +401,9 @@ impl UsbDevice {
             }
         };
 
-        let mut status_stage_trb = TransferRequestBlock::new();
+        let mut status_stage_trb = TransferRequestBlock::default();
         status_stage_trb.set_trb_type(TransferRequestBlockType::StatusStage);
-        status_stage_trb.set_ctrl_regs(1); // DIR bit
+        status_stage_trb.ctrl_regs = 1; // DIR bit
 
         self.send_to_dcp_transfer_ring(setup_stage_trb, data_stage_trb, Some(status_stage_trb))
     }
@@ -423,10 +422,10 @@ impl UsbDevice {
             return Err(UsbDeviceError::InvalidRequestError.into());
         }
 
-        let mut setup_stage_trb = TransferRequestBlock::new();
+        let mut setup_stage_trb = TransferRequestBlock::default();
         setup_stage_trb.set_trb_type(TransferRequestBlockType::SetupStage);
 
-        let mut setup_req_type = SetupRequestType::new();
+        let mut setup_req_type = SetupRequestType::default();
         setup_req_type.set_direction(RequestTypeDirection::In);
         setup_req_type.set_ty(req_type);
         setup_req_type.set_recipient(req_type_recipient);
@@ -436,18 +435,18 @@ impl UsbDevice {
         setup_stage_trb.set_setup_index(setup_index);
         setup_stage_trb.set_setup_value(setup_value);
         setup_stage_trb.set_setup_length(setup_length);
-        setup_stage_trb.set_status(8); // TRB transfer length
+        setup_stage_trb.status = 8; // TRB transfer length
         setup_stage_trb.set_other_flags(1 << 5); // IDT bit
 
         let data_stage_trb = match data {
             Some((buf_phys_addr, buf_size)) => {
                 setup_stage_trb.set_transfer_type(TransferType::InDataStage);
-                let mut trb = TransferRequestBlock::new();
+                let mut trb = TransferRequestBlock::default();
                 trb.set_trb_type(TransferRequestBlockType::DataStage);
-                trb.set_param(buf_phys_addr.get());
-                trb.set_status(buf_size);
+                trb.param = buf_phys_addr.get();
+                trb.status = buf_size;
                 trb.set_other_flags(1 << 4); // IOC bit
-                trb.set_ctrl_regs(1); // DIR bit
+                trb.ctrl_regs = 1; // DIR bit
                 Some(trb)
             }
             None => {
@@ -457,7 +456,7 @@ impl UsbDevice {
             }
         };
 
-        let mut status_stage_trb = TransferRequestBlock::new();
+        let mut status_stage_trb = TransferRequestBlock::default();
         status_stage_trb.set_trb_type(TransferRequestBlockType::StatusStage);
 
         let ctrl_regs = match data_stage_trb {
@@ -465,7 +464,7 @@ impl UsbDevice {
             None => 1,
         };
 
-        status_stage_trb.set_ctrl_regs(ctrl_regs); // DIR bit
+        status_stage_trb.ctrl_regs = ctrl_regs; // DIR bit
 
         self.send_to_dcp_transfer_ring(setup_stage_trb, data_stage_trb, Some(status_stage_trb))
     }

@@ -37,7 +37,7 @@ impl<const N: usize> RingBuffer<N> {
         }
 
         Ok(Self {
-            buf: Box::new(RingBufferInner([TransferRequestBlock::new(); N])),
+            buf: Box::new(RingBufferInner([TransferRequestBlock::default(); N])),
             buf_type,
             cycle_state: cycle_state_bit,
             enqueue_index: 0,
@@ -53,9 +53,9 @@ impl<const N: usize> RingBuffer<N> {
             return Err(RingBufferError::UnsupportedRingBufferTypeError(self.buf_type).into());
         }
 
-        let mut trb = TransferRequestBlock::new();
+        let mut trb = TransferRequestBlock::default();
         trb.set_trb_type(TransferRequestBlockType::Link);
-        trb.set_param(self.buf_ptr() as u64);
+        trb.param = self.buf_ptr() as u64;
 
         let buf_len = self.buf_len();
         self.buf_mut()[buf_len - 1] = trb;
@@ -144,7 +144,7 @@ impl<const N: usize> RingBuffer<N> {
         Ok(trb)
     }
 
-    pub fn fill(&mut self, mut fill_trb: TransferRequestBlock) -> Result<()> {
+    pub fn fill_and_alloc_buf(&mut self, mut fill_trb: TransferRequestBlock) -> Result<()> {
         if self.buf_type != RingBufferType::TransferRing {
             return Err(RingBufferError::UnsupportedRingBufferTypeError(self.buf_type).into());
         }
@@ -155,7 +155,7 @@ impl<const N: usize> RingBuffer<N> {
 
         for i in 0..self.buf_len() - 1 {
             let data_buf_mem_frame_info = bitmap::alloc_mem_frame(1)?;
-            fill_trb.set_param(data_buf_mem_frame_info.get_frame_start_phys_addr().get());
+            fill_trb.param = data_buf_mem_frame_info.get_frame_start_phys_addr().get();
             fill_trb.set_cycle_bit(if i < self.buf_len() - 3 {
                 self.cycle_state
             } else {
@@ -179,12 +179,7 @@ impl<const N: usize> RingBuffer<N> {
         );
         for i in 0..self.buf_len() {
             let trb = self.buf_mut()[i];
-            println!(
-                "{}: param: 0x{:x} cb: {:?}",
-                i,
-                trb.param(),
-                trb.cycle_bit()
-            );
+            println!("{}: param: 0x{:x} cb: {:?}", i, trb.param, trb.cycle_bit());
         }
     }
 

@@ -529,10 +529,10 @@ impl XhcDriver {
         input_context.device_context.endpoint_contexts[0] = endpoint_context_0;
         input_context_base_virt_addr.write_volatile(input_context);
 
-        let mut trb = TransferRequestBlock::new();
+        let mut trb = TransferRequestBlock::default();
         trb.set_trb_type(TransferRequestBlockType::AddressDeviceCommand);
-        trb.set_param(input_context_base_virt_addr.get_phys_addr().unwrap().get());
-        trb.set_ctrl_regs((slot_id as u16) << 8);
+        trb.param = input_context_base_virt_addr.get_phys_addr().unwrap().get();
+        trb.ctrl_regs = (slot_id as u16) << 8;
         self.push_cmd_ring(trb).unwrap();
 
         return UsbDevice::new(slot_id, max_packet_size, transfer_ring_buf);
@@ -556,7 +556,7 @@ impl XhcDriver {
                 if let Some(port_id) = self.configuring_port_id {
                     match self.read_port(port_id).unwrap().config_state {
                         ConfigState::Reset => {
-                            let mut trb = TransferRequestBlock::new();
+                            let mut trb = TransferRequestBlock::default();
                             trb.set_trb_type(TransferRequestBlockType::EnableSlotCommand);
                             self.push_cmd_ring(trb).unwrap();
                         }

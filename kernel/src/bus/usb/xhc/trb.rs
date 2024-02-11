@@ -1,11 +1,7 @@
-use core::mem::transmute;
-
-use modular_bitfield::{bitfield, specifiers::*, BitfieldSpecifier};
-
 use crate::bus::usb::setup_trb::*;
 
-#[derive(BitfieldSpecifier, Debug, Clone, Copy, Eq, PartialEq)]
-#[bits = 6]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[repr(u8)]
 pub enum TransferRequestBlockType {
     Invalid = 0,
     Normal = 1,
@@ -44,8 +40,49 @@ pub enum TransferRequestBlockType {
     Reserved,
 }
 
-#[derive(BitfieldSpecifier, Debug, Clone, Copy, Eq, PartialEq)]
-#[bits = 8]
+impl From<u8> for TransferRequestBlockType {
+    fn from(value: u8) -> Self {
+        match value {
+            0 => Self::Invalid,
+            1 => Self::Normal,
+            2 => Self::SetupStage,
+            3 => Self::DataStage,
+            4 => Self::StatusStage,
+            5 => Self::Isoch,
+            6 => Self::Link,
+            7 => Self::EventData,
+            8 => Self::NoOp,
+            9 => Self::EnableSlotCommand,
+            10 => Self::DisableSlotCommand,
+            11 => Self::AddressDeviceCommand,
+            12 => Self::ConfigureEndpointCommnad,
+            13 => Self::EvaluateContextCommand,
+            14 => Self::ResetEndpointCommand,
+            15 => Self::StopEndpointCommand,
+            16 => Self::SetTrDequeuePointerCommand,
+            17 => Self::ResetDeviceCommand,
+            18 => Self::ForceEventCommand,
+            19 => Self::NegotiateBandwidthCommand,
+            20 => Self::SetLatencyToleranceValueCommand,
+            21 => Self::GetPortBandWithCommand,
+            22 => Self::ForceHeaderCommand,
+            23 => Self::NoOpCommand,
+            24 => Self::GetExtendedPropertyCommand,
+            25 => Self::SetExtendedPropertyCommand,
+            32 => Self::TransferEvent,
+            33 => Self::CommandCompletionEvent,
+            34 => Self::PortStatusChangeEvent,
+            35 => Self::BandwithRequestEvent,
+            36 => Self::DoorbellEvent,
+            37 => Self::HostControllerEvent,
+            38 => Self::DeviceNotificationEvent,
+            39 => Self::MfIndexWrapEvent,
+            _ => Self::Reserved,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum CompletionCode {
     Invalid = 0,
     Success = 1,
@@ -86,16 +123,57 @@ pub enum CompletionCode {
     Reserved,
 }
 
-#[bitfield]
-#[derive(Debug, Clone, Copy)]
+impl From<u8> for CompletionCode {
+    fn from(value: u8) -> Self {
+        match value {
+            0 => Self::Invalid,
+            1 => Self::Success,
+            2 => Self::DataBufferError,
+            3 => Self::BabbleDetectedError,
+            4 => Self::UsbTransactionError,
+            5 => Self::TrbError,
+            6 => Self::StallError,
+            7 => Self::ResourceError,
+            8 => Self::BandwidthError,
+            9 => Self::NoSlotsAvailableError,
+            10 => Self::InvalidStreamTypeError,
+            11 => Self::SlotNotEnabledError,
+            12 => Self::EndpointNotEnabledError,
+            13 => Self::ShortPacket,
+            14 => Self::RingUnderrun,
+            15 => Self::RingOverrun,
+            16 => Self::VfEventRingFullError,
+            17 => Self::ParameterError,
+            18 => Self::BandwithOverrunError,
+            19 => Self::ContextStateError,
+            20 => Self::NoPingResponseError,
+            21 => Self::EventRingFullError,
+            22 => Self::IncompatibleDeviceError,
+            23 => Self::MissedServiceError,
+            24 => Self::CommandRingStopped,
+            25 => Self::CommandAbortred,
+            26 => Self::Stopped,
+            27 => Self::StuppedBecauseLengthInvalid,
+            28 => Self::StoppedBecauseShortPacket,
+            29 => Self::MaxExitLatencyTooLargeError,
+            31 => Self::IsochBufferOverrun,
+            32 => Self::EventLostError,
+            33 => Self::UndefinedError,
+            34 => Self::InvalidStreamIdError,
+            35 => Self::SecondaryBandwithError,
+            36 => Self::SplitTransactionError,
+            _ => Self::Reserved,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default)]
 #[repr(C)]
 pub struct TransferRequestBlock {
-    pub param: B64,
-    pub status: B32,
-    pub cycle_bit: bool,
-    pub other_flags: B9,
-    pub trb_type: TransferRequestBlockType,
-    pub ctrl_regs: B16,
+    pub param: u64,
+    pub status: u32,
+    flags: u16,
+    pub ctrl_regs: u16,
 }
 
 impl TransferRequestBlock {
@@ -122,7 +200,7 @@ impl TransferRequestBlock {
 
     // Command Completion Event TRB
     pub fn slot_id(&self) -> Option<usize> {
-        let slot_id = (self.ctrl_regs() >> 8) as usize;
+        let slot_id = (self.ctrl_regs >> 8) as usize;
 
         if self.trb_type() != TransferRequestBlockType::CommandCompletionEvent
             && self.trb_type() != TransferRequestBlockType::TransferEvent
@@ -143,7 +221,7 @@ impl TransferRequestBlock {
             return None;
         }
 
-        Some((self.param() >> 24) as usize)
+        Some((self.param >> 24) as usize)
     }
 
     // Setup Stage TRB
@@ -152,9 +230,8 @@ impl TransferRequestBlock {
             return;
         }
 
-        let ctrl_regs =
-            (self.ctrl_regs() & !0x3) | unsafe { transmute::<TransferType, u8>(new_val) } as u16;
-        self.set_ctrl_regs(ctrl_regs);
+        let ctrl_regs = (self.ctrl_regs & !0x3) | new_val as u8 as u16;
+        self.ctrl_regs = ctrl_regs;
     }
 
     pub fn transfer_type(&self) -> Option<TransferType> {
@@ -162,7 +239,7 @@ impl TransferRequestBlock {
             return None;
         }
 
-        Some(unsafe { transmute::<u8, TransferType>((self.ctrl_regs() & 0x3) as u8) })
+        Some(TransferType::from((self.ctrl_regs & 0x3) as u8))
     }
 
     pub fn set_setup_request_type(&mut self, new_val: SetupRequestType) {
@@ -170,9 +247,8 @@ impl TransferRequestBlock {
             return;
         }
 
-        let param =
-            (self.param() & !0xff) | unsafe { transmute::<SetupRequestType, u8>(new_val) } as u64;
-        self.set_param(param);
+        let param = (self.param & !0xff) | new_val.raw() as u64;
+        self.param = param;
     }
 
     pub fn setup_request_type(&self) -> Option<SetupRequestType> {
@@ -180,7 +256,7 @@ impl TransferRequestBlock {
             return None;
         }
 
-        Some(unsafe { transmute::<u8, SetupRequestType>(self.param() as u8) })
+        Some(SetupRequestType::from(self.param as u8))
     }
 
     pub fn set_setup_request(&mut self, new_val: SetupRequest) {
@@ -188,8 +264,8 @@ impl TransferRequestBlock {
             return;
         }
 
-        let param = (self.param() & !0xff00) | ((new_val as u64) << 8);
-        self.set_param(param);
+        let param = (self.param & !0xff00) | ((new_val as u64) << 8);
+        self.param = param;
     }
 
     pub fn setup_request(&self) -> Option<SetupRequest> {
@@ -197,7 +273,7 @@ impl TransferRequestBlock {
             return None;
         }
 
-        Some(unsafe { transmute::<u8, SetupRequest>((self.param() >> 8) as u8) })
+        Some(SetupRequest::from((self.param >> 8) as u8))
     }
 
     pub fn set_setup_value(&mut self, new_val: u16) {
@@ -205,8 +281,8 @@ impl TransferRequestBlock {
             return;
         }
 
-        let param = (self.param() & !0xffff0000) | ((new_val as u64) << 16);
-        self.set_param(param);
+        let param = (self.param & !0xffff0000) | ((new_val as u64) << 16);
+        self.param = param;
     }
 
     pub fn setup_value(&self) -> Option<u16> {
@@ -214,7 +290,7 @@ impl TransferRequestBlock {
             return None;
         }
 
-        Some((self.param() >> 16) as u16)
+        Some((self.param >> 16) as u16)
     }
 
     pub fn set_setup_index(&mut self, new_val: u16) {
@@ -222,8 +298,8 @@ impl TransferRequestBlock {
             return;
         }
 
-        let param = (self.param() & !0xffff00000000) | ((new_val as u64) << 32);
-        self.set_param(param);
+        let param = (self.param & !0xffff00000000) | ((new_val as u64) << 32);
+        self.param = param;
     }
 
     pub fn setup_index(&self) -> Option<u16> {
@@ -231,7 +307,7 @@ impl TransferRequestBlock {
             return None;
         }
 
-        Some((self.param() >> 32) as u16)
+        Some((self.param >> 32) as u16)
     }
 
     pub fn set_setup_length(&mut self, new_val: u16) {
@@ -239,8 +315,8 @@ impl TransferRequestBlock {
             return;
         }
 
-        let param = (self.param() & !0xffff000000000000) | ((new_val as u64) << 48);
-        self.set_param(param);
+        let param = (self.param & !0xffff000000000000) | ((new_val as u64) << 48);
+        self.param = param;
     }
 
     pub fn setup_length(&self) -> Option<u16> {
@@ -248,7 +324,7 @@ impl TransferRequestBlock {
             return None;
         }
 
-        Some((self.param() >> 48) as u16)
+        Some((self.param >> 48) as u16)
     }
 
     pub fn completion_code(&self) -> Option<CompletionCode> {
@@ -264,7 +340,7 @@ impl TransferRequestBlock {
             _ => return None,
         }
 
-        Some(unsafe { transmute::<u8, CompletionCode>((self.status() >> 24) as u8) })
+        Some(CompletionCode::from((self.status >> 24) as u8))
     }
 
     // transfer event TRB
@@ -273,7 +349,7 @@ impl TransferRequestBlock {
             return None;
         }
 
-        Some((self.status() & 0xfff) as usize)
+        Some((self.status & 0xfff) as usize)
     }
 
     pub fn endpoint_id(&self) -> Option<usize> {
@@ -281,6 +357,34 @@ impl TransferRequestBlock {
             return None;
         }
 
-        Some((self.ctrl_regs() & 0x1f) as usize)
+        Some((self.ctrl_regs & 0x1f) as usize)
+    }
+
+    pub fn cycle_bit(&self) -> bool {
+        (self.flags & 0x1) != 0
+    }
+
+    pub fn set_cycle_bit(&mut self, value: bool) {
+        let value = if value { 0x1 } else { 0x0 };
+        self.flags = (self.flags & !0x1) | value;
+    }
+
+    pub fn trb_type(&self) -> TransferRequestBlockType {
+        let value = ((self.flags >> 10) as u8) & 0x3f;
+        TransferRequestBlockType::from(value)
+    }
+
+    pub fn set_trb_type(&mut self, value: TransferRequestBlockType) {
+        let value = value as u8;
+        self.flags = (self.flags & !0xfc00) | ((value as u16) << 10);
+    }
+
+    pub fn other_flags(&self) -> u16 {
+        (self.flags >> 1) & 0x1ff
+    }
+
+    pub fn set_other_flags(&mut self, value: u16) {
+        let value = value & 0x1ff;
+        self.flags = (self.flags & !0x3fe) | (value << 1);
     }
 }

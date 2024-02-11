@@ -26,10 +26,6 @@ impl<T: Sized + Copy, const SIZE: usize> Fifo<T, SIZE> {
         }
     }
 
-    pub fn size(&self) -> usize {
-        self.size
-    }
-
     pub fn len(&self) -> usize {
         self.write_ptr.load(Ordering::Relaxed)
     }
