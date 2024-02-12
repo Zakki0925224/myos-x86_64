@@ -1,17 +1,8 @@
 use super::{endpoint::EndpointContext, slot::SlotContext};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 #[repr(C)]
 pub struct DeviceContext {
     pub slot_context: SlotContext,
     pub endpoint_contexts: [EndpointContext; 31],
-}
-
-impl DeviceContext {
-    pub fn new() -> Self {
-        Self {
-            slot_context: SlotContext::new(),
-            endpoint_contexts: [EndpointContext::new(); 31],
-        }
-    }
 }

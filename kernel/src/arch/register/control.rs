@@ -32,8 +32,7 @@ impl Register<u64> for Cr0 {
 
 impl Cr0 {
     pub fn set_paging(&mut self, value: bool) {
-        let value = if value { 0x1 } else { 0x0 };
-        self.0 = (self.0 & !0x8000_0000) | (value << 31);
+        self.0 = (self.0 & !0x8000_0000) | ((value as u64) << 31);
     }
 }
 

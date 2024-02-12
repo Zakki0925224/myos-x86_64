@@ -76,7 +76,6 @@ impl SegmentDescriptor {
     }
 
     fn set_is_not_sys_seg(&mut self, value: bool) {
-        let value = if value { 0x1 } else { 0x0 };
         self.0 = (self.0 & !0x1000_0000_0000) | ((value as u64) << 44);
     }
 
@@ -86,27 +85,22 @@ impl SegmentDescriptor {
     }
 
     fn set_p(&mut self, value: bool) {
-        let value = if value { 0x1 } else { 0x0 };
         self.0 = (self.0 & !0x8000_0000_0000) | ((value as u64) << 47);
     }
 
     fn set_available(&mut self, value: bool) {
-        let value = if value { 0x1 } else { 0x0 };
         self.0 = (self.0 & !0x0010_0000_0000_0000) | ((value as u64) << 52);
     }
 
     fn set_is_long_mode(&mut self, value: bool) {
-        let value = if value { 0x1 } else { 0x0 };
         self.0 = (self.0 & !0x0020_0000_0000_0000) | ((value as u64) << 53);
     }
 
     fn set_default_op_size(&mut self, value: bool) {
-        let value = if value { 0x1 } else { 0x0 };
         self.0 = (self.0 & !0x0040_0000_0000_0000) | ((value as u64) << 54);
     }
 
     fn set_granularity(&mut self, value: bool) {
-        let value = if value { 0x1 } else { 0x0 };
         self.0 = (self.0 & !0x0040_0000_0000_0000) | ((value as u64) << 55);
     }
 }

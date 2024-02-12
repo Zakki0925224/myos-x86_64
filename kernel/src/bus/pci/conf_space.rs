@@ -1,10 +1,7 @@
-use core::mem::transmute;
-
-use alloc::vec::Vec;
-use modular_bitfield::{bitfield, specifiers::*, BitfieldSpecifier};
-use pci_ids::*;
-
 use crate::arch::{addr::*, register::msi::*};
+use alloc::vec::Vec;
+use core::mem::transmute;
+use pci_ids::*;
 
 const PCI_PORT_CONF_REG_ADDR: PhysicalAddress = PhysicalAddress::new(0xcf8);
 const PCI_PORT_CONF_DATA_REG_ADDR: PhysicalAddress = PhysicalAddress::new(0xcfc);
@@ -14,67 +11,18 @@ pub const PCI_DEVICE_DEVICE_LEN: usize = 32;
 pub const PCI_DEVICE_FUNC_LEN: usize = 8;
 const PCI_CONF_UNIQUE_FIELD_OFFSET: usize = 16;
 
-#[derive(BitfieldSpecifier, Debug, Clone, Copy)]
-#[bits = 1]
-pub enum ConfigurationSpaceParityErrorResponse {
-    Normal = 0x0,
-    SetDetectedParityErrorStatus = 0x1,
-}
+#[derive(Debug, Clone, Copy)]
+#[repr(transparent)]
+pub struct ConfigurationSpaceCommandRegister(u16);
 
-#[bitfield]
-#[derive(BitfieldSpecifier, Debug, Clone, Copy)]
-#[repr(C)]
-pub struct ConfigurationSpaceCommandRegister {
-    pub io_space: bool,
-    pub mem_space: bool,
-    pub bus_master: bool,
-    pub monitor_special_cycles: bool,
-    pub mem_write_and_invalidate_enable: bool,
-    pub vga_palette_snoop: bool,
-    pub parity_err_res: ConfigurationSpaceParityErrorResponse,
-    #[skip]
-    reserved1: B1,
-    pub serr_enable: bool,
-    pub fast_back_to_back_enable: bool,
-    pub interrupt_disable: bool,
-    #[skip]
-    reserved0: B5,
-}
+#[derive(Debug, Clone, Copy)]
+#[repr(transparent)]
+pub struct ConfigurationSpaceStatusRegister(u16);
 
-#[derive(BitfieldSpecifier, Debug, Clone, Copy)]
-#[bits = 2]
-pub enum ConfigurationSpaceDevselTiming {
-    Fast = 0x0,
-    Medium = 0x1,
-    Slow = 0x2,
-}
-
-#[derive(BitfieldSpecifier, Debug, Clone, Copy)]
-#[bits = 1]
-pub enum ConfigurationSpaceOperatingFrequency {
-    Capable33Mhz = 0x0,
-    Capable66Mhz = 0x1,
-}
-
-#[bitfield]
-#[derive(BitfieldSpecifier, Debug, Clone, Copy)]
-#[repr(C)]
-pub struct ConfigurationSpaceStatusRegister {
-    #[skip]
-    reserved1: B3,
-    pub interrupt_status_enable: bool,
-    pub caps_list_available: bool,
-    pub operating_frequency: ConfigurationSpaceOperatingFrequency,
-    #[skip]
-    reserved0: B1,
-    pub fast_back_to_back_capable: bool,
-    pub master_data_parity_err: bool,
-    pub devsel_timing: ConfigurationSpaceDevselTiming,
-    pub signaled_target_abort: bool,
-    pub received_target_abort: bool,
-    pub received_master_abort: bool,
-    pub signaled_system_err: bool,
-    pub detected_parity_err: bool,
+impl ConfigurationSpaceStatusRegister {
+    pub fn caps_list_available(&self) -> bool {
+        (self.0 & 0x10) != 0
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -86,27 +34,21 @@ pub enum ConfigurationSpaceHeaderType {
     Invalid(u8),
 }
 
-#[bitfield]
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct ConfigurationSpaceCommonHeaderField {
-    #[skip(setters)]
-    pub vendor_id: B16,
-    #[skip(setters)]
-    pub device_id: B16,
+    pub vendor_id: u16,
+    pub device_id: u16,
     pub command: ConfigurationSpaceCommandRegister,
     pub status: ConfigurationSpaceStatusRegister,
-    #[skip(setters)]
-    pub revision_id: B8,
-    pub prog_if: B8,
-    #[skip(setters)]
-    pub subclass: B8,
-    #[skip(setters)]
-    pub class_code: B8,
-    cache_line_size: B8,
-    latency_timer: B8,
-    header_type: B8,
-    bist: B8,
+    pub revision_id: u8,
+    pub prog_if: u8,
+    pub subclass: u8,
+    pub class_code: u8,
+    cache_line_size: u8,
+    latency_timer: u8,
+    header_type: u8,
+    bist: u8,
 }
 
 impl ConfigurationSpaceCommonHeaderField {
@@ -124,7 +66,7 @@ impl ConfigurationSpaceCommonHeaderField {
     }
 
     pub fn is_exist(&self) -> bool {
-        self.vendor_id() != PCI_DEVICE_NON_EXIST
+        self.vendor_id != PCI_DEVICE_NON_EXIST
     }
 
     pub fn get_device_name(&self) -> Option<&str> {
@@ -180,7 +122,7 @@ impl ConfigurationSpaceCommonHeaderField {
     }
 
     pub fn get_header_type(&self) -> ConfigurationSpaceHeaderType {
-        match self.header_type() {
+        match self.header_type {
             0x00 => ConfigurationSpaceHeaderType::NonBridge,
             0x01 => ConfigurationSpaceHeaderType::PciToPciBridge,
             0x02 => ConfigurationSpaceHeaderType::PciToCardBusBridge,
@@ -195,20 +137,20 @@ impl ConfigurationSpaceCommonHeaderField {
     }
 
     fn get_vendor(&self) -> Option<&Vendor> {
-        Vendors::iter().find(|v| v.id() == self.vendor_id())
+        Vendors::iter().find(|v| v.id() == self.vendor_id)
     }
 
     fn get_device(&self, vendor: &Vendor) -> Option<&Device> {
-        vendor.devices().find(|d| d.id() == self.device_id())
+        vendor.devices().find(|d| d.id() == self.device_id)
     }
 
     fn get_class(&self) -> Option<&Class> {
-        Classes::iter().find(|c| c.id() == self.class_code())
+        Classes::iter().find(|c| c.id() == self.class_code)
     }
 
     fn get_subclass(&self) -> Option<&Subclass> {
         match self.get_class() {
-            Some(class) => class.subclasses().find(|c| c.id() == self.subclass()),
+            Some(class) => class.subclasses().find(|c| c.id() == self.subclass),
             None => None,
         }
     }
@@ -220,13 +162,13 @@ pub enum BaseAddress {
     MemoryAddress64BitSpace(PhysicalAddress, bool),
     MmioAddressSpace(u32),
 }
-#[bitfield]
-#[derive(BitfieldSpecifier, Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
+#[repr(transparent)]
 pub struct BaseAddressRegister(u32);
 
 impl BaseAddressRegister {
     pub fn read(&self) -> u32 {
-        unsafe { self.bytes.align_to::<u32>() }.1[0]
+        self.0
     }
 
     pub fn get_base_addr(&self) -> Option<BaseAddress> {
@@ -259,7 +201,6 @@ impl BaseAddressRegister {
     }
 }
 
-#[bitfield]
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct ConfigurationSpaceNonBridgeField {
@@ -269,19 +210,17 @@ pub struct ConfigurationSpaceNonBridgeField {
     bar3: BaseAddressRegister,
     bar4: BaseAddressRegister,
     bar5: BaseAddressRegister,
-    cardbus_cis_ptr: B32,
-    subsystem_vendor_id: B16,
-    subsystem_id: B16,
-    expansion_rom_base_addr: B32,
-    pub caps_ptr: B8,
-    #[skip]
-    reserved0: B24,
-    #[skip]
-    reserved1: B32,
-    int_line: B8,
-    int_pin: B8,
-    min_grant: B8,
-    max_latency: B8,
+    cardbus_cis_ptr: u32,
+    subsystem_vendor_id: u16,
+    subsystem_id: u16,
+    expansion_rom_base_addr: u32,
+    pub caps_ptr: u8,
+    reserved0: [u8; 3],
+    reserved1: u32,
+    int_line: u8,
+    int_pin: u8,
+    min_grant: u8,
+    max_latency: u8,
 }
 
 impl ConfigurationSpaceNonBridgeField {
@@ -302,12 +241,12 @@ impl ConfigurationSpaceNonBridgeField {
 
     pub fn get_bars(&self) -> Vec<(usize, BaseAddress)> {
         let mut bars = Vec::new();
-        bars.push((0, self.bar0()));
-        bars.push((1, self.bar1()));
-        bars.push((2, self.bar2()));
-        bars.push((3, self.bar3()));
-        bars.push((4, self.bar4()));
-        bars.push((5, self.bar5()));
+        bars.push((0, self.bar0));
+        bars.push((1, self.bar1));
+        bars.push((2, self.bar2));
+        bars.push((3, self.bar3));
+        bars.push((4, self.bar4));
+        bars.push((5, self.bar5));
 
         let mut base_addrs = Vec::new();
 
@@ -334,34 +273,32 @@ impl ConfigurationSpaceNonBridgeField {
     }
 }
 
-#[bitfield]
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct ConfigurationSpacePciToPciBridgeField {
-    bar0: BaseAddressRegister,
-    bar1: BaseAddressRegister,
-    primary_bus_num: B8,
-    secondary_bus_num: B8,
-    subordinate_bus_num: B8,
-    secondary_latency_timer: B8,
-    io_base_low: B8,
-    io_limit_low: B8,
-    seconday_status: B16,
-    mem_base: B16,
-    mem_limit: B16,
-    pref_mem_base_low: B16,
-    pref_mem_limit_low: B16,
-    pref_mem_base_high: B32,
-    pref_mem_limit_high: B32,
-    io_base_high: B16,
-    io_limit_high: B16,
-    pub caps_ptr: B8,
-    #[skip]
-    reserved: B24,
-    expansion_rom_base_addr: B32,
-    int_line: B8,
-    int_pin: B8,
-    bridge_ctrl: B16,
+    pub bar0: BaseAddressRegister,
+    pub bar1: BaseAddressRegister,
+    primary_bus_num: u8,
+    secondary_bus_num: u8,
+    subordinate_bus_num: u8,
+    secondary_latency_timer: u8,
+    io_base_low: u8,
+    io_limit_low: u8,
+    seconday_status: u16,
+    mem_base: u16,
+    mem_limit: u16,
+    pref_mem_base_low: u16,
+    pref_mem_limit_low: u16,
+    pref_mem_base_high: u32,
+    pref_mem_limit_high: u32,
+    io_base_high: u16,
+    io_limit_high: u16,
+    pub caps_ptr: u8,
+    reserved: [u8; 3],
+    expansion_rom_base_addr: u32,
+    int_line: u8,
+    int_pin: u8,
+    bridge_ctrl: u16,
 }
 
 impl ConfigurationSpacePciToPciBridgeField {
@@ -382,8 +319,8 @@ impl ConfigurationSpacePciToPciBridgeField {
 
     pub fn get_bars(&self) -> Vec<(usize, BaseAddress)> {
         let mut bars = Vec::new();
-        bars.push((0, self.bar0()));
-        bars.push((1, self.bar1()));
+        bars.push((0, self.bar0));
+        bars.push((1, self.bar1));
 
         let mut base_addrs = Vec::new();
 
@@ -410,33 +347,31 @@ impl ConfigurationSpacePciToPciBridgeField {
     }
 }
 
-#[bitfield]
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 #[repr(C)]
 pub struct ConfigurationSpacePciToCardBusField {
-    cardbus_socket_or_exca_base_addr: B32,
-    caps_list_offset: B8,
-    #[skip]
-    reserved: B8,
-    secondary_status: B16,
-    pci_bus_num: B8,
-    cardbus_bus_num: B8,
-    subordinate_bus_num: B8,
-    cardbus_latency_timer: B8,
-    mem_base_addr0: B32,
-    mem_limit0: B32,
-    mem_base_addr1: B32,
-    mem_limit1: B32,
-    io_base_addr0: B32,
-    io_limit0: B32,
-    io_base_addr1: B32,
-    io_limit1: B32,
-    int_line: B8,
-    int_pin: B8,
-    bridge_ctrl: B16,
-    subsystem_device_id: B16,
-    subsystem_vendor_id: B16,
-    pc_card_legacy_mode_base_addr: B32,
+    cardbus_socket_or_exca_base_addr: u32,
+    caps_list_offset: u8,
+    reserved: u8,
+    secondary_status: u16,
+    pci_bus_num: u8,
+    cardbus_bus_num: u8,
+    subordinate_bus_num: u8,
+    cardbus_latency_timer: u8,
+    mem_base_addr0: u32,
+    mem_limit0: u32,
+    mem_base_addr1: u32,
+    mem_limit1: u32,
+    io_base_addr0: u32,
+    io_limit0: u32,
+    io_base_addr1: u32,
+    io_limit1: u32,
+    int_line: u8,
+    int_pin: u8,
+    bridge_ctrl: u16,
+    subsystem_device_id: u16,
+    subsystem_vendor_id: u16,
+    pc_card_legacy_mode_base_addr: u32,
 }
 
 impl ConfigurationSpacePciToCardBusField {
@@ -456,35 +391,31 @@ impl ConfigurationSpacePciToCardBusField {
     }
 }
 
-#[bitfield]
-#[derive(BitfieldSpecifier, Debug, Clone, Copy)]
-#[repr(C)]
-pub struct MsiMessageControlField {
-    pub is_enable: bool,
-    #[skip(setters)]
-    pub multiple_msg_capable: B3,
-    pub multiple_msg_enable: B3,
-    #[skip(setters)]
-    pub is_64bit: bool,
-    #[skip(setters)]
-    pub per_vec_masking: bool,
-    #[skip]
-    reserved: B7,
+#[derive(Debug, Clone, Copy, Default)]
+#[repr(transparent)]
+pub struct MsiMessageControlField(u16);
+
+impl MsiMessageControlField {
+    pub fn set_is_enable(&mut self, value: bool) {
+        self.0 = (self.0 & !0x1) | (value as u16);
+    }
+
+    pub fn set_multiple_msg_enable(&mut self, value: u8) {
+        let value = value & 0x7; // 3 bits
+        self.0 = (self.0 & !0x70) | ((value as u16) << 4);
+    }
 }
 
-#[bitfield]
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 #[repr(C)]
 pub struct MsiCapabilityField {
-    #[skip(setters)]
-    pub cap_id: B8,
-    #[skip(setters)]
-    pub next_ptr: B8,
+    pub cap_id: u8,
+    pub next_ptr: u8,
     pub msg_ctrl: MsiMessageControlField,
     pub msg_addr_low: MsiMessageAddressField,
-    pub msg_addr_high: B32,
+    pub msg_addr_high: u32,
     pub msg_data: MsiMessageDataField,
-    reserved: B64,
+    reserved: u64,
 }
 
 impl MsiCapabilityField {

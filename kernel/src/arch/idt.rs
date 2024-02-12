@@ -176,7 +176,6 @@ impl GateDescriptor {
     }
 
     fn set_p(&mut self, value: bool) {
-        let value = if value { 0x1 } else { 0x0 };
         self.0 = (self.0 & !0x8000_0000_0000) | ((value as u128) << 47);
     }
 }

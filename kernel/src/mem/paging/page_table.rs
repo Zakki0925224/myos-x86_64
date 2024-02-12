@@ -26,8 +26,7 @@ pub struct PageTableEntry(u64);
 
 impl PageTableEntry {
     pub fn set_p(&mut self, value: bool) {
-        let value = if value { 0x1 } else { 0x0 };
-        self.0 = (self.0 & !0x1) | value;
+        self.0 = (self.0 & !0x1) | (value as u64);
     }
 
     pub fn p(&self) -> bool {
@@ -64,18 +63,15 @@ impl PageTableEntry {
     }
 
     pub fn set_disable_page_cache(&mut self, value: bool) {
-        let value = if value { 0x1 } else { 0x0 };
-        self.0 = (self.0 & !0x10) | (value << 4);
+        self.0 = (self.0 & !0x10) | ((value as u64) << 4);
     }
 
     pub fn set_accessed(&mut self, value: bool) {
-        let value = if value { 0x1 } else { 0x0 };
-        self.0 = (self.0 & !0x20) | (value << 5);
+        self.0 = (self.0 & !0x20) | ((value as u64) << 5);
     }
 
     pub fn set_is_page(&mut self, value: bool) {
-        let value = if value { 0x1 } else { 0x0 };
-        self.0 = (self.0 & !0x80) | (value << 7);
+        self.0 = (self.0 & !0x80) | ((value as u64) << 7);
     }
 
     pub fn is_page(&self) -> bool {
@@ -83,8 +79,7 @@ impl PageTableEntry {
     }
 
     pub fn set_restart(&mut self, value: bool) {
-        let value = if value { 0x1 } else { 0x0 };
-        self.0 = (self.0 & !0x800) | (value << 11);
+        self.0 = (self.0 & !0x800) | ((value as u64) << 11);
     }
 
     pub fn set_addr(&mut self, addr: u64) {
@@ -97,8 +92,7 @@ impl PageTableEntry {
     }
 
     pub fn set_disable_execute(&mut self, value: bool) {
-        let value = if value { 0x1 } else { 0x0 };
-        self.0 = (self.0 & !0x8000_0000_0000_0000) | (value << 63);
+        self.0 = (self.0 & !0x8000_0000_0000_0000) | ((value as u64) << 63);
     }
 
     pub fn set_entry(

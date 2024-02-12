@@ -235,7 +235,7 @@ impl UsbDevice {
         let device_context = xhc::read_device_context(self.slot_id).unwrap();
         let mut input_context = port.read_input_context();
         input_context.device_context.slot_context = device_context.slot_context;
-        let mut input_ctrl_context = InputControlContext::new();
+        let mut input_ctrl_context = InputControlContext::default();
         input_ctrl_context.set_add_context_flag(0, true).unwrap();
 
         let mut ring_buf_buf = Vec::new();
@@ -243,7 +243,7 @@ impl UsbDevice {
             let endpoint_addr = endpoint_desc.endpoint_addr;
             let dci = endpoint_desc.dci();
 
-            let mut endpoint_context = EndpointContext::new();
+            let mut endpoint_context = EndpointContext::default();
             let desc_endpoint_type = EndpointType::new(endpoint_addr, endpoint_desc.bitmap_attrs);
             if desc_endpoint_type != endpoint_type {
                 continue;
@@ -257,7 +257,7 @@ impl UsbDevice {
             endpoint_context.set_max_endpoint_service_interval_payload_low(self.max_packet_size);
             endpoint_context.set_max_burst_size(0);
             endpoint_context.set_dequeue_cycle_state(true); // initial cycle state of transfer ring buffer
-            endpoint_context.set_tr_dequeue_ptr((transfer_ring_buf.buf_ptr() as u64) >> 1);
+            endpoint_context.set_tr_dequeue_ptr(transfer_ring_buf.buf_ptr() as u64);
             endpoint_context.set_interval(endpoint_desc.interval - 1);
             endpoint_context.set_max_primary_streams(0);
             endpoint_context.set_mult(0);

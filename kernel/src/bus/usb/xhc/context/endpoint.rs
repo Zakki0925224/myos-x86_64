@@ -1,17 +1,5 @@
-use modular_bitfield::{bitfield, specifiers::*, BitfieldSpecifier};
-
-#[derive(BitfieldSpecifier, Debug, Clone, Copy)]
-#[bits = 3]
-pub enum EndpointState {
-    Disabled = 0,
-    Running = 1,
-    Halted = 2,
-    Stopped = 3,
-    Error = 4,
-}
-
-#[derive(BitfieldSpecifier, Debug, Clone, Copy, PartialEq)]
-#[bits = 3]
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[repr(u8)]
 pub enum EndpointType {
     IsochOut = 1,
     BulkOut = 2,
@@ -39,39 +27,56 @@ impl EndpointType {
     }
 }
 
-#[bitfield]
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 #[repr(C)]
-pub struct EndpointContext {
-    pub endpoint_state: EndpointState,
-    #[skip]
-    reserved0: B5,
-    pub mult: B2,
-    pub max_primary_streams: B5,
-    pub linear_stream_array: bool,
-    pub interval: B8,
-    pub max_endpoint_service_time_interval_payload_high: B8,
+pub struct EndpointContext([u64; 4]);
 
-    #[skip]
-    reserved1: B1,
-    pub error_cnt: B2,
-    pub endpoint_type: EndpointType,
-    #[skip]
-    reserved2: B1,
-    pub host_initiate_disable: bool,
-    pub max_burst_size: B8,
-    pub max_packet_size: B16,
+impl EndpointContext {
+    pub fn set_mult(&mut self, value: u8) {
+        let value = value & 0x3; // 2 bits
+        self.0[0] = (self.0[0] & !0x300) | ((value as u64) << 8);
+    }
 
-    pub dequeue_cycle_state: bool,
-    pub tr_dequeue_ptr: B63,
+    pub fn set_max_primary_streams(&mut self, value: u8) {
+        let value = value & 0x1f; // 5 bits
+        self.0[0] = (self.0[0] & !0x7c00) | ((value as u64) << 10);
+    }
 
-    pub average_trb_len: B16,
-    pub max_endpoint_service_interval_payload_low: B16,
+    pub fn set_interval(&mut self, value: u8) {
+        self.0[0] = (self.0[0] & !0xff_0000) | ((value as u64) << 16);
+    }
 
-    #[skip]
-    reserved3: B32,
-    #[skip]
-    reserved4: B32,
-    #[skip]
-    reserved5: B32,
+    pub fn set_error_cnt(&mut self, value: u8) {
+        let value = value & 0x3; // 2 bits
+        self.0[0] = (self.0[0] & !0x6_0000_0000) | ((value as u64) << 33);
+    }
+
+    pub fn set_endpoint_type(&mut self, value: EndpointType) {
+        self.0[0] = (self.0[0] & !0x38_0000_0000) | ((value as u64) << 35);
+    }
+
+    pub fn set_max_burst_size(&mut self, value: u8) {
+        self.0[0] = (self.0[0] & !0xff00_0000_0000) | ((value as u64) << 40);
+    }
+
+    pub fn set_max_packet_size(&mut self, value: u16) {
+        self.0[0] = (self.0[0] & !0xffff_0000_0000_0000) | ((value as u64) << 48);
+    }
+
+    pub fn set_dequeue_cycle_state(&mut self, value: bool) {
+        self.0[1] = (self.0[1] & !0x1) | (value as u64);
+    }
+
+    pub fn set_tr_dequeue_ptr(&mut self, value: u64) {
+        assert!(value & 0x1 == 0);
+        self.0[1] = (self.0[1] & 0x1) | value;
+    }
+
+    pub fn set_average_trb_len(&mut self, value: u16) {
+        self.0[2] = (self.0[2] & !0xffff) | (value as u64)
+    }
+
+    pub fn set_max_endpoint_service_interval_payload_low(&mut self, value: u16) {
+        self.0[2] = (self.0[2] & !0xffff_0000) | ((value as u64) << 16);
+    }
 }

@@ -6,7 +6,6 @@ use self::{
 use crate::{
     arch::asm,
     error::{Error, Result},
-    println,
     util::mutex::{Mutex, MutexError},
 };
 use alloc::{boxed::Box, vec::Vec};

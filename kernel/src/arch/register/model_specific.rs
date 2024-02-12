@@ -14,9 +14,7 @@ impl ExtendedFeatureEnableRegister {
     }
 
     pub fn set_system_call_enable(&mut self, value: bool) {
-        let value = if value { 0x1 } else { 0x0 };
-
-        self.0 = (self.0 & !0x1) | value;
+        self.0 = (self.0 & !0x1) | (value as u64);
     }
 
     pub fn write(&self) {

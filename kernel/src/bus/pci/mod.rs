@@ -65,9 +65,9 @@ impl PciDeviceManager {
             println!("{:?}", d.conf_space_header.get_device_name());
             println!(
                 "class: {}, subclass: {}, if: {}\n",
-                d.conf_space_header.class_code(),
-                d.conf_space_header.subclass(),
-                d.conf_space_header.prog_if()
+                d.conf_space_header.class_code,
+                d.conf_space_header.subclass,
+                d.conf_space_header.prog_if
             );
             println!("{:?}", d.read_caps_list());
             if let Some(field) = d.read_conf_space_non_bridge_field() {

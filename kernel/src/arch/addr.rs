@@ -86,23 +86,23 @@ impl VirtualAddress {
     }
 
     pub fn get_pml4_entry_index(&self) -> usize {
-        ((self.0 >> 39) & 0x1ff) as u16 as usize
+        ((self.0 >> 39) & 0x1ff) as usize
     }
 
     pub fn get_pml3_entry_index(&self) -> usize {
-        ((self.0 >> 30) & 0x1ff) as u16 as usize
+        ((self.0 >> 30) & 0x1ff) as usize
     }
 
     pub fn get_pml2_entry_index(&self) -> usize {
-        ((self.0 >> 21) & 0x1ff) as u16 as usize
+        ((self.0 >> 21) & 0x1ff) as usize
     }
 
     pub fn get_pml1_entry_index(&self) -> usize {
-        ((self.0 >> 12) & 0x1ff) as u16 as usize
+        ((self.0 >> 12) & 0x1ff) as usize
     }
 
     pub fn get_page_offset(&self) -> usize {
-        (self.0 & 0xfff) as u16 as usize
+        (self.0 & 0xfff) as usize
     }
 
     pub fn read_volatile<T>(&self) -> T {

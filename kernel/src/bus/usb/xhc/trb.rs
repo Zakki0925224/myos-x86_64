@@ -193,8 +193,7 @@ impl TransferRequestBlock {
             return;
         }
 
-        let toggle_cycle = if new_val { 1 } else { 0 };
-        let flags = (self.other_flags() & !0x1) | toggle_cycle;
+        let flags = (self.other_flags() & !0x1) | (new_val as u16);
         self.set_other_flags(flags);
     }
 
@@ -365,8 +364,7 @@ impl TransferRequestBlock {
     }
 
     pub fn set_cycle_bit(&mut self, value: bool) {
-        let value = if value { 0x1 } else { 0x0 };
-        self.flags = (self.flags & !0x1) | value;
+        self.flags = (self.flags & !0x1) | (value as u16);
     }
 
     pub fn trb_type(&self) -> TransferRequestBlockType {

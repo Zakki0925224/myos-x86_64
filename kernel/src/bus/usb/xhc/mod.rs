@@ -163,10 +163,10 @@ impl XhcDriver {
 
         self.ope_reg_virt_addr = self
             .cap_reg_virt_addr
-            .offset(cap_reg.cap_reg_length() as usize);
+            .offset(cap_reg.cap_reg_length as usize);
         self.runtime_reg_virt_addr = self
             .cap_reg_virt_addr
-            .offset(cap_reg.runtime_reg_space_offset() as usize);
+            .offset(cap_reg.runtime_reg_space_offset as usize);
         self.intr_reg_sets_virt_addr = self
             .runtime_reg_virt_addr
             .offset(size_of::<RuntimeRegitsers>());
@@ -175,28 +175,25 @@ impl XhcDriver {
             .offset(PORT_REG_SETS_START_VIRT_ADDR_OFFSET);
         self.doorbell_reg_virt_addr = self
             .cap_reg_virt_addr
-            .offset(cap_reg.doorbell_offset() as usize);
+            .offset(cap_reg.doorbell_offset as usize);
 
         // TODO: request host controller ownership
 
         // stop controller
-        let ope_reg = self.read_ope_reg();
-        if !ope_reg.usb_status().hchalted() {
+        if !self.read_ope_reg().usb_status.hchalted() {
             return Err(XhcDriverError::HostControllerIsNotHaltedError.into());
         }
 
         // reset controller
         let mut ope_reg = self.read_ope_reg();
-        let mut usb_cmd = ope_reg.usb_cmd();
-        usb_cmd.set_host_controller_reset(true);
-        ope_reg.set_usb_cmd(usb_cmd);
+        ope_reg.usb_cmd.set_host_controller_reset(true);
         self.write_ope_reg(ope_reg);
 
         loop {
             info!("xhc: Waiting xHC...");
             let ope_reg = self.read_ope_reg();
-            if !ope_reg.usb_cmd().host_controller_reset()
-                && !ope_reg.usb_status().controller_not_ready()
+            if !ope_reg.usb_cmd.host_controller_reset()
+                && !ope_reg.usb_status.controller_not_ready()
             {
                 break;
             }
@@ -205,12 +202,12 @@ impl XhcDriver {
 
         // set max device slots
         let cap_reg = self.read_cap_reg();
-        self.num_of_ports = cap_reg.structural_params1().num_of_ports() as usize;
-        self.num_of_slots = cap_reg.structural_params1().num_of_device_slots() as usize;
+        self.num_of_ports = cap_reg.structural_params1.num_of_ports as usize;
+        self.num_of_slots = cap_reg.structural_params1.num_of_device_slots as usize;
         let mut ope_reg = self.read_ope_reg();
-        let mut conf_reg = ope_reg.configure();
-        conf_reg.set_max_device_slots_enabled(self.num_of_slots as u8);
-        ope_reg.set_configure(conf_reg);
+        ope_reg
+            .configure
+            .set_max_device_slots_enabled(self.num_of_slots as u8);
         self.write_ope_reg(ope_reg);
         info!(
             "xhc: Max ports: {}, Max slots: {}",
@@ -257,12 +254,11 @@ impl XhcDriver {
         }
 
         let mut ope_reg = self.read_ope_reg();
-        ope_reg.set_device_context_base_addr_array_ptr(
-            self.device_context_arr_virt_addr
-                .get_phys_addr()
-                .unwrap()
-                .get(),
-        );
+        ope_reg.device_context_base_addr_array_ptr = self
+            .device_context_arr_virt_addr
+            .get_phys_addr()
+            .unwrap()
+            .get();
         self.write_ope_reg(ope_reg);
         info!("xhc: Initialized device context");
 
@@ -273,13 +269,13 @@ impl XhcDriver {
         cmd_ring_buf.set_link_trb()?;
         self.cmd_ring_buf = Some(cmd_ring_buf);
 
-        let mut crcr = CommandRingControlRegister::new();
-        crcr.set_cmd_ring_ptr(self.cmd_ring_buf.as_ref().unwrap().buf_ptr() as u64 >> 6);
+        let mut crcr = CommandRingControlRegister::default();
+        crcr.set_cmd_ring_ptr(self.cmd_ring_buf.as_ref().unwrap().buf_ptr() as u64);
         crcr.set_ring_cycle_state(pcs);
         crcr.set_cmd_stop(false);
         crcr.set_cmd_abort(false);
         let mut ope_reg = self.read_ope_reg();
-        ope_reg.set_cmd_ring_ctrl(crcr);
+        ope_reg.cmd_ring_ctrl = crcr;
         self.write_ope_reg(ope_reg);
 
         info!("xhc: Initialized command ring");
@@ -293,10 +289,10 @@ impl XhcDriver {
         self.primary_event_ring_buf = Some(primary_event_ring_buf);
 
         // initialize event ring segment table entry
-        let mut seg_table_entry = EventRingSegmentTableEntry::new();
-        seg_table_entry
-            .set_ring_seg_base_addr(self.primary_event_ring_buf.as_ref().unwrap().buf_ptr() as u64);
-        seg_table_entry.set_ring_seg_size(RING_BUF_LEN as u16);
+        let mut seg_table_entry = EventRingSegmentTableEntry::default();
+        seg_table_entry.ring_seg_base_addr =
+            self.primary_event_ring_buf.as_ref().unwrap().buf_ptr() as u64;
+        seg_table_entry.ring_seg_size = RING_BUF_LEN as u16;
         primary_event_ring_seg_table_virt_addr.write_volatile(seg_table_entry);
 
         // initialize first interrupter register sets entry
@@ -305,30 +301,25 @@ impl XhcDriver {
             primary_event_ring_seg_table_virt_addr
                 .get_phys_addr()
                 .unwrap()
-                .get()
-                >> 6,
+                .get(),
         );
         intr_reg_sets_0.set_event_ring_seg_table_size(1);
         intr_reg_sets_0.set_dequeue_erst_seg_index(0);
         intr_reg_sets_0.set_event_ring_dequeue_ptr(
-            self.primary_event_ring_buf.as_ref().unwrap().buf_ptr() as u64 >> 4,
+            self.primary_event_ring_buf.as_ref().unwrap().buf_ptr() as u64,
         );
         self.write_intr_reg_sets(0, intr_reg_sets_0).unwrap();
 
         info!("xhc: Initialized event ring");
 
         // setting up msi
-        let mut msg_addr = MsiMessageAddressField::new();
-        msg_addr.set_destination_id(read_local_apic_id());
-        msg_addr.set_redirection_hint_indication(0);
-        msg_addr.set_destination_mode(0);
-        msg_addr.set_const_0xfee(0xfee);
-
-        let mut msg_data = MsiMessageDataField::new();
-        msg_data.set_trigger_mode(TriggerMode::Level);
-        msg_data.set_level(Level::Assert);
-        msg_data.set_delivery_mode(DeliveryMode::Fixed);
-        msg_data.set_vector(VEC_XHCI_INT as u8);
+        let msg_addr = MsiMessageAddressField::new(false, false, read_local_apic_id());
+        let msg_data = MsiMessageDataField::new(
+            VEC_XHCI_INT as u8,
+            DeliveryMode::Fixed,
+            Level::Assert,
+            TriggerMode::Level,
+        );
 
         match controller.set_msi_cap(msg_addr, msg_data) {
             Ok(_) => info!("xhc: Initialized MSI interrupt"),
@@ -343,9 +334,7 @@ impl XhcDriver {
         self.write_intr_reg_sets(0, intr_reg_set_0).unwrap();
 
         let mut ope_reg = self.read_ope_reg();
-        let mut usb_cmd = ope_reg.usb_cmd();
-        usb_cmd.set_intr_enable(true);
-        ope_reg.set_usb_cmd(usb_cmd);
+        ope_reg.usb_cmd.set_intr_enable(true);
         self.write_ope_reg(ope_reg);
 
         self.is_init = true;
@@ -362,21 +351,18 @@ impl XhcDriver {
         // start controller
         info!("xhc: Starting xHC...");
         let mut ope_reg = self.read_ope_reg();
-        let mut usb_cmd = ope_reg.usb_cmd();
-        usb_cmd.set_run_stop(true);
-        ope_reg.set_usb_cmd(usb_cmd);
+        ope_reg.usb_cmd.set_run_stop(true);
         self.write_ope_reg(ope_reg);
 
         loop {
             info!("xhc: Waiting xHC...");
-            let ope_reg = self.read_ope_reg();
-            if !ope_reg.usb_status().hchalted() {
+            if !self.read_ope_reg().usb_status.hchalted() {
                 break;
             }
         }
 
         // check status
-        let usb_status = self.read_ope_reg().usb_status();
+        let usb_status = self.read_ope_reg().usb_status;
         if usb_status.hchalted() {
             return Err(XhcDriverError::OtherError("xHC is halted").into());
         }
@@ -408,7 +394,7 @@ impl XhcDriver {
 
         for i in 1..=self.num_of_ports {
             let port_reg_set = self.read_port_reg_set(i).unwrap();
-            let sc_reg = port_reg_set.port_status_and_ctrl();
+            let sc_reg = port_reg_set.port_status_and_ctrl;
             if sc_reg.connect_status_change() && sc_reg.current_connect_status() {
                 self.ports.push(Port::new(i));
                 port_ids.push(i);
@@ -435,15 +421,15 @@ impl XhcDriver {
 
         let mut port = port.clone();
         let mut port_reg_set = self.read_port_reg_set(port_id).unwrap();
-        let mut sc_reg = port_reg_set.port_status_and_ctrl();
-        sc_reg.set_port_reset(true);
-        sc_reg.set_connect_status_change(false);
-        port_reg_set.set_port_status_and_ctrl(sc_reg);
+        port_reg_set.port_status_and_ctrl.set_port_reset(true);
+        port_reg_set
+            .port_status_and_ctrl
+            .set_connect_status_change(false);
         self.write_port_reg_set(port_id, port_reg_set).unwrap();
 
         loop {
             let port_reg_set = self.read_port_reg_set(port_id).unwrap();
-            if !port_reg_set.port_status_and_ctrl().port_reset() {
+            if !port_reg_set.port_status_and_ctrl.port_reset() {
                 break;
             }
         }
@@ -488,7 +474,7 @@ impl XhcDriver {
         self.configuring_port_id = Some(port_id);
 
         // initialize input control context
-        let mut input_context = InputContext::new();
+        let mut input_context = InputContext::default();
         input_context
             .input_ctrl_context
             .set_add_context_flag(0, true)
@@ -501,19 +487,19 @@ impl XhcDriver {
         let port_speed = self
             .read_port_reg_set(self.root_hub_port_id.unwrap())
             .unwrap()
-            .port_status_and_ctrl()
+            .port_status_and_ctrl
             .port_speed();
 
         let max_packet_size = port_speed.get_max_packet_size();
 
-        let mut slot_context = SlotContext::new();
+        let mut slot_context = SlotContext::default();
         slot_context.set_speed(port_speed);
         slot_context.set_context_entries(1);
         slot_context.set_root_hub_port_num(self.root_hub_port_id.unwrap() as u8);
 
         input_context.device_context.slot_context = slot_context;
 
-        let mut endpoint_context_0 = EndpointContext::new();
+        let mut endpoint_context_0 = EndpointContext::default();
         endpoint_context_0.set_endpoint_type(EndpointType::ControlBidirectional);
         endpoint_context_0.set_max_packet_size(max_packet_size);
         endpoint_context_0.set_max_burst_size(0);
@@ -525,7 +511,7 @@ impl XhcDriver {
 
         let transfer_ring_buf = RingBuffer::new(RingBufferType::TransferRing, true)?;
 
-        endpoint_context_0.set_tr_dequeue_ptr(transfer_ring_buf.buf_ptr() as u64 >> 1);
+        endpoint_context_0.set_tr_dequeue_ptr(transfer_ring_buf.buf_ptr() as u64);
         input_context.device_context.endpoint_contexts[0] = endpoint_context_0;
         input_context_base_virt_addr.write_volatile(input_context);
 
@@ -655,7 +641,7 @@ impl XhcDriver {
     }
 
     pub fn is_running(&self) -> bool {
-        !self.read_ope_reg().usb_status().hchalted()
+        !self.read_ope_reg().usb_status.hchalted()
     }
 
     pub fn find_port_by_slot_id(&self, slot_id: usize) -> Option<Port> {
@@ -832,8 +818,8 @@ impl XhcDriver {
     }
 
     pub fn ring_doorbell(&self, index: usize, value: u8) {
-        let mut doorbell_reg = DoorbellRegister::new();
-        doorbell_reg.set_db_target(value);
+        let mut doorbell_reg = DoorbellRegister::default();
+        doorbell_reg.db_target = value;
         self.write_doorbell_reg(index, doorbell_reg).unwrap();
     }
 

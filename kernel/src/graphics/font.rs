@@ -100,7 +100,7 @@ impl PsfFont {
     // ascii char only
     pub fn unicode_char_to_glyph_index(&self, c: char) -> usize {
         if !self.has_unicode_table {
-            return c as u8 as usize;
+            return c as usize;
         }
 
         let code_point = c as u8;

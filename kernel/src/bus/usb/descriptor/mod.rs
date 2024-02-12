@@ -21,7 +21,6 @@ pub enum Descriptor {
 }
 
 #[derive(Debug, Clone, Copy)]
-#[allow(unused)]
 #[repr(u8)]
 pub enum DescriptorType {
     Device = 0x1,
@@ -60,9 +59,3 @@ pub struct DescriptorHeader {
     pub length: u8,
     pub ty: DescriptorType,
 }
-
-// impl DescriptorHeader {
-//     pub fn ty(&self) -> DescriptorType {
-//         DescriptorType::from(self.ty)
-//     }
-// }
