@@ -1,16 +1,21 @@
 use crate::{
     error::Result,
-    util::mutex::{Mutex, MutexError},
+    util::{
+        id::UniqueIdU64,
+        mutex::{Mutex, MutexError},
+    },
 };
 use alloc::{boxed::Box, collections::VecDeque};
 use core::{
     future::Future,
     pin::Pin,
     ptr::null,
-    sync::atomic::{AtomicBool, AtomicU64, Ordering},
+    sync::atomic::{AtomicBool, Ordering},
     task::{Context, Poll, RawWaker, RawWakerVTable, Waker},
 };
 use log::info;
+
+type TaskId = UniqueIdU64;
 
 static mut TASK_EXECUTOR: Mutex<Executor> = Mutex::new(Executor::new());
 
@@ -28,16 +33,6 @@ impl Future for Yield {
         } else {
             Poll::Pending
         }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-struct TaskId(u64);
-
-impl TaskId {
-    fn new() -> Self {
-        static NEXT_ID: AtomicU64 = AtomicU64::new(0);
-        Self(NEXT_ID.fetch_add(1, Ordering::Relaxed))
     }
 }
 
@@ -76,7 +71,7 @@ impl Executor {
             let waker = dummy_waker();
             let mut context = Context::from_waker(&waker);
             match task.poll(&mut context) {
-                Poll::Ready(()) => info!("task: Done (id: {})", task.id.0),
+                Poll::Ready(()) => info!("task: Done (id: {})", task.id.get()),
                 Poll::Pending => self.task_queue().push_back(task),
             }
         }

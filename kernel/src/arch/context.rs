@@ -2,20 +2,25 @@ use crate::{println, util::mutex::Mutex};
 use common::boot_info::BootInfo;
 use core::arch::asm;
 
-const KERNEL_STACK_SIZE: usize = 1024 * 1024;
-pub const USER_STACK_SIZE: usize = 1024 * 1024;
+pub const STACK_SIZE: usize = 1024 * 1024;
 
-static KERNEL_STACK: KernelStack = KernelStack::new();
-
+static KERNEL_STACK: Stack<STACK_SIZE> = Stack::new();
 static mut KERNEL_CONTEXT: Mutex<Context> = Mutex::new(Context::new());
-static mut USER_CONTEXT: Mutex<Context> = Mutex::new(Context::new());
 
 #[repr(align(16))]
-struct KernelStack([u8; KERNEL_STACK_SIZE]);
+pub struct Stack<const N: usize>([u8; N]);
 
-impl KernelStack {
+impl<const N: usize> Stack<N> {
     pub const fn new() -> Self {
-        Self([0; KERNEL_STACK_SIZE])
+        Self([0; N])
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    pub fn as_ptr(&self) -> *const u8 {
+        self.0.as_ptr()
     }
 }
 
@@ -29,7 +34,7 @@ pub fn switch_kernel_stack(
             "mov rsp, {}",
             "call {}",
             in(reg) boot_info,
-            in(reg) KERNEL_STACK.0.as_ptr() as u64 + KERNEL_STACK_SIZE as u64,
+            in(reg) KERNEL_STACK.as_ptr() as u64 + KERNEL_STACK.len() as u64,
             in(reg) new_entry
         );
     }

@@ -1,14 +1,4 @@
 use super::initramfs;
-use crate::{
-    arch::{context::USER_STACK_SIZE, gdt},
-    mem::{
-        bitmap,
-        paging::{
-            page_table::{EntryMode, ReadWrite},
-            PAGE_SIZE,
-        },
-    },
-};
 use common::elf::{self, Elf64};
 use core::mem;
 use log::{error, info};
@@ -50,45 +40,13 @@ pub fn exec_elf(file_name: &str, args: &[&str]) {
         return;
     }
 
-    let app_stack = bitmap::alloc_mem_frame(USER_STACK_SIZE / PAGE_SIZE + 1).unwrap();
-    let app_mem = bitmap::alloc_mem_frame(elf_data.len() / PAGE_SIZE + 1).unwrap();
-
-    // copy elf data
-    app_mem.get_frame_start_virt_addr().write_volatile(elf_data);
-
-    app_stack
-        .set_permissions(ReadWrite::Write, EntryMode::User)
-        .unwrap();
-    app_mem
-        .set_permissions(ReadWrite::Write, EntryMode::User)
-        .unwrap();
-
-    let entry_point: extern "sysv64" fn() -> i32 = unsafe {
-        mem::transmute(
-            app_mem
-                .get_frame_start_virt_addr()
-                .offset(header.entry_point as usize),
-        )
-    };
-
-    // set to user segment
-    gdt::set_seg_reg_to_user();
-    // GP fault here
+    info!(
+        "entry: 0x{:x}",
+        elf_data.as_ptr() as u64 + header.entry_point
+    );
+    let entry_point: extern "sysv64" fn() -> i32 =
+        unsafe { mem::transmute(elf_data.as_ptr().offset(header.entry_point as isize)) };
 
     let ret = entry_point();
-
-    // set to kernel segemnt
-    gdt::set_seg_reg_to_kernel();
-
-    app_stack
-        .set_permissions(ReadWrite::Write, EntryMode::Supervisor)
-        .unwrap();
-    app_mem
-        .set_permissions(ReadWrite::Write, EntryMode::Supervisor)
-        .unwrap();
-
-    bitmap::dealloc_mem_frame(app_stack).unwrap();
-    bitmap::dealloc_mem_frame(app_mem).unwrap();
-
     info!("exec: Exited ({})", ret);
 }
