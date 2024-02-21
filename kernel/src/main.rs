@@ -5,6 +5,7 @@
 #![feature(panic_info_message)]
 #![feature(alloc_error_handler)]
 #![feature(sync_unsafe_cell)]
+#![feature(naked_functions)]
 
 mod arch;
 mod bus;
@@ -22,7 +23,11 @@ mod util;
 extern crate alloc;
 
 use alloc::{string::String, vec::Vec};
-use arch::{apic, asm, context, gdt, idt, qemu, syscall, task};
+use arch::{
+    apic, asm,
+    context::{self, ContextMode, MAIN_CONTEXT, SUB_STACK},
+    gdt, idt, qemu, syscall, task,
+};
 use bus::pci;
 use common::boot_info::BootInfo;
 use device::console;
@@ -32,6 +37,8 @@ use graphics::color::ColorCode;
 use log::error;
 use serial::ComPort;
 use util::{ascii::AsciiCode, logger};
+
+use crate::arch::context::SUB_CONTEXT;
 
 #[no_mangle]
 #[start]
@@ -86,7 +93,24 @@ pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> ! {
 
     env::print_info();
 
-    context::save_kernel_context();
+    unsafe {
+        SUB_CONTEXT.init(
+            func_a as *const () as u64,
+            0,
+            0,
+            SUB_STACK.as_ptr() as u64 + SUB_STACK.len() as u64,
+            ContextMode::Kernel,
+        );
+    }
+
+    // test context switch
+    for _ in 0..10 {
+        unsafe {
+            println!("main");
+            MAIN_CONTEXT.switch_to(&SUB_CONTEXT);
+            println!("returned from sub context");
+        }
+    }
 
     // tasks
     task::spawn(serial_receive_task()).unwrap();
@@ -176,4 +200,11 @@ async fn exec_cmd(cmd: String) -> Result<()> {
     }
 
     Ok(())
+}
+
+unsafe extern "sysv64" fn func_a() {
+    loop {
+        println!("a");
+        SUB_CONTEXT.switch_to(&MAIN_CONTEXT);
+    }
 }

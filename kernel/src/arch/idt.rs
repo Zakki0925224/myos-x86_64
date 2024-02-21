@@ -126,6 +126,7 @@ const PIC_END_OF_INT_CMD: u8 = 0x20;
 
 pub enum InterruptHandler {
     Normal(extern "x86-interrupt" fn()),
+    WithStackFrame(extern "x86-interrupt" fn(InterruptStackFrame)),
     PageFault(extern "x86-interrupt" fn(InterruptStackFrame, PageFaultErrorCode)),
 }
 
@@ -147,9 +148,10 @@ impl GateDescriptor {
 
     pub fn set_handler(&mut self, handler: InterruptHandler, gate_type: GateType) {
         let handler_addr = match handler {
-            InterruptHandler::Normal(handler) => handler as *const () as u64,
-            InterruptHandler::PageFault(handler) => handler as *const () as u64,
-        };
+            InterruptHandler::Normal(handler) => handler as *const (),
+            InterruptHandler::WithStackFrame(handler) => handler as *const (),
+            InterruptHandler::PageFault(handler) => handler as *const (),
+        } as u64;
         self.set_handler_offset(handler_addr);
         self.set_selector(Cs::read().raw());
         self.set_gate_type(gate_type);
@@ -222,12 +224,12 @@ fn pic_notify_end_of_int() {
     SLAVE_PIC_ADDR.out8(PIC_END_OF_INT_CMD);
 }
 
-extern "x86-interrupt" fn breakpoint_handler() {
-    panic!("int: BREAKPOINT");
+extern "x86-interrupt" fn breakpoint_handler(stack_frame: InterruptStackFrame) {
+    panic!("int: BREAKPOINT, {:?}", stack_frame);
 }
 
-extern "x86-interrupt" fn general_protection_fault_handler() {
-    panic!("int: GENERAL PROTECTION FAULT");
+extern "x86-interrupt" fn general_protection_fault_handler(stack_frame: InterruptStackFrame) {
+    panic!("int: GENERAL PROTECTION FAULT, {:?}", stack_frame);
 }
 
 extern "x86-interrupt" fn page_fault_handler(
@@ -235,7 +237,7 @@ extern "x86-interrupt" fn page_fault_handler(
     error_code: PageFaultErrorCode,
 ) {
     panic!(
-        "int: PAGE FAULT, Accessed virtual address: 0x{:x}, Error code: {:?}, Stack frame: {:?}",
+        "int: PAGE FAULT, Accessed virtual address: 0x{:x}, {:?}, {:?}",
         Cr2::read().raw(),
         error_code,
         stack_frame
@@ -304,12 +306,12 @@ pub fn init_idt() {
     let mut idt = unsafe { IDT.try_lock() }.unwrap();
     idt.set_handler(
         VEC_BREAKPOINT,
-        InterruptHandler::Normal(breakpoint_handler),
+        InterruptHandler::WithStackFrame(breakpoint_handler),
         GateType::Interrupt,
     );
     idt.set_handler(
         VEC_GENERAL_PROTECTION,
-        InterruptHandler::Normal(general_protection_fault_handler),
+        InterruptHandler::WithStackFrame(general_protection_fault_handler),
         GateType::Interrupt,
     );
     idt.set_handler(

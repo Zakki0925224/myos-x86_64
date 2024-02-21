@@ -12,9 +12,13 @@ use crate::{
 use core::mem::size_of;
 use log::info;
 
-static mut GDT: Mutex<GlobalDescriptorTable> = Mutex::new(GlobalDescriptorTable::new());
-
+pub const KERNEL_MODE_SS_VALUE: u16 = 2 << 3;
+pub const KERNEL_MODE_CS_VALUE: u16 = 1 << 3;
+pub const USER_MODE_SS_VALUE: u16 = (4 << 3) | 3;
+pub const USER_MODE_CS_VALUE: u16 = (3 << 3) | 3;
 const GDT_LEN: usize = 5;
+
+static mut GDT: Mutex<GlobalDescriptorTable> = Mutex::new(GlobalDescriptorTable::new());
 
 #[derive(Debug, Clone, Copy)]
 #[repr(u8)]
@@ -163,13 +167,13 @@ pub fn init() {
 }
 
 pub fn set_seg_reg_to_kernel() {
-    segment::set_ss_cs(2 << 3, 1 << 3);
-    assert_eq!(Ss::read().raw(), 2 << 3);
-    assert_eq!(Cs::read().raw(), 1 << 3);
+    segment::set_ss_cs(KERNEL_MODE_SS_VALUE, KERNEL_MODE_CS_VALUE);
+    assert_eq!(Ss::read().raw(), KERNEL_MODE_SS_VALUE);
+    assert_eq!(Cs::read().raw(), KERNEL_MODE_CS_VALUE);
 }
 
 pub fn set_seg_reg_to_user() {
-    segment::set_ss_cs(4 << 3 | 3, (3 << 3) | 3); // RPL = 3
-    assert_eq!(Ss::read().raw(), 4 << 3 | 3);
-    assert_eq!(Cs::read().raw(), (3 << 3) | 3);
+    segment::set_ss_cs(USER_MODE_SS_VALUE, USER_MODE_CS_VALUE); // RPL = 3
+    assert_eq!(Ss::read().raw(), USER_MODE_SS_VALUE);
+    assert_eq!(Cs::read().raw(), USER_MODE_CS_VALUE);
 }
