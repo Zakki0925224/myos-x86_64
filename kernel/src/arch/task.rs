@@ -1,21 +1,16 @@
 use crate::{
     error::Result,
-    util::{
-        id::UniqueIdU64,
-        mutex::{Mutex, MutexError},
-    },
+    util::mutex::{Mutex, MutexError},
 };
 use alloc::{boxed::Box, collections::VecDeque};
 use core::{
     future::Future,
     pin::Pin,
     ptr::null,
-    sync::atomic::{AtomicBool, Ordering},
+    sync::atomic::{AtomicBool, AtomicU64, Ordering},
     task::{Context, Poll, RawWaker, RawWakerVTable, Waker},
 };
 use log::info;
-
-type TaskId = UniqueIdU64;
 
 static mut TASK_EXECUTOR: Mutex<Executor> = Mutex::new(Executor::new());
 
@@ -33,6 +28,20 @@ impl Future for Yield {
         } else {
             Poll::Pending
         }
+    }
+}
+
+#[derive(Debug)]
+struct TaskId(u64);
+
+impl TaskId {
+    pub fn new() -> Self {
+        static NEXT_ID: AtomicU64 = AtomicU64::new(0);
+        Self(NEXT_ID.fetch_add(1, Ordering::Relaxed))
+    }
+
+    pub fn get(&self) -> u64 {
+        self.0
     }
 }
 

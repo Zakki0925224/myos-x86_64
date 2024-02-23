@@ -4,7 +4,7 @@ pub mod asm;
 pub mod context;
 pub mod gdt;
 pub mod idt;
-pub mod proc;
+pub mod process;
 pub mod qemu;
 pub mod register;
 pub mod syscall;

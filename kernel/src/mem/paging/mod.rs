@@ -103,8 +103,10 @@ impl PageManager {
     }
 
     pub fn create_new_page_table(&mut self) -> Result<()> {
-        let pml4_table_virt_addr = bitmap::alloc_mem_frame(size_of::<PageTable>() / PAGE_SIZE + 1)?
-            .get_frame_start_virt_addr();
+        let pml4_table_mem_frame_info =
+            bitmap::alloc_mem_frame((size_of::<PageTable>() / PAGE_SIZE).max(1))?;
+        bitmap::mem_clear(&pml4_table_mem_frame_info)?;
+        let pml4_table_virt_addr = pml4_table_mem_frame_info.get_frame_start_virt_addr();
         let mut pml4_page_table = pml4_table_virt_addr.read_volatile();
 
         let (_, total_mem_size) = bitmap::get_mem_size();
@@ -297,7 +299,8 @@ impl PageManager {
         let mut entry_phys_addr = entry.addr();
 
         if !entry.p() {
-            let mem_info = bitmap::alloc_mem_frame(size_of::<PageTable>() / PAGE_SIZE + 1)?;
+            let mem_info = bitmap::alloc_mem_frame((size_of::<PageTable>() / PAGE_SIZE).max(1))?;
+            bitmap::mem_clear(&mem_info)?;
             let phys_addr = mem_info.get_frame_start_virt_addr().get();
             entry.set_entry(phys_addr, true, rw, mode, write_through_level);
             entry_phys_addr = phys_addr;
@@ -310,7 +313,8 @@ impl PageManager {
         let mut entry_phys_addr = entry.addr();
 
         if !entry.p() {
-            let mem_info = bitmap::alloc_mem_frame(size_of::<PageTable>() / PAGE_SIZE + 1)?;
+            let mem_info = bitmap::alloc_mem_frame((size_of::<PageTable>() / PAGE_SIZE).max(1))?;
+            bitmap::mem_clear(&mem_info)?;
             let phys_addr = mem_info.get_frame_start_virt_addr().get();
 
             // 1GB page
@@ -332,7 +336,8 @@ impl PageManager {
         let mut entry_phys_addr = entry.addr();
 
         if !entry.p() {
-            let mem_info = bitmap::alloc_mem_frame(size_of::<PageTable>() / PAGE_SIZE + 1)?;
+            let mem_info = bitmap::alloc_mem_frame((size_of::<PageTable>() / PAGE_SIZE).max(1))?;
+            bitmap::mem_clear(&mem_info)?;
             let phys_addr = mem_info.get_frame_start_virt_addr().get();
 
             // 2 MB page

@@ -74,7 +74,7 @@ const HEAP_SIZE: usize = PAGE_SIZE * PAGE_SIZE; // 16MiB
 static ALLOCATOR: LockedHeap = LockedHeap::empty();
 
 pub fn init_heap() {
-    let mem_frame_info = match bitmap::alloc_mem_frame(HEAP_SIZE / PAGE_SIZE) {
+    let mem_frame_info = match bitmap::alloc_mem_frame((HEAP_SIZE / PAGE_SIZE).max(1)) {
         Ok(info) => info,
         Err(_) => panic!("Failed to allocate memory for heap allocator"),
     };

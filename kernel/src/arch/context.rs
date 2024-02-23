@@ -5,19 +5,15 @@ use super::{
 use common::boot_info::BootInfo;
 use core::arch::asm;
 
-pub const STACK_SIZE: usize = 1024 * 1024;
-
-static KERNEL_STACK: Stack<STACK_SIZE> = Stack::new();
-pub static mut MAIN_CONTEXT: Context = Context::new();
-pub static mut SUB_CONTEXT: Context = Context::new();
-pub static mut SUB_STACK: Stack<STACK_SIZE> = Stack::new();
+const KERNEL_STACK_SIZE: usize = 1024 * 1024;
+static KERNEL_STACK: KernelStack = KernelStack::new();
 
 #[repr(align(16))]
-pub struct Stack<const N: usize>([u8; N]);
+struct KernelStack([u8; KERNEL_STACK_SIZE]);
 
-impl<const N: usize> Stack<N> {
+impl KernelStack {
     pub const fn new() -> Self {
-        Self([0; N])
+        Self([0; KERNEL_STACK_SIZE])
     }
 
     pub fn len(&self) -> usize {

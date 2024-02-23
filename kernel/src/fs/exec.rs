@@ -1,4 +1,7 @@
+use crate::arch::{context::ContextMode, process};
+
 use super::initramfs;
+use alloc::string::ToString;
 use common::elf::{self, Elf64};
 use core::mem;
 use log::{error, info};
@@ -44,9 +47,12 @@ pub fn exec_elf(file_name: &str, args: &[&str]) {
         "entry: 0x{:x}",
         elf_data.as_ptr() as u64 + header.entry_point
     );
-    let entry_point: extern "sysv64" fn() -> i32 =
+    let entry_point: extern "sysv64" fn() =
         unsafe { mem::transmute(elf_data.as_ptr().offset(header.entry_point as isize)) };
 
-    let ret = entry_point();
-    info!("exec: Exited ({})", ret);
+    process::create_process("elf".to_string(), 1024, entry_point, ContextMode::User).unwrap();
+    process::switch_process(0, 1).unwrap();
+
+    //info!("exec: Exited ({})", ret);
+    info!("exec: Exited");
 }

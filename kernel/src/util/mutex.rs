@@ -36,6 +36,10 @@ impl<T: Sized> Mutex<T> {
         }
     }
 
+    pub unsafe fn get_force_mut(&mut self) -> &mut T {
+        self.value.get_mut()
+    }
+
     // pub fn lock(&self) -> MutexGuard<T> {
     //     self.try_lock().unwrap_or_else(|e| panic!("{:?}", e))
     // }

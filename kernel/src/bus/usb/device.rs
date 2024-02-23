@@ -59,6 +59,8 @@ impl UsbDevice {
 
         let dev_desc_buf_mem_info = bitmap::alloc_mem_frame(1)?;
         let conf_desc_buf_mem_info = bitmap::alloc_mem_frame(1)?;
+        bitmap::mem_clear(&dev_desc_buf_mem_info)?;
+        bitmap::mem_clear(&conf_desc_buf_mem_info)?;
 
         let mut transfer_ring_bufs: [Option<RingBuffer<RING_BUF_LEN>>; 32] = Default::default();
         transfer_ring_bufs[1] = Some(dcp_ring_buf);

@@ -1,4 +1,5 @@
 use crate::{
+    arch::process::ProcessTableError,
     bus::usb::{
         device::UsbDeviceError,
         xhc::{ring_buffer::RingBufferError, XhcDriverError},
@@ -29,6 +30,7 @@ pub enum Error {
     XhcDriverError(XhcDriverError),
     RingBufferError(RingBufferError),
     FifoError(FifoError),
+    ProcessTableError(ProcessTableError),
 }
 
 impl From<&'static str> for Error {
@@ -112,6 +114,12 @@ impl From<RingBufferError> for Error {
 impl From<FifoError> for Error {
     fn from(err: FifoError) -> Self {
         Error::FifoError(err)
+    }
+}
+
+impl From<ProcessTableError> for Error {
+    fn from(err: ProcessTableError) -> Self {
+        Error::ProcessTableError(err)
     }
 }
 
