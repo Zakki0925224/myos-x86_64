@@ -1,6 +1,4 @@
-use log::info;
-
-use crate::{arch::addr::IoPortAddress, println};
+use crate::arch::addr::IoPortAddress;
 
 const PS2_DATA_REG_ADDR: IoPortAddress = IoPortAddress::new(0x60);
 const PS2_CMD_AND_STATE_REG_ADDR: IoPortAddress = IoPortAddress::new(0x64);
@@ -17,13 +15,11 @@ pub fn init() {
 
     PS2_DATA_REG_ADDR.out8(0xf4); // start streaming
     wait_ready();
-
-    info!("ps2 mouse: Initialized");
 }
 
-pub fn receive() {
+pub fn receive() -> u8 {
     let data = PS2_DATA_REG_ADDR.in8();
-    println!("ps2 mouse: 0x{:x}", data);
+    data
 }
 
 fn wait_ready() {

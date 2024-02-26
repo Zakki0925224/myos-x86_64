@@ -184,20 +184,29 @@ pub fn get_file(file_name: &str) -> Result<Option<(FileMetaData, Vec<u8>)>> {
     Err(MutexError::Locked.into())
 }
 
-pub fn ls() {
+pub fn ls() -> Result<()> {
     if let Ok(initramfs) = unsafe { INITRAMFS.try_lock() } {
         initramfs.ls();
+        return Ok(());
     }
+
+    Err(MutexError::Locked.into())
 }
 
-pub fn cd(dir_name: &str) {
+pub fn cd(dir_name: &str) -> Result<()> {
     if let Ok(mut initramfs) = unsafe { INITRAMFS.try_lock() } {
         initramfs.cd(dir_name);
+        return Ok(());
     }
+
+    Err(MutexError::Locked.into())
 }
 
-pub fn cat(file_name: &str) {
+pub fn cat(file_name: &str) -> Result<()> {
     if let Ok(initramfs) = unsafe { INITRAMFS.try_lock() } {
         initramfs.cat(file_name);
+        return Ok(());
     }
+
+    Err(MutexError::Locked.into())
 }

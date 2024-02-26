@@ -163,7 +163,7 @@ pub fn init() {
     gdt3.set_code_seg(SegmentType::ExecuteRead, 3, 0, 0xffff_f);
     gdt4.set_data_seg(SegmentType::ReadWrite, 3, 0, 0);
 
-    let tss_addr = tss::init().expect("Failed to initialize TSS");
+    let tss_addr = tss::init().expect("gdt: Failed to initialize TSS");
 
     {
         let mut gdt = unsafe { GDT.try_lock() }.unwrap();

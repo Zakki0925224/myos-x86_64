@@ -70,5 +70,5 @@ pub fn init() {
     fmask.set_value(0);
     fmask.write();
 
-    info!("arch: Initialized syscall");
+    info!("syscall: Initialized syscall");
 }

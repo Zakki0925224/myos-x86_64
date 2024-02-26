@@ -96,32 +96,32 @@ pub fn scan_devices() -> Result<()> {
     if let Ok(mut pci_device_man) = unsafe { PCI_DEVICE_MAN.try_lock() } {
         pci_device_man.scan_devices();
         return Ok(());
-    } else {
-        return Err(MutexError::Locked.into());
     }
+
+    Err(MutexError::Locked.into())
 }
 
 pub fn find_by_class(class_code: u8, subclass_code: u8, prog_if: u8) -> Result<Vec<PciDevice>> {
     if let Ok(pci_device_man) = unsafe { PCI_DEVICE_MAN.try_lock() } {
         return Ok(pci_device_man.find_by_class(class_code, subclass_code, prog_if));
-    } else {
-        return Err(MutexError::Locked.into());
     }
+
+    Err(MutexError::Locked.into())
 }
 
 pub fn find_by_bdf(bus: usize, device: usize, func: usize) -> Result<Option<PciDevice>> {
     if let Ok(pci_device_man) = unsafe { PCI_DEVICE_MAN.try_lock() } {
         return Ok(pci_device_man.find_by_bdf(bus, device, func));
-    } else {
-        return Err(MutexError::Locked.into());
     }
+
+    Err(MutexError::Locked.into())
 }
 
 pub fn lspci() -> Result<()> {
     if let Ok(pci_device_man) = unsafe { PCI_DEVICE_MAN.try_lock() } {
         pci_device_man.debug();
         return Ok(());
-    } else {
-        return Err(MutexError::Locked.into());
     }
+
+    Err(MutexError::Locked.into())
 }

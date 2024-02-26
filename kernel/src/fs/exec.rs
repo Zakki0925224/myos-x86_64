@@ -1,13 +1,14 @@
 use super::initramfs;
 use crate::{
     arch::task,
+    error::Result,
     mem::{bitmap, paging::PAGE_SIZE},
 };
 use common::elf::{self, Elf64};
 use core::mem;
 use log::{error, info};
 
-pub fn exec_elf(file_name: &str, args: &[&str]) {
+pub fn exec_elf(file_name: &str, args: &[&str]) -> Result<()> {
     info!("exec: args: {:?}", args);
 
     let (_, elf_data) = match initramfs::get_file(file_name) {
@@ -15,12 +16,11 @@ pub fn exec_elf(file_name: &str, args: &[&str]) {
             Some((meta, data)) => (meta, data),
             None => {
                 error!("exec: The file \"{}\" does not exist", file_name);
-                return;
+                return Ok(());
             }
         },
-        Err(_) => {
-            error!("exec: Initramfs is locked");
-            return;
+        Err(e) => {
+            return Err(e);
         }
     };
 
@@ -28,7 +28,7 @@ pub fn exec_elf(file_name: &str, args: &[&str]) {
         Ok(e) => e,
         Err(_) => {
             error!("exec: The file \"{}\" is not an executable file", file_name);
-            return;
+            return Ok(());
         }
     };
 
@@ -36,21 +36,21 @@ pub fn exec_elf(file_name: &str, args: &[&str]) {
 
     if header.elf_type() != elf::Type::Executable {
         error!("exec: The file \"{}\" is not an executable file", file_name);
-        return;
+        return Ok(());
     }
 
     if header.machine() != elf::Machine::X8664 {
         error!("exec: Unsupported ISA");
-        return;
+        return Ok(());
     }
 
     // copy elf data to user frame
-    let user_mem_frame_info = bitmap::alloc_mem_frame((elf_data.len() / PAGE_SIZE).max(1)).unwrap();
+    let user_mem_frame_info = bitmap::alloc_mem_frame((elf_data.len() / PAGE_SIZE).max(1))?;
     info!("{:?}", user_mem_frame_info);
     user_mem_frame_info
         .get_frame_start_virt_addr()
         .copy_from_nonoverlapping(elf_data.as_ptr(), elf_data.len());
-    user_mem_frame_info.set_permissions_to_user().unwrap();
+    user_mem_frame_info.set_permissions_to_user()?;
 
     let entry_addr =
         user_mem_frame_info.get_frame_start_virt_addr().get() + header.entry_point - 0x1000;
@@ -58,10 +58,11 @@ pub fn exec_elf(file_name: &str, args: &[&str]) {
     info!("entry: 0x{:x}", entry_addr);
     let entry: extern "sysv64" fn() = unsafe { mem::transmute(entry_addr as *const ()) };
     // TODO: occure page fault
-    task::exec_user_task(entry).unwrap();
+    task::exec_user_task(entry)?;
 
-    bitmap::dealloc_mem_frame(user_mem_frame_info).unwrap();
+    bitmap::dealloc_mem_frame(user_mem_frame_info)?;
 
-    //info!("exec: Exited ({})", ret);
     info!("exec: Exited");
+
+    Ok(())
 }

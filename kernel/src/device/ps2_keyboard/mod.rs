@@ -9,10 +9,12 @@ use crate::{
             scan_code::KeyCode,
         },
     },
-    println,
-    util::{fifo::Fifo, mutex::Mutex},
+    error::Result,
+    util::{
+        fifo::Fifo,
+        mutex::{Mutex, MutexError},
+    },
 };
-use log::{error, info};
 
 mod key_event;
 mod key_map;
@@ -45,7 +47,7 @@ impl Keyboard {
         }
     }
 
-    pub fn input(&mut self, data: u8) {
+    pub fn input(&mut self, data: u8) -> Result<()> {
         let map = match self.key_map {
             KeyMap::AnsiUs104(map) => map,
         };
@@ -116,9 +118,7 @@ impl Keyboard {
 
         if let Some(e) = self.key_event {
             if let Some(a) = e.ascii {
-                if console::input(a).is_err() {
-                    error!("Console is locked");
-                }
+                console::input(a)?;
             }
         }
 
@@ -132,6 +132,8 @@ impl Keyboard {
             self.reset_key_buf();
             self.key_event = None;
         }
+
+        Ok(())
     }
 
     fn reset_key_buf(&mut self) {
@@ -147,17 +149,15 @@ pub fn init() {
 
     PS2_CMD_AND_STATE_REG_ADDR.out8(0x20); // read configuration byte
     wait_ready();
-    let conf_byte = PS2_DATA_REG_ADDR.in8();
-    println!("conf byte: 0x{:x}", conf_byte);
-
-    info!("ps2 kbd: Initialized");
 }
 
-pub fn receive() {
+pub fn receive() -> Result<()> {
     let data = PS2_DATA_REG_ADDR.in8();
     if let Ok(mut keyboard) = unsafe { KEYBOARD.try_lock() } {
-        keyboard.input(data);
+        return keyboard.input(data);
     }
+
+    Err(MutexError::Locked.into())
 }
 
 fn wait_ready() {

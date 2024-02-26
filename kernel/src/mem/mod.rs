@@ -1,6 +1,6 @@
 use crate::{arch::addr::VirtualAddress, println};
 use common::mem_desc::MemoryDescriptor;
-use log::error;
+use log::{error, info};
 
 pub mod allocator;
 pub mod bitmap;
@@ -10,6 +10,7 @@ pub fn init(mem_map: &[MemoryDescriptor]) {
     if let Err(err) = bitmap::init(mem_map) {
         panic!("mem: {:?}", err);
     }
+    info!("mem: Initialized bitmap memory manager");
 
     match paging::load_cr3() {
         Ok(_) => (),
@@ -30,6 +31,7 @@ pub fn init(mem_map: &[MemoryDescriptor]) {
     );
 
     allocator::init_heap();
+    info!("mem: Initialized heap allocator");
 }
 
 pub fn free() {

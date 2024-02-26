@@ -11,7 +11,6 @@ use crate::{
 use alloc::vec::Vec;
 use common::mem_desc::*;
 use core::mem::size_of;
-use log::info;
 
 static mut BITMAP_MEM_MAN: Mutex<Option<BitmapMemoryManager>> = Mutex::new(None);
 
@@ -212,85 +211,7 @@ impl BitmapMemoryManager {
             }
         }
 
-        info!("mem: Initialized bitmap memory manager");
-
         Ok(bmm)
-    }
-
-    pub fn init(&mut self, mem_map: &[MemoryDescriptor]) -> Result<()> {
-        // TODO: boot services data/code
-        // get total page count (a page=4096B)
-        let total_page_cnt = mem_map.into_iter().map(|d| d.page_cnt as usize).sum();
-        // get bitmap len
-        let mut bitmap_len = total_page_cnt / BITMAP_SIZE;
-
-        if total_page_cnt % BITMAP_SIZE != 0 {
-            bitmap_len += 1;
-        }
-
-        // find available memory area for bitmap
-        let mut bitmap_virt_addr = VirtualAddress::default();
-        for d in mem_map {
-            if d.ty != MemoryType::Conventional
-                || d.page_cnt as usize * UEFI_PAGE_SIZE < bitmap_len
-                || d.phys_start == 0
-            {
-                continue;
-            }
-
-            bitmap_virt_addr.set(d.phys_start);
-            break;
-        }
-
-        if bitmap_virt_addr.get() == 0 {
-            return Err(BitmapMemoryManagerError::AllocateMemoryForBitmapError.into());
-        }
-
-        self.bitmap_virt_addr = bitmap_virt_addr;
-        self.bitmap_len = bitmap_len;
-        self.frame_len = total_page_cnt;
-        self.allocated_frame_len = 0;
-        self.free_frame_len = self.frame_len;
-        self.frame_size = UEFI_PAGE_SIZE;
-
-        // clear all bitmap
-        self.clear_bitmap();
-
-        // allocate no conventional memory frame
-        let mut frame_index = 0;
-
-        for d in mem_map {
-            if d.ty == MemoryType::Conventional {
-                frame_index += d.page_cnt as usize;
-                continue;
-            }
-
-            for _ in 0..d.page_cnt {
-                self.alloc_frame(frame_index)?;
-                frame_index += 1;
-            }
-        }
-
-        // allocate bitmap memory frame
-        let start = self.get_mem_frame_index(self.bitmap_virt_addr);
-        let end = self.get_mem_frame_index(self.bitmap_virt_addr.offset(self.bitmap_len));
-        for i in start..=end {
-            self.alloc_frame(i)?;
-        }
-
-        // allocate less 1MB memory space
-        let start = 0;
-        let end = self.get_mem_frame_index(VirtualAddress::new(1024 * 1024));
-        for i in start..=end {
-            if let Err(_) = self.alloc_frame(i) {
-                // already allocated
-                continue;
-            }
-        }
-
-        info!("mem: Initialized bitmap memory manager");
-
-        Ok(())
     }
 
     pub fn get_frame_size(&self) -> usize {

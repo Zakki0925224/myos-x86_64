@@ -265,12 +265,15 @@ extern "x86-interrupt" fn local_apic_timer_handler() {
 }
 
 extern "x86-interrupt" fn ps2_keyboard_handler() {
-    ps2_keyboard::receive();
+    if let Err(err) = ps2_keyboard::receive() {
+        error!("ps2 kbd: {:?}", err);
+    }
     pic_notify_end_of_int();
 }
 
 extern "x86-interrupt" fn ps2_mouse_handler() {
-    ps2_mouse::receive();
+    let data = ps2_mouse::receive();
+    info!("ps2 mouse: 0x{:x}", data);
     pic_notify_end_of_int();
 }
 

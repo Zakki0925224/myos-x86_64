@@ -11,4 +11,5 @@ pub fn init() {
     if let Err(err) = usb::init() {
         warn!("usb: {:?}", err);
     }
+    info!("usb: Initialized USB driver");
 }

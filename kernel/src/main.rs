@@ -154,20 +154,20 @@ async fn exec_cmd(cmd: String) -> Result<()> {
         "exit" => qemu::exit(0),
         "echo" => println!("{}", &cmd[4..].trim()),
         "break" => asm::int3(),
-        "ls" => initramfs::ls(),
+        "ls" => initramfs::ls()?,
         "cd" => {
             if args.len() == 2 {
-                initramfs::cd(args[1]);
+                initramfs::cd(args[1])?;
             }
         }
         "cat" => {
             if args.len() == 2 {
-                initramfs::cat(args[1]);
+                initramfs::cat(args[1])?;
             }
         }
         "exec" => {
             if args.len() == 2 {
-                exec::exec_elf(args[1], &args[2..]);
+                exec::exec_elf(args[1], &args[2..])?;
             }
         }
         "" => (),
