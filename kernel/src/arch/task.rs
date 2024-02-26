@@ -2,6 +2,7 @@ use crate::{
     arch::context::{Context, ContextMode},
     error::Result,
     mem::{self, bitmap::MemoryFrameInfo, paging::PAGE_SIZE},
+    println,
     util::mutex::{Mutex, MutexError},
 };
 use alloc::{boxed::Box, collections::VecDeque};
@@ -195,6 +196,7 @@ impl Task {
 
 pub fn exec_user_task(entry: extern "sysv64" fn()) -> Result<()> {
     let task = Task::new(1024 * 1024, Some(entry), ContextMode::User)?;
+    println!("{:?}", task);
 
     if let (Ok(mut kernel_task), Ok(mut user_task)) =
         unsafe { (KERNEL_TASK.try_lock(), USER_TASK.try_lock()) }
