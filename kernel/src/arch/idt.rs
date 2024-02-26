@@ -307,7 +307,7 @@ pub fn init_idt() {
     idt.set_handler(
         VEC_BREAKPOINT,
         InterruptHandler::WithStackFrame(breakpoint_handler),
-        GateType::Interrupt,
+        GateType::Trap,
     );
     idt.set_handler(
         VEC_GENERAL_PROTECTION,

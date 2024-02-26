@@ -117,9 +117,15 @@ pub fn lgdt(desc_table_args: &DescriptorTableArgs) {
     }
 }
 
+pub fn ltr(sel: u16) {
+    unsafe {
+        asm!("ltr cx", in("cx") sel);
+    }
+}
+
 pub fn read_msr(addr: u32) -> u64 {
-    let mut low: u32 = 0;
-    let mut high: u32 = 0;
+    let mut low: u32;
+    let mut high: u32;
 
     unsafe {
         asm!("rdmsr", in("ecx") addr, out("eax") low, out("edx") high);

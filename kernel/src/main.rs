@@ -22,11 +22,8 @@ mod util;
 #[macro_use]
 extern crate alloc;
 
-use alloc::{
-    string::{String, ToString},
-    vec::Vec,
-};
-use arch::{apic, asm, context, gdt, idt, process, qemu, syscall, task};
+use alloc::{string::String, vec::Vec};
+use arch::{apic, asm, context, gdt, idt, qemu, syscall, task};
 use bus::pci;
 use common::boot_info::BootInfo;
 use device::console;
@@ -63,14 +60,14 @@ pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> ! {
         (18, 202, 99).into(),
     );
 
+    // initialize memory management
+    mem::init(boot_info.get_mem_map());
+
     // initialize GDT
     gdt::init();
     // initialize PIC and IDT
     idt::init_pic();
     idt::init_idt();
-
-    // initialize memory management
-    mem::init(boot_info.get_mem_map());
 
     // initialize graphics shadow buffer and layer manager
     //graphics::enable_shadow_buf();
@@ -89,20 +86,6 @@ pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> ! {
     initramfs::init(boot_info.initramfs_start_virt_addr.into());
 
     env::print_info();
-
-    process::init_table().unwrap();
-    // process::create_process(
-    //     "func_a".to_string(),
-    //     10,
-    //     func_a,
-    //     context::ContextMode::Kernel,
-    // )
-    // .unwrap();
-
-    // loop {
-    //     println!("main");
-    //     process::switch_process(0, 1).unwrap();
-    // }
 
     // tasks
     task::spawn(serial_receive_task()).unwrap();
@@ -192,11 +175,4 @@ async fn exec_cmd(cmd: String) -> Result<()> {
     }
 
     Ok(())
-}
-
-extern "sysv64" fn func_a() {
-    loop {
-        println!("func_a");
-        process::switch_process(1, 0).unwrap();
-    }
 }

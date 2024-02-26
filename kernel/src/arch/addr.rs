@@ -124,6 +124,10 @@ impl VirtualAddress {
     pub fn as_ptr_mut<T>(&self) -> *mut T {
         self.get() as *mut T
     }
+
+    pub fn copy_from_nonoverlapping<T>(&self, src: *const T, count: usize) {
+        unsafe { self.as_ptr_mut::<T>().copy_from_nonoverlapping(src, count) }
+    }
 }
 
 impl Default for VirtualAddress {

@@ -1,11 +1,14 @@
 use super::{
     asm::{self, DescriptorTableArgs},
-    idt::GateDescriptor,
+    tss::TaskStateSegmentDescriptor,
 };
 use crate::{
-    arch::register::{
-        segment::{self, *},
-        Register,
+    arch::{
+        register::{
+            segment::{self, *},
+            Register,
+        },
+        tss,
     },
     util::mutex::Mutex,
 };
@@ -17,19 +20,20 @@ pub const KERNEL_MODE_CS_VALUE: u16 = 1 << 3;
 pub const USER_MODE_SS_VALUE: u16 = (4 << 3) | 3;
 pub const USER_MODE_CS_VALUE: u16 = (3 << 3) | 3;
 const GDT_LEN: usize = 5;
+const TSS_SEL: u16 = (GDT_LEN as u16) << 3;
 
 static mut GDT: Mutex<GlobalDescriptorTable> = Mutex::new(GlobalDescriptorTable::new());
 
 #[derive(Debug, Clone, Copy)]
 #[repr(u8)]
-pub enum SegmentType {
+enum SegmentType {
     ExecuteRead = 0xa,
     ReadWrite = 0x2,
 }
 
 #[derive(Debug, Clone, Copy)]
 #[repr(C, align(8))]
-pub struct SegmentDescriptor(u64);
+struct SegmentDescriptor(u64);
 
 impl SegmentDescriptor {
     pub const fn new() -> Self {
@@ -58,8 +62,8 @@ impl SegmentDescriptor {
 
     fn set_base(&mut self, base: u32) {
         let base_low = base as u16;
-        let base_mid = (base << 16) as u8;
-        let base_high = (base << 24) as u8;
+        let base_mid = (base >> 16) as u8;
+        let base_high = (base >> 24) as u8;
 
         self.0 = (self.0 & !0xffff_0000) | ((base_low as u64) << 16);
         self.0 = (self.0 & !0x00ff_0000_0000) | ((base_mid as u64) << 32);
@@ -109,14 +113,17 @@ impl SegmentDescriptor {
     }
 }
 
+#[repr(C)]
 struct GlobalDescriptorTable {
     entries: [SegmentDescriptor; GDT_LEN],
+    tss_desc: TaskStateSegmentDescriptor,
 }
 
 impl GlobalDescriptorTable {
     pub const fn new() -> Self {
         Self {
             entries: [SegmentDescriptor::new(); GDT_LEN],
+            tss_desc: TaskStateSegmentDescriptor::new(),
         }
     }
 
@@ -128,12 +135,17 @@ impl GlobalDescriptorTable {
         self.entries[vec_num] = desc;
     }
 
+    pub fn set_tss_desc(&mut self, base: u64) {
+        self.tss_desc.set(base);
+    }
+
     pub fn load(&self) {
-        let limit = (size_of::<GateDescriptor>() * GDT_LEN - 1) as u16;
+        let limit = (size_of::<Self>() - 1) as u16;
         let base = self.entries.as_ptr() as u64;
 
         let args = DescriptorTableArgs { limit, base };
         asm::lgdt(&args);
+        asm::ltr(TSS_SEL);
     }
 }
 
@@ -148,8 +160,10 @@ pub fn init() {
     gdt2.set_data_seg(SegmentType::ReadWrite, 0, 0, 0xffff_f);
 
     // user segments
-    gdt3.set_data_seg(SegmentType::ReadWrite, 3, 0, 0xffff_f);
-    gdt4.set_code_seg(SegmentType::ExecuteRead, 3, 0, 0xffff_f);
+    gdt3.set_code_seg(SegmentType::ExecuteRead, 3, 0, 0xffff_f);
+    gdt4.set_data_seg(SegmentType::ReadWrite, 3, 0, 0);
+
+    let tss_addr = tss::init().expect("Failed to initialize TSS");
 
     {
         let mut gdt = unsafe { GDT.try_lock() }.unwrap();
@@ -157,23 +171,14 @@ pub fn init() {
         gdt.set_desc(2, gdt2);
         gdt.set_desc(3, gdt3);
         gdt.set_desc(4, gdt4);
+        gdt.set_tss_desc(tss_addr);
         gdt.load();
     }
 
     segment::set_ds_es_fs_gs(0);
-    set_seg_reg_to_kernel();
-
-    info!("gdt: Initialized GDT");
-}
-
-pub fn set_seg_reg_to_kernel() {
     segment::set_ss_cs(KERNEL_MODE_SS_VALUE, KERNEL_MODE_CS_VALUE);
     assert_eq!(Ss::read().raw(), KERNEL_MODE_SS_VALUE);
     assert_eq!(Cs::read().raw(), KERNEL_MODE_CS_VALUE);
-}
 
-pub fn set_seg_reg_to_user() {
-    segment::set_ss_cs(USER_MODE_SS_VALUE, USER_MODE_CS_VALUE); // RPL = 3
-    assert_eq!(Ss::read().raw(), USER_MODE_SS_VALUE);
-    assert_eq!(Cs::read().raw(), USER_MODE_CS_VALUE);
+    info!("gdt: Initialized GDT and TSS");
 }

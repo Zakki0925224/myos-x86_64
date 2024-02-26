@@ -48,6 +48,10 @@ impl MemoryFrameInfo {
         self.set_permissions(ReadWrite::Write, EntryMode::Supervisor)
     }
 
+    pub fn set_permissions_to_user(&self) -> Result<()> {
+        self.set_permissions(ReadWrite::Write, EntryMode::User)
+    }
+
     pub fn set_permissions(&self, rw: ReadWrite, mode: EntryMode) -> Result<()> {
         let page_len = self.frame_size / PAGE_SIZE;
         let mut start_virt_addr = self.frame_start_virt_addr;

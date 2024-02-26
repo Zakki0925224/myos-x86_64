@@ -42,6 +42,7 @@ pub fn switch_kernel_stack(
     unreachable!();
 }
 
+// software context switch
 #[naked]
 extern "sysv64" fn switch_context(next_ctx: &Context, current_ctx: &Context) {
     unsafe {

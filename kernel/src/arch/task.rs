@@ -1,5 +1,7 @@
 use crate::{
+    arch::context::{Context, ContextMode},
     error::Result,
+    mem::{self, bitmap::MemoryFrameInfo, paging::PAGE_SIZE},
     util::mutex::{Mutex, MutexError},
 };
 use alloc::{boxed::Box, collections::VecDeque};
@@ -8,12 +10,16 @@ use core::{
     pin::Pin,
     ptr::null,
     sync::atomic::{AtomicBool, AtomicU64, Ordering},
-    task::{Context, Poll, RawWaker, RawWakerVTable, Waker},
+    task::{Context as ExecutorContext, Poll, RawWaker, RawWakerVTable, Waker},
 };
 use log::info;
 
 static mut TASK_EXECUTOR: Mutex<Executor> = Mutex::new(Executor::new());
 
+static mut KERNEL_TASK: Mutex<Option<Task>> = Mutex::new(None);
+static mut USER_TASK: Mutex<Option<Task>> = Mutex::new(None);
+
+// preemptive multitask
 #[derive(Default)]
 struct Yield {
     polled: AtomicBool,
@@ -22,7 +28,7 @@ struct Yield {
 impl Future for Yield {
     type Output = ();
 
-    fn poll(self: Pin<&mut Self>, _: &mut Context) -> Poll<()> {
+    fn poll(self: Pin<&mut Self>, _: &mut ExecutorContext) -> Poll<()> {
         if self.polled.fetch_or(true, Ordering::SeqCst) {
             Poll::Ready(())
         } else {
@@ -45,12 +51,12 @@ impl TaskId {
     }
 }
 
-struct Task {
+struct ExecutorTask {
     id: TaskId,
     future: Pin<Box<dyn Future<Output = ()>>>,
 }
 
-impl Task {
+impl ExecutorTask {
     pub fn new(future: impl Future<Output = ()> + 'static) -> Self {
         Self {
             id: TaskId::new(),
@@ -58,13 +64,13 @@ impl Task {
         }
     }
 
-    fn poll(&mut self, context: &mut Context) -> Poll<()> {
+    fn poll(&mut self, context: &mut ExecutorContext) -> Poll<()> {
         self.future.as_mut().poll(context)
     }
 }
 
 struct Executor {
-    task_queue: Option<VecDeque<Task>>,
+    task_queue: Option<VecDeque<ExecutorTask>>,
 }
 
 impl Executor {
@@ -78,7 +84,7 @@ impl Executor {
     pub fn run(&mut self) {
         while let Some(mut task) = self.task_queue().pop_front() {
             let waker = dummy_waker();
-            let mut context = Context::from_waker(&waker);
+            let mut context = ExecutorContext::from_waker(&waker);
             match task.poll(&mut context) {
                 Poll::Ready(()) => info!("task: Done (id: {})", task.id.get()),
                 Poll::Pending => self.task_queue().push_back(task),
@@ -86,11 +92,11 @@ impl Executor {
         }
     }
 
-    pub fn spawn(&mut self, task: Task) {
+    pub fn spawn(&mut self, task: ExecutorTask) {
         self.task_queue().push_back(task);
     }
 
-    fn task_queue(&mut self) -> &mut VecDeque<Task> {
+    fn task_queue(&mut self) -> &mut VecDeque<ExecutorTask> {
         if self.task_queue.is_none() {
             self.task_queue = Some(VecDeque::new());
         }
@@ -117,7 +123,7 @@ pub async fn exec_yield() {
 
 pub fn spawn(future: impl Future<Output = ()> + 'static) -> Result<()> {
     if let Ok(mut executor) = unsafe { TASK_EXECUTOR.try_lock() } {
-        let task = Task::new(future);
+        let task = ExecutorTask::new(future);
         executor.spawn(task);
         return Ok(());
     }
@@ -132,4 +138,91 @@ pub fn run() -> Result<()> {
     }
 
     Err(MutexError::Locked.into())
+}
+
+// non-preemptive multitask
+#[derive(Debug)]
+struct Task {
+    id: TaskId,
+    stack_mem_frame_info: MemoryFrameInfo,
+    stack_size: usize,
+    context: Context,
+}
+
+impl Drop for Task {
+    fn drop(&mut self) {
+        self.stack_mem_frame_info
+            .set_permissions_to_supervisor()
+            .unwrap();
+        mem::bitmap::dealloc_mem_frame(self.stack_mem_frame_info).unwrap();
+    }
+}
+
+impl Task {
+    pub fn new(
+        stack_size: usize,
+        entry: Option<extern "sysv64" fn()>,
+        mode: ContextMode,
+    ) -> Result<Self> {
+        let stack_mem_frame_info = mem::bitmap::alloc_mem_frame((stack_size / PAGE_SIZE).max(1))?;
+
+        match mode {
+            ContextMode::Kernel => stack_mem_frame_info.set_permissions_to_supervisor()?,
+            ContextMode::User => stack_mem_frame_info.set_permissions_to_user()?,
+        }
+
+        let rsp = stack_mem_frame_info.get_frame_start_virt_addr().get() + stack_size as u64;
+        let rip = match entry {
+            Some(f) => f as u64,
+            None => 0,
+        };
+
+        let mut context = Context::new();
+        context.init(rip, 0, 0, rsp, mode);
+
+        Ok(Self {
+            id: TaskId::new(),
+            stack_mem_frame_info,
+            stack_size,
+            context,
+        })
+    }
+
+    pub fn switch_to(&self, next_task: &Task) {
+        self.context.switch_to(&next_task.context);
+    }
+}
+
+pub fn exec_user_task(entry: extern "sysv64" fn()) -> Result<()> {
+    let task = Task::new(1024 * 1024, Some(entry), ContextMode::User)?;
+
+    if let (Ok(mut kernel_task), Ok(mut user_task)) =
+        unsafe { (KERNEL_TASK.try_lock(), USER_TASK.try_lock()) }
+    {
+        if kernel_task.is_none() {
+            // stack is unused, because already allocated static area for kernel stack
+            *kernel_task = Some(Task::new(0, None, ContextMode::Kernel)?)
+        }
+
+        *user_task = Some(task);
+        kernel_task
+            .as_ref()
+            .unwrap()
+            .switch_to(user_task.as_ref().unwrap());
+    } else {
+        return Err(MutexError::Locked.into());
+    }
+
+    Ok(())
+}
+
+pub fn return_to_kernel_task() {
+    let (kernel_task, user_task) =
+        unsafe { (KERNEL_TASK.get_force_mut(), USER_TASK.get_force_mut()) };
+    user_task
+        .as_ref()
+        .unwrap()
+        .switch_to(kernel_task.as_ref().unwrap());
+
+    unreachable!();
 }

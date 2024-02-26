@@ -1,7 +1,8 @@
-use crate::arch::{context::ContextMode, process};
-
 use super::initramfs;
-use alloc::string::ToString;
+use crate::{
+    arch::task,
+    mem::{bitmap, paging::PAGE_SIZE},
+};
 use common::elf::{self, Elf64};
 use core::mem;
 use log::{error, info};
@@ -43,15 +44,23 @@ pub fn exec_elf(file_name: &str, args: &[&str]) {
         return;
     }
 
-    info!(
-        "entry: 0x{:x}",
-        elf_data.as_ptr() as u64 + header.entry_point
-    );
-    let entry_point: extern "sysv64" fn() =
-        unsafe { mem::transmute(elf_data.as_ptr().offset(header.entry_point as isize)) };
+    // copy elf data to user frame
+    let user_mem_frame_info = bitmap::alloc_mem_frame((elf_data.len() / PAGE_SIZE).max(1)).unwrap();
+    info!("{:?}", user_mem_frame_info);
+    user_mem_frame_info
+        .get_frame_start_virt_addr()
+        .copy_from_nonoverlapping(elf_data.as_ptr(), elf_data.len());
+    user_mem_frame_info.set_permissions_to_user().unwrap();
 
-    process::create_process("elf".to_string(), 1024, entry_point, ContextMode::User).unwrap();
-    process::switch_process(0, 1).unwrap();
+    let entry_addr =
+        user_mem_frame_info.get_frame_start_virt_addr().get() + header.entry_point - 0x1000;
+
+    info!("entry: 0x{:x}", entry_addr);
+    let entry: extern "sysv64" fn() = unsafe { mem::transmute(entry_addr as *const ()) };
+    // TODO: occure page fault
+    task::exec_user_task(entry).unwrap();
+
+    bitmap::dealloc_mem_frame(user_mem_frame_info).unwrap();
 
     //info!("exec: Exited ({})", ret);
     info!("exec: Exited");
