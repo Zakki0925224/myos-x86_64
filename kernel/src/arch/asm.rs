@@ -1,21 +1,15 @@
 use core::arch::asm;
 
 pub fn hlt() {
-    unsafe {
-        asm!("hlt");
-    }
+    unsafe { asm!("hlt") }
 }
 
 pub fn cli() {
-    unsafe {
-        asm!("cli");
-    }
+    unsafe { asm!("cli") }
 }
 
 pub fn sti() {
-    unsafe {
-        asm!("sti");
-    }
+    unsafe { asm!("sti") }
 }
 
 pub fn disabled_int_func<F: FnMut()>(mut func: F) {
@@ -25,9 +19,7 @@ pub fn disabled_int_func<F: FnMut()>(mut func: F) {
 }
 
 pub fn int3() {
-    unsafe {
-        asm!("int3");
-    }
+    unsafe { asm!("int3") }
 }
 
 pub fn out8(port: u16, data: u8) {
@@ -75,40 +67,16 @@ pub fn in32(port: u32) -> u32 {
 }
 
 #[repr(C, packed(2))]
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct DescriptorTableArgs {
     pub limit: u16,
     pub base: u64,
-}
-
-impl Default for DescriptorTableArgs {
-    fn default() -> Self {
-        Self { limit: 0, base: 0 }
-    }
-}
-
-pub fn sidt() -> DescriptorTableArgs {
-    let mut args = DescriptorTableArgs::default();
-    unsafe {
-        asm!("sidt [{}]", in(reg) &mut args);
-    }
-
-    args
 }
 
 pub fn lidt(desc_table_args: &DescriptorTableArgs) {
     unsafe {
         asm!("lidt [{}]", in(reg) desc_table_args);
     }
-}
-
-pub fn sgdt() -> DescriptorTableArgs {
-    let mut args = DescriptorTableArgs::default();
-    unsafe {
-        asm!("sgdt [{}]", in(reg) &mut args);
-    }
-
-    args
 }
 
 pub fn lgdt(desc_table_args: &DescriptorTableArgs) {

@@ -78,9 +78,9 @@ pub fn init_heap() {
         Ok(info) => info,
         Err(_) => panic!("Failed to allocate memory for heap allocator"),
     };
-    if mem_frame_info.set_permissions_to_supervisor().is_err() {
-        panic!("Failed to set permissions to heap memory");
-    }
+    // if mem_frame_info.set_permissions_to_supervisor().is_err() {
+    //     panic!("Failed to set permissions to heap memory");
+    // }
 
     unsafe {
         ALLOCATOR.try_lock().unwrap().init(

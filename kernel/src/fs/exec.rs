@@ -50,7 +50,7 @@ pub fn exec_elf(file_name: &str, args: &[&str]) -> Result<()> {
     user_mem_frame_info
         .get_frame_start_virt_addr()
         .copy_from_nonoverlapping(elf_data.as_ptr(), elf_data.len());
-    user_mem_frame_info.set_permissions_to_user()?;
+    //user_mem_frame_info.set_permissions_to_user()?;
 
     let entry_addr =
         user_mem_frame_info.get_frame_start_virt_addr().get() + header.entry_point - 0x1000;

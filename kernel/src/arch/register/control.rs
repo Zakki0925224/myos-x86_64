@@ -91,7 +91,7 @@ impl Register<u64> for Cr3 {
 }
 
 impl Cr3 {
-    pub const fn default() -> Self {
+    pub const fn new() -> Self {
         Self(0)
     }
 }

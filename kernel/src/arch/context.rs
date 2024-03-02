@@ -29,13 +29,17 @@ pub fn switch_kernel_stack(
     new_entry: extern "sysv64" fn(*const BootInfo) -> !,
     boot_info: *const BootInfo,
 ) -> ! {
+    let stack_addr = KERNEL_STACK.as_ptr() as u64 + KERNEL_STACK.len() as u64;
+
     unsafe {
         asm!(
             "mov rdi, {}",
             "mov rsp, {}",
+            "mov rbp, {}",
             "call {}",
             in(reg) boot_info,
-            in(reg) KERNEL_STACK.as_ptr() as u64 + KERNEL_STACK.len() as u64,
+            in(reg) stack_addr,
+            in(reg) stack_addr,
             in(reg) new_entry
         );
     }

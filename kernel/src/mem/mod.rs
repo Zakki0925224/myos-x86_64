@@ -12,11 +12,6 @@ pub fn init(mem_map: &[MemoryDescriptor]) {
     }
     info!("mem: Initialized bitmap memory manager");
 
-    match paging::load_cr3() {
-        Ok(_) => (),
-        Err(_) => panic!("mem: Failed to load CR3 register"),
-    }
-
     // TODO: not working
     // match paging::create_new_page_table() {
     //     Ok(_) => (),
@@ -35,7 +30,7 @@ pub fn init(mem_map: &[MemoryDescriptor]) {
 }
 
 pub fn free() {
-    let (used, total) = bitmap::get_mem_size();
+    let (used, total) = bitmap::get_mem_size().unwrap_or((0, 0));
 
     println!(
         "Memory used: {}B/{}B ({}%)",

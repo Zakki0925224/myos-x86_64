@@ -31,6 +31,7 @@ use error::Result;
 use fs::{exec, initramfs};
 use graphics::color::ColorCode;
 use log::error;
+use mem::paging;
 use serial::ComPort;
 use util::{ascii::AsciiCode, logger};
 
@@ -169,6 +170,9 @@ async fn exec_cmd(cmd: String) -> Result<()> {
             if args.len() == 2 {
                 exec::exec_elf(args[1], &args[2..])?;
             }
+        }
+        "test" => {
+            paging::test();
         }
         "" => (),
         cmd => error!("Command {:?} was not found", cmd),

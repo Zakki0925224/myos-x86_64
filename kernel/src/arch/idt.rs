@@ -82,10 +82,10 @@ impl core::fmt::Debug for PageFaultErrorCode {
 #[derive(Debug)]
 #[repr(C)]
 pub struct InterruptStackFrame {
-    pub ins_ptr: VirtualAddress,
+    pub ins_ptr: u64,
     pub code_seg: u64,
     pub cpu_flags: u64,
-    pub stack_ptr: VirtualAddress,
+    pub stack_ptr: u64,
     pub stack_seg: u64,
 }
 
@@ -114,7 +114,7 @@ const _VEC_CTRL_PROTECTION_EX: usize = 0x15;
 pub const VEC_XHCI_INT: usize = 0x40;
 pub const VEC_LOCAL_APIC_TIMER_INT: usize = 0x41;
 
-const END_OF_INT_REG_ADDR: u64 = 0xfee000b0;
+const END_OF_INT_REG_ADDR: VirtualAddress = VirtualAddress::new(0xfee000b0);
 
 // pic
 const VEC_PIC_IRQ1: usize = 0x21; // ps/2 keyboard
@@ -215,8 +215,7 @@ impl InterruptDescriptorTable {
 }
 
 fn notify_end_of_int() {
-    let virt_addr = VirtualAddress::new(END_OF_INT_REG_ADDR);
-    virt_addr.write_volatile(0);
+    END_OF_INT_REG_ADDR.write_volatile(0);
 }
 
 fn pic_notify_end_of_int() {

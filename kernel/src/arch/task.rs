@@ -152,9 +152,9 @@ struct Task {
 
 impl Drop for Task {
     fn drop(&mut self) {
-        self.stack_mem_frame_info
-            .set_permissions_to_supervisor()
-            .unwrap();
+        // self.stack_mem_frame_info
+        //     .set_permissions_to_supervisor()
+        //     .unwrap();
         mem::bitmap::dealloc_mem_frame(self.stack_mem_frame_info).unwrap();
     }
 }
@@ -167,10 +167,10 @@ impl Task {
     ) -> Result<Self> {
         let stack_mem_frame_info = mem::bitmap::alloc_mem_frame((stack_size / PAGE_SIZE).max(1))?;
 
-        match mode {
-            ContextMode::Kernel => stack_mem_frame_info.set_permissions_to_supervisor()?,
-            ContextMode::User => stack_mem_frame_info.set_permissions_to_user()?,
-        }
+        // match mode {
+        //     ContextMode::Kernel => stack_mem_frame_info.set_permissions_to_supervisor()?,
+        //     ContextMode::User => stack_mem_frame_info.set_permissions_to_user()?,
+        // }
 
         let rsp = stack_mem_frame_info.get_frame_start_virt_addr().get() + stack_size as u64;
         let rip = match entry {

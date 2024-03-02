@@ -1,8 +1,4 @@
-use super::paging::{
-    self,
-    page_table::{EntryMode, ReadWrite},
-    PAGE_SIZE,
-};
+use super::paging::{self, EntryMode, ReadWrite, PAGE_SIZE};
 use crate::{
     arch::addr::*,
     error::Result,
@@ -43,25 +39,25 @@ impl MemoryFrameInfo {
         self.is_allocated
     }
 
-    pub fn set_permissions_to_supervisor(&self) -> Result<()> {
-        self.set_permissions(ReadWrite::Write, EntryMode::Supervisor)
-    }
+    // pub fn set_permissions_to_supervisor(&self) -> Result<()> {
+    //     self.set_permissions(ReadWrite::Write, EntryMode::Supervisor)
+    // }
 
-    pub fn set_permissions_to_user(&self) -> Result<()> {
-        self.set_permissions(ReadWrite::Write, EntryMode::User)
-    }
+    // pub fn set_permissions_to_user(&self) -> Result<()> {
+    //     self.set_permissions(ReadWrite::Write, EntryMode::User)
+    // }
 
-    pub fn set_permissions(&self, rw: ReadWrite, mode: EntryMode) -> Result<()> {
-        let page_len = self.frame_size / PAGE_SIZE;
-        let mut start_virt_addr = self.frame_start_virt_addr;
+    // pub fn set_permissions(&self, rw: ReadWrite, mode: EntryMode) -> Result<()> {
+    //     let page_len = self.frame_size / PAGE_SIZE;
+    //     let mut start_virt_addr = self.frame_start_virt_addr;
 
-        for _ in 0..page_len {
-            paging::set_page_permissions(start_virt_addr, rw, mode)?;
-            start_virt_addr = start_virt_addr.offset(PAGE_SIZE);
-        }
+    //     for _ in 0..page_len {
+    //         paging::set_page_permissions(start_virt_addr, rw, mode)?;
+    //         start_virt_addr = start_virt_addr.offset(PAGE_SIZE);
+    //     }
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 
     pub fn get_permissions(&self) -> Result<Vec<(ReadWrite, EntryMode)>> {
         let page_len = self.frame_size / PAGE_SIZE;
@@ -284,8 +280,8 @@ impl BitmapMemoryManager {
         };
 
         self.alloc_frame(found_mem_frame_index)?;
-        mem_frame_info.set_permissions(ReadWrite::Write, EntryMode::Supervisor)?;
-        self.mem_clear(&mem_frame_info);
+        //mem_frame_info.set_permissions(ReadWrite::Write, EntryMode::Supervisor)?;
+        //self.mem_clear(&mem_frame_info);
 
         Ok(mem_frame_info)
     }
@@ -363,16 +359,14 @@ impl BitmapMemoryManager {
             is_allocated: true,
         };
 
-        mem_frame_info.set_permissions(ReadWrite::Write, EntryMode::Supervisor)?;
+        //mem_frame_info.set_permissions(ReadWrite::Write, EntryMode::Supervisor)?;
         Ok(mem_frame_info)
     }
 
     pub fn mem_clear(&self, mem_frame_info: &MemoryFrameInfo) {
         let start_virt_addr = mem_frame_info.frame_start_virt_addr;
-        let mut offset = 0;
-        while offset < mem_frame_info.frame_size {
-            start_virt_addr.offset(offset).write_volatile::<u64>(0);
-            offset += size_of::<u64>();
+        for offset in (0..mem_frame_info.frame_size).step_by(size_of::<u64>()) {
+            start_virt_addr.offset(offset).write_volatile(0);
         }
     }
 
@@ -504,17 +498,17 @@ pub fn init(mem_map: &[MemoryDescriptor]) -> Result<()> {
 }
 
 // (used, total)
-pub fn get_mem_size() -> (usize, usize) {
+pub fn get_mem_size() -> Result<(usize, usize)> {
     if let Ok(bitmap_mem_man) = unsafe { BITMAP_MEM_MAN.try_lock() } {
         if let Some(bitmap_mem_man) = bitmap_mem_man.as_ref() {
-            return (
+            return Ok((
                 bitmap_mem_man.get_used_mem_size(),
                 bitmap_mem_man.get_total_mem_size(),
-            );
+            ));
         }
     }
 
-    (0, 0)
+    Err(MutexError::Locked.into())
 }
 
 pub fn alloc_mem_frame(len: usize) -> Result<MemoryFrameInfo> {
