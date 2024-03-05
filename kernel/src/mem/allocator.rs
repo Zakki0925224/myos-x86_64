@@ -1,3 +1,5 @@
+use crate::error::Result;
+
 use super::{bitmap, paging::PAGE_SIZE};
 use core::alloc::Layout;
 use linked_list_allocator::LockedHeap;
@@ -73,21 +75,18 @@ const HEAP_SIZE: usize = PAGE_SIZE * PAGE_SIZE; // 16MiB
 #[global_allocator]
 static ALLOCATOR: LockedHeap = LockedHeap::empty();
 
-pub fn init_heap() {
-    let mem_frame_info = match bitmap::alloc_mem_frame((HEAP_SIZE / PAGE_SIZE).max(1)) {
-        Ok(info) => info,
-        Err(_) => panic!("Failed to allocate memory for heap allocator"),
-    };
-    // if mem_frame_info.set_permissions_to_supervisor().is_err() {
-    //     panic!("Failed to set permissions to heap memory");
-    // }
+pub fn init_heap() -> Result<()> {
+    let mem_frame_info = bitmap::alloc_mem_frame((HEAP_SIZE / PAGE_SIZE).max(1))?;
+    bitmap::mem_clear(&mem_frame_info)?;
 
     unsafe {
         ALLOCATOR.try_lock().unwrap().init(
-            mem_frame_info.get_frame_start_virt_addr().as_ptr_mut(),
-            mem_frame_info.get_frame_size(),
+            mem_frame_info.frame_start_virt_addr.as_ptr_mut(),
+            mem_frame_info.frame_size,
         );
     }
+
+    Ok(())
 }
 
 #[alloc_error_handler]

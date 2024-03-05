@@ -242,8 +242,7 @@ impl XhcDriver {
         // initialize device context
         let device_context_arr_mem_frame_info = bitmap::alloc_mem_frame(1)?;
         bitmap::mem_clear(&device_context_arr_mem_frame_info)?;
-        self.device_context_arr_virt_addr =
-            device_context_arr_mem_frame_info.get_frame_start_virt_addr();
+        self.device_context_arr_virt_addr = device_context_arr_mem_frame_info.frame_start_virt_addr;
 
         // initialize device context array
         for i in 0..(self.num_of_slots + 1) {
@@ -285,7 +284,7 @@ impl XhcDriver {
 
         // register event ring (primary)
         let primary_event_ring_seg_table_virt_addr =
-            bitmap::alloc_mem_frame(1)?.get_frame_start_virt_addr();
+            bitmap::alloc_mem_frame(1)?.frame_start_virt_addr;
 
         // initialized event ring buffer (support only segment table length is 1)
         let primary_event_ring_buf = RingBuffer::new(RingBufferType::EventRing, pcs)?;
@@ -469,7 +468,7 @@ impl XhcDriver {
 
         let input_context_mem_frame_info = bitmap::alloc_mem_frame(1)?;
         bitmap::mem_clear(&input_context_mem_frame_info)?;
-        let input_context_base_virt_addr = input_context_mem_frame_info.get_frame_start_virt_addr();
+        let input_context_base_virt_addr = input_context_mem_frame_info.frame_start_virt_addr;
 
         let mut port = port.clone();
         port.config_state = ConfigState::AddressingDevice;
@@ -664,8 +663,7 @@ impl XhcDriver {
 
         let device_context_mem_frame_info = bitmap::alloc_mem_frame(1)?;
         bitmap::mem_clear(&device_context_mem_frame_info)?;
-        let device_context_base_virt_addr =
-            device_context_mem_frame_info.get_frame_start_virt_addr();
+        let device_context_base_virt_addr = device_context_mem_frame_info.frame_start_virt_addr;
 
         let mut port = port.clone();
         port.slot_id = Some(slot_id);

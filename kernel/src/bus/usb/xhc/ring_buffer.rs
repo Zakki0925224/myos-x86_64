@@ -156,7 +156,7 @@ impl<const N: usize> RingBuffer<N> {
         for i in 0..self.buf_len() - 1 {
             let data_buf_mem_frame_info = bitmap::alloc_mem_frame(1)?;
             bitmap::mem_clear(&data_buf_mem_frame_info)?;
-            fill_trb.param = data_buf_mem_frame_info.get_frame_start_phys_addr().get();
+            fill_trb.param = data_buf_mem_frame_info.frame_start_virt_addr.get();
             fill_trb.set_cycle_bit(if i < self.buf_len() - 3 {
                 self.cycle_state
             } else {

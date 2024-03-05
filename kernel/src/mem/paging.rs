@@ -1,8 +1,7 @@
-use log::info;
-
 use crate::{
     arch::{
         addr::*,
+        asm,
         register::{control::*, Register},
     },
     error::Result,
@@ -151,6 +150,14 @@ pub struct PageTable {
     pub entries: [PageTableEntry; PAGE_TABLE_ENTRY_LEN],
 }
 
+impl PageTable {
+    pub fn new() -> Self {
+        Self {
+            entries: [PageTableEntry::new(); PAGE_TABLE_ENTRY_LEN],
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MappingType {
     Identity,
@@ -174,25 +181,6 @@ impl PageManager {
         Self {
             mapping_type: MappingType::Identity,
         }
-    }
-
-    pub fn test(&self) {
-        let addr = VirtualAddress::new(0xbfc03000);
-        println!("{:?}", unsafe { self.calc_phys_addr(addr) });
-        println!("{:?}", unsafe { self.get_page_permissions(addr) });
-        // println!("{:?}", unsafe {
-        //     self.set_page_permissions(addr, ReadWrite::Write, EntryMode::User)
-        // });
-
-        println!("{:?}", unsafe {
-            self.create_new_page_table(
-                0x1000,
-                /*bitmap::get_mem_size().unwrap().1*/ 0x740_0000,
-                ReadWrite::Write,
-                EntryMode::Supervisor,
-                PageWriteThroughLevel::WriteThrough,
-            )
-        });
     }
 
     pub unsafe fn calc_phys_addr(&self, virt_addr: VirtualAddress) -> Result<PhysicalAddress> {
@@ -251,20 +239,21 @@ impl PageManager {
 
     pub unsafe fn create_new_page_table(
         &self,
-        start: usize,
-        end: usize,
+        start: VirtualAddress,
+        end: VirtualAddress,
         rw: ReadWrite,
         mode: EntryMode,
         write_through_level: PageWriteThroughLevel,
     ) -> Result<()> {
         let pml4_table_mem_frame_info = bitmap::alloc_mem_frame(1)?;
         bitmap::mem_clear(&pml4_table_mem_frame_info)?;
-        let pml4_virt_addr = pml4_table_mem_frame_info.get_frame_start_virt_addr();
+        let pml4_virt_addr = pml4_table_mem_frame_info.frame_start_virt_addr;
         let pml4_page_table = &mut *pml4_virt_addr.as_ptr_mut::<PageTable>();
 
         let (_, total_mem_size) = bitmap::get_mem_size()?;
 
-        for i in (start..=total_mem_size.min(end)).step_by(PAGE_SIZE) {
+        for i in (start.get() as usize..=total_mem_size.min(end.get() as usize)).step_by(PAGE_SIZE)
+        {
             self.map_to_identity(
                 (i as u64).into(),
                 pml4_page_table,
@@ -277,8 +266,6 @@ impl PageManager {
         let mut cr3 = self.cr3();
         cr3.set_raw(pml4_virt_addr.get());
         cr3.write();
-
-        info!("mem: Created new page table");
 
         Ok(())
     }
@@ -438,7 +425,7 @@ impl PageManager {
         if !entry.p() {
             let mem_info = bitmap::alloc_mem_frame(1)?;
             bitmap::mem_clear(&mem_info)?;
-            let phys_addr = mem_info.get_frame_start_virt_addr().get();
+            let phys_addr = mem_info.frame_start_virt_addr.get();
             entry.set_entry(phys_addr, false, rw, mode, write_through_level);
         }
 
@@ -448,7 +435,7 @@ impl PageManager {
         if !entry.p() {
             let mem_info = bitmap::alloc_mem_frame(1)?;
             bitmap::mem_clear(&mem_info)?;
-            let phys_addr = mem_info.get_frame_start_virt_addr().get();
+            let phys_addr = mem_info.frame_start_virt_addr.get();
             entry.set_entry(phys_addr, false, rw, mode, write_through_level);
         }
 
@@ -458,16 +445,14 @@ impl PageManager {
         if !entry.p() {
             let mem_info = bitmap::alloc_mem_frame(1)?;
             bitmap::mem_clear(&mem_info)?;
-            let phys_addr = mem_info.get_frame_start_virt_addr().get();
+            let phys_addr = mem_info.frame_start_virt_addr.get();
             entry.set_entry(phys_addr, false, rw, mode, write_through_level);
         }
 
         let pml1_table = entry.page_table().unwrap();
         let entry = &mut pml1_table.entries[pml1e_index];
 
-        if !entry.p() {
-            entry.set_entry(virt_addr.get(), true, rw, mode, write_through_level);
-        }
+        entry.set_entry(virt_addr.get(), true, rw, mode, write_through_level);
 
         Ok(())
     }
@@ -483,13 +468,21 @@ pub fn calc_phys_addr(virt_addr: VirtualAddress) -> Result<PhysicalAddress> {
     Err(MutexError::Locked.into())
 }
 
-// pub fn create_new_page_table() -> Result<()> {
-//     if let Ok(mut page_man) = unsafe { PAGE_MAN.try_lock() } {
-//         return page_man.create_new_page_table();
-//     }
+pub fn create_new_page_table(
+    start: VirtualAddress,
+    end: VirtualAddress,
+    rw: ReadWrite,
+    mode: EntryMode,
+    write_through_level: PageWriteThroughLevel,
+) -> Result<()> {
+    unsafe {
+        if let Ok(page_man) = PAGE_MAN.try_lock() {
+            return page_man.create_new_page_table(start, end, rw, mode, write_through_level);
+        }
+    }
 
-//     Err(MutexError::Locked.into())
-// }
+    Err(MutexError::Locked.into())
+}
 
 pub fn set_page_permissions(
     virt_addr: VirtualAddress,
@@ -513,10 +506,4 @@ pub fn get_page_permissions(virt_addr: VirtualAddress) -> Result<(ReadWrite, Ent
     }
 
     Err(MutexError::Locked.into())
-}
-
-pub fn test() {
-    if let Ok(page_man) = unsafe { PAGE_MAN.try_lock() } {
-        page_man.test();
-    }
 }

@@ -29,6 +29,7 @@ pub enum Error {
     XhcDriverError(XhcDriverError),
     RingBufferError(RingBufferError),
     FifoError(FifoError),
+    IndexOutOfBoundsError(usize),
 }
 
 impl From<&'static str> for Error {

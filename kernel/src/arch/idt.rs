@@ -83,10 +83,12 @@ impl core::fmt::Debug for PageFaultErrorCode {
 #[repr(C)]
 pub struct InterruptStackFrame {
     pub ins_ptr: u64,
-    pub code_seg: u64,
+    pub code_seg: u16,
+    reserved0: [u8; 6],
     pub cpu_flags: u64,
     pub stack_ptr: u64,
-    pub stack_seg: u64,
+    pub stack_seg: u16,
+    reserved1: [u8; 6],
 }
 
 // idt

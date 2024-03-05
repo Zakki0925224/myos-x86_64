@@ -31,19 +31,16 @@ use error::Result;
 use fs::{exec, initramfs};
 use graphics::color::ColorCode;
 use log::error;
-use mem::paging;
 use serial::ComPort;
 use util::{ascii::AsciiCode, logger};
 
 #[no_mangle]
 #[start]
-pub extern "sysv64" fn kernel_entry(boot_info: *const BootInfo) -> ! {
+pub extern "sysv64" fn kernel_entry(boot_info: &BootInfo) -> ! {
     context::switch_kernel_stack(kernel_main, boot_info);
 }
 
-pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> ! {
-    let boot_info = unsafe { boot_info.read() };
-
+pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
     // initialize and start local APIC timer
     apic::timer::init();
     apic::timer::start();
@@ -62,7 +59,7 @@ pub extern "sysv64" fn kernel_main(boot_info: *const BootInfo) -> ! {
     );
 
     // initialize memory management
-    mem::init(boot_info.get_mem_map());
+    mem::init(boot_info.mem_map);
 
     // initialize GDT
     gdt::init();
@@ -170,9 +167,6 @@ async fn exec_cmd(cmd: String) -> Result<()> {
             if args.len() == 2 {
                 exec::exec_elf(args[1], &args[2..])?;
             }
-        }
-        "test" => {
-            paging::test();
         }
         "" => (),
         cmd => error!("Command {:?} was not found", cmd),

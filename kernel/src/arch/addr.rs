@@ -60,6 +60,12 @@ impl Default for PhysicalAddress {
     }
 }
 
+impl From<u64> for PhysicalAddress {
+    fn from(addr: u64) -> Self {
+        PhysicalAddress::new(addr)
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(transparent)]
 pub struct VirtualAddress(u64);

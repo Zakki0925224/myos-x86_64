@@ -48,12 +48,11 @@ pub fn exec_elf(file_name: &str, args: &[&str]) -> Result<()> {
     let user_mem_frame_info = bitmap::alloc_mem_frame((elf_data.len() / PAGE_SIZE).max(1))?;
     info!("{:?}", user_mem_frame_info);
     user_mem_frame_info
-        .get_frame_start_virt_addr()
+        .frame_start_virt_addr
         .copy_from_nonoverlapping(elf_data.as_ptr(), elf_data.len());
     //user_mem_frame_info.set_permissions_to_user()?;
 
-    let entry_addr =
-        user_mem_frame_info.get_frame_start_virt_addr().get() + header.entry_point - 0x1000;
+    let entry_addr = user_mem_frame_info.frame_start_virt_addr.get() + header.entry_point - 0x1000;
 
     info!("entry: 0x{:x}", entry_addr);
     let entry: extern "sysv64" fn() = unsafe { mem::transmute(entry_addr as *const ()) };

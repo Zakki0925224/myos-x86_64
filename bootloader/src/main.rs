@@ -70,10 +70,8 @@ fn efi_main(handle: Handle, mut st: SystemTable<Boot>) -> Status {
         });
     }
 
-    let mem_map_len = mem_map.len();
     let bi = BootInfo::new(
         mem_map.as_slice(),
-        mem_map_len,
         graphic_info,
         initramfs_start_virt_addr,
         initramfs_page_cnt,

@@ -92,14 +92,14 @@ impl UsbDevice {
     pub fn read_dev_desc(&mut self) {
         self.dev_desc = self
             .dev_desc_buf_mem_info
-            .get_frame_start_virt_addr()
+            .frame_start_virt_addr
             .read_volatile();
     }
 
     pub fn read_conf_descs(&mut self) {
         let conf_desc: ConfigurationDescriptor = self
             .conf_desc_buf_mem_info
-            .get_frame_start_virt_addr()
+            .frame_start_virt_addr
             .read_volatile();
 
         let mut descs = Vec::new();
@@ -110,7 +110,7 @@ impl UsbDevice {
         loop {
             let addr = self
                 .conf_desc_buf_mem_info
-                .get_frame_start_virt_addr()
+                .frame_start_virt_addr
                 .offset(offset);
             let desc_header: DescriptorHeader = addr.read_volatile();
 
@@ -175,7 +175,7 @@ impl UsbDevice {
             _ => (),
         }
 
-        let buf_size = buf_mem_info.get_frame_size();
+        let buf_size = buf_mem_info.frame_size;
 
         self.ctrl_in(
             RequestType::Standard,
@@ -183,8 +183,8 @@ impl UsbDevice {
             SetupRequest::GetDescriptor,
             setup_value,
             0,
-            buf_size as u16,
-            Some((buf_mem_info.get_frame_start_phys_addr(), buf_size as u32)),
+            buf_mem_info.frame_size as u16,
+            Some((buf_mem_info.frame_start_virt_addr, buf_size as u32)),
         )
     }
 
@@ -362,7 +362,7 @@ impl UsbDevice {
         setup_value: u16,
         setup_index: u16,
         setup_length: u16,
-        data: Option<(PhysicalAddress, u32)>, // buf addr, buf size
+        data: Option<(VirtualAddress, u32)>, // buf addr, buf size
     ) -> Result<()> {
         if (setup_length > 0 && data == None) || (setup_length == 0 && data != None) {
             return Err(UsbDeviceError::InvalidRequestError.into());
@@ -417,7 +417,7 @@ impl UsbDevice {
         setup_value: u16,
         setup_index: u16,
         setup_length: u16,
-        data: Option<(PhysicalAddress, u32)>, // buf addr, buf size
+        data: Option<(VirtualAddress, u32)>, // buf addr, buf size
     ) -> Result<()> {
         if (setup_length > 0 && data == None) || (setup_length == 0 && data != None) {
             return Err(UsbDeviceError::InvalidRequestError.into());
