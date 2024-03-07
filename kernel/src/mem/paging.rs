@@ -1,12 +1,12 @@
+use log::info;
+
 use crate::{
     arch::{
         addr::*,
-        asm,
         register::{control::*, Register},
     },
     error::Result,
     mem::bitmap,
-    println,
     util::mutex::*,
 };
 
@@ -150,37 +150,19 @@ pub struct PageTable {
     pub entries: [PageTableEntry; PAGE_TABLE_ENTRY_LEN],
 }
 
-impl PageTable {
-    pub fn new() -> Self {
-        Self {
-            entries: [PageTableEntry::new(); PAGE_TABLE_ENTRY_LEN],
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum MappingType {
-    Identity,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PageManagerError {
     AddressNotMappedError(VirtualAddress),
     AddressNotAllowedToMapError(VirtualAddress),
     AddressNotAlignedByPageSizeError(VirtualAddress),
-    UnsupportedMappingTypeError(MappingType),
 }
 
 #[derive(Debug)]
-pub struct PageManager {
-    mapping_type: MappingType,
-}
+pub struct PageManager;
 
 impl PageManager {
     pub const fn new() -> Self {
-        Self {
-            mapping_type: MappingType::Identity,
-        }
+        Self
     }
 
     pub unsafe fn calc_phys_addr(&self, virt_addr: VirtualAddress) -> Result<PhysicalAddress> {
@@ -241,6 +223,7 @@ impl PageManager {
         &self,
         start: VirtualAddress,
         end: VirtualAddress,
+        phys_addr: PhysicalAddress,
         rw: ReadWrite,
         mode: EntryMode,
         write_through_level: PageWriteThroughLevel,
@@ -254,8 +237,9 @@ impl PageManager {
 
         for i in (start.get() as usize..=total_mem_size.min(end.get() as usize)).step_by(PAGE_SIZE)
         {
-            self.map_to_identity(
+            self.set_map(
                 (i as u64).into(),
+                phys_addr.offset(i - phys_addr.get() as usize),
                 pml4_page_table,
                 rw,
                 mode,
@@ -266,6 +250,32 @@ impl PageManager {
         let mut cr3 = self.cr3();
         cr3.set_raw(pml4_virt_addr.get());
         cr3.write();
+
+        Ok(())
+    }
+
+    pub unsafe fn update_mapping(
+        &self,
+        start: VirtualAddress,
+        end: VirtualAddress,
+        phys_addr: PhysicalAddress,
+        rw: ReadWrite,
+        mode: EntryMode,
+        write_through_level: PageWriteThroughLevel,
+    ) -> Result<()> {
+        let pml4_virt_addr = VirtualAddress::new(self.cr3().raw());
+        let pml4_page_table = &mut *pml4_virt_addr.as_ptr_mut::<PageTable>();
+
+        for i in (start.get() as usize..=end.get() as usize).step_by(PAGE_SIZE) {
+            self.set_map(
+                (i as u64).into(),
+                phys_addr.offset(i - phys_addr.get() as usize),
+                pml4_page_table,
+                rw,
+                mode,
+                write_through_level,
+            )?;
+        }
 
         Ok(())
     }
@@ -395,9 +405,10 @@ impl PageManager {
         &mut *ptr
     }
 
-    unsafe fn map_to_identity(
+    unsafe fn set_map(
         &self,
         virt_addr: VirtualAddress,
+        phys_addr: PhysicalAddress,
         pml4_table: &mut PageTable,
         rw: ReadWrite,
         mode: EntryMode,
@@ -405,10 +416,6 @@ impl PageManager {
     ) -> Result<()> {
         if virt_addr.get() == 0 {
             return Err(PageManagerError::AddressNotAllowedToMapError(virt_addr).into());
-        }
-
-        if self.mapping_type != MappingType::Identity {
-            return Err(PageManagerError::UnsupportedMappingTypeError(self.mapping_type).into());
         }
 
         if virt_addr.get() % PAGE_SIZE as u64 != 0 {
@@ -452,7 +459,7 @@ impl PageManager {
         let pml1_table = entry.page_table().unwrap();
         let entry = &mut pml1_table.entries[pml1e_index];
 
-        entry.set_entry(virt_addr.get(), true, rw, mode, write_through_level);
+        entry.set_entry(phys_addr.get(), true, rw, mode, write_through_level);
 
         Ok(())
     }
@@ -471,13 +478,47 @@ pub fn calc_phys_addr(virt_addr: VirtualAddress) -> Result<PhysicalAddress> {
 pub fn create_new_page_table(
     start: VirtualAddress,
     end: VirtualAddress,
+    phys_addr: PhysicalAddress,
     rw: ReadWrite,
     mode: EntryMode,
     write_through_level: PageWriteThroughLevel,
 ) -> Result<()> {
     unsafe {
         if let Ok(page_man) = PAGE_MAN.try_lock() {
-            return page_man.create_new_page_table(start, end, rw, mode, write_through_level);
+            return page_man.create_new_page_table(
+                start,
+                end,
+                phys_addr,
+                rw,
+                mode,
+                write_through_level,
+            );
+        }
+    }
+
+    Err(MutexError::Locked.into())
+}
+
+pub fn update_mapping(
+    start: VirtualAddress,
+    end: VirtualAddress,
+    phys_addr: PhysicalAddress,
+    rw: ReadWrite,
+    mode: EntryMode,
+    write_through_level: PageWriteThroughLevel,
+) -> Result<()> {
+    unsafe {
+        if let Ok(page_man) = PAGE_MAN.try_lock() {
+            page_man.update_mapping(start, end, phys_addr, rw, mode, write_through_level)?;
+            info!(
+                "paging: Updated mapping (virt 0x{:x}-0x{:x} -> phys 0x{:x}-0x{:x})",
+                start.get(),
+                end.get(),
+                phys_addr.get(),
+                phys_addr.offset((end.get() - start.get()) as usize).get()
+            );
+
+            return Ok(());
         }
     }
 

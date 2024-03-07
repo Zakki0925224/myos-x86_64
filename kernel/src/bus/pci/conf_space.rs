@@ -1,4 +1,8 @@
-use crate::arch::{addr::*, register::msi::*};
+use crate::{
+    arch::{addr::*, register::msi::*},
+    error::{Error, Result},
+    mem::paging::{self, EntryMode, PageWriteThroughLevel, ReadWrite, PAGE_SIZE},
+};
 use alloc::vec::Vec;
 use core::mem::transmute;
 use pci_ids::*;
@@ -52,17 +56,14 @@ pub struct ConfigurationSpaceCommonHeaderField {
 }
 
 impl ConfigurationSpaceCommonHeaderField {
-    pub fn read(bus: usize, device: usize, func: usize) -> Option<Self> {
+    pub fn read(bus: usize, device: usize, func: usize) -> Result<Self> {
         let mut data: [u32; 4] = [0; 4];
         for (i, elem) in data.iter_mut().enumerate() {
-            if let Some(d) = read_conf_space(bus, device, func, i * 4) {
-                *elem = d;
-            } else {
-                return None;
-            }
+            let d = read_conf_space(bus, device, func, i * 4)?;
+            *elem = d;
         }
 
-        Some(unsafe { transmute::<[u32; 4], Self>(data) })
+        Ok(unsafe { transmute::<[u32; 4], Self>(data) })
     }
 
     pub fn is_exist(&self) -> bool {
@@ -163,7 +164,6 @@ pub enum BaseAddress {
     MmioAddressSpace(u32),
 }
 #[derive(Debug, Clone, Copy)]
-#[repr(transparent)]
 pub struct BaseAddressRegister(u32);
 
 impl BaseAddressRegister {
@@ -224,52 +224,84 @@ pub struct ConfigurationSpaceNonBridgeField {
 }
 
 impl ConfigurationSpaceNonBridgeField {
-    pub fn read(bus: usize, device: usize, func: usize) -> Option<Self> {
+    pub fn read(bus: usize, device: usize, func: usize) -> Result<Self> {
         let mut data: [u32; 12] = [0; 12];
         for (i, elem) in data.iter_mut().enumerate() {
-            if let Some(d) =
-                read_conf_space(bus, device, func, PCI_CONF_UNIQUE_FIELD_OFFSET + (i * 4))
-            {
-                *elem = d;
-            } else {
-                return None;
-            }
+            let d = read_conf_space(bus, device, func, PCI_CONF_UNIQUE_FIELD_OFFSET + (i * 4))?;
+            *elem = d;
         }
 
-        Some(unsafe { transmute::<[u32; 12], Self>(data) })
+        Ok(unsafe { transmute::<[u32; 12], Self>(data) })
     }
 
-    pub fn get_bars(&self) -> Vec<(usize, BaseAddress)> {
-        let mut bars = Vec::new();
-        bars.push((0, self.bar0));
-        bars.push((1, self.bar1));
-        bars.push((2, self.bar2));
-        bars.push((3, self.bar3));
-        bars.push((4, self.bar4));
-        bars.push((5, self.bar5));
-
-        let mut base_addrs = Vec::new();
-
-        let mut i = 0;
-        while i < bars.len() {
-            let (_, bar) = &bars[i];
-            match bar.get_base_addr() {
-                Some(BaseAddress::MemoryAddress64BitSpace(addr, is_pref)) => {
-                    let (_, next_bar) = &bars[i + 1];
-                    let addr = (next_bar.read() as u64) << 32 | addr.get();
-                    let phys_addr = PhysicalAddress::new(addr);
-                    let base_addr = BaseAddress::MemoryAddress64BitSpace(phys_addr, is_pref);
-                    base_addrs.push((i, base_addr));
-                    bars[i] = bars.remove(i + 1);
+    pub fn get_bars(&self) -> Result<Vec<(usize, BaseAddress)>> {
+        let mut skip_index = None;
+        let bars = vec![
+            &self.bar0, &self.bar1, &self.bar2, &self.bar3, &self.bar4, &self.bar5,
+        ];
+        let mut result = Vec::new();
+        for (i, bar) in bars.iter().enumerate() {
+            if let Some(skip) = skip_index {
+                if skip == i {
+                    skip_index = None;
+                    continue;
                 }
-                None => (),
-                Some(base_addr) => base_addrs.push((i, base_addr)),
             }
 
-            i += 1;
+            if let Some(base_addr) = bar.get_base_addr() {
+                match base_addr {
+                    BaseAddress::MemoryAddress64BitSpace(phys_addr, is_pref) => {
+                        if i + 1 == bars.len() {
+                            unreachable!()
+                        }
+
+                        let next_bar = bars[i + 1];
+                        let full_phys_addr: PhysicalAddress =
+                            ((next_bar.read() as u64) << 32 | phys_addr.get()).into();
+                        skip_index = Some(i + 1);
+
+                        if full_phys_addr.get() == 0 {
+                            continue;
+                        }
+
+                        let start = full_phys_addr.get().into();
+                        // TODO: implement get bar size
+                        paging::update_mapping(
+                            start,
+                            (start.get() + (PAGE_SIZE * 2) as u64).into(),
+                            full_phys_addr,
+                            ReadWrite::Write,
+                            EntryMode::Supervisor,
+                            PageWriteThroughLevel::WriteThrough,
+                        )?;
+
+                        let base_addr =
+                            BaseAddress::MemoryAddress64BitSpace(full_phys_addr, is_pref);
+                        result.push((i, base_addr));
+                    }
+                    BaseAddress::MemoryAddress32BitSpace(phys_addr, _) => {
+                        if phys_addr.get() == 0 {
+                            continue;
+                        }
+
+                        let start = phys_addr.get().into();
+                        // TODO: implement get bar size
+                        paging::update_mapping(
+                            start,
+                            (start.get() + (PAGE_SIZE * 2) as u64).into(),
+                            phys_addr,
+                            ReadWrite::Write,
+                            EntryMode::Supervisor,
+                            PageWriteThroughLevel::WriteThrough,
+                        )?;
+                        result.push((i, base_addr));
+                    }
+                    _ => result.push((i, base_addr)),
+                }
+            }
         }
 
-        base_addrs
+        Ok(result)
     }
 }
 
@@ -302,48 +334,14 @@ pub struct ConfigurationSpacePciToPciBridgeField {
 }
 
 impl ConfigurationSpacePciToPciBridgeField {
-    pub fn read(bus: usize, device: usize, func: usize) -> Option<Self> {
+    pub fn read(bus: usize, device: usize, func: usize) -> Result<Self> {
         let mut data: [u32; 12] = [0; 12];
         for (i, elem) in data.iter_mut().enumerate() {
-            if let Some(d) =
-                read_conf_space(bus, device, func, PCI_CONF_UNIQUE_FIELD_OFFSET + (i * 4))
-            {
-                *elem = d;
-            } else {
-                return None;
-            }
+            let d = read_conf_space(bus, device, func, PCI_CONF_UNIQUE_FIELD_OFFSET + (i * 4))?;
+            *elem = d;
         }
 
-        Some(unsafe { transmute::<[u32; 12], Self>(data) })
-    }
-
-    pub fn get_bars(&self) -> Vec<(usize, BaseAddress)> {
-        let mut bars = Vec::new();
-        bars.push((0, self.bar0));
-        bars.push((1, self.bar1));
-
-        let mut base_addrs = Vec::new();
-
-        let mut i = 0;
-        while i < bars.len() {
-            let (_, bar) = &bars[i];
-            match bar.get_base_addr() {
-                Some(BaseAddress::MemoryAddress64BitSpace(addr, is_pref)) => {
-                    let (_, next_bar) = &bars[i + 1];
-                    let addr = (next_bar.read() as u64) << 32 | addr.get();
-                    let phys_addr = PhysicalAddress::new(addr);
-                    let base_addr = BaseAddress::MemoryAddress64BitSpace(phys_addr, is_pref);
-                    base_addrs.push((i, base_addr));
-                    bars[i] = bars.remove(i + 1);
-                }
-                None => (),
-                Some(base_addr) => base_addrs.push((i, base_addr)),
-            }
-
-            i += 1;
-        }
-
-        base_addrs
+        Ok(unsafe { transmute::<[u32; 12], Self>(data) })
     }
 }
 
@@ -375,19 +373,14 @@ pub struct ConfigurationSpacePciToCardBusField {
 }
 
 impl ConfigurationSpacePciToCardBusField {
-    pub fn read(bus: usize, device: usize, func: usize) -> Option<Self> {
+    pub fn read(bus: usize, device: usize, func: usize) -> Result<Self> {
         let mut data: [u32; 14] = [0; 14];
         for (i, elem) in data.iter_mut().enumerate() {
-            if let Some(d) =
-                read_conf_space(bus, device, func, PCI_CONF_UNIQUE_FIELD_OFFSET + (i * 4))
-            {
-                *elem = d;
-            } else {
-                return None;
-            }
+            let d = read_conf_space(bus, device, func, PCI_CONF_UNIQUE_FIELD_OFFSET + (i * 4))?;
+            *elem = d;
         }
 
-        Some(unsafe { transmute::<[u32; 14], Self>(data) })
+        Ok(unsafe { transmute::<[u32; 14], Self>(data) })
     }
 }
 
@@ -419,26 +412,17 @@ pub struct MsiCapabilityField {
 }
 
 impl MsiCapabilityField {
-    pub fn read(bus: usize, device: usize, func: usize, caps_ptr: usize) -> Option<Self> {
+    pub fn read(bus: usize, device: usize, func: usize, caps_ptr: usize) -> Result<Self> {
         let mut data: [u32; 6] = [0; 6];
         for (i, elem) in data.iter_mut().enumerate() {
-            if let Some(d) = read_conf_space(bus, device, func, caps_ptr + (i * 4)) {
-                *elem = d;
-            } else {
-                return None;
-            }
+            let d = read_conf_space(bus, device, func, caps_ptr + (i * 4))?;
+            *elem = d;
         }
 
-        Some(unsafe { transmute::<[u32; 6], Self>(data) })
+        Ok(unsafe { transmute::<[u32; 6], Self>(data) })
     }
 
-    pub fn write(
-        &self,
-        bus: usize,
-        device: usize,
-        func: usize,
-        caps_ptr: usize,
-    ) -> Result<(), &'static str> {
+    pub fn write(&self, bus: usize, device: usize, func: usize, caps_ptr: usize) -> Result<()> {
         let data = unsafe { transmute::<Self, [u32; 6]>(*self) };
         for (i, elem) in data.iter().enumerate() {
             if let Err(msg) = write_conf_space(bus, device, func, caps_ptr + (i * 4), *elem) {
@@ -450,13 +434,13 @@ impl MsiCapabilityField {
     }
 }
 
-fn read_conf_space(bus: usize, device: usize, func: usize, byte_offset: usize) -> Option<u32> {
+fn read_conf_space(bus: usize, device: usize, func: usize, byte_offset: usize) -> Result<u32> {
     if bus >= PCI_DEVICE_BUS_LEN
         || device >= PCI_DEVICE_DEVICE_LEN
         || func >= PCI_DEVICE_FUNC_LEN
         || byte_offset % 4 != 0
     {
-        return None;
+        return Err(Error::Failed("Invalid args"));
     }
 
     let addr = 0x80000000
@@ -466,7 +450,7 @@ fn read_conf_space(bus: usize, device: usize, func: usize, byte_offset: usize) -
         | byte_offset as u32;
     PCI_PORT_CONF_REG_ADDR.out32(addr);
 
-    Some(PCI_PORT_CONF_DATA_REG_ADDR.in32())
+    Ok(PCI_PORT_CONF_DATA_REG_ADDR.in32())
 }
 
 fn write_conf_space(
@@ -475,13 +459,13 @@ fn write_conf_space(
     func: usize,
     byte_offset: usize,
     data: u32,
-) -> Result<(), &'static str> {
+) -> Result<()> {
     if bus >= PCI_DEVICE_BUS_LEN
         || device >= PCI_DEVICE_DEVICE_LEN
         || func >= PCI_DEVICE_FUNC_LEN
         || byte_offset % 4 != 0
     {
-        return Err("Invalid args");
+        return Err(Error::Failed("Invalid args"));
     }
 
     let addr = 0x80000000

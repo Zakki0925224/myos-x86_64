@@ -1,5 +1,5 @@
 use super::{register::*, trb::*};
-use crate::{arch::addr::*, error::Result, mem::bitmap, println};
+use crate::{error::Result, mem::bitmap, println};
 use alloc::boxed::Box;
 use core::mem::size_of;
 
@@ -120,9 +120,8 @@ impl<const N: usize> RingBuffer<N> {
         }
 
         let trb_size = size_of::<TransferRequestBlock>();
-        let mut dequeue_ptr =
-            PhysicalAddress::new(int_reg_set.event_ring_dequeue_ptr()).get_virt_addr();
-        let mut index = (dequeue_ptr.get() as usize - self.buf_ptr() as usize) / trb_size;
+        let mut dequeue_ptr = int_reg_set.event_ring_dequeue_ptr();
+        let mut index = (dequeue_ptr as usize - self.buf_ptr() as usize) / trb_size;
         let trb = self.buf_mut()[index];
 
         if trb.cycle_bit() != self.cycle_state {
@@ -137,8 +136,8 @@ impl<const N: usize> RingBuffer<N> {
         }
 
         //println!("{:p}, index: {}", self.buf_ptr(), index);
-        dequeue_ptr = VirtualAddress::new(self.buf_ptr() as u64).offset(index * trb_size);
-        int_reg_set.set_event_ring_dequeue_ptr(dequeue_ptr.get_phys_addr().unwrap().get());
+        dequeue_ptr = self.buf_ptr() as u64 + (index * trb_size) as u64;
+        int_reg_set.set_event_ring_dequeue_ptr(dequeue_ptr);
         int_reg_set.set_event_handler_busy(false);
 
         Ok(trb)

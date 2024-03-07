@@ -25,18 +25,6 @@ impl PhysicalAddress {
         Self::new(self.0 + offset as u64)
     }
 
-    pub const fn get_virt_addr(&self) -> VirtualAddress {
-        // println!("{:?}", PAGING.try_lock().unwrap());
-        // println!("a");
-
-        // return match PAGING.try_lock().unwrap().mapping_type()
-        // {
-        //     MappingType::Identity => VirtualAddress::new(self.0),
-        //     _ => panic!("Unsupported mapping type"),
-        // };
-        VirtualAddress::new(self.0)
-    }
-
     pub fn out32(&self, data: u32) {
         if self.0 > u32::MAX as u64 {
             panic!("Invalid address for out32");

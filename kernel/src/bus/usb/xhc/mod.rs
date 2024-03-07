@@ -136,23 +136,17 @@ impl XhcDriver {
         };
 
         // read base address registers
-        let conf_space_non_bridge_field = match controller.read_conf_space_non_bridge_field() {
-            Some(field) => field,
-            None => return Err(XhcDriverError::XhcDeviceWasNotFoundError.into()),
-        };
-
-        let bars = conf_space_non_bridge_field.get_bars();
-
+        let conf_space_non_bridge_field = controller.read_conf_space_non_bridge_field()?;
+        let bars = conf_space_non_bridge_field.get_bars()?;
         if bars.len() == 0 {
             return Err(XhcDriverError::XhcDeviceWasNotFoundError.into());
         }
 
         self.cap_reg_virt_addr = match bars[0].1 {
-            BaseAddress::MemoryAddress32BitSpace(addr, _) => addr,
-            BaseAddress::MemoryAddress64BitSpace(addr, _) => addr,
+            BaseAddress::MemoryAddress32BitSpace(addr, _) => addr.get().into(),
+            BaseAddress::MemoryAddress64BitSpace(addr, _) => addr.get().into(),
             _ => return Err(XhcDriverError::XhcDeviceWasNotFoundError.into()),
-        }
-        .get_virt_addr();
+        };
 
         if self.cap_reg_virt_addr.get() == 0 {
             return Err(XhcDriverError::InvalidRegisterAddressError.into());
@@ -245,15 +239,15 @@ impl XhcDriver {
         self.device_context_arr_virt_addr = device_context_arr_mem_frame_info.frame_start_virt_addr;
 
         // initialize device context array
-        for i in 0..(self.num_of_slots + 1) {
-            let entry = if i == 0 {
-                //scratchpad_buf_arr_virt_addr
-                VirtualAddress::default()
-            } else {
-                VirtualAddress::default()
-            };
-            self.write_device_context_base_addr(i, entry).unwrap();
-        }
+        // for i in 0..(self.num_of_slots + 1) {
+        //     let entry = if i == 0 {
+        //         //scratchpad_buf_arr_virt_addr
+        //         VirtualAddress::default()
+        //     } else {
+        //         VirtualAddress::default()
+        //     };
+        //     self.write_device_context_base_addr(i, entry)?;
+        // }
 
         let mut ope_reg = self.read_ope_reg();
         ope_reg.device_context_base_addr_array_ptr = self
@@ -325,7 +319,7 @@ impl XhcDriver {
 
         match controller.set_msi_cap(msg_addr, msg_data) {
             Ok(_) => info!("xhc: Initialized MSI interrupt"),
-            Err(err) => warn!("xhc: {}", err),
+            Err(err) => warn!("xhc: {:?}", err),
         }
 
         // enable interrupt
@@ -671,7 +665,10 @@ impl XhcDriver {
         port.output_context_base_virt_addr = device_context_base_virt_addr;
         self.write_port(port);
 
-        self.write_device_context_base_addr(slot_id, device_context_base_virt_addr)?;
+        self.write_device_context_base_addr(
+            slot_id,
+            device_context_base_virt_addr.get_phys_addr()?,
+        )?;
         info!("xhc: Allocated slot: {} (port id: {})", slot_id, port_id);
 
         Ok(())
@@ -790,19 +787,18 @@ impl XhcDriver {
             return None;
         }
 
-        let entry = self
+        let entry: u64 = self
             .device_context_arr_virt_addr
             .offset(index * size_of::<u64>())
             .read_volatile();
-        let virt_addr = PhysicalAddress::new(entry).get_virt_addr();
 
-        Some(virt_addr)
+        Some(entry.into())
     }
 
     fn write_device_context_base_addr(
         &self,
         index: usize,
-        base_addr: VirtualAddress,
+        phys_addr: PhysicalAddress,
     ) -> Result<()> {
         if index > self.num_of_slots + 1 {
             return Err(XhcDriverError::InvalidDeviceContextArrayIndexError(index).into());
@@ -810,7 +806,7 @@ impl XhcDriver {
 
         self.device_context_arr_virt_addr
             .offset(index * size_of::<u64>())
-            .write_volatile(base_addr.get_phys_addr().unwrap().get());
+            .write_volatile(phys_addr.get());
 
         Ok(())
     }

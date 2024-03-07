@@ -22,6 +22,7 @@ pub fn init(mem_map: &[MemoryDescriptor]) {
     if let Err(err) = paging::create_new_page_table(
         start.into(),
         end.into(),
+        start.into(),
         ReadWrite::Write,
         EntryMode::Supervisor,
         PageWriteThroughLevel::WriteThrough,

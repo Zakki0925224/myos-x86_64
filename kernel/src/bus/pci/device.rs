@@ -1,5 +1,8 @@
 use super::conf_space::*;
-use crate::arch::register::msi::{MsiMessageAddressField, MsiMessageDataField};
+use crate::{
+    arch::register::msi::{MsiMessageAddressField, MsiMessageDataField},
+    error::{Error, Result},
+};
 use alloc::vec::Vec;
 
 #[derive(Debug, Clone)]
@@ -11,57 +14,45 @@ pub struct PciDevice {
 }
 
 impl PciDevice {
-    pub fn new(bus: usize, device: usize, func: usize) -> Option<Self> {
-        match ConfigurationSpaceCommonHeaderField::read(bus, device, func) {
-            Some(conf_space_header) => Some(Self {
-                bus,
-                device,
-                func,
-                conf_space_header,
-            }),
-            None => None,
-        }
+    pub fn new(bus: usize, device: usize, func: usize) -> Result<Self> {
+        let conf_space_header = ConfigurationSpaceCommonHeaderField::read(bus, device, func)?;
+        Ok(Self {
+            bus,
+            device,
+            func,
+            conf_space_header,
+        })
     }
 
-    pub fn read_conf_space_non_bridge_field(&self) -> Option<ConfigurationSpaceNonBridgeField> {
+    pub fn read_conf_space_non_bridge_field(&self) -> Result<ConfigurationSpaceNonBridgeField> {
         match self.conf_space_header.get_header_type() {
             ConfigurationSpaceHeaderType::NonBridge
             | ConfigurationSpaceHeaderType::MultiFunction => {
-                match ConfigurationSpaceNonBridgeField::read(self.bus, self.device, self.func) {
-                    Some(field) => Some(field),
-                    None => None,
-                }
+                ConfigurationSpaceNonBridgeField::read(self.bus, self.device, self.func)
             }
-            _ => None,
+            _ => Err(Error::Failed("Invalid configuration space header type")),
         }
     }
 
     pub fn read_conf_space_pci_to_pci_bridge_field(
         &self,
-    ) -> Option<ConfigurationSpacePciToPciBridgeField> {
+    ) -> Result<ConfigurationSpacePciToPciBridgeField> {
         match self.conf_space_header.get_header_type() {
             ConfigurationSpaceHeaderType::PciToPciBridge => {
-                match ConfigurationSpacePciToPciBridgeField::read(self.bus, self.device, self.func)
-                {
-                    Some(field) => Some(field),
-                    None => None,
-                }
+                ConfigurationSpacePciToPciBridgeField::read(self.bus, self.device, self.func)
             }
-            _ => None,
+            _ => Err(Error::Failed("Invalid configuration space header type")),
         }
     }
 
     pub fn read_space_pci_to_cardbus_bridge_field(
         &self,
-    ) -> Option<ConfigurationSpacePciToCardBusField> {
+    ) -> Result<ConfigurationSpacePciToCardBusField> {
         match self.conf_space_header.get_header_type() {
             ConfigurationSpaceHeaderType::PciToCardBusBridge => {
-                match ConfigurationSpacePciToCardBusField::read(self.bus, self.device, self.func) {
-                    Some(field) => Some(field),
-                    None => None,
-                }
+                ConfigurationSpacePciToCardBusField::read(self.bus, self.device, self.func)
             }
-            _ => None,
+            _ => Err(Error::Failed("Invalid configuration space header type")),
         }
     }
 
@@ -104,7 +95,7 @@ impl PciDevice {
         if let Some(caps_ptr) = self.read_caps_ptr() {
             let mut caps_ptr = caps_ptr as usize;
             while caps_ptr != 0 {
-                if let Some(field) =
+                if let Ok(field) =
                     MsiCapabilityField::read(self.bus, self.device, self.func, caps_ptr)
                 {
                     caps_ptr = field.next_ptr as usize;
@@ -124,7 +115,7 @@ impl PciDevice {
         &self,
         msg_addr: MsiMessageAddressField,
         msg_data: MsiMessageDataField,
-    ) -> Result<(), &'static str> {
+    ) -> Result<()> {
         if let Some(caps_ptr) = self.read_caps_ptr() {
             let mut cap = MsiCapabilityField::default();
             let mut caps_ptr = caps_ptr as usize;
@@ -132,7 +123,7 @@ impl PciDevice {
             let caps_list_len = caps_list.len();
 
             if caps_list_len == 0 {
-                return Err("MSI capability fields was not found");
+                return Err(Error::Failed("MSI capability fields was not found"));
             }
 
             for (i, field) in caps_list.iter().enumerate() {
@@ -144,7 +135,7 @@ impl PciDevice {
                 caps_ptr = field.next_ptr as usize;
 
                 if i == caps_list_len - 1 {
-                    return Err("MSI capability field was not found");
+                    return Err(Error::Failed("MSI capability fields was not found"));
                 }
             }
 
@@ -158,7 +149,7 @@ impl PciDevice {
             // write cap
             cap.write(self.bus, self.device, self.func, caps_ptr)?;
         } else {
-            return Err("Failed to read MSI capability fields");
+            return Err(Error::Failed("Failed to read MSI capability fields"));
         }
 
         Ok(())

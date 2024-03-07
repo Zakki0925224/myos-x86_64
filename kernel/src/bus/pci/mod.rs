@@ -31,7 +31,7 @@ impl PciDeviceManager {
         for bus in 0..PCI_DEVICE_BUS_LEN {
             for device in 0..PCI_DEVICE_DEVICE_LEN {
                 for func in 0..PCI_DEVICE_FUNC_LEN {
-                    if let Some(pci_device) = PciDevice::new(bus, device, func) {
+                    if let Ok(pci_device) = PciDevice::new(bus, device, func) {
                         if pci_device.conf_space_header.is_exist() {
                             devices.push(pci_device);
                         }
@@ -70,8 +70,8 @@ impl PciDeviceManager {
                 d.conf_space_header.prog_if
             );
             println!("{:?}", d.read_caps_list());
-            if let Some(field) = d.read_conf_space_non_bridge_field() {
-                for bar in field.get_bars() {
+            if let Ok(field) = d.read_conf_space_non_bridge_field() {
+                for bar in field.get_bars().unwrap() {
                     let ty = match bar.1 {
                         BaseAddress::MemoryAddress32BitSpace(_, _) => "32 bit memory",
                         BaseAddress::MemoryAddress64BitSpace(_, _) => "64 bit memory",

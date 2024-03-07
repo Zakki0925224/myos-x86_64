@@ -339,17 +339,10 @@ impl BitmapMemoryManager {
 
     fn bitmap(&self, offset: usize) -> Result<&mut Bitmap> {
         if offset >= self.bitmap_len {
-            panic!("aaa: {} / {}", offset, self.bitmap_len);
             return Err(Error::IndexOutOfBoundsError(offset));
         }
 
-        Ok(unsafe {
-            &mut *self
-                .bitmap_phys_addr
-                .offset(offset)
-                .get_virt_addr()
-                .as_ptr_mut()
-        })
+        Ok(unsafe { &mut *(self.bitmap_phys_addr.offset(offset).get() as *mut Bitmap) })
     }
 
     fn alloc_frame(&mut self, frame_index: usize) -> Result<()> {
