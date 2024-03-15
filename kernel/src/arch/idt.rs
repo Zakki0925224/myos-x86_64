@@ -1,4 +1,4 @@
-use super::{addr::*, register::segment::Cs};
+use super::{addr::*, apic, register::segment::Cs};
 use crate::{
     arch::{
         self,
@@ -7,6 +7,8 @@ use crate::{
     },
     bus::usb::xhc,
     device::{ps2_keyboard, ps2_mouse},
+    graphics::frame_buf,
+    mem::paging,
     util::mutex::Mutex,
 };
 use alloc::{format, string::String};
@@ -237,11 +239,13 @@ extern "x86-interrupt" fn page_fault_handler(
     stack_frame: InterruptStackFrame,
     error_code: PageFaultErrorCode,
 ) {
+    let accessed_virt_addr = Cr2::read().raw();
+    let page_virt_addr = (accessed_virt_addr & !0xfff).into();
+    let page_table_entry = paging::read_page_table_entry(page_virt_addr);
+
     panic!(
-        "int: PAGE FAULT, Accessed virtual address: 0x{:x}, {:?}, {:?}",
-        Cr2::read().raw(),
-        error_code,
-        stack_frame
+        "int: PAGE FAULT, Accessed virtual address: 0x{:x}, {:?}, {:?}, Page table entry (at 0x{:x}): {:?}",
+        accessed_virt_addr, error_code, stack_frame, page_virt_addr.get(), page_table_entry
     );
 }
 
@@ -259,8 +263,9 @@ extern "x86-interrupt" fn xhc_primary_event_ring_handler() {
 
 extern "x86-interrupt" fn local_apic_timer_handler() {
     asm::disabled_int_func(|| {
-        //info!("int: Local APIC timer");
-        arch::apic::timer::tick();
+        apic::timer::tick();
+        let _ = frame_buf::apply_shadow_buf();
+
         notify_end_of_int();
     });
 }

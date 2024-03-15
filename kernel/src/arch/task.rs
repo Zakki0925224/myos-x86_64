@@ -2,7 +2,6 @@ use crate::{
     arch::context::{Context, ContextMode},
     error::Result,
     mem::{self, bitmap::MemoryFrameInfo, paging::PAGE_SIZE},
-    println,
     util::mutex::{Mutex, MutexError},
 };
 use alloc::{boxed::Box, collections::VecDeque};
@@ -152,9 +151,6 @@ struct Task {
 
 impl Drop for Task {
     fn drop(&mut self) {
-        // self.stack_mem_frame_info
-        //     .set_permissions_to_supervisor()
-        //     .unwrap();
         mem::bitmap::dealloc_mem_frame(self.stack_mem_frame_info).unwrap();
     }
 }
@@ -167,10 +163,10 @@ impl Task {
     ) -> Result<Self> {
         let stack_mem_frame_info = mem::bitmap::alloc_mem_frame((stack_size / PAGE_SIZE).max(1))?;
 
-        // match mode {
-        //     ContextMode::Kernel => stack_mem_frame_info.set_permissions_to_supervisor()?,
-        //     ContextMode::User => stack_mem_frame_info.set_permissions_to_user()?,
-        // }
+        match mode {
+            ContextMode::Kernel => stack_mem_frame_info.set_permissions_to_supervisor()?,
+            ContextMode::User => stack_mem_frame_info.set_permissions_to_user()?,
+        }
 
         let rsp = stack_mem_frame_info.frame_start_virt_addr.get() + stack_size as u64;
         let rip = match entry {
@@ -190,13 +186,17 @@ impl Task {
     }
 
     pub fn switch_to(&self, next_task: &Task) {
+        info!(
+            "task: Switch context tid: {} to {}",
+            self.id.get(),
+            next_task.id.get()
+        );
         self.context.switch_to(&next_task.context);
     }
 }
 
 pub fn exec_user_task(entry: extern "sysv64" fn()) -> Result<()> {
     let task = Task::new(1024 * 1024, Some(entry), ContextMode::User)?;
-    println!("{:?}", task);
 
     if let (Ok(mut kernel_task), Ok(mut user_task)) =
         unsafe { (KERNEL_TASK.try_lock(), USER_TASK.try_lock()) }
@@ -211,11 +211,11 @@ pub fn exec_user_task(entry: extern "sysv64" fn()) -> Result<()> {
             .as_ref()
             .unwrap()
             .switch_to(user_task.as_ref().unwrap());
-    } else {
-        return Err(MutexError::Locked.into());
+
+        return Ok(());
     }
 
-    Ok(())
+    Err(MutexError::Locked.into())
 }
 
 pub fn return_to_kernel_task() {

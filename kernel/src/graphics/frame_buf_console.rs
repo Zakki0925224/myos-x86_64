@@ -151,7 +151,6 @@ impl FrameBufferConsole {
         if self.target_layer_id.is_some() {
             multi_layer::draw_to_frame_buf()?;
         }
-        frame_buf::apply_shadow_buf()?;
 
         Ok(())
     }

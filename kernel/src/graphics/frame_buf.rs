@@ -109,15 +109,9 @@ impl FrameBuffer {
 
         // copy frame buffer to shadow buffer
         let shadow_buf_ptr = self.shadow_buf.as_mut().unwrap().as_mut_ptr();
-        let frame_buf_ptr = self.frame_buf_virt_addr.get() as *const u8;
-
-        for y in 0..res_y {
-            let offset = res_x * y * 4;
-            unsafe {
-                frame_buf_ptr
-                    .add(offset)
-                    .copy_to_nonoverlapping(shadow_buf_ptr.add(offset), res_x * 4);
-            }
+        unsafe {
+            shadow_buf_ptr
+                .copy_from_nonoverlapping(self.frame_buf_virt_addr.as_ptr(), res_x * res_y * 4);
         }
 
         Ok(())
@@ -130,17 +124,10 @@ impl FrameBuffer {
 
         let (res_x, res_y) = self.get_resolution();
 
-        let shadow_buf_ptr = self.shadow_buf.as_ref().unwrap().as_ptr();
-        let frame_buf_ptr = self.frame_buf_virt_addr.get() as *mut u8;
-
-        for y in 0..res_y {
-            let offset = res_x * y * 4;
-            unsafe {
-                shadow_buf_ptr
-                    .add(offset)
-                    .copy_to_nonoverlapping(frame_buf_ptr.add(offset), res_x * 4);
-            }
-        }
+        self.frame_buf_virt_addr.copy_from_nonoverlapping(
+            self.shadow_buf.as_ref().unwrap().as_ptr(),
+            res_x * res_y * 4,
+        );
     }
 
     // no check disabled layer

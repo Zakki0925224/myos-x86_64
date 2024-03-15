@@ -1,6 +1,5 @@
 use crate::{
-    error::Error,
-    error::Result,
+    error::{Error, Result},
     graphics::{color::*, frame_buf_console},
     serial,
     util::{

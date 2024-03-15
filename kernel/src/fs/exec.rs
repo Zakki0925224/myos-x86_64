@@ -50,15 +50,16 @@ pub fn exec_elf(file_name: &str, args: &[&str]) -> Result<()> {
     user_mem_frame_info
         .frame_start_virt_addr
         .copy_from_nonoverlapping(elf_data.as_ptr(), elf_data.len());
-    //user_mem_frame_info.set_permissions_to_user()?;
+    user_mem_frame_info.set_permissions_to_user()?;
+    info!("{:?}", user_mem_frame_info.get_permissions()?);
 
     let entry_addr = user_mem_frame_info.frame_start_virt_addr.get() + header.entry_point - 0x1000;
 
     info!("entry: 0x{:x}", entry_addr);
     let entry: extern "sysv64" fn() = unsafe { mem::transmute(entry_addr as *const ()) };
-    // TODO: occure page fault
     task::exec_user_task(entry)?;
 
+    user_mem_frame_info.set_permissions_to_supervisor()?;
     bitmap::dealloc_mem_frame(user_mem_frame_info)?;
 
     info!("exec: Exited");

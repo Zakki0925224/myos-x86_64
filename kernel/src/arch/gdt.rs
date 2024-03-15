@@ -17,8 +17,8 @@ use log::info;
 
 pub const KERNEL_MODE_SS_VALUE: u16 = 2 << 3;
 pub const KERNEL_MODE_CS_VALUE: u16 = 1 << 3;
-pub const USER_MODE_SS_VALUE: u16 = (4 << 3) | 3;
-pub const USER_MODE_CS_VALUE: u16 = (3 << 3) | 3;
+pub const USER_MODE_SS_VALUE: u16 = (3 << 3) | 3;
+pub const USER_MODE_CS_VALUE: u16 = (4 << 3) | 3;
 const GDT_LEN: usize = 5;
 const TSS_SEL: u16 = (GDT_LEN as u16) << 3;
 
@@ -27,8 +27,8 @@ static mut GDT: Mutex<GlobalDescriptorTable> = Mutex::new(GlobalDescriptorTable:
 #[derive(Debug, Clone, Copy)]
 #[repr(u8)]
 enum SegmentType {
-    ExecuteRead = 0xa,
-    ReadWrite = 0x2,
+    CodeExecuteRead = 0xa,
+    DataReadWrite = 0x2,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -45,10 +45,9 @@ impl SegmentDescriptor {
         self.set_limit(limit);
 
         self.set_seg_type(seg_type);
-        self.set_is_not_sys_seg(true);
+        self.set_is_code_or_data_seg(true);
         self.set_dpl(dpl);
         self.set_p(true);
-        self.set_available(false);
         self.set_is_long_mode(true);
         self.set_default_op_size(false);
         self.set_granularity(true);
@@ -66,8 +65,8 @@ impl SegmentDescriptor {
         let base_high = (base >> 24) as u8;
 
         self.0 = (self.0 & !0xffff_0000) | ((base_low as u64) << 16);
-        self.0 = (self.0 & !0x00ff_0000_0000) | ((base_mid as u64) << 32);
-        self.0 = (self.0 & !0xff00_0000_0000_0000) | ((base_high as u64) << 55);
+        self.0 = (self.0 & !0x000f_0000_0000) | ((base_mid as u64) << 32);
+        self.0 = (self.0 & !0xff00_0000_0000_0000) | ((base_high as u64) << 56);
     }
 
     fn set_limit(&mut self, limit: u32) {
@@ -75,29 +74,26 @@ impl SegmentDescriptor {
         let limit_high = (limit >> 16) as u8;
 
         self.0 = (self.0 & !0xffff) | (limit_low as u64);
-        self.0 = (self.0 & !0x000f_ffff_ffff_ffff) | ((limit_high as u64) << 48);
+        self.0 = (self.0 & !0x000f_0000_0000_0000) | ((limit_high as u64) << 48);
     }
 
     fn set_seg_type(&mut self, seg_type: SegmentType) {
-        let seg_type = seg_type as u8 & 0xf; // 4 bits
+        let seg_type = seg_type as u8;
         self.0 = (self.0 & !0x0f00_0000_0000) | ((seg_type as u64) << 40);
     }
 
-    fn set_is_not_sys_seg(&mut self, value: bool) {
+    fn set_is_code_or_data_seg(&mut self, value: bool) {
         self.0 = (self.0 & !0x1000_0000_0000) | ((value as u64) << 44);
     }
 
     fn set_dpl(&mut self, dpl: u8) {
-        let dpl = dpl & 0b11; // allow 0 ~ 3
+        let dpl = dpl;
+        assert!(dpl <= 3);
         self.0 = (self.0 & !0x6000_0000_0000) | ((dpl as u64) << 45);
     }
 
     fn set_p(&mut self, value: bool) {
         self.0 = (self.0 & !0x8000_0000_0000) | ((value as u64) << 47);
-    }
-
-    fn set_available(&mut self, value: bool) {
-        self.0 = (self.0 & !0x0010_0000_0000_0000) | ((value as u64) << 52);
     }
 
     fn set_is_long_mode(&mut self, value: bool) {
@@ -109,7 +105,7 @@ impl SegmentDescriptor {
     }
 
     fn set_granularity(&mut self, value: bool) {
-        self.0 = (self.0 & !0x0040_0000_0000_0000) | ((value as u64) << 55);
+        self.0 = (self.0 & !0x0080_0000_0000_0000) | ((value as u64) << 55);
     }
 }
 
@@ -156,12 +152,12 @@ pub fn init() {
     let mut gdt4 = SegmentDescriptor::new();
 
     // kernel segments
-    gdt1.set_code_seg(SegmentType::ExecuteRead, 0, 0, 0xffff_f);
-    gdt2.set_data_seg(SegmentType::ReadWrite, 0, 0, 0xffff_f);
+    gdt1.set_code_seg(SegmentType::CodeExecuteRead, 0, 0, 0x000f_ffff);
+    gdt2.set_data_seg(SegmentType::DataReadWrite, 0, 0, 0x000f_ffff);
 
     // user segments
-    gdt3.set_code_seg(SegmentType::ExecuteRead, 3, 0, 0xffff_f);
-    gdt4.set_data_seg(SegmentType::ReadWrite, 3, 0, 0);
+    gdt3.set_data_seg(SegmentType::DataReadWrite, 3, 0, 0x000f_ffff);
+    gdt4.set_code_seg(SegmentType::CodeExecuteRead, 3, 0, 0x000f_ffff);
 
     let tss_addr = tss::init().expect("gdt: Failed to initialize TSS");
 

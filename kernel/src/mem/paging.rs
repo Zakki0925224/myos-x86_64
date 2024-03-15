@@ -1,5 +1,3 @@
-use log::info;
-
 use crate::{
     arch::{
         addr::*,
@@ -9,6 +7,8 @@ use crate::{
     mem::bitmap,
     util::mutex::*,
 };
+use alloc::string::String;
+use log::info;
 
 const PAGE_TABLE_ENTRY_LEN: usize = 512;
 pub const PAGE_SIZE: usize = 4096;
@@ -35,14 +35,27 @@ pub enum PageWriteThroughLevel {
     WriteThrough = 1,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct PageTableEntry(u64);
 
-impl PageTableEntry {
-    pub const fn new() -> Self {
-        Self(0)
+impl core::fmt::Debug for PageTableEntry {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let mut fmt = String::from("PageTableEntry");
+        fmt = format!(
+            "{}(0x{:x}) {{ p: {}, rw: {:?}, us: {:?}, is_page: {}, addr: 0x{:x} }}",
+            fmt,
+            self.0,
+            self.p(),
+            self.rw(),
+            self.us(),
+            self.is_page(),
+            self.addr()
+        );
+        write!(f, "{}", fmt)
     }
+}
 
+impl PageTableEntry {
     pub fn set_p(&mut self, value: bool) {
         self.0 = (self.0 & !0x1) | (value as u64);
     }
@@ -80,12 +93,11 @@ impl PageTableEntry {
         self.0 = (self.0 & !0x8) | (pwt << 3);
     }
 
-    pub fn set_disable_page_cache(&mut self, value: bool) {
-        self.0 = (self.0 & !0x10) | ((value as u64) << 4);
-    }
-
-    pub fn set_accessed(&mut self, value: bool) {
-        self.0 = (self.0 & !0x20) | ((value as u64) << 5);
+    pub fn pwt(&self) -> PageWriteThroughLevel {
+        match (self.0 & 0x8) != 0 {
+            true => PageWriteThroughLevel::WriteThrough,
+            false => PageWriteThroughLevel::WriteBack,
+        }
     }
 
     pub fn set_is_page(&mut self, value: bool) {
@@ -96,10 +108,6 @@ impl PageTableEntry {
         (self.0 & 0x80) != 0
     }
 
-    pub fn set_restart(&mut self, value: bool) {
-        self.0 = (self.0 & !0x800) | ((value as u64) << 11);
-    }
-
     pub fn set_addr(&mut self, addr: u64) {
         let addr = addr & 0x7_ffff_ffff_ffff;
         self.0 = (self.0 & !0x7fff_ffff_ffff_f000) | addr;
@@ -107,10 +115,6 @@ impl PageTableEntry {
 
     pub fn addr(&self) -> u64 {
         self.0 & 0x7fff_ffff_ffff_f000
-    }
-
-    pub fn set_disable_execute(&mut self, value: bool) {
-        self.0 = (self.0 & !0x8000_0000_0000_0000) | ((value as u64) << 63);
     }
 
     pub unsafe fn page_table(&self) -> Option<&mut PageTable> {
@@ -135,12 +139,8 @@ impl PageTableEntry {
         self.set_rw(rw);
         self.set_us(mode);
         self.set_pwt(write_through_level);
-        self.set_disable_page_cache(false);
-        self.set_accessed(true);
         self.set_is_page(is_page);
-        self.set_restart(false);
         self.set_addr(addr);
-        self.set_disable_execute(false);
     }
 }
 
@@ -280,10 +280,7 @@ impl PageManager {
         Ok(())
     }
 
-    pub unsafe fn get_page_permissions(
-        &self,
-        virt_addr: VirtualAddress,
-    ) -> Result<(ReadWrite, EntryMode)> {
+    pub unsafe fn page_table_entry(&self, virt_addr: VirtualAddress) -> Result<&PageTableEntry> {
         if virt_addr.get() % PAGE_SIZE as u64 != 0 {
             return Err(PageManagerError::AddressNotAlignedByPageSizeError(virt_addr).into());
         }
@@ -311,7 +308,7 @@ impl PageManager {
 
         let pml2_table = match entry.page_table() {
             Some(table) => table,
-            None => return Ok((entry.rw(), entry.us())),
+            None => return Ok(entry),
         };
         let entry = &pml2_table.entries[pml2e_index];
 
@@ -321,79 +318,11 @@ impl PageManager {
 
         let pml1_table = match entry.page_table() {
             Some(table) => table,
-            None => return Ok((entry.rw(), entry.us())),
+            None => return Ok(entry),
         };
+
         let entry = &pml1_table.entries[pml1e_index];
-
-        if !entry.is_page() {
-            return Err(PageManagerError::AddressNotMappedError(virt_addr).into());
-        }
-
-        Ok((entry.rw(), entry.us()))
-    }
-
-    pub unsafe fn set_page_permissions(
-        &self,
-        virt_addr: VirtualAddress,
-        rw: ReadWrite,
-        mode: EntryMode,
-    ) -> Result<()> {
-        if virt_addr.get() % PAGE_SIZE as u64 != 0 {
-            return Err(PageManagerError::AddressNotAlignedByPageSizeError(virt_addr).into());
-        }
-
-        self.calc_phys_addr(virt_addr)?;
-
-        let pml4e_index = virt_addr.get_pml4_entry_index();
-        let pml3e_index = virt_addr.get_pml3_entry_index();
-        let pml2e_index = virt_addr.get_pml2_entry_index();
-        let pml1e_index = virt_addr.get_pml1_entry_index();
-
-        let pml4_table = self.pml4_table();
-        let entry = &pml4_table.entries[pml4e_index];
-
-        if !entry.p() {
-            return Err(PageManagerError::AddressNotMappedError(virt_addr).into());
-        }
-
-        let pml3_table = entry.page_table().unwrap();
-        let entry = &mut pml3_table.entries[pml3e_index];
-
-        if !entry.p() {
-            return Err(PageManagerError::AddressNotMappedError(virt_addr).into());
-        }
-
-        let pml2_table = match entry.page_table() {
-            Some(table) => table,
-            None => {
-                entry.set_rw(rw);
-                entry.set_us(mode);
-                return Ok(());
-            }
-        };
-        let entry = &mut pml2_table.entries[pml2e_index];
-
-        if !entry.p() {
-            return Err(PageManagerError::AddressNotMappedError(virt_addr).into());
-        }
-
-        let pml1_table = match entry.page_table() {
-            Some(table) => table,
-            None => {
-                entry.set_rw(rw);
-                entry.set_us(mode);
-                return Ok(());
-            }
-        };
-        let entry = &mut pml1_table.entries[pml1e_index];
-
-        if !entry.is_page() {
-            return Err(PageManagerError::AddressNotMappedError(virt_addr).into());
-        }
-
-        entry.set_rw(rw);
-        entry.set_us(mode);
-        Ok(())
+        Ok(entry)
     }
 
     fn cr3(&self) -> Cr3 {
@@ -532,7 +461,15 @@ pub fn set_page_permissions(
 ) -> Result<()> {
     unsafe {
         if let Ok(page_man) = PAGE_MAN.try_lock() {
-            return page_man.set_page_permissions(virt_addr, rw, mode);
+            let entry = page_man.page_table_entry(virt_addr)?;
+            return page_man.update_mapping(
+                virt_addr,
+                virt_addr,
+                entry.addr().into(),
+                rw,
+                mode,
+                entry.pwt(),
+            );
         }
     }
 
@@ -542,7 +479,19 @@ pub fn set_page_permissions(
 pub fn get_page_permissions(virt_addr: VirtualAddress) -> Result<(ReadWrite, EntryMode)> {
     unsafe {
         if let Ok(page_man) = PAGE_MAN.try_lock() {
-            return page_man.get_page_permissions(virt_addr);
+            let entry = page_man.page_table_entry(virt_addr)?;
+            return Ok((entry.rw(), entry.us()));
+        }
+    }
+
+    Err(MutexError::Locked.into())
+}
+
+pub fn read_page_table_entry(virt_addr: VirtualAddress) -> Result<PageTableEntry> {
+    unsafe {
+        if let Ok(page_man) = PAGE_MAN.try_lock() {
+            let entry = page_man.page_table_entry(virt_addr)?;
+            return Ok(entry.clone());
         }
     }
 
