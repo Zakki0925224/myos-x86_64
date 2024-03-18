@@ -35,21 +35,24 @@ pub enum PageWriteThroughLevel {
     WriteThrough = 1,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Default)]
 pub struct PageTableEntry(u64);
 
 impl core::fmt::Debug for PageTableEntry {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let mut fmt = String::from("PageTableEntry");
         fmt = format!(
-            "{}(0x{:x}) {{ p: {}, rw: {:?}, us: {:?}, is_page: {}, addr: 0x{:x} }}",
+            "{}(0x{:x}) {{ p: {}, rw: {:?}, us: {:?}, a: {}, d: {}, page_size: {}, addr: 0x{:x}, xd: {} }}",
             fmt,
             self.0,
             self.p(),
             self.rw(),
             self.us(),
-            self.is_page(),
-            self.addr()
+            self.accessed(),
+            self.dirty(),
+            self.page_size(),
+            self.addr(),
+            self.exec_disable()
         );
         write!(f, "{}", fmt)
     }
@@ -100,25 +103,36 @@ impl PageTableEntry {
         }
     }
 
-    pub fn set_is_page(&mut self, value: bool) {
-        self.0 = (self.0 & !0x80) | ((value as u64) << 7);
+    pub fn accessed(&self) -> bool {
+        (self.0 & 0x20) != 0
     }
 
-    pub fn is_page(&self) -> bool {
-        (self.0 & 0x80) != 0
+    pub fn dirty(&self) -> bool {
+        (self.0 & 0x40) != 0
+    }
+
+    // must be 0, unsupported >4KB page table
+    pub fn page_size(&self) -> bool {
+        let value = (self.0 & 0x80) != 0;
+        assert!(!value);
+        value
     }
 
     pub fn set_addr(&mut self, addr: u64) {
-        let addr = addr & 0x7_ffff_ffff_ffff;
-        self.0 = (self.0 & !0x7fff_ffff_ffff_f000) | addr;
+        assert!((addr & !0xf_ffff_ffff_f000) == 0);
+        self.0 = self.0 | addr;
     }
 
     pub fn addr(&self) -> u64 {
-        self.0 & 0x7fff_ffff_ffff_f000
+        self.0 & 0xf_ffff_ffff_f000
+    }
+
+    pub fn exec_disable(&self) -> bool {
+        (self.0 & (1 << 63)) != 0
     }
 
     pub unsafe fn page_table(&self) -> Option<&mut PageTable> {
-        match self.is_page() {
+        match self.page_size() {
             true => None,
             false => {
                 let ptr = self.addr() as *mut PageTable;
@@ -130,7 +144,6 @@ impl PageTableEntry {
     pub fn set_entry(
         &mut self,
         addr: u64,
-        is_page: bool,
         rw: ReadWrite,
         mode: EntryMode,
         write_through_level: PageWriteThroughLevel,
@@ -139,7 +152,6 @@ impl PageTableEntry {
         self.set_rw(rw);
         self.set_us(mode);
         self.set_pwt(write_through_level);
-        self.set_is_page(is_page);
         self.set_addr(addr);
     }
 }
@@ -188,11 +200,8 @@ impl PageManager {
 
         let pml2_table = match entry.page_table() {
             Some(table) => table,
-            // is_page == true
             None => {
-                return Ok(PhysicalAddress::new(
-                    (entry.addr() & !0x3_ffff) | virt_addr.get() & 0x3fff_ffff,
-                ))
+                unimplemented!();
             }
         };
         let entry = &pml2_table.entries[pml2e_index];
@@ -203,19 +212,11 @@ impl PageManager {
 
         let pml1_table = match entry.page_table() {
             Some(table) => table,
-            // is_page == true
             None => {
-                return Ok(PhysicalAddress::new(
-                    (entry.addr() & !0x1ff) | virt_addr.get() & 0x1f_ffff,
-                ))
+                unimplemented!();
             }
         };
         let entry = &pml1_table.entries[pml1e_index];
-
-        if !entry.is_page() {
-            return Err(PageManagerError::AddressNotMappedError(virt_addr).into());
-        }
-
         Ok(PhysicalAddress::new(entry.addr() | page_offset as u64))
     }
 
@@ -306,21 +307,14 @@ impl PageManager {
             return Err(PageManagerError::AddressNotMappedError(virt_addr).into());
         }
 
-        let pml2_table = match entry.page_table() {
-            Some(table) => table,
-            None => return Ok(entry),
-        };
+        let pml2_table = entry.page_table().unwrap();
         let entry = &pml2_table.entries[pml2e_index];
 
         if !entry.p() {
             return Err(PageManagerError::AddressNotMappedError(virt_addr).into());
         }
 
-        let pml1_table = match entry.page_table() {
-            Some(table) => table,
-            None => return Ok(entry),
-        };
-
+        let pml1_table = entry.page_table().unwrap();
         let entry = &pml1_table.entries[pml1e_index];
         Ok(entry)
     }
@@ -361,8 +355,14 @@ impl PageManager {
         if !entry.p() {
             let mem_info = bitmap::alloc_mem_frame(1)?;
             bitmap::mem_clear(&mem_info)?;
-            let phys_addr = mem_info.frame_start_virt_addr.get();
-            entry.set_entry(phys_addr, false, rw, mode, write_through_level);
+            let mut new_entry = PageTableEntry::default();
+            new_entry.set_entry(
+                mem_info.frame_start_virt_addr.get(),
+                rw,
+                mode,
+                write_through_level,
+            );
+            *entry = new_entry;
         }
 
         let pml3_table = entry.page_table().unwrap();
@@ -371,8 +371,14 @@ impl PageManager {
         if !entry.p() {
             let mem_info = bitmap::alloc_mem_frame(1)?;
             bitmap::mem_clear(&mem_info)?;
-            let phys_addr = mem_info.frame_start_virt_addr.get();
-            entry.set_entry(phys_addr, false, rw, mode, write_through_level);
+            let mut new_entry = PageTableEntry::default();
+            new_entry.set_entry(
+                mem_info.frame_start_virt_addr.get(),
+                rw,
+                mode,
+                write_through_level,
+            );
+            *entry = new_entry;
         }
 
         let pml2_table = entry.page_table().unwrap();
@@ -381,14 +387,23 @@ impl PageManager {
         if !entry.p() {
             let mem_info = bitmap::alloc_mem_frame(1)?;
             bitmap::mem_clear(&mem_info)?;
-            let phys_addr = mem_info.frame_start_virt_addr.get();
-            entry.set_entry(phys_addr, false, rw, mode, write_through_level);
+            let mut new_entry = PageTableEntry::default();
+            new_entry.set_entry(
+                mem_info.frame_start_virt_addr.get(),
+                rw,
+                mode,
+                write_through_level,
+            );
+            *entry = new_entry;
         }
 
         let pml1_table = entry.page_table().unwrap();
         let entry = &mut pml1_table.entries[pml1e_index];
 
-        entry.set_entry(phys_addr.get(), true, rw, mode, write_through_level);
+        entry.set_entry(phys_addr.get(), rw, mode, write_through_level);
+        let mut new_entry = PageTableEntry::default();
+        new_entry.set_entry(phys_addr.get(), rw, mode, write_through_level);
+        *entry = new_entry;
 
         Ok(())
     }

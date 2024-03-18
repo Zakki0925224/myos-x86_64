@@ -1,5 +1,3 @@
-# Makefile for compiling and linking C code
-
 # Source file (C code)
 SRC_FILE := loop.c
 

@@ -7,3 +7,5 @@ initramfs/*
 
 *.elf
 *.o
+*.so
+*.a

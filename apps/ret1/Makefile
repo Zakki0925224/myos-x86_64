@@ -1,5 +1,3 @@
-# Makefile for compiling and linking C code
-
 # Source file (C code)
 SRC_FILE := ret1.c
 
@@ -11,19 +9,24 @@ OBJ_FILE := ret1.o
 
 # Compiler flags
 CC := gcc
-CFLAGS := -O2 -Wall -g -m64 -ffreestanding
+CFLAGS := -O2 -Wall -g -m64 -ffreestanding -static
 
 # Linker flags
 LD := ld.lld
 LDFLAGS := --entry main -z norelro --image-base 0 --static
 
+# Library flags
+LIB_DIR := ../libm
+LIB := -L$(LIB_DIR) -lm
+
 # Compile and link
 $(OUT_FILE): $(OBJ_FILE)
-	$(LD) $< -o $(OUT_FILE) $(LDFLAGS)
+	$(LD) $< $(LIB) -o $@ $(LDFLAGS)
 
 # Compile
 $(OBJ_FILE): $(SRC_FILE)
-	$(CC) -c $< -o $(OBJ_FILE) $(CFLAGS)
+	make -C $(LIB_DIR)
+	$(CC) $< $(LIB) -c -o $@ $(CFLAGS)
 
 # Clean rule
 clean:

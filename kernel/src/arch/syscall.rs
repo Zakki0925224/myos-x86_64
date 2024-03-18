@@ -1,56 +1,54 @@
-use crate::arch::register::model_specific::*;
+use crate::arch::{
+    gdt::{KERNEL_MODE_CS_VALUE, KERNEL_MODE_SS_VALUE},
+    register::model_specific::*,
+};
 use core::arch::asm;
-use log::info;
+use log::{error, info};
 
 #[naked]
 extern "sysv64" fn asm_syscall_handler() {
     unsafe {
         asm!(
-            " push rcx",
-            " push r11",
-            " push rbx",
-            " push rbp",
-            " push r15",
-            " push r14",
-            " push r13",
-            " push r12",
-            " push r10",
-            " push r9",
-            " push r8",
-            " push rdi",
-            " push rsi",
-            " push rdx",
-            " push rax",
-            " mov rbp, rsp",
-            " mov rdi, rsp",
-            " and rsp, -16",
-            " call syscall_handler",
-            " mov rsp, rbp",
-            " pop rax",
-            " pop rdx",
-            " pop rsi",
-            " pop rdi",
-            " pop r8",
-            " pop r9",
-            " pop r10",
-            " pop r12",
-            " pop r13",
-            " pop r14",
-            " pop r15",
-            " pop rbp",
-            " pop rbx",
-            " pop r11",
-            " pop rcx",
-            " sysretq",
+            "push rbp",
+            "push rcx",
+            "push r11",
+            "mov rcx, r10", // rcx was updated by syscall instruction
+            "mov rbp, rsp",
+            "and rsp, -16",
+            "call syscall_handler",
+            "mov rsp, rbp",
+            "pop r11",
+            "pop rcx",
+            "pop rbp",
+            "sysretq",
             options(noreturn)
         );
     }
 }
 
 #[no_mangle]
-extern "sysv64" fn syscall_handler(args: &[u64; 16]) {
+extern "sysv64" fn syscall_handler(
+    arg0: u64, // (sysv abi) rdi
+    arg1: u64, // (sysv abi) rsi
+    arg2: u64, // (sysv abi) rdx
+    arg3: u64, // (sysv abi) rcx from r10
+    arg4: u64, // (sysv abi) r8
+    arg5: u64, // (sysv abi) r9
+) -> u64 /* rax */ {
+    let ret_val = 0xbeefcafe01234567;
+    let args = [arg0, arg1, arg2, arg3, arg4, arg5];
     info!("syscall: Called!(args: {:?})", args);
-    unimplemented!();
+
+    match arg0 {
+        4 => {
+            info!("syscall: exit (status: 0x{:x})", arg1);
+        }
+        num => error!("syscall: Syscall number 0x{:x} is not defined", num),
+    }
+
+    todo!();
+
+    ret_val
 }
 
 pub fn init() {
@@ -63,7 +61,9 @@ pub fn init() {
     lstar.write();
 
     let mut star = SystemCallTargetAddressRegister::read();
-    star.set_target_addr((8 << 32) | ((16 | 3) << 48)); // set CS and SS to kernel segment
+    star.set_target_addr(
+        ((KERNEL_MODE_CS_VALUE as u64) << 32) | ((KERNEL_MODE_SS_VALUE as u64 | 3) << 48),
+    ); // set CS and SS to kernel segment
     star.write();
 
     let mut fmask = SystemCallFlagMaskRegister::read();
