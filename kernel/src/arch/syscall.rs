@@ -1,6 +1,7 @@
 use crate::arch::{
     gdt::{KERNEL_MODE_CS_VALUE, KERNEL_MODE_SS_VALUE},
     register::model_specific::*,
+    task,
 };
 use core::arch::asm;
 use log::{error, info};
@@ -35,18 +36,23 @@ extern "sysv64" fn syscall_handler(
     arg4: u64, // (sysv abi) r8
     arg5: u64, // (sysv abi) r9
 ) -> u64 /* rax */ {
-    let ret_val = 0xbeefcafe01234567;
+    let mut ret_val = 0xdeadbeef01234567;
     let args = [arg0, arg1, arg2, arg3, arg4, arg5];
     info!("syscall: Called!(args: {:?})", args);
 
     match arg0 {
+        3 => {
+            info!("syscall: test (ret: 0x{:x})", ret_val);
+        }
         4 => {
             info!("syscall: exit (status: 0x{:x})", arg1);
+            task::return_to_kernel_task();
         }
-        num => error!("syscall: Syscall number 0x{:x} is not defined", num),
+        num => {
+            error!("syscall: Syscall number 0x{:x} is not defined", num);
+            ret_val = u64::MAX;
+        }
     }
-
-    todo!();
 
     ret_val
 }

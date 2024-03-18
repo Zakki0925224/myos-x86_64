@@ -1,3 +1,4 @@
 #include "intm.h"
 
-static void sys_exit(uint64_t status);
+extern uint64_t sys_test();
+extern void sys_exit(uint64_t status);

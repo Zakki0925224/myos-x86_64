@@ -18,6 +18,11 @@ static uint64_t syscall(uint64_t syscall_number, uint64_t arg1, uint64_t arg2, u
     return ret_val;
 }
 
+extern uint64_t sys_test()
+{
+    return syscall(3, 0, 0, 0, 0, 0);
+}
+
 extern void sys_exit(uint64_t status)
 {
     syscall(4, status, 0, 0, 0, 0);
