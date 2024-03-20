@@ -15,13 +15,13 @@ pub enum ComPort {
     // Com8 = 0x4e8,
 }
 
-pub struct SerialPort {
+struct SerialPort {
     io_port_addr: IoPortAddress,
 }
 
 impl SerialPort {
     pub fn new(com_port: ComPort) -> Option<Self> {
-        let io_port_addr = IoPortAddress::new(com_port as u16);
+        let io_port_addr = IoPortAddress::new(com_port as u32);
 
         io_port_addr.offset(1).out8(0x00); // IER - disable all interrupts
         io_port_addr.offset(3).out8(0x80); // LCR - enable DLAB

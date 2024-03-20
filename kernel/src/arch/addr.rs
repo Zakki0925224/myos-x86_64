@@ -1,8 +1,7 @@
 use core::ptr::{read_volatile, write_volatile};
 
-use crate::{error::Result, mem::paging};
-
 use super::asm;
+use crate::{error::Result, mem::paging};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(transparent)]
@@ -23,22 +22,6 @@ impl PhysicalAddress {
 
     pub fn offset(&self, offset: usize) -> Self {
         Self::new(self.0 + offset as u64)
-    }
-
-    pub fn out32(&self, data: u32) {
-        if self.0 > u32::MAX as u64 {
-            panic!("Invalid address for out32");
-        }
-
-        asm::out32(self.0 as u32, data);
-    }
-
-    pub fn in32(&self) -> u32 {
-        if self.0 > u32::MAX as u64 {
-            panic!("Invalid address for out32");
-        }
-
-        asm::in32(self.0 as u32)
     }
 }
 
@@ -99,11 +82,13 @@ impl VirtualAddress {
         (self.0 & 0xfff) as usize
     }
 
+    #[deprecated]
     pub fn read_volatile<T>(&self) -> T {
         let ptr = self.get() as *const T;
         unsafe { read_volatile(ptr) }
     }
 
+    #[deprecated]
     pub fn write_volatile<T>(&self, data: T) {
         let ptr = self.get() as *mut T;
         unsafe {
@@ -138,31 +123,43 @@ impl From<u64> for VirtualAddress {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(transparent)]
-pub struct IoPortAddress(u16);
+pub struct IoPortAddress(u32);
 
 impl IoPortAddress {
-    pub const fn new(addr: u16) -> Self {
+    pub const fn new(addr: u32) -> Self {
         Self(addr)
     }
 
-    pub fn get(&self) -> u16 {
+    pub fn get(&self) -> u32 {
         self.0
     }
 
-    pub fn set(&mut self, addr: u16) {
+    pub fn set(&mut self, addr: u32) {
         self.0 = addr;
     }
 
     pub fn offset(&self, offset: usize) -> Self {
-        Self::new(self.0 + offset as u16)
+        Self::new(self.0 + offset as u32)
     }
 
-    pub fn out8(self, data: u8) {
-        asm::out8(self.0 as u16, data);
+    pub fn out8(&self, value: u8) {
+        assert!(self.0 <= u16::MAX as u32);
+
+        asm::out8(self.0 as u16, value);
     }
 
-    pub fn in8(self) -> u8 {
+    pub fn in8(&self) -> u8 {
+        assert!(self.0 <= u16::MAX as u32);
+
         asm::in8(self.0 as u16)
+    }
+
+    pub fn out32(&self, value: u32) {
+        asm::out32(self.0, value);
+    }
+
+    pub fn in32(&self) -> u32 {
+        asm::in32(self.0)
     }
 }
 

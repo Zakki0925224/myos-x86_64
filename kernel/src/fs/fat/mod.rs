@@ -1,16 +1,10 @@
-use core::mem::size_of;
-
-use alloc::vec::Vec;
-
 use self::{
     boot_sector::BootSector, dir_entry::DirectoryEntry, file_allocation_table::ClusterType,
     fs_info_sector::FsInfoSector,
 };
-use crate::{
-    arch::addr::VirtualAddress,
-    fs::fat::dir_entry::{LongFileNameEntry, ShortFileNameEntry},
-    println,
-};
+use crate::arch::addr::VirtualAddress;
+use alloc::vec::Vec;
+use core::mem::size_of;
 
 pub mod boot_sector;
 pub mod dir_entry;
@@ -35,30 +29,32 @@ impl FatVolume {
         }
     }
 
-    pub fn read_boot_sector(&self) -> BootSector {
-        self.volume_start_virt_addr.read_volatile()
+    pub fn boot_sector(&self) -> &BootSector {
+        unsafe { &*(self.volume_start_virt_addr.as_ptr() as *const BootSector) }
     }
 
-    pub fn read_fs_info_sector(&self) -> Option<FsInfoSector> {
+    pub fn fs_info_sector(&self) -> Option<&FsInfoSector> {
         match self.fat_type() {
             FatType::Fat32 => {
-                let boot_sector = self.read_boot_sector();
+                let boot_sector = self.boot_sector();
                 let fat32_other_field = boot_sector.fat32_other_field().unwrap();
-
-                Some(
-                    self.volume_start_virt_addr
+                let fs_info_sector = unsafe {
+                    &*(self
+                        .volume_start_virt_addr
                         .offset(
                             fat32_other_field.fs_info_sector_num() * boot_sector.bytes_per_sector(),
                         )
-                        .read_volatile(),
-                )
+                        .as_ptr() as *const FsInfoSector)
+                };
+
+                Some(fs_info_sector)
             }
             _ => None,
         }
     }
 
     pub fn fat_type(&self) -> FatType {
-        let boot_sector = self.read_boot_sector();
+        let boot_sector = self.boot_sector();
         boot_sector.fat_type()
     }
 
@@ -69,7 +65,7 @@ impl FatVolume {
             FatType::Fat32 => (),
         }
 
-        let boot_sector = self.read_boot_sector();
+        let boot_sector = self.boot_sector();
         let fat32_other_field = boot_sector.fat32_other_field().unwrap();
         fat32_other_field.root_cluster_num()
     }
@@ -80,7 +76,7 @@ impl FatVolume {
         let mut next_cluster_num = self.next_cluster_num(current_cluster_num);
 
         loop {
-            entries.extend(self.read_dir_entries(current_cluster_num));
+            entries.extend(self.dir_entries(current_cluster_num));
 
             match next_cluster_num {
                 Some(cluster_type) => match &cluster_type {
@@ -95,8 +91,8 @@ impl FatVolume {
         entries
     }
 
-    fn read_dir_entries(&self, cluster_num: usize) -> Vec<DirectoryEntry> {
-        let boot_sector = self.read_boot_sector();
+    fn dir_entries(&self, cluster_num: usize) -> Vec<&DirectoryEntry> {
+        let boot_sector = self.boot_sector();
         let mut entries = Vec::with_capacity(self.dir_entries_per_cluster());
 
         if cluster_num < 2 || cluster_num >= self.clusters_cnt() {
@@ -116,7 +112,10 @@ impl FatVolume {
                     * boot_sector.sectors_per_cluster()
                     * (cluster_num - 2)
                 + size_of::<DirectoryEntry>() * i;
-            entries.push(self.volume_start_virt_addr.offset(offset).read_volatile());
+            let entry = unsafe {
+                &*(self.volume_start_virt_addr.offset(offset).as_ptr() as *const DirectoryEntry)
+            };
+            entries.push(entry);
         }
 
         entries
@@ -124,7 +123,7 @@ impl FatVolume {
 
     // read file allocation table
     fn next_cluster_num(&self, cluster_num: usize) -> Option<ClusterType> {
-        let boot_sector = self.read_boot_sector();
+        let boot_sector = self.boot_sector();
         match self.fat_type() {
             FatType::Fat12 => unimplemented!(),
             FatType::Fat16 => unimplemented!(),
@@ -133,8 +132,9 @@ impl FatVolume {
 
         let offset = boot_sector.reserved_sectors() * boot_sector.bytes_per_sector()
             + size_of::<u32>() * cluster_num;
-        let value =
-            u32::from_le_bytes(self.volume_start_virt_addr.offset(offset).read_volatile()) as usize;
+        let ref_value =
+            unsafe { &*(self.volume_start_virt_addr.offset(offset).as_ptr() as *const _) };
+        let value = u32::from_le_bytes(*ref_value) as usize;
 
         match value {
             0xffffff8.. => Some(ClusterType::EndOfChain),
@@ -148,7 +148,7 @@ impl FatVolume {
     }
 
     fn max_dir_entry_num(&self) -> usize {
-        let boot_sector = self.read_boot_sector();
+        let boot_sector = self.boot_sector();
         let data_sectors = match self.fat_type() {
             FatType::Fat12 | FatType::Fat16 => boot_sector.data_sectors16(),
             FatType::Fat32 => boot_sector.data_sectors32().unwrap(),
@@ -158,13 +158,13 @@ impl FatVolume {
     }
 
     fn dir_entries_per_cluster(&self) -> usize {
-        let boot_sector = self.read_boot_sector();
+        let boot_sector = self.boot_sector();
         let cluster_size_bytes = boot_sector.bytes_per_sector() * boot_sector.sectors_per_cluster();
         cluster_size_bytes / size_of::<DirectoryEntry>()
     }
 
     fn clusters_cnt(&self) -> usize {
-        let boot_sector = self.read_boot_sector();
+        let boot_sector = self.boot_sector();
         boot_sector.data_clusters()
     }
 

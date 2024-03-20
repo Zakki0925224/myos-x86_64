@@ -7,7 +7,7 @@ use self::{
 };
 use super::device::*;
 use crate::{
-    arch::{addr::*, apic::read_local_apic_id, idt::VEC_XHCI_INT, register::msi::*},
+    arch::{addr::*, apic::local_apic_id, idt::VEC_XHCI_INT, register::msi::*},
     bus::{
         pci::{self, conf_space::BaseAddress, device_id::PCI_USB_XHCI_ID},
         usb::xhc::{port::ConfigState, register::*},
@@ -309,7 +309,7 @@ impl XhcDriver {
         info!("xhc: Initialized event ring");
 
         // setting up msi
-        let msg_addr = MsiMessageAddressField::new(false, false, read_local_apic_id());
+        let msg_addr = MsiMessageAddressField::new(false, false, local_apic_id());
         let msg_data = MsiMessageDataField::new(
             VEC_XHCI_INT as u8,
             DeliveryMode::Fixed,

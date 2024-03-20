@@ -7,8 +7,8 @@ use alloc::vec::Vec;
 use core::mem::transmute;
 use pci_ids::*;
 
-const PCI_PORT_CONF_REG_ADDR: PhysicalAddress = PhysicalAddress::new(0xcf8);
-const PCI_PORT_CONF_DATA_REG_ADDR: PhysicalAddress = PhysicalAddress::new(0xcfc);
+const PCI_PORT_CONF_REG_ADDR: IoPortAddress = IoPortAddress::new(0xcf8);
+const PCI_PORT_CONF_DATA_REG_ADDR: IoPortAddress = IoPortAddress::new(0xcfc);
 const PCI_DEVICE_NON_EXIST: u16 = 0xffff;
 pub const PCI_DEVICE_BUS_LEN: usize = 256;
 pub const PCI_DEVICE_DEVICE_LEN: usize = 32;

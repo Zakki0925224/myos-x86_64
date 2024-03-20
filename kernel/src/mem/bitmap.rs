@@ -6,7 +6,6 @@ use crate::{
 };
 use alloc::vec::Vec;
 use common::mem_desc::*;
-use core::mem::size_of;
 
 static mut BITMAP_MEM_MAN: Mutex<Option<BitmapMemoryManager>> = Mutex::new(None);
 
@@ -319,10 +318,14 @@ impl BitmapMemoryManager {
         Ok(mem_frame_info)
     }
 
-    pub fn mem_clear(&self, mem_frame_info: &MemoryFrameInfo) {
+    pub unsafe fn mem_clear(&self, mem_frame_info: &MemoryFrameInfo) {
+        let frame_size = mem_frame_info.frame_size;
         let start_virt_addr = mem_frame_info.frame_start_virt_addr;
-        for offset in (0..mem_frame_info.frame_size).step_by(size_of::<u64>()) {
-            start_virt_addr.offset(offset).write_volatile(0);
+
+        // TODO: replace to other methods
+        for offset in (0..frame_size).step_by(8) {
+            let ref_value = start_virt_addr.offset(offset).as_ptr_mut() as *mut u64;
+            *ref_value = 0;
         }
     }
 
@@ -443,13 +446,15 @@ pub fn dealloc_mem_frame(mem_frame_info: MemoryFrameInfo) -> Result<()> {
 }
 
 pub fn mem_clear(mem_frame_info: &MemoryFrameInfo) -> Result<()> {
-    if let Ok(bitmap_mem_man) = unsafe { BITMAP_MEM_MAN.try_lock() } {
-        if let Some(bitmap_mem_man) = bitmap_mem_man.as_ref() {
-            bitmap_mem_man.mem_clear(mem_frame_info);
-            return Ok(());
-        }
+    unsafe {
+        if let Ok(bitmap_mem_man) = BITMAP_MEM_MAN.try_lock() {
+            if let Some(bitmap_mem_man) = bitmap_mem_man.as_ref() {
+                bitmap_mem_man.mem_clear(mem_frame_info);
+                return Ok(());
+            }
 
-        return Err(BitmapMemoryManagerError::NotInitialized.into());
+            return Err(BitmapMemoryManagerError::NotInitialized.into());
+        }
     }
 
     Err(MutexError::Locked.into())

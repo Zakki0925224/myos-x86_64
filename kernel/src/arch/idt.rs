@@ -1,7 +1,6 @@
 use super::{addr::*, apic, register::segment::Cs};
 use crate::{
     arch::{
-        self,
         asm::{self, DescriptorTableArgs},
         register::{control::Cr2, Register},
     },
@@ -219,7 +218,9 @@ impl InterruptDescriptorTable {
 }
 
 fn notify_end_of_int() {
-    END_OF_INT_REG_ADDR.write_volatile(0);
+    unsafe {
+        (END_OF_INT_REG_ADDR.as_ptr_mut() as *mut u32).write_volatile(0);
+    }
 }
 
 fn pic_notify_end_of_int() {

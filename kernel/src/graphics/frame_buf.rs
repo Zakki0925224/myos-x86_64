@@ -183,7 +183,7 @@ impl FrameBuffer {
                 buf[offset + 2],
                 buf[offset + 3],
             ]),
-            None => self.frame_buf_virt_addr.offset(offset).read_volatile(),
+            None => *unsafe { &*(self.frame_buf_virt_addr.offset(offset).as_ptr() as *const _) },
         };
 
         Ok(data)
@@ -205,7 +205,12 @@ impl FrameBuffer {
                 buf[offset + 2] = c;
                 buf[offset + 3] = d;
             }
-            None => self.frame_buf_virt_addr.offset(offset).write_volatile(data),
+            None => {
+                let ref_value = unsafe {
+                    &mut *(self.frame_buf_virt_addr.offset(offset).as_ptr_mut() as *mut _)
+                };
+                *ref_value = data;
+            }
         }
 
         Ok(())
