@@ -152,7 +152,7 @@ fn load_elf(bs: &BootServices, path: &str) -> u64 {
     }
 
     info!("Loaded ELF at: 0x{:x}", dest_start);
-    elf.read_header().entry_point
+    elf.header().entry_point
 }
 
 fn load_initramfs(bs: &BootServices, path: &str) -> (u64, u64) {

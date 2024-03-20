@@ -32,7 +32,7 @@ pub fn exec_elf(file_name: &str, args: &[&str]) -> Result<()> {
         }
     };
 
-    let header = elf64.read_header();
+    let header = elf64.header();
 
     if header.elf_type() != elf::Type::Executable {
         error!("exec: The file \"{}\" is not an executable file", file_name);

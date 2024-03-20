@@ -1,6 +1,6 @@
 #include "../libm/libm.h"
 
-void main(void)
+void _start(void)
 {
     sys_exit(1);
 }

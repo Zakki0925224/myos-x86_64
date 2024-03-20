@@ -9,11 +9,11 @@ OBJ_FILE := ret1.o
 
 # Compiler flags
 CC := gcc
-CFLAGS := -O2 -Wall -g -m64 -ffreestanding -static
+CFLAGS := -O2 -Wall -g -m64 -nostdlib -fno-builtin -std=c11
 
 # Linker flags
 LD := ld.lld
-LDFLAGS := --entry main -z norelro --image-base 0 --static
+LDFLAGS := -z norelro --image-base 0 --static
 
 # Library flags
 LIB_DIR := ../libm

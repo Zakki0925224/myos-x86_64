@@ -9,11 +9,11 @@ OBJ_FILE := loop.o
 
 # Compiler flags
 CC := gcc
-CFLAGS := -O2 -Wall -g -m64 -ffreestanding
+CFLAGS := -O2 -Wall -g -m64 -nostdlib -fno-builtin -std=c11
 
 # Linker flags
 LD := ld.lld
-LDFLAGS := --entry main -z norelro --image-base 0 --static
+LDFLAGS := -z norelro --image-base 0 --static
 
 # Compile and link
 $(OUT_FILE): $(OBJ_FILE)

@@ -1,9 +1,10 @@
-#include "intm.h"
+#include <stdint.h>
+#include "syscalls.h"
 
 static uint64_t syscall(uint64_t syscall_number, uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4, uint64_t arg5)
 {
     uint64_t ret_val;
-    asm volatile(
+    __asm__ volatile(
         "movq %1, %%rdi\n"
         "movq %2, %%rsi\n"
         "movq %3, %%rdx\n"
@@ -14,16 +15,16 @@ static uint64_t syscall(uint64_t syscall_number, uint64_t arg1, uint64_t arg2, u
         "movq %%rax, %0\n"
         : "=r"(ret_val)
         : "r"(syscall_number), "r"(arg1), "r"(arg2), "r"(arg3), "r"(arg4), "r"(arg5)
-        : "rdi", "rsi", "rdx", "r10", "r8", "r9");
+        : "rdi", "rsi", "rdx", "r10", "r8", "r9", "memory");
     return ret_val;
 }
 
-extern uint64_t sys_test()
+uint64_t sys_test()
 {
-    return syscall(3, 0, 0, 0, 0, 0);
+    return syscall(SN_TEST, 0, 0, 0, 0, 0);
 }
 
-extern void sys_exit(uint64_t status)
+void sys_exit(uint64_t status)
 {
-    syscall(4, status, 0, 0, 0, 0);
+    syscall(SN_EXIT, status, 0, 0, 0, 0);
 }

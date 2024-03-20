@@ -1,6 +1,6 @@
 #include "../libm/libm.h"
 
-void main(void)
+void _start(void)
 {
     uint64_t ret = sys_test();
     sys_exit(ret);

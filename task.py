@@ -145,6 +145,7 @@ def task_build_apps():
 
     for dir_name in dirs:
         pwd = f"{d}/{dir_name}"
+        run_cmd("make clean", dir=pwd)
         run_cmd("make", dir=pwd)
 
     # copy apps dir to initramfs dir

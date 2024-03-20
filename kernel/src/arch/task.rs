@@ -152,6 +152,7 @@ struct Task {
 impl Drop for Task {
     fn drop(&mut self) {
         mem::bitmap::dealloc_mem_frame(self.stack_mem_frame_info).unwrap();
+        info!("task: Dropped tid: {}", self.id.get());
     }
 }
 
