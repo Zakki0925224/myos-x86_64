@@ -26,7 +26,6 @@ pub struct FrameBuffer {
     format: PixelFormat,
     frame_buf_virt_addr: VirtualAddress,
     stride: usize,
-    shadow_buf: Option<Vec<u8>>,
 }
 
 impl Draw for FrameBuffer {
@@ -90,7 +89,6 @@ impl FrameBuffer {
             format,
             frame_buf_virt_addr,
             stride,
-            shadow_buf: None,
         }
     }
 
@@ -100,34 +98,6 @@ impl FrameBuffer {
 
     pub fn get_stride(&self) -> usize {
         self.stride
-    }
-
-    pub fn enable_shadow_buf(&mut self) -> Result<()> {
-        let (res_x, res_y) = self.get_resolution();
-        let buf_size = res_x * res_y * 4;
-        self.shadow_buf = Some(vec![0; buf_size]);
-
-        // copy frame buffer to shadow buffer
-        let shadow_buf_ptr = self.shadow_buf.as_mut().unwrap().as_mut_ptr();
-        unsafe {
-            shadow_buf_ptr
-                .copy_from_nonoverlapping(self.frame_buf_virt_addr.as_ptr(), res_x * res_y * 4);
-        }
-
-        Ok(())
-    }
-
-    pub fn apply_shadow_buf(&self) {
-        if self.shadow_buf.is_none() {
-            return;
-        }
-
-        let (res_x, res_y) = self.get_resolution();
-
-        self.frame_buf_virt_addr.copy_from_nonoverlapping(
-            self.shadow_buf.as_ref().unwrap().as_ptr(),
-            res_x * res_y * 4,
-        );
     }
 
     // no check disabled layer
@@ -142,10 +112,7 @@ impl FrameBuffer {
 
         let (res_x, _) = self.get_resolution();
         let layer_buf_ptr = layer.buf.as_ptr();
-        let frame_buf_ptr = match self.shadow_buf.as_mut() {
-            Some(buf) => buf.as_mut_ptr(),
-            None => self.frame_buf_virt_addr.get() as *mut u8,
-        };
+        let frame_buf_ptr = self.frame_buf_virt_addr.as_ptr_mut::<u8>();
 
         for y in layer.y..layer.y + layer.height {
             for x in layer.x..layer.x + layer.width {
@@ -176,16 +143,7 @@ impl FrameBuffer {
             return Err(FrameBufferError::OutsideBufferAreaError { x, y }.into());
         }
 
-        let data = match self.shadow_buf.as_ref() {
-            Some(buf) => u32::from_le_bytes([
-                buf[offset + 0],
-                buf[offset + 1],
-                buf[offset + 2],
-                buf[offset + 3],
-            ]),
-            None => *unsafe { &*(self.frame_buf_virt_addr.offset(offset).as_ptr() as *const _) },
-        };
-
+        let data = *unsafe { &*(self.frame_buf_virt_addr.offset(offset).as_ptr() as *const _) };
         Ok(data)
     }
 
@@ -197,21 +155,9 @@ impl FrameBuffer {
             return Err(FrameBufferError::OutsideBufferAreaError { x, y }.into());
         }
 
-        match self.shadow_buf.as_mut() {
-            Some(buf) => {
-                let [a, b, c, d] = data.to_le_bytes();
-                buf[offset + 0] = a;
-                buf[offset + 1] = b;
-                buf[offset + 2] = c;
-                buf[offset + 3] = d;
-            }
-            None => {
-                let ref_value = unsafe {
-                    &mut *(self.frame_buf_virt_addr.offset(offset).as_ptr_mut() as *mut _)
-                };
-                *ref_value = data;
-            }
-        }
+        let ref_value =
+            unsafe { &mut *(self.frame_buf_virt_addr.offset(offset).as_ptr_mut() as *mut _) };
+        *ref_value = data;
 
         Ok(())
     }
@@ -237,14 +183,6 @@ pub fn get_resolution() -> Result<(usize, usize)> {
 pub fn get_stride() -> Result<usize> {
     if let Ok(frame_buf) = unsafe { FRAME_BUF.try_lock() } {
         return Ok(frame_buf.as_ref().unwrap().get_stride());
-    }
-
-    Err(MutexError::Locked.into())
-}
-
-pub fn enable_shadow_buf() -> Result<()> {
-    if let Ok(mut frame_buf) = unsafe { FRAME_BUF.try_lock() } {
-        return frame_buf.as_mut().unwrap().enable_shadow_buf();
     }
 
     Err(MutexError::Locked.into())
@@ -278,15 +216,6 @@ pub fn copy(x: usize, y: usize, to_x: usize, to_y: usize) -> Result<()> {
 pub fn fill(color_code: ColorCode) -> Result<()> {
     if let Ok(mut frame_buf) = unsafe { FRAME_BUF.try_lock() } {
         return frame_buf.as_mut().unwrap().fill(color_code);
-    }
-
-    Err(MutexError::Locked.into())
-}
-
-pub fn apply_shadow_buf() -> Result<()> {
-    if let Ok(mut frame_buf) = unsafe { FRAME_BUF.try_lock() } {
-        frame_buf.as_mut().unwrap().apply_shadow_buf();
-        return Ok(());
     }
 
     Err(MutexError::Locked.into())

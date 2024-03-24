@@ -236,7 +236,7 @@ impl ConfigurationSpaceNonBridgeField {
 
     pub fn get_bars(&self) -> Result<Vec<(usize, BaseAddress)>> {
         let mut skip_index = None;
-        let bars = vec![
+        let bars = [
             &self.bar0, &self.bar1, &self.bar2, &self.bar3, &self.bar4, &self.bar5,
         ];
         let mut result = Vec::new();

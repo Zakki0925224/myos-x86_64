@@ -24,15 +24,6 @@ pub fn init(graphic_info: GraphicInfo, back_color: ColorCode, fore_color: ColorC
     info!("graphics: Initialized frame buffer");
 }
 
-pub fn enable_shadow_buf() {
-    if let Err(err) = frame_buf::enable_shadow_buf() {
-        error!("graphics: Failed to enable shadow buffer: {:?}", err);
-        return;
-    }
-
-    info!("graphics: Enabled shadow buffer mode");
-}
-
 pub fn init_layer_man(graphic_info: GraphicInfo, transparent_color: ColorCode) {
     if let Err(err) = multi_layer::init(transparent_color) {
         error!("graphics: Failed to initialize layer manager: {:?}", err);

@@ -265,7 +265,6 @@ extern "x86-interrupt" fn xhc_primary_event_ring_handler() {
 extern "x86-interrupt" fn local_apic_timer_handler() {
     asm::disabled_int_func(|| {
         apic::timer::tick();
-        let _ = frame_buf::apply_shadow_buf();
 
         notify_end_of_int();
     });

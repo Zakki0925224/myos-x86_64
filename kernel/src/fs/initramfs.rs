@@ -6,6 +6,7 @@ use crate::{
     arch::addr::VirtualAddress,
     error::Result,
     fs::fat::dir_entry::LongFileNameEntry,
+    println,
     util::mutex::{Mutex, MutexError},
 };
 use alloc::{collections::VecDeque, string::String, vec::Vec};
@@ -55,7 +56,7 @@ impl Initramfs {
     pub fn ls(&self) {
         let files = self.scan_current_dir();
         for f in files {
-            info!("{:?}", f);
+            println!("{}", f.name);
         }
     }
 
@@ -64,7 +65,6 @@ impl Initramfs {
         let dir = files
             .iter()
             .find(|f| f.attr == Attribute::Directory && f.name.trim() == dir_name);
-        info!("{:?}", dir);
 
         if dir.is_none() {
             error!("initramfs: The directory \"{}\" does not exist", dir_name);
@@ -89,7 +89,7 @@ impl Initramfs {
             }
         };
 
-        info!("\n{}", String::from_utf8_lossy(&data));
+        println!("{}", String::from_utf8_lossy(&data));
     }
 
     pub fn get_file(&self, file_name: &str) -> Option<(FileMetaData, Vec<u8>)> {
