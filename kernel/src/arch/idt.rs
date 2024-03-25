@@ -266,6 +266,7 @@ extern "x86-interrupt" fn local_apic_timer_handler() {
     asm::disabled_int_func(|| {
         apic::timer::tick();
         let _ = multi_layer::draw_to_frame_buf();
+        let _ = frame_buf::apply_shadow_buf();
 
         notify_end_of_int();
     });

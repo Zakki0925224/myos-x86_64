@@ -25,7 +25,6 @@ pub struct Layer {
     pub height: usize,
     pub buf: Vec<u8>,
     pub disabled: bool,
-    pub updated: bool,
     pub format: PixelFormat,
 }
 
@@ -93,7 +92,6 @@ impl Layer {
             height,
             buf: vec![0; width * height * 4],
             disabled: false,
-            updated: true,
             format,
         })
     }
@@ -116,7 +114,6 @@ impl Layer {
 
         self.x = x;
         self.y = y;
-        self.updated = true;
         Ok(())
     }
 
@@ -159,8 +156,6 @@ impl Layer {
         self.buf[offset + 1] = b;
         self.buf[offset + 2] = c;
         self.buf[offset + 3] = d;
-
-        self.updated = true;
         Ok(())
     }
 }
@@ -199,14 +194,11 @@ impl LayerManager {
 
     pub fn draw_to_frame_buf(&mut self) -> Result<()> {
         for layer in &mut self.layers {
-            if layer.disabled
-            /*|| !layer.updated*/
-            {
+            if layer.disabled {
                 continue;
             }
 
             frame_buf::apply_layer_buf(layer, self.transparent_color)?;
-            //layer.updated = false;
         }
 
         Ok(())

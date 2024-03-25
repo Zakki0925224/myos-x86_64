@@ -72,7 +72,8 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
     idt::init_idt();
 
     // initialize graphics shadow buffer and layer manager
-    graphics::init_layer_man(boot_info.graphic_info, ColorCode::Rgb { r: 0, g: 0, b: 0 });
+    graphics::enable_shadow_buf();
+    //graphics::init_layer_man(boot_info.graphic_info, ColorCode::Rgb { r: 0, g: 0, b: 0 });
 
     // initialize syscall configurations
     syscall::init();
