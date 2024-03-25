@@ -25,6 +25,7 @@ pub struct Layer {
     pub height: usize,
     pub buf: Vec<u8>,
     pub disabled: bool,
+    pub updated: bool,
     pub format: PixelFormat,
 }
 
@@ -92,6 +93,7 @@ impl Layer {
             height,
             buf: vec![0; width * height * 4],
             disabled: false,
+            updated: true,
             format,
         })
     }
@@ -114,7 +116,7 @@ impl Layer {
 
         self.x = x;
         self.y = y;
-
+        self.updated = true;
         Ok(())
     }
 
@@ -158,6 +160,7 @@ impl Layer {
         self.buf[offset + 2] = c;
         self.buf[offset + 3] = d;
 
+        self.updated = true;
         Ok(())
     }
 }
@@ -194,13 +197,16 @@ impl LayerManager {
         }
     }
 
-    pub fn draw_to_frame_buf(&self) -> Result<()> {
-        for layer in &self.layers {
-            if layer.disabled {
+    pub fn draw_to_frame_buf(&mut self) -> Result<()> {
+        for layer in &mut self.layers {
+            if layer.disabled
+            /*|| !layer.updated*/
+            {
                 continue;
             }
 
             frame_buf::apply_layer_buf(layer, self.transparent_color)?;
+            //layer.updated = false;
         }
 
         Ok(())
@@ -214,6 +220,13 @@ pub fn init(transparent_color: ColorCode) -> Result<()> {
     }
 
     Err(MutexError::Locked.into())
+}
+
+pub fn create_layer(x: usize, y: usize, width: usize, height: usize) -> Result<Layer> {
+    let format = frame_buf::get_format()?;
+    let layer = Layer::new(x, y, width, height, format)?;
+
+    Ok(layer)
 }
 
 pub fn push_layer(layer: Layer) -> Result<()> {
@@ -230,8 +243,8 @@ pub fn push_layer(layer: Layer) -> Result<()> {
 }
 
 pub fn draw_to_frame_buf() -> Result<()> {
-    if let Ok(layer_man) = unsafe { LAYER_MAN.try_lock() } {
-        if let Some(layer_man) = layer_man.as_ref() {
+    if let Ok(mut layer_man) = unsafe { LAYER_MAN.try_lock() } {
+        if let Some(layer_man) = layer_man.as_mut() {
             return layer_man.draw_to_frame_buf();
         }
 

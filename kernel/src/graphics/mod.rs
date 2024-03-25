@@ -5,7 +5,7 @@ pub mod frame_buf;
 pub mod frame_buf_console;
 pub mod multi_layer;
 
-use self::{color::ColorCode, draw::Draw, multi_layer::Layer};
+use self::{color::ColorCode, multi_layer::Layer};
 use common::graphic_info::GraphicInfo;
 use log::{error, info};
 
@@ -30,23 +30,18 @@ pub fn init_layer_man(graphic_info: GraphicInfo, transparent_color: ColorCode) {
         return;
     }
 
-    // layer for frame buffer console
-    let mut layer = match Layer::new(200, 50, 600, 300, graphic_info.format) {
+    let (res_x, res_y) = graphic_info.resolution;
+    let console_layer = match Layer::new(0, 0, res_x as usize, res_y as usize, graphic_info.format)
+    {
         Ok(l) => l,
         Err(err) => {
             error!("graphics: Failed to create the layer: {:?}", err);
             return;
         }
     };
+    let console_layer_id = console_layer.id;
 
-    if let Err(err) = layer.fill(transparent_color) {
-        error!("graphics: Fialed to initialize the layer: {:?}", err);
-        return;
-    }
-
-    let layer_id = layer.id;
-
-    if let Err(err) = multi_layer::push_layer(layer) {
+    if let Err(err) = multi_layer::push_layer(console_layer) {
         error!(
             "graphics: Failed to configure the layer for the frame buffer console: {:?}",
             err
@@ -54,7 +49,7 @@ pub fn init_layer_man(graphic_info: GraphicInfo, transparent_color: ColorCode) {
         return;
     }
 
-    if let Err(err) = frame_buf_console::set_target_layer_id(layer_id) {
+    if let Err(err) = frame_buf_console::set_target_layer_id(console_layer_id) {
         error!(
             "graphics: Failed to configure the layer for the frame buffer console: {:?}",
             err
@@ -63,6 +58,6 @@ pub fn init_layer_man(graphic_info: GraphicInfo, transparent_color: ColorCode) {
 
     info!(
         "graphics: Configured frame buffer console to use layer #{}",
-        layer_id
+        console_layer_id
     );
 }

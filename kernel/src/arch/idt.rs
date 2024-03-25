@@ -6,7 +6,7 @@ use crate::{
     },
     bus::usb::xhc,
     device::{ps2_keyboard, ps2_mouse},
-    graphics::frame_buf,
+    graphics::{frame_buf, multi_layer},
     mem::paging,
     util::mutex::Mutex,
 };
@@ -265,6 +265,7 @@ extern "x86-interrupt" fn xhc_primary_event_ring_handler() {
 extern "x86-interrupt" fn local_apic_timer_handler() {
     asm::disabled_int_func(|| {
         apic::timer::tick();
+        let _ = multi_layer::draw_to_frame_buf();
 
         notify_end_of_int();
     });

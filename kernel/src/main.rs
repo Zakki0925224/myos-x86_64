@@ -29,7 +29,11 @@ use common::boot_info::BootInfo;
 use device::console;
 use error::Result;
 use fs::{exec, initramfs};
-use graphics::color::ColorCode;
+use graphics::{
+    color::{ColorCode, COLOR_SILVER},
+    draw::Draw,
+    multi_layer,
+};
 use log::error;
 use serial::ComPort;
 use util::{ascii::AsciiCode, logger};
@@ -68,7 +72,7 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
     idt::init_idt();
 
     // initialize graphics shadow buffer and layer manager
-    //graphics::init_layer_man(boot_info.graphic_info, ColorCode::Rgb { r: 0, g: 0, b: 0 });
+    graphics::init_layer_man(boot_info.graphic_info, ColorCode::Rgb { r: 0, g: 0, b: 0 });
 
     // initialize syscall configurations
     syscall::init();
@@ -166,6 +170,11 @@ async fn exec_cmd(cmd: String) -> Result<()> {
             if args.len() == 2 {
                 exec::exec_elf(args[1], &args[2..])?;
             }
+        }
+        "window" => {
+            let mut sample_window_layer = multi_layer::create_layer(200, 50, 500, 300).unwrap();
+            sample_window_layer.fill(COLOR_SILVER).unwrap();
+            multi_layer::push_layer(sample_window_layer).unwrap();
         }
         "" => (),
         cmd => error!("Command {:?} was not found", cmd),

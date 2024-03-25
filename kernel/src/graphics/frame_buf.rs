@@ -4,8 +4,8 @@ use crate::{
     error::Result,
     util::mutex::{Mutex, MutexError},
 };
-use alloc::vec::Vec;
 use common::graphic_info::{GraphicInfo, PixelFormat};
+use core::slice;
 
 static mut FRAME_BUF: Mutex<Option<FrameBuffer>> = Mutex::new(None);
 
@@ -100,6 +100,10 @@ impl FrameBuffer {
         self.stride
     }
 
+    pub fn get_format(&self) -> PixelFormat {
+        self.format
+    }
+
     // no check disabled layer
     pub fn apply_layer_buf(&mut self, layer: &Layer, transparent_color: ColorCode) -> Result<()> {
         if layer.format != self.format {
@@ -113,22 +117,34 @@ impl FrameBuffer {
         let (res_x, _) = self.get_resolution();
         let layer_buf_ptr = layer.buf.as_ptr();
         let frame_buf_ptr = self.frame_buf_virt_addr.as_ptr_mut::<u8>();
+        let transparent_color = transparent_color.to_color_code(layer.format);
 
         for y in layer.y..layer.y + layer.height {
-            for x in layer.x..layer.x + layer.width {
-                let color_code = layer.read(x - layer.x, y - layer.y)?;
+            let layer_buf_offset = (layer.width * (y - layer.y) * 4) as isize;
+            let frame_buf_offset = ((res_x * y + layer.x) * 4) as isize;
 
-                if color_code == transparent_color {
-                    continue;
-                }
+            unsafe {
+                // TODO: replace transparent color to frame buf color
+                let buf_vec = slice::from_raw_parts(
+                    layer_buf_ptr.offset(layer_buf_offset).cast::<u32>(),
+                    layer.width,
+                )
+                .to_vec();
 
-                let layer_buf_offset = (layer.width * (y - layer.y) + (x - layer.x)) * 4;
-                let frame_buf_offset = (res_x * y + x) * 4;
-                unsafe {
-                    layer_buf_ptr
-                        .add(layer_buf_offset)
-                        .copy_to_nonoverlapping(frame_buf_ptr.add(frame_buf_offset), 4);
-                }
+                // but hangged up in this code
+                // for (i, data) in buf_vec.iter_mut().enumerate() {
+                //     if *data == transparent_color {
+                //         *data = frame_buf_ptr
+                //             .offset(frame_buf_offset + (i as isize) * 4)
+                //             .cast::<u32>()
+                //             .read();
+                //     }
+                // }
+
+                buf_vec.as_ptr().cast::<u8>().copy_to_nonoverlapping(
+                    frame_buf_ptr.offset(frame_buf_offset),
+                    layer.width.min(res_x - layer.x) * 4,
+                );
             }
         }
 
@@ -183,6 +199,14 @@ pub fn get_resolution() -> Result<(usize, usize)> {
 pub fn get_stride() -> Result<usize> {
     if let Ok(frame_buf) = unsafe { FRAME_BUF.try_lock() } {
         return Ok(frame_buf.as_ref().unwrap().get_stride());
+    }
+
+    Err(MutexError::Locked.into())
+}
+
+pub fn get_format() -> Result<PixelFormat> {
+    if let Ok(frame_buf) = unsafe { FRAME_BUF.try_lock() } {
+        return Ok(frame_buf.as_ref().unwrap().get_format());
     }
 
     Err(MutexError::Locked.into())

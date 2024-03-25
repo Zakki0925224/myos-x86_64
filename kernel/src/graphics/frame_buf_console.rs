@@ -1,4 +1,4 @@
-use super::{color::COLOR_WHITE, font::PsfFont, frame_buf, multi_layer};
+use super::{font::PsfFont, frame_buf, multi_layer};
 use crate::{
     error::Result,
     graphics::color::*,
@@ -148,10 +148,6 @@ impl FrameBufferConsole {
             }
         }
 
-        if self.target_layer_id.is_some() {
-            multi_layer::draw_to_frame_buf()?;
-        }
-
         Ok(())
     }
 
@@ -253,7 +249,7 @@ impl FrameBufferConsole {
 
 impl fmt::Write for FrameBufferConsole {
     fn write_str(&mut self, s: &str) -> fmt::Result {
-        self.write_string(s).unwrap();
+        let _ = self.write_string(s);
         Ok(())
     }
 }

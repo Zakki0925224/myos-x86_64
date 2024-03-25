@@ -1,4 +1,5 @@
 use crate::{
+    arch::asm,
     error::{Error, Result},
     graphics::{color::*, frame_buf_console},
     serial,
