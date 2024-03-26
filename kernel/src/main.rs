@@ -168,7 +168,7 @@ async fn exec_cmd(cmd: String) -> Result<()> {
             }
         }
         "exec" => {
-            if args.len() == 2 {
+            if args.len() >= 2 {
                 exec::exec_elf(args[1], &args[2..])?;
             }
         }

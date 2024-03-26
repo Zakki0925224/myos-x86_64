@@ -1,10 +1,14 @@
 use crate::{
     arch::context::{Context, ContextMode},
     error::Result,
-    mem::{self, bitmap::MemoryFrameInfo, paging::PAGE_SIZE},
+    mem::{
+        self,
+        bitmap::{self, MemoryFrameInfo},
+        paging::PAGE_SIZE,
+    },
     util::mutex::{Mutex, MutexError},
 };
-use alloc::{boxed::Box, collections::VecDeque};
+use alloc::{boxed::Box, collections::VecDeque, vec::Vec};
 use core::{
     future::Future,
     pin::Pin,
@@ -160,6 +164,8 @@ impl Task {
     pub fn new(
         stack_size: usize,
         entry: Option<extern "sysv64" fn()>,
+        arg0: u64,
+        arg1: u64,
         mode: ContextMode,
     ) -> Result<Self> {
         let stack_mem_frame_info = mem::bitmap::alloc_mem_frame((stack_size / PAGE_SIZE).max(1))?;
@@ -176,7 +182,7 @@ impl Task {
         };
 
         let mut context = Context::new();
-        context.init(rip, 0, 0, rsp, mode);
+        context.init(rip, arg0, arg1, rsp, mode);
 
         Ok(Self {
             id: TaskId::new(),
@@ -196,15 +202,37 @@ impl Task {
     }
 }
 
-pub fn exec_user_task(entry: extern "sysv64" fn()) -> Result<()> {
-    let task = Task::new(1024 * 1024, Some(entry), ContextMode::User)?;
+pub fn exec_user_task(entry: extern "sysv64" fn(), file_name: &str, args: &[&str]) -> Result<()> {
+    let mut arg_bytes: Vec<u8> = Vec::new();
+    arg_bytes.extend_from_slice(file_name.as_bytes());
+    arg_bytes.push(0);
+
+    for a in args {
+        arg_bytes.extend_from_slice(a.as_bytes());
+        arg_bytes.push(0);
+    }
+
+    let args_mem_frame_info = bitmap::alloc_mem_frame((arg_bytes.len() / PAGE_SIZE).max(1))?;
+    bitmap::mem_clear(&args_mem_frame_info)?;
+    args_mem_frame_info.set_permissions_to_user()?;
+    args_mem_frame_info
+        .frame_start_virt_addr
+        .copy_from_nonoverlapping(arg_bytes.as_ptr(), arg_bytes.len());
+
+    let task = Task::new(
+        1024 * 1024,
+        Some(entry),
+        args.len() as u64 + 1,
+        args_mem_frame_info.frame_start_virt_addr.get(),
+        ContextMode::User,
+    )?;
 
     if let (Ok(mut kernel_task), Ok(mut user_task)) =
         unsafe { (KERNEL_TASK.try_lock(), USER_TASK.try_lock()) }
     {
         if kernel_task.is_none() {
             // stack is unused, because already allocated static area for kernel stack
-            *kernel_task = Some(Task::new(0, None, ContextMode::Kernel)?)
+            *kernel_task = Some(Task::new(0, None, 0, 0, ContextMode::Kernel)?)
         }
 
         *user_task = Some(task);
@@ -212,6 +240,10 @@ pub fn exec_user_task(entry: extern "sysv64" fn()) -> Result<()> {
             .as_ref()
             .unwrap()
             .switch_to(user_task.as_ref().unwrap());
+
+        // returned
+        args_mem_frame_info.set_permissions_to_supervisor()?;
+        bitmap::dealloc_mem_frame(args_mem_frame_info)?;
 
         return Ok(());
     }

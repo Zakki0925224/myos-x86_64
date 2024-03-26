@@ -72,7 +72,7 @@ pub fn exec_elf(file_name: &str, args: &[&str]) -> Result<()> {
 
     info!("entry: 0x{:x}", entry_addr);
     let entry: extern "sysv64" fn() = unsafe { mem::transmute(entry_addr as *const ()) };
-    task::exec_user_task(entry)?;
+    task::exec_user_task(entry, file_name, args)?;
 
     user_mem_frame_info.set_permissions_to_supervisor()?;
     bitmap::dealloc_mem_frame(user_mem_frame_info)?;
