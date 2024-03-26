@@ -38,9 +38,15 @@ pub fn init_layer_man(graphic_info: GraphicInfo, transparent_color: ColorCode) {
         return;
     }
 
+    info!("graphics: Initialized layer manager");
+
     let (res_x, res_y) = graphic_info.resolution;
-    let console_layer = match Layer::new(0, 0, res_x as usize, res_y as usize, graphic_info.format)
-    {
+    let console_layer = match multi_layer::create_layer(
+        0,
+        res_y as usize / 2,
+        res_x as usize,
+        res_y as usize / 2,
+    ) {
         Ok(l) => l,
         Err(err) => {
             error!("graphics: Failed to create the layer: {:?}", err);
@@ -63,9 +69,4 @@ pub fn init_layer_man(graphic_info: GraphicInfo, transparent_color: ColorCode) {
             err
         );
     }
-
-    info!(
-        "graphics: Configured frame buffer console to use layer #{}",
-        console_layer_id
-    );
 }

@@ -72,7 +72,7 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
     idt::init_idt();
 
     // initialize graphics shadow buffer and layer manager
-    graphics::enable_shadow_buf();
+    //graphics::enable_shadow_buf();
     //graphics::init_layer_man(boot_info.graphic_info, ColorCode::Rgb { r: 0, g: 0, b: 0 });
 
     // initialize syscall configurations
@@ -173,9 +173,11 @@ async fn exec_cmd(cmd: String) -> Result<()> {
             }
         }
         "window" => {
-            let mut sample_window_layer = multi_layer::create_layer(200, 50, 500, 300).unwrap();
-            sample_window_layer.fill(COLOR_SILVER).unwrap();
-            multi_layer::push_layer(sample_window_layer).unwrap();
+            asm::disabled_int_func(|| {
+                let mut sample_window_layer = multi_layer::create_layer(200, 50, 500, 300).unwrap();
+                sample_window_layer.fill(COLOR_SILVER).unwrap();
+                multi_layer::push_layer(sample_window_layer).unwrap();
+            });
         }
         "" => (),
         cmd => error!("Command {:?} was not found", cmd),

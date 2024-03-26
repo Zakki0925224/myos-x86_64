@@ -1,6 +1,8 @@
+use alloc::{
+    string::{String, ToString},
+    vec::Vec,
+};
 use core::mem::size_of;
-
-use alloc::vec::Vec;
 
 const MAGIC: [u8; 4] = [0x7f, b'E', b'L', b'F'];
 
@@ -351,5 +353,60 @@ impl<'a> Elf64<'a> {
         }
 
         shs
+    }
+
+    pub fn section_header_by_name(&self, name: &str) -> Option<&Elf64SectionHeader> {
+        let section_headers = self.section_headers();
+        section_headers
+            .iter()
+            .find(|sh| self.get_section_name_from_string_table(sh) == name)
+            .map(|sh| *sh)
+    }
+
+    pub fn get_section_name_from_string_table(
+        &self,
+        section_header: &Elf64SectionHeader,
+    ) -> String {
+        let no_name = "<NO NAME>".to_string();
+
+        let name_offset = section_header.name as usize;
+        let string_table = match self.string_table() {
+            Some(strtab) => strtab,
+            None => {
+                return no_name;
+            }
+        };
+
+        if string_table.len() < name_offset {
+            return no_name;
+        }
+
+        let name_vec: Vec<u8> = string_table[name_offset..]
+            .iter()
+            .cloned()
+            .take_while(|c| *c != 0)
+            .collect();
+
+        String::from_utf8_lossy(&name_vec).to_string()
+    }
+
+    pub fn data_by_section_header(&self, section_header: &Elf64SectionHeader) -> Option<&[u8]> {
+        let offset = section_header.offset as usize;
+        let size = section_header.size as usize;
+
+        if self.data.len() < offset + size {
+            return None;
+        }
+
+        Some(&self.data[offset..offset + size])
+    }
+
+    fn string_table(&self) -> Option<&[u8]> {
+        let strtab_section_header = self
+            .section_headers()
+            .into_iter()
+            .find(|h| h.header_type() == SectionHeaderType::StringTable)?;
+
+        self.data_by_section_header(strtab_section_header)
     }
 }

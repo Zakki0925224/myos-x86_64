@@ -44,15 +44,31 @@ pub fn exec_elf(file_name: &str, args: &[&str]) -> Result<()> {
         return Ok(());
     }
 
-    // copy elf data to user frame
-    let user_mem_frame_info = bitmap::alloc_mem_frame((elf_data.len() / PAGE_SIZE).max(1))?;
-    info!("{:?}", user_mem_frame_info);
+    let text_section_header = match elf64.section_header_by_name(".text") {
+        Some(sh) => sh,
+        None => {
+            error!("exec: \".text\" section was not found");
+            return Ok(());
+        }
+    };
+
+    let text_section_data = match elf64.data_by_section_header(text_section_header) {
+        Some(data) => data,
+        None => {
+            error!("exec: Failed to get \".text\" section data");
+            return Ok(());
+        }
+    };
+
+    // copy .text data to user frame
+    let user_mem_frame_info =
+        bitmap::alloc_mem_frame((text_section_data.len() / PAGE_SIZE).max(1))?;
     user_mem_frame_info
         .frame_start_virt_addr
-        .copy_from_nonoverlapping(elf_data.as_ptr(), elf_data.len());
+        .copy_from_nonoverlapping(text_section_data.as_ptr(), text_section_data.len());
     user_mem_frame_info.set_permissions_to_user()?;
-
-    let entry_addr = user_mem_frame_info.frame_start_virt_addr.get() + header.entry_point - 0x1000;
+    let entry_addr = user_mem_frame_info.frame_start_virt_addr.get() + header.entry_point
+        - text_section_header.addr;
 
     info!("entry: 0x{:x}", entry_addr);
     let entry: extern "sysv64" fn() = unsafe { mem::transmute(entry_addr as *const ()) };
