@@ -41,12 +41,13 @@ extern "sysv64" fn syscall_handler(
     info!("syscall: Called!(args: {:?})", args);
 
     match arg0 {
+        // test syscall
         3 => {
             info!("syscall: test (ret: 0x{:x})", ret_val);
         }
+        // exit syscall
         4 => {
-            info!("syscall: exit (status: 0x{:x})", arg1);
-            task::return_to_kernel_task();
+            task::return_to_kernel_task(arg1);
         }
         num => {
             error!("syscall: Syscall number 0x{:x} is not defined", num);

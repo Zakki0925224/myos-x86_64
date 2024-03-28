@@ -22,6 +22,7 @@ static mut TASK_EXECUTOR: Mutex<Executor> = Mutex::new(Executor::new());
 
 static mut KERNEL_TASK: Mutex<Option<Task>> = Mutex::new(None);
 static mut USER_TASK: Mutex<Option<Task>> = Mutex::new(None);
+static mut USER_EXIT_STATUS: Option<u64> = None;
 
 // preemptive multitask
 #[derive(Default)]
@@ -202,14 +203,15 @@ impl Task {
     }
 }
 
-pub fn exec_user_task(entry: extern "sysv64" fn(), file_name: &str, args: &[&str]) -> Result<()> {
+pub fn exec_user_task(entry: extern "sysv64" fn(), file_name: &str, args: &[&str]) -> Result<u64> {
     // write args to memory
     let mut c_args = CString::new(file_name).unwrap().into_bytes_with_nul();
     for arg in args {
         c_args.extend(CString::new(*arg).unwrap().into_bytes_with_nul());
     }
 
-    let args_mem_frame_info = bitmap::alloc_mem_frame((1 / PAGE_SIZE).max(1))?;
+    let args_mem_frame_info =
+        bitmap::alloc_mem_frame(((c_args.len() + (args.len() + 2) * 8) / PAGE_SIZE).max(1))?;
     bitmap::mem_clear(&args_mem_frame_info)?;
     args_mem_frame_info.set_permissions_to_user()?;
     let args_mem_virt_addr = args_mem_frame_info.frame_start_virt_addr;
@@ -232,7 +234,7 @@ pub fn exec_user_task(entry: extern "sysv64" fn(), file_name: &str, args: &[&str
     let task = Task::new(
         1024 * 1024,
         Some(entry),
-        c_args.len() as u64 + 1,
+        args.len() as u64 + 1,
         args_mem_virt_addr.get(),
         ContextMode::User,
     )?;
@@ -255,13 +257,27 @@ pub fn exec_user_task(entry: extern "sysv64" fn(), file_name: &str, args: &[&str
         args_mem_frame_info.set_permissions_to_supervisor()?;
         bitmap::dealloc_mem_frame(args_mem_frame_info)?;
 
-        return Ok(());
+        // get exit status
+        let exit_status = unsafe {
+            let status = match USER_EXIT_STATUS {
+                Some(s) => s,
+                None => panic!("task: User exit status was not found"),
+            };
+            USER_EXIT_STATUS = None;
+            status
+        };
+
+        return Ok(exit_status);
     }
 
     Err(MutexError::Locked.into())
 }
 
-pub fn return_to_kernel_task() {
+pub fn return_to_kernel_task(exit_status: u64) {
+    unsafe {
+        USER_EXIT_STATUS = Some(exit_status);
+    }
+
     let (kernel_task, user_task) =
         unsafe { (KERNEL_TASK.get_force_mut(), USER_TASK.get_force_mut()) };
     user_task

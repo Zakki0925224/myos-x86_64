@@ -9,8 +9,6 @@ use core::mem;
 use log::{error, info};
 
 pub fn exec_elf(file_name: &str, args: &[&str]) -> Result<()> {
-    info!("exec: args: {:?}", args);
-
     let (_, elf_data) = match initramfs::get_file(file_name) {
         Ok(res) => match res {
             Some((meta, data)) => (meta, data),
@@ -72,12 +70,12 @@ pub fn exec_elf(file_name: &str, args: &[&str]) -> Result<()> {
 
     info!("entry: 0x{:x}", entry_addr);
     let entry: extern "sysv64" fn() = unsafe { mem::transmute(entry_addr as *const ()) };
-    task::exec_user_task(entry, file_name, args)?;
+    let exit_code = task::exec_user_task(entry, file_name, args)?;
 
     user_mem_frame_info.set_permissions_to_supervisor()?;
     bitmap::dealloc_mem_frame(user_mem_frame_info)?;
 
-    info!("exec: Exited");
+    info!("exec: Exited (code: {})", exit_code);
 
     Ok(())
 }
