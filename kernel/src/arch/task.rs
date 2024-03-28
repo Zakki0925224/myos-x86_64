@@ -8,7 +8,7 @@ use crate::{
     },
     util::mutex::{Mutex, MutexError},
 };
-use alloc::{boxed::Box, collections::VecDeque, vec::Vec};
+use alloc::{boxed::Box, collections::VecDeque, ffi::CString, vec::Vec};
 use core::{
     future::Future,
     pin::Pin,
@@ -203,27 +203,37 @@ impl Task {
 }
 
 pub fn exec_user_task(entry: extern "sysv64" fn(), file_name: &str, args: &[&str]) -> Result<()> {
-    let mut arg_bytes: Vec<u8> = Vec::new();
-    arg_bytes.extend_from_slice(file_name.as_bytes());
-    arg_bytes.push(0);
-
-    for a in args {
-        arg_bytes.extend_from_slice(a.as_bytes());
-        arg_bytes.push(0);
+    // write args to memory
+    let mut c_args = CString::new(file_name).unwrap().into_bytes_with_nul();
+    for arg in args {
+        c_args.extend(CString::new(*arg).unwrap().into_bytes_with_nul());
     }
 
-    let args_mem_frame_info = bitmap::alloc_mem_frame((arg_bytes.len() / PAGE_SIZE).max(1))?;
+    let args_mem_frame_info = bitmap::alloc_mem_frame((1 / PAGE_SIZE).max(1))?;
     bitmap::mem_clear(&args_mem_frame_info)?;
     args_mem_frame_info.set_permissions_to_user()?;
-    args_mem_frame_info
-        .frame_start_virt_addr
-        .copy_from_nonoverlapping(arg_bytes.as_ptr(), arg_bytes.len());
+    let args_mem_virt_addr = args_mem_frame_info.frame_start_virt_addr;
+    let mut c_args_offset = (args.len() + 2) * 8;
+
+    args_mem_virt_addr
+        .offset(c_args_offset)
+        .copy_from_nonoverlapping(c_args.as_ptr(), c_args.len());
+
+    let mut c_args_ref = Vec::new();
+    c_args_ref.push(args_mem_virt_addr.offset(c_args_offset).get());
+    c_args_offset += file_name.len() + 1;
+    for arg in args {
+        c_args_ref.push(args_mem_virt_addr.offset(c_args_offset).get());
+        c_args_offset += arg.len() + 1;
+    }
+
+    args_mem_virt_addr.copy_from_nonoverlapping(c_args_ref.as_ptr(), c_args_ref.len());
 
     let task = Task::new(
         1024 * 1024,
         Some(entry),
-        args.len() as u64 + 1,
-        args_mem_frame_info.frame_start_virt_addr.get(),
+        c_args.len() as u64 + 1,
+        args_mem_virt_addr.get(),
         ContextMode::User,
     )?;
 
