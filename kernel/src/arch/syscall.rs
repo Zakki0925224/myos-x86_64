@@ -1,9 +1,13 @@
-use crate::arch::{
-    gdt::{KERNEL_MODE_CS_VALUE, KERNEL_MODE_SS_VALUE},
-    register::model_specific::*,
-    task,
+use crate::{
+    arch::{
+        gdt::{KERNEL_MODE_CS_VALUE, KERNEL_MODE_SS_VALUE},
+        register::model_specific::*,
+        task,
+    },
+    print,
 };
-use core::arch::asm;
+use alloc::string::{String, ToString};
+use core::{arch::asm, slice};
 use log::{error, info};
 
 #[naked]
@@ -36,11 +40,29 @@ extern "sysv64" fn syscall_handler(
     arg4: u64, // (sysv abi) r8
     arg5: u64, // (sysv abi) r9
 ) -> u64 /* rax */ {
-    let mut ret_val = 0xdeadbeef01234567;
+    let ret_val = 0xdeadbeef01234567;
     let args = [arg0, arg1, arg2, arg3, arg4, arg5];
     info!("syscall: Called!(args: {:?})", args);
 
     match arg0 {
+        // write syscall
+        1 => {
+            let fd = arg1 as u16;
+            let s_ptr = arg2 as *const u8;
+            let s_len = arg3 as usize;
+            let s_slice = unsafe { slice::from_raw_parts(s_ptr, s_len) };
+            let s = String::from_utf8_lossy(s_slice).to_string();
+
+            match fd {
+                // stdout
+                1 => {
+                    print!("{}", s);
+                }
+                num => {
+                    error!("syscall: write: fd 0x{:x} is not defined", num);
+                }
+            }
+        }
         // test syscall
         3 => {
             info!("syscall: test (ret: 0x{:x})", ret_val);
@@ -51,7 +73,6 @@ extern "sysv64" fn syscall_handler(
         }
         num => {
             error!("syscall: Syscall number 0x{:x} is not defined", num);
-            ret_val = u64::MAX;
         }
     }
 
