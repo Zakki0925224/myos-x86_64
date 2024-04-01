@@ -39,8 +39,7 @@ extern "sysv64" fn syscall_handler(
     arg3: u64, // (sysv abi) rcx from r10
     arg4: u64, // (sysv abi) r8
     arg5: u64, // (sysv abi) r9
-) -> u64 /* rax */ {
-    let ret_val = 0xdeadbeef01234567;
+) -> i64 /* rax */ {
     let args = [arg0, arg1, arg2, arg3, arg4, arg5];
     info!("syscall: Called!(args: {:?})", args);
 
@@ -60,6 +59,7 @@ extern "sysv64" fn syscall_handler(
                 }
                 num => {
                     error!("syscall: write: fd 0x{:x} is not defined", num);
+                    return -1;
                 }
             }
         }
@@ -69,10 +69,11 @@ extern "sysv64" fn syscall_handler(
         }
         num => {
             error!("syscall: Syscall number 0x{:x} is not defined", num);
+            return -1;
         }
     }
 
-    ret_val
+    0
 }
 
 pub fn init() {

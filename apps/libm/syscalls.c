@@ -1,9 +1,9 @@
 #include <stdint.h>
 #include "libm.h"
 
-static uint64_t syscall(uint64_t syscall_number, uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4, uint64_t arg5)
+static int64_t syscall(uint64_t syscall_number, uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4, uint64_t arg5)
 {
-    uint64_t ret_val;
+    int64_t ret_val;
     __asm__ volatile(
         "movq %1, %%rdi\n"
         "movq %2, %%rsi\n"
@@ -19,7 +19,7 @@ static uint64_t syscall(uint64_t syscall_number, uint64_t arg1, uint64_t arg2, u
     return ret_val;
 }
 
-uint64_t sys_write(uint16_t fd, const char *str, int len)
+int64_t sys_write(uint16_t fd, const char *str, int len)
 {
     return syscall(SN_WRITE, (uint64_t)fd, (uint64_t)str, (uint64_t)len, 0, 0);
 }

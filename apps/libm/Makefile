@@ -1,5 +1,5 @@
 # Source files
-SRC_FILES := string.c syscalls.c
+SRC_FILES := string.c syscalls.c printf.c
 
 # Object files
 OBJ_FILES := $(SRC_FILES:.c=.o)
