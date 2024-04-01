@@ -29,11 +29,7 @@ use common::boot_info::BootInfo;
 use device::console;
 use error::Result;
 use fs::{exec, initramfs};
-use graphics::{
-    color::{ColorCode, COLOR_SILVER},
-    draw::Draw,
-    multi_layer,
-};
+use graphics::{color::COLOR_SILVER, draw::Draw, multi_layer};
 use log::error;
 use serial::ComPort;
 use util::{ascii::AsciiCode, logger};

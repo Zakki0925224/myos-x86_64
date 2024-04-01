@@ -162,6 +162,7 @@ def task_make_initramfs():
         f'mkfs.fat -n "INITRAMFS" -F 32 -s 2 ./{OUTPUT_DIR}/{INITRAMFS_IMG_FILE}'
     )  # format for FAT32
     run_cmd(f"sudo mount -o loop ./{OUTPUT_DIR}/{INITRAMFS_IMG_FILE} {MNT_DIR_PATH}")
+    run_cmd(f"sudo rm -rf {MNT_DIR_PATH}/*")  # clear initramfs
     run_cmd(f"sudo cp -r ./{INITRAMFS_DIR}/* {MNT_DIR_PATH}/")
     run_cmd("sleep 0.5")
     run_cmd(f"sudo umount {MNT_DIR_PATH}")

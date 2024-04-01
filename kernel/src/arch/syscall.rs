@@ -63,10 +63,6 @@ extern "sysv64" fn syscall_handler(
                 }
             }
         }
-        // test syscall
-        3 => {
-            info!("syscall: test (ret: 0x{:x})", ret_val);
-        }
         // exit syscall
         4 => {
             task::return_to_kernel_task(arg1);

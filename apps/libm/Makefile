@@ -1,28 +1,28 @@
-# Source file (C code)
-SRC_FILE := libm.c
+# Source files
+SRC_FILES := string.c syscalls.c
 
-# Object file
-OBJ_FILE := libm.so
+# Object files
+OBJ_FILES := $(SRC_FILES:.c=.o)
 
-# Libary file
+# Library file
 LIB_FILE := libm.a
 
 # Compiler flags
 CC := gcc
 CFLAGS := -Wall -g -m64 -nostdlib -fno-builtin -std=c11
 
-# Create static libary
-$(LIB_FILE): $(OBJ_FILE)
-	ar rcs $@ $<
+# Create static library
+$(LIB_FILE): $(OBJ_FILES)
+	ar rcs $@ $^
 	nm $@
 
-# Compile static library
-$(OBJ_FILE): $(SRC_FILE)
+# Compile object files
+%.o: %.c
 	$(CC) -c $< -o $@ $(CFLAGS)
 
 # Clean rule
 clean:
-	rm -f $(OBJ_FILE) $(LIB_FILE)
+	rm -f $(OBJ_FILES) $(LIB_FILE)
 
 # Default target
 all: $(LIB_FILE)
