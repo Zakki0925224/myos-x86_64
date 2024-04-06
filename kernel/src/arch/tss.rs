@@ -69,7 +69,7 @@ impl TaskStateSegment {
         let frame_len = 8;
 
         let rsp0 = mem::bitmap::alloc_mem_frame(frame_len)?
-            .frame_start_virt_addr
+            .frame_start_virt_addr()?
             .offset(frame_len * PAGE_SIZE)
             .get();
         self.rsp[0] = rsp0;

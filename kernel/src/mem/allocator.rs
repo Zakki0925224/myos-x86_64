@@ -77,11 +77,12 @@ static ALLOCATOR: LockedHeap = LockedHeap::empty();
 
 pub fn init_heap() -> Result<()> {
     let mem_frame_info = bitmap::alloc_mem_frame((HEAP_SIZE / PAGE_SIZE).max(1))?;
+    let frame_start_virt_addr = mem_frame_info.frame_start_virt_addr()?;
     bitmap::mem_clear(&mem_frame_info)?;
 
     unsafe {
         ALLOCATOR.try_lock().unwrap().init(
-            mem_frame_info.frame_start_virt_addr.as_ptr_mut(),
+            frame_start_virt_addr.as_ptr_mut(),
             mem_frame_info.frame_size,
         );
     }

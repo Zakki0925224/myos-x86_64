@@ -23,6 +23,10 @@ impl PhysicalAddress {
     pub fn offset(&self, offset: usize) -> Self {
         Self::new(self.0 + offset as u64)
     }
+
+    pub fn get_virt_addr(&self) -> Result<VirtualAddress> {
+        paging::calc_virt_addr(*self)
+    }
 }
 
 impl Default for PhysicalAddress {

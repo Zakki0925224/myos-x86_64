@@ -1,5 +1,4 @@
 use crate::{
-    arch::addr::VirtualAddress,
     mem::paging::{EntryMode, PageWriteThroughLevel, ReadWrite, PAGE_SIZE},
     println,
 };
@@ -19,20 +18,17 @@ pub fn init(mem_map: &[MemoryDescriptor]) {
     let (_, max) = bitmap::get_mem_size().unwrap();
     let start = PAGE_SIZE as u64;
     let end = max as u64;
+
     if let Err(err) = paging::create_new_page_table(
         start.into(),
         end.into(),
         start.into(),
         ReadWrite::Write,
-        EntryMode::User,
+        EntryMode::User, // TODO
         PageWriteThroughLevel::WriteBack,
     ) {
         error!("paging: Failed to create new page table: {:?}", err);
     }
-    info!(
-        "paging: Created new page table (mapped identity 0x{:x} to 0x{:x})",
-        start, end
-    );
 
     if let Err(err) = allocator::init_heap() {
         panic!("mem: {:?}", err);
@@ -40,10 +36,13 @@ pub fn init(mem_map: &[MemoryDescriptor]) {
     info!("mem: Initialized heap allocator");
 
     assert_eq!(
-        paging::calc_phys_addr(VirtualAddress::new(0xabcd000))
-            .unwrap()
-            .get(),
+        paging::calc_phys_addr(0xabcd000.into()).unwrap().get(),
         0xabcd000
+    );
+
+    assert_eq!(
+        paging::calc_virt_addr(0xabcd123.into()).unwrap().get(),
+        0xabcd123
     );
 }
 

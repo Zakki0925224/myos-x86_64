@@ -89,17 +89,19 @@ impl UsbDevice {
         self.slot_id
     }
 
-    pub fn read_dev_desc(&mut self) {
+    pub fn read_dev_desc(&mut self) -> Result<()> {
         self.dev_desc = self
             .dev_desc_buf_mem_info
-            .frame_start_virt_addr
+            .frame_start_virt_addr()?
             .read_volatile();
+
+        Ok(())
     }
 
-    pub fn read_conf_descs(&mut self) {
+    pub fn read_conf_descs(&mut self) -> Result<()> {
         let conf_desc: ConfigurationDescriptor = self
             .conf_desc_buf_mem_info
-            .frame_start_virt_addr
+            .frame_start_virt_addr()?
             .read_volatile();
 
         let mut descs = Vec::new();
@@ -110,7 +112,7 @@ impl UsbDevice {
         loop {
             let addr = self
                 .conf_desc_buf_mem_info
-                .frame_start_virt_addr
+                .frame_start_virt_addr()?
                 .offset(offset);
             let desc_header: DescriptorHeader = addr.read_volatile();
 
@@ -143,6 +145,7 @@ impl UsbDevice {
         }
 
         self.conf_descs = descs;
+        Ok(())
     }
 
     pub fn get_dev_desc(&self) -> &DeviceDescriptor {
@@ -184,7 +187,7 @@ impl UsbDevice {
             setup_value,
             0,
             buf_mem_info.frame_size as u16,
-            Some((buf_mem_info.frame_start_virt_addr, buf_size as u32)),
+            Some((buf_mem_info.frame_start_virt_addr()?, buf_size as u32)),
         )
     }
 

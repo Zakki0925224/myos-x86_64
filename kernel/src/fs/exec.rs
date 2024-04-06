@@ -61,12 +61,12 @@ pub fn exec_elf(file_name: &str, args: &[&str]) -> Result<()> {
     // copy .text data to user frame
     let user_mem_frame_info =
         bitmap::alloc_mem_frame((text_section_data.len() / PAGE_SIZE).max(1))?;
-    user_mem_frame_info
-        .frame_start_virt_addr
+    let user_mem_frame_start_virt_addr = user_mem_frame_info.frame_start_virt_addr()?;
+    user_mem_frame_start_virt_addr
         .copy_from_nonoverlapping(text_section_data.as_ptr(), text_section_data.len());
     user_mem_frame_info.set_permissions_to_user()?;
-    let entry_addr = user_mem_frame_info.frame_start_virt_addr.get() + header.entry_point
-        - text_section_header.addr;
+    let entry_addr =
+        user_mem_frame_start_virt_addr.get() + header.entry_point - text_section_header.addr;
 
     info!("entry: 0x{:x}", entry_addr);
     let entry: extern "sysv64" fn() = unsafe { mem::transmute(entry_addr as *const ()) };

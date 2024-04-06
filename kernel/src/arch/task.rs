@@ -176,7 +176,7 @@ impl Task {
             ContextMode::User => stack_mem_frame_info.set_permissions_to_user()?,
         }
 
-        let rsp = stack_mem_frame_info.frame_start_virt_addr.get() + stack_size as u64;
+        let rsp = stack_mem_frame_info.frame_start_virt_addr()?.get() + stack_size as u64;
         let rip = match entry {
             Some(f) => f as u64,
             None => 0,
@@ -214,7 +214,7 @@ pub fn exec_user_task(entry: extern "sysv64" fn(), file_name: &str, args: &[&str
         bitmap::alloc_mem_frame(((c_args.len() + (args.len() + 2) * 8) / PAGE_SIZE).max(1))?;
     bitmap::mem_clear(&args_mem_frame_info)?;
     args_mem_frame_info.set_permissions_to_user()?;
-    let args_mem_virt_addr = args_mem_frame_info.frame_start_virt_addr;
+    let args_mem_virt_addr = args_mem_frame_info.frame_start_virt_addr()?;
     let mut c_args_offset = (args.len() + 2) * 8;
 
     args_mem_virt_addr

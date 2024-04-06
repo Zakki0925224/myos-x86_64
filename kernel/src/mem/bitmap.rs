@@ -11,7 +11,7 @@ static mut BITMAP_MEM_MAN: Mutex<Option<BitmapMemoryManager>> = Mutex::new(None)
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct MemoryFrameInfo {
-    pub frame_start_virt_addr: VirtualAddress,
+    pub frame_start_phys_addr: PhysicalAddress,
     pub frame_size: usize, // must be 4096B align
     pub frame_index: usize,
     pub is_allocated: bool,
@@ -26,9 +26,13 @@ impl MemoryFrameInfo {
         self.set_permissions(ReadWrite::Write, EntryMode::User)
     }
 
+    pub fn frame_start_virt_addr(&self) -> Result<VirtualAddress> {
+        self.frame_start_phys_addr.get_virt_addr()
+    }
+
     pub fn set_permissions(&self, rw: ReadWrite, mode: EntryMode) -> Result<()> {
         let page_len = self.frame_size / PAGE_SIZE;
-        let mut start_virt_addr = self.frame_start_virt_addr;
+        let mut start_virt_addr = self.frame_start_virt_addr()?;
 
         for _ in 0..page_len {
             paging::set_page_permissions(start_virt_addr, rw, mode)?;
@@ -40,7 +44,7 @@ impl MemoryFrameInfo {
 
     pub fn get_permissions(&self) -> Result<Vec<(ReadWrite, EntryMode)>> {
         let page_len = self.frame_size / PAGE_SIZE;
-        let mut start_virt_addr = self.frame_start_virt_addr;
+        let mut start_virt_addr = self.frame_start_virt_addr()?;
         let mut res = Vec::new();
 
         for _ in 0..page_len {
@@ -209,7 +213,7 @@ impl BitmapMemoryManager {
     pub fn get_mem_frame(&self, frame_index: usize) -> Option<MemoryFrameInfo> {
         if let Ok(bitmap) = self.bitmap(self.bitmap_offset(frame_index)) {
             return Some(MemoryFrameInfo {
-                frame_start_virt_addr: VirtualAddress::new((frame_index * self.frame_size) as u64),
+                frame_start_phys_addr: ((frame_index * self.frame_size) as u64).into(),
                 frame_size: self.frame_size,
                 frame_index,
                 is_allocated: bitmap.get(self.bitmap_pos(frame_index)).unwrap(),
@@ -242,7 +246,7 @@ impl BitmapMemoryManager {
         assert_ne!(found_mem_frame_index, 0);
         self.alloc_frame(found_mem_frame_index)?;
         let mem_frame_info = MemoryFrameInfo {
-            frame_start_virt_addr: ((found_mem_frame_index * self.frame_size) as u64).into(),
+            frame_start_phys_addr: ((found_mem_frame_index * self.frame_size) as u64).into(),
             frame_size: self.frame_size,
             frame_index: found_mem_frame_index,
             is_allocated: true,
@@ -309,7 +313,7 @@ impl BitmapMemoryManager {
         }
 
         let mem_frame_info = MemoryFrameInfo {
-            frame_start_virt_addr: ((start_mem_frame_index * self.frame_size) as u64).into(),
+            frame_start_phys_addr: ((start_mem_frame_index * self.frame_size) as u64).into(),
             frame_size: self.frame_size * len,
             frame_index: start_mem_frame_index,
             is_allocated: true,
@@ -318,15 +322,17 @@ impl BitmapMemoryManager {
         Ok(mem_frame_info)
     }
 
-    pub unsafe fn mem_clear(&self, mem_frame_info: &MemoryFrameInfo) {
+    pub unsafe fn mem_clear(&self, mem_frame_info: &MemoryFrameInfo) -> Result<()> {
         let frame_size = mem_frame_info.frame_size;
-        let start_virt_addr = mem_frame_info.frame_start_virt_addr;
+        let start_virt_addr = mem_frame_info.frame_start_virt_addr()?;
 
         // TODO: replace to other methods
         for offset in (0..frame_size).step_by(8) {
             let ref_value = start_virt_addr.offset(offset).as_ptr_mut() as *mut u64;
             *ref_value = 0;
         }
+
+        Ok(())
     }
 
     pub fn dealloc_mem_frame(&mut self, mem_frame_info: MemoryFrameInfo) -> Result<()> {
@@ -449,8 +455,7 @@ pub fn mem_clear(mem_frame_info: &MemoryFrameInfo) -> Result<()> {
     unsafe {
         if let Ok(bitmap_mem_man) = BITMAP_MEM_MAN.try_lock() {
             if let Some(bitmap_mem_man) = bitmap_mem_man.as_ref() {
-                bitmap_mem_man.mem_clear(mem_frame_info);
-                return Ok(());
+                return bitmap_mem_man.mem_clear(mem_frame_info);
             }
 
             return Err(BitmapMemoryManagerError::NotInitialized.into());
