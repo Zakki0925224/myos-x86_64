@@ -41,19 +41,6 @@ impl MemoryFrameInfo {
 
         Ok(())
     }
-
-    pub fn get_permissions(&self) -> Result<Vec<(ReadWrite, EntryMode)>> {
-        let page_len = self.frame_size / PAGE_SIZE;
-        let mut start_virt_addr = self.frame_start_virt_addr()?;
-        let mut res = Vec::new();
-
-        for _ in 0..page_len {
-            res.push(paging::get_page_permissions(start_virt_addr)?);
-            start_virt_addr = start_virt_addr.offset(PAGE_SIZE);
-        }
-
-        Ok(res)
-    }
 }
 
 const BITMAP_SIZE: usize = u8::BITS as usize;

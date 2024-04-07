@@ -68,7 +68,7 @@ pub fn exec_elf(file_name: &str, args: &[&str]) -> Result<()> {
     let entry_addr =
         user_mem_frame_start_virt_addr.get() + header.entry_point - text_section_header.addr;
 
-    info!("entry: 0x{:x}", entry_addr);
+    info!("exec: Entry: 0x{:x}", entry_addr);
     let entry: extern "sysv64" fn() = unsafe { mem::transmute(entry_addr as *const ()) };
     let exit_code = task::exec_user_task(entry, file_name, args)?;
 

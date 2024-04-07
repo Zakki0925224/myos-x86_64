@@ -74,8 +74,6 @@ def run_cmd(cmd: str, dir: str = "./", ignore_error: bool = False):
 
 
 # tasks
-
-
 def task_clear():
     run_cmd(f"rm -rf ./{OUTPUT_DIR}")
     run_cmd(f"rm -rf ./{DUMP_DIR}")
@@ -145,11 +143,16 @@ def task_build_apps():
 
     for dir_name in dirs:
         pwd = f"{d}/{dir_name}"
-        run_cmd("make clean", dir=pwd)
-        run_cmd("make", dir=pwd)
+
+        if os.path.exists(f"{pwd}/Makefile"):
+            run_cmd("make clean", dir=pwd)
+            run_cmd("make", dir=pwd)
 
     # copy apps dir to initramfs dir
     run_cmd(f"cp -r {d} ./{INITRAMFS_DIR}/")
+
+    # remove `target` directory
+    run_cmd(f'find ./{INITRAMFS_DIR} -type d -name "target" | xargs rm -rf')
 
 
 def task_make_initramfs():

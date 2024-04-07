@@ -69,7 +69,6 @@ impl PciDeviceManager {
                 d.conf_space_header.subclass,
                 d.conf_space_header.prog_if
             );
-            println!("{:?}", d.read_caps_list());
             if let Ok(field) = d.read_conf_space_non_bridge_field() {
                 for bar in field.get_bars().unwrap() {
                     let ty = match bar.1 {

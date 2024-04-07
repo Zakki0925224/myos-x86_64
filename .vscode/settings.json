@@ -3,6 +3,8 @@
     "rust-analyzer.linkedProjects": [
         "./kernel/Cargo.toml",
         "./bootloader/Cargo.toml",
-        "./common/Cargo.toml"
+        "./common/Cargo.toml",
+        "./apps/libm-rs/Cargo.toml",
+        "./apps/hello-rs/Cargo.toml"
     ]
 }
