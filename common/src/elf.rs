@@ -205,7 +205,7 @@ pub struct Elf64ProgramHeader {
     segment_type: u32,
     flags: u32,
     pub offset: u64,
-    pub vart_addr: u64,
+    pub virt_addr: u64,
     pub phys_addr: u64,
     pub file_size: u64,
     pub mem_size: u64,
@@ -394,11 +394,35 @@ impl<'a> Elf64<'a> {
         let offset = section_header.offset as usize;
         let size = section_header.size as usize;
 
+        if offset == 0 || size == 0 {
+            return None;
+        }
+
         if self.data.len() < offset + size {
             return None;
         }
 
         Some(&self.data[offset..offset + size])
+    }
+
+    pub fn data_by_program_header(&self, program_header: &Elf64ProgramHeader) -> Option<&[u8]> {
+        let offset = program_header.offset as usize;
+        let file_size = program_header.file_size as usize;
+        let mem_size = program_header.mem_size as usize;
+
+        if program_header.segment_type() != SegmentType::Load {
+            return None;
+        }
+
+        if offset == 0 || file_size == 0 || mem_size == 0 {
+            return None;
+        }
+
+        if self.data.len() < offset + file_size {
+            return None;
+        }
+
+        Some(&self.data[offset..offset + file_size])
     }
 
     fn string_table(&self) -> Option<&[u8]> {

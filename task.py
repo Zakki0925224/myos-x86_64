@@ -125,7 +125,7 @@ def task_build_kernel():
 
     task_init()
     run_cmd("cargo build", d)
-    run_cmd(f"cp ./target/x86_64/debug/kernel ../{OUTPUT_DIR}/{KERNEL_FILE}", d)
+    run_cmd(f"cp ./target/x86_64-kernel/debug/kernel ../{OUTPUT_DIR}/{KERNEL_FILE}", d)
 
 
 def task_build():

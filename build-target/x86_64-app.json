@@ -7,7 +7,7 @@
     "executables": true,
     "linker-flavor": "ld.lld",
     "post-link-args": {
-        "ld.lld": ["--image-base=0", "--static", "-z norelro"]
+        "ld.lld": ["--static", "-z norelro"]
     },
     "panic-strategy": "abort",
     "disable-redzone": true,

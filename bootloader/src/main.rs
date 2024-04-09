@@ -126,8 +126,8 @@ fn load_elf(bs: &BootServices, path: &str) -> u64 {
             continue;
         }
 
-        dest_start = dest_start.min(p.vart_addr as usize);
-        dest_end = dest_end.max((p.vart_addr + p.mem_size) as usize);
+        dest_start = dest_start.min(p.virt_addr as usize);
+        dest_end = dest_end.max((p.virt_addr + p.mem_size) as usize);
     }
 
     let pages = (dest_end - dest_start + UEFI_PAGE_SIZE - 1) / UEFI_PAGE_SIZE;
@@ -146,7 +146,7 @@ fn load_elf(bs: &BootServices, path: &str) -> u64 {
         let offset = p.offset as usize;
         let file_size = p.file_size as usize;
         let mem_size = p.mem_size as usize;
-        let dest = unsafe { from_raw_parts_mut(p.vart_addr as *mut u8, mem_size) };
+        let dest = unsafe { from_raw_parts_mut(p.virt_addr as *mut u8, mem_size) };
         dest[..file_size].copy_from_slice(&buf[offset..offset + file_size]);
         dest[file_size..].fill(0);
     }

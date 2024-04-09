@@ -2,8 +2,12 @@ use super::initramfs;
 use crate::{
     arch::task,
     error::Result,
-    mem::{bitmap, paging::PAGE_SIZE},
+    mem::{
+        bitmap,
+        paging::{self, EntryMode, PageWriteThroughLevel, ReadWrite, PAGE_SIZE},
+    },
 };
+use alloc::vec::Vec;
 use common::elf::{self, Elf64};
 use core::mem;
 use log::{error, info};
@@ -42,40 +46,60 @@ pub fn exec_elf(file_name: &str, args: &[&str]) -> Result<()> {
         return Ok(());
     }
 
-    let text_section_header = match elf64.section_header_by_name(".text") {
-        Some(sh) => sh,
-        None => {
-            error!("exec: \".text\" section was not found");
-            return Ok(());
+    let mut allocated_mem_frames = Vec::new();
+    let mut entry: Option<extern "sysv64" fn()> = None;
+
+    for program_header in elf64.program_headers() {
+        let p_virt_addr = program_header.virt_addr;
+        let p_offset = program_header.offset;
+        let program_data = match elf64.data_by_program_header(program_header) {
+            Some(data) => data,
+            None => continue,
+        };
+
+        let user_mem_frame_info = bitmap::alloc_mem_frame((program_data.len() / PAGE_SIZE).max(1))?;
+        let user_mem_frame_start_virt_addr = user_mem_frame_info.frame_start_virt_addr()?;
+
+        // copy data
+        user_mem_frame_start_virt_addr
+            .copy_from_nonoverlapping(program_data.as_ptr(), program_data.len());
+
+        // update page mapping
+        let start_virt_addr = (p_virt_addr / PAGE_SIZE as u64 * PAGE_SIZE as u64).into();
+        paging::update_mapping(
+            start_virt_addr,
+            start_virt_addr.offset(user_mem_frame_info.frame_size),
+            user_mem_frame_info.frame_start_phys_addr,
+            ReadWrite::Write,
+            EntryMode::User,
+            PageWriteThroughLevel::WriteBack,
+        )?;
+        allocated_mem_frames.push(user_mem_frame_info);
+
+        if p_virt_addr == header.entry_point {
+            entry = Some(unsafe { mem::transmute((p_virt_addr - p_offset) as *const ()) });
         }
-    };
+    }
 
-    let text_section_data = match elf64.data_by_section_header(text_section_header) {
-        Some(data) => data,
-        None => {
-            error!("exec: Failed to get \".text\" section data");
-            return Ok(());
-        }
-    };
+    if let Some(entry) = entry {
+        let exit_code = task::exec_user_task(entry, file_name, args)?;
+        info!("exec: Exited (code: {})", exit_code);
+    } else {
+        error!("exec: Entry point was not found");
+    }
 
-    // copy .text data to user frame
-    let user_mem_frame_info =
-        bitmap::alloc_mem_frame((text_section_data.len() / PAGE_SIZE).max(1))?;
-    let user_mem_frame_start_virt_addr = user_mem_frame_info.frame_start_virt_addr()?;
-    user_mem_frame_start_virt_addr
-        .copy_from_nonoverlapping(text_section_data.as_ptr(), text_section_data.len());
-    user_mem_frame_info.set_permissions_to_user()?;
-    let entry_addr =
-        user_mem_frame_start_virt_addr.get() + header.entry_point - text_section_header.addr;
-
-    info!("exec: Entry: 0x{:x}", entry_addr);
-    let entry: extern "sysv64" fn() = unsafe { mem::transmute(entry_addr as *const ()) };
-    let exit_code = task::exec_user_task(entry, file_name, args)?;
-
-    user_mem_frame_info.set_permissions_to_supervisor()?;
-    bitmap::dealloc_mem_frame(user_mem_frame_info)?;
-
-    info!("exec: Exited (code: {})", exit_code);
+    for mem_frame in allocated_mem_frames {
+        // fix page mapping
+        paging::update_mapping(
+            mem_frame.frame_start_phys_addr.get().into(),
+            (mem_frame.frame_start_phys_addr.get() + mem_frame.frame_size as u64).into(),
+            mem_frame.frame_start_phys_addr,
+            ReadWrite::Write,
+            EntryMode::Supervisor,
+            PageWriteThroughLevel::WriteBack,
+        )?;
+        bitmap::dealloc_mem_frame(mem_frame)?;
+    }
 
     Ok(())
 }

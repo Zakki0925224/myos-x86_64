@@ -4,7 +4,6 @@ use crate::{
     error::{Error, Result},
     util::mutex::{Mutex, MutexError},
 };
-use alloc::vec::Vec;
 use common::mem_desc::*;
 
 static mut BITMAP_MEM_MAN: Mutex<Option<BitmapMemoryManager>> = Mutex::new(None);
@@ -225,7 +224,10 @@ impl BitmapMemoryManager {
             for j in 0..BITMAP_SIZE {
                 if !bitmap.get(j)? {
                     found_mem_frame_index = i * BITMAP_SIZE + j;
-                    break 'outer;
+
+                    if found_mem_frame_index != 0 {
+                        break 'outer;
+                    }
                 }
             }
         }

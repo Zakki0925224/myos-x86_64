@@ -352,7 +352,7 @@ impl PageManager {
         for i in (start.get() as usize..end.get() as usize).step_by(PAGE_SIZE) {
             self.set_map(
                 (i as u64).into(),
-                phys_addr.offset(i - phys_addr.get() as usize),
+                phys_addr.offset(i - start.get() as usize),
                 pml4_page_table,
                 rw,
                 mode,
