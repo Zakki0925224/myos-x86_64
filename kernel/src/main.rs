@@ -175,6 +175,11 @@ async fn exec_cmd(cmd: String) -> Result<()> {
                 multi_layer::push_layer(sample_window_layer).unwrap();
             });
         }
+        "hexdump" => {
+            if args.len() == 2 {
+                initramfs::hexdump(args[1])?;
+            }
+        }
         "" => (),
         cmd => error!("Command {:?} was not found", cmd),
     }

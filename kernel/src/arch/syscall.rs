@@ -4,6 +4,7 @@ use crate::{
         register::model_specific::*,
         task,
     },
+    fs::vfs::file_desc::FileDescriptorNumber,
     print,
 };
 use alloc::string::{String, ToString};
@@ -46,7 +47,7 @@ extern "sysv64" fn syscall_handler(
     match arg0 {
         // write syscall
         1 => {
-            let fd = arg1 as u16;
+            let fd = arg1 as FileDescriptorNumber;
             let s_ptr = arg2 as *const u8;
             let s_len = arg3 as usize;
             let s_slice = unsafe { slice::from_raw_parts(s_ptr, s_len) };

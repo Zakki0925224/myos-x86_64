@@ -6,8 +6,11 @@ use crate::{
     arch::addr::VirtualAddress,
     error::Result,
     fs::fat::dir_entry::LongFileNameEntry,
-    println,
-    util::mutex::{Mutex, MutexError},
+    print, println,
+    util::{
+        self,
+        mutex::{Mutex, MutexError},
+    },
 };
 use alloc::{collections::VecDeque, string::String, vec::Vec};
 use log::{error, info};
@@ -53,13 +56,6 @@ impl Initramfs {
         self.fat_volume = Some(fat_volume);
     }
 
-    pub fn ls(&self) {
-        let files = self.scan_current_dir();
-        for f in files {
-            println!("{}", f.name);
-        }
-    }
-
     pub fn cd(&mut self, dir_name: &str) {
         let files = self.scan_current_dir();
         let dir = files
@@ -80,18 +76,6 @@ impl Initramfs {
         };
     }
 
-    pub fn cat(&self, file_name: &str) {
-        let (_, data) = match self.get_file(file_name) {
-            Some((f, d)) => (f, d),
-            None => {
-                error!("initramfs: The file \"{}\" does not exist", file_name);
-                return;
-            }
-        };
-
-        println!("{}", String::from_utf8_lossy(&data));
-    }
-
     pub fn get_file(&self, file_name: &str) -> Option<(FileMetaData, Vec<u8>)> {
         let files = self.scan_current_dir();
         let file = files
@@ -110,7 +94,7 @@ impl Initramfs {
         Some((file.unwrap().clone(), bytes))
     }
 
-    fn scan_current_dir(&self) -> Vec<FileMetaData> {
+    pub fn scan_current_dir(&self) -> Vec<FileMetaData> {
         let mut files = Vec::new();
 
         if self.fat_volume.is_none() {
@@ -185,7 +169,12 @@ pub fn get_file(file_name: &str) -> Result<Option<(FileMetaData, Vec<u8>)>> {
 
 pub fn ls() -> Result<()> {
     if let Ok(initramfs) = unsafe { INITRAMFS.try_lock() } {
-        initramfs.ls();
+        let files = initramfs.scan_current_dir();
+        for f in files {
+            print!("{} ", f.name);
+        }
+        println!();
+
         return Ok(());
     }
 
@@ -203,7 +192,31 @@ pub fn cd(dir_name: &str) -> Result<()> {
 
 pub fn cat(file_name: &str) -> Result<()> {
     if let Ok(initramfs) = unsafe { INITRAMFS.try_lock() } {
-        initramfs.cat(file_name);
+        let file = match initramfs.get_file(file_name) {
+            Some((_, file)) => file,
+            None => {
+                error!("initramfs: The file \"{}\" does not exist", file_name);
+                return Ok(());
+            }
+        };
+
+        println!("{}", String::from_utf8_lossy(&file));
+        return Ok(());
+    }
+
+    Err(MutexError::Locked.into())
+}
+
+pub fn hexdump(file_name: &str) -> Result<()> {
+    if let Ok(initramfs) = unsafe { INITRAMFS.try_lock() } {
+        let file = match initramfs.get_file(file_name) {
+            Some((_, file)) => file,
+            None => {
+                error!("initramfs: The file \"{}\" does not exist", file_name);
+                return Ok(());
+            }
+        };
+        util::hexdump::hexdump(&file);
         return Ok(());
     }
 
