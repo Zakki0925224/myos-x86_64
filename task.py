@@ -61,7 +61,7 @@ def qemu_cmd() -> str:
 
 
 def own_qemu_cmd() -> str:
-    return f"./{THIRD_PARTY_DIR}/{QEMU_DIR}/build/{QEMU_TARGET_ARCH}/{qemu_cmd()} --display sdl --trace events=./{QEMU_TRACE_FILE}"
+    return f"./{THIRD_PARTY_DIR}/{QEMU_DIR}/build/{qemu_cmd()} --display sdl --trace events=./{QEMU_TRACE_FILE}"
 
 
 def run_cmd(cmd: str, dir: str = "./", ignore_error: bool = False):
