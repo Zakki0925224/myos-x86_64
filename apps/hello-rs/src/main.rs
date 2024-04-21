@@ -5,6 +5,7 @@ use libm_rs::*;
 
 #[no_mangle]
 pub unsafe fn _start() {
-    printf("Hello world!\n\0".as_ptr() as *const _);
+    let s = "Hello world!\n\0";
+    printf(s.as_ptr() as *const _);
     sys_exit(0);
 }

@@ -8,7 +8,7 @@ use crate::{
     },
 };
 use alloc::vec::Vec;
-use common::elf::{self, Elf64};
+use common::elf::{self, Elf64, SegmentType};
 use core::mem;
 use log::{error, info};
 
@@ -50,6 +50,10 @@ pub fn exec_elf(file_name: &str, args: &[&str]) -> Result<()> {
     let mut entry: Option<extern "sysv64" fn()> = None;
 
     for program_header in elf64.program_headers() {
+        if program_header.segment_type() != SegmentType::Load {
+            continue;
+        }
+
         let p_virt_addr = program_header.virt_addr;
         let p_offset = program_header.offset;
         let program_data = match elf64.data_by_program_header(program_header) {
@@ -57,11 +61,13 @@ pub fn exec_elf(file_name: &str, args: &[&str]) -> Result<()> {
             None => continue,
         };
 
-        let user_mem_frame_info = bitmap::alloc_mem_frame((program_data.len() / PAGE_SIZE).max(1))?;
+        let user_mem_frame_info =
+            bitmap::alloc_mem_frame(((p_offset as usize + program_data.len()) / PAGE_SIZE).max(1))?;
         let user_mem_frame_start_virt_addr = user_mem_frame_info.frame_start_virt_addr()?;
 
         // copy data
         user_mem_frame_start_virt_addr
+            .offset(p_offset as usize)
             .copy_from_nonoverlapping(program_data.as_ptr(), program_data.len());
 
         // update page mapping
@@ -77,7 +83,7 @@ pub fn exec_elf(file_name: &str, args: &[&str]) -> Result<()> {
         allocated_mem_frames.push(user_mem_frame_info);
 
         if p_virt_addr == header.entry_point {
-            entry = Some(unsafe { mem::transmute((p_virt_addr - p_offset) as *const ()) });
+            entry = Some(unsafe { mem::transmute(p_virt_addr as *const ()) });
         }
     }
 

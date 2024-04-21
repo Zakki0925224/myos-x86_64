@@ -414,7 +414,7 @@ impl<'a> Elf64<'a> {
             return None;
         }
 
-        if offset == 0 || file_size == 0 || mem_size == 0 {
+        if file_size == 0 || mem_size == 0 {
             return None;
         }
 
