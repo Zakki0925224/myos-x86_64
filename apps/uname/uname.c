@@ -22,6 +22,7 @@ void _start(int argc, char *argv[])
         printf(" -v\tprint the kernel version\n");
         printf(" -m\tprint the machine hardware name\n");
         printf(" -d\tprint the domain name\n");
+        sys_exit(0);
     }
 
     for (int i = 1; i < argc; i++)
