@@ -150,7 +150,6 @@ async fn exec_cmd(cmd: String) -> Result<()> {
         "lspci" => pci::lspci()?,
         "free" => mem::free(),
         "exit" => qemu::exit(0),
-        "echo" => println!("{}", &cmd[4..].trim()),
         "break" => asm::int3(),
         "ls" => initramfs::ls()?,
         "cd" => {
