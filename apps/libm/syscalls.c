@@ -34,3 +34,13 @@ void *sys_sbrk(uint64_t len)
     int64_t addr = syscall(SN_SBRK, len, 0, 0, 0, 0);
     return (void *)addr;
 }
+
+int64_t sys_uname(struct utsname *buf)
+{
+    return syscall(SN_UNAME, (uint64_t)buf, 0, 0, 0, 0);
+}
+
+void sys_break(void)
+{
+    syscall(SN_BREAK, 0, 0, 0, 0, 0);
+}

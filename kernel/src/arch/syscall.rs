@@ -1,19 +1,20 @@
+use super::{addr::VirtualAddress, asm};
 use crate::{
     arch::{
         gdt::{KERNEL_MODE_CS_VALUE, KERNEL_MODE_SS_VALUE},
         register::model_specific::*,
         task,
     },
+    env,
     error::{Error, Result},
     fs::vfs::file_desc::FileDescriptorNumber,
     mem::{bitmap, paging::PAGE_SIZE},
     print,
 };
 use alloc::string::{String, ToString};
+use common::libm::Utsname;
 use core::{arch::asm, slice};
 use log::{error, info};
-
-use super::addr::VirtualAddress;
 
 #[naked]
 extern "sysv64" fn asm_syscall_handler() {
@@ -77,6 +78,18 @@ extern "sysv64" fn syscall_handler(
             };
             return addr as i64;
         }
+        // uname syscall
+        6 => {
+            if let Err(err) = sys_uname(arg1.into()) {
+                error!("syscall: uname: {:?}", err);
+                return -1;
+            }
+        }
+        // break syscall
+        7 => {
+            sys_break();
+            unreachable!();
+        }
         num => {
             error!("syscall: Syscall number 0x{:x} is not defined", num);
             return -1;
@@ -115,6 +128,23 @@ fn sys_sbrk(len: usize) -> Result<VirtualAddress> {
         virt_addr.get()
     );
     Ok(virt_addr)
+}
+
+fn sys_uname(buf_addr: VirtualAddress) -> Result<()> {
+    // utsname.sysname = env::OS_NAME.as_bytes();
+    // utsname.nodename = "";
+    // utsname.release = "";
+    // utsname.version = env::ENV_VERSION;
+    // utsname.machine = "x86_64";
+    // utsname.domainname = "";
+    let utsname: &mut Utsname = &mut unsafe { *buf_addr.as_ptr_mut() };
+    let sysname = env::OS_NAME.as_bytes();
+    utsname.sysname[..sysname.len()].copy_from_slice(sysname);
+    Ok(())
+}
+
+fn sys_break() {
+    asm::int3();
 }
 
 pub fn init() {

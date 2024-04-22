@@ -149,6 +149,7 @@ def task_build_apps():
             run_cmd("make", dir=pwd)
 
     # copy apps dir to initramfs dir
+    run_cmd(f"rm -rf ./{INITRAMFS_DIR}/{APPS_DIR}")
     run_cmd(f"cp -r {d} ./{INITRAMFS_DIR}/")
 
     # remove `target` directory
