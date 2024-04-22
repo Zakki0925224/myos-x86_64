@@ -131,15 +131,21 @@ fn sys_sbrk(len: usize) -> Result<VirtualAddress> {
 }
 
 fn sys_uname(buf_addr: VirtualAddress) -> Result<()> {
-    // utsname.sysname = env::OS_NAME.as_bytes();
-    // utsname.nodename = "";
-    // utsname.release = "";
-    // utsname.version = env::ENV_VERSION;
-    // utsname.machine = "x86_64";
-    // utsname.domainname = "";
-    let utsname: &mut Utsname = &mut unsafe { *buf_addr.as_ptr_mut() };
     let sysname = env::OS_NAME.as_bytes();
+    let nodename = "nodename".as_bytes();
+    let release = "release".as_bytes();
+    let version = env::ENV_VERSION.as_bytes();
+    let machine = "x86_64".as_bytes();
+    let domainname = "domainname".as_bytes();
+
+    let mut utsname = Utsname::default();
     utsname.sysname[..sysname.len()].copy_from_slice(sysname);
+    utsname.nodename[..nodename.len()].copy_from_slice(nodename);
+    utsname.release[..release.len()].copy_from_slice(release);
+    utsname.version[..version.len()].copy_from_slice(version);
+    utsname.machine[..machine.len()].copy_from_slice(machine);
+    utsname.domainname[..domainname.len()].copy_from_slice(domainname);
+    buf_addr.copy_from_nonoverlapping(&utsname as *const Utsname, 1);
     Ok(())
 }
 

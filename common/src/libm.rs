@@ -8,3 +8,16 @@ pub struct Utsname {
     pub machine: [u8; 64],
     pub domainname: [u8; 64],
 }
+
+impl Default for Utsname {
+    fn default() -> Self {
+        Self {
+            sysname: [0; 64],
+            nodename: [0; 64],
+            release: [0; 64],
+            version: [0; 64],
+            machine: [0; 64],
+            domainname: [0; 64],
+        }
+    }
+}
