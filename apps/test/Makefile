@@ -1,15 +1,15 @@
 # Source file (C code)
-SRC_FILE := ret1.c
+SRC_FILE := test.c
 
 # Output file (executable)
-OUT_FILE := ret1.elf
+OUT_FILE := test.elf
 
 # Object file
-OBJ_FILE := ret1.o
+OBJ_FILE := test.o
 
 # Compiler flags
 CC := gcc
-CFLAGS := -O2 -Wall -g -m64 -nostdlib -fno-builtin -std=c11
+CFLAGS := -O2 -Wall -g -m64 -nostdlib -fno-builtin -fno-stack-protector -std=c11
 
 # Linker flags
 LD := ld.lld

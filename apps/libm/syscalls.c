@@ -28,3 +28,9 @@ void sys_exit(uint64_t status)
 {
     syscall(SN_EXIT, status, 0, 0, 0, 0);
 }
+
+void *sys_sbrk(uint64_t len)
+{
+    int64_t addr = syscall(SN_SBRK, len, 0, 0, 0, 0);
+    return (void *)addr;
+}

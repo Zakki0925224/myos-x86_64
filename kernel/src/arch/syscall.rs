@@ -4,12 +4,16 @@ use crate::{
         register::model_specific::*,
         task,
     },
+    error::{Error, Result},
     fs::vfs::file_desc::FileDescriptorNumber,
+    mem::{bitmap, paging::PAGE_SIZE},
     print,
 };
 use alloc::string::{String, ToString};
 use core::{arch::asm, slice};
 use log::{error, info};
+
+use super::addr::VirtualAddress;
 
 #[naked]
 extern "sysv64" fn asm_syscall_handler() {
@@ -50,23 +54,28 @@ extern "sysv64" fn syscall_handler(
             let fd = arg1 as FileDescriptorNumber;
             let s_ptr = arg2 as *const u8;
             let s_len = arg3 as usize;
-            let s_slice = unsafe { slice::from_raw_parts(s_ptr, s_len) };
-            let s = String::from_utf8_lossy(s_slice).to_string();
-
-            match fd {
-                // stdout
-                1 => {
-                    print!("{}", s);
-                }
-                num => {
-                    error!("syscall: write: fd 0x{:x} is not defined", num);
-                    return -1;
-                }
+            if let Err(err) = sys_write(fd, s_ptr, s_len) {
+                error!("syscall: write: {:?}", err);
+                return -1;
             }
         }
         // exit syscall
         4 => {
-            task::return_to_kernel_task(arg1);
+            let status = arg1;
+            sys_exit(status);
+            unreachable!();
+        }
+        // sbrk syscall
+        5 => {
+            let len = arg1 as usize;
+            let addr = match sys_sbrk(len) {
+                Ok(addr) => addr.get(),
+                Err(err) => {
+                    error!("syscall: sbrk: {:?}", err);
+                    return 0; // return null address
+                }
+            };
+            return addr as i64;
         }
         num => {
             error!("syscall: Syscall number 0x{:x} is not defined", num);
@@ -75,6 +84,37 @@ extern "sysv64" fn syscall_handler(
     }
 
     0
+}
+
+fn sys_write(fd: FileDescriptorNumber, s_ptr: *const u8, s_len: usize) -> Result<()> {
+    let s_slice = unsafe { slice::from_raw_parts(s_ptr, s_len) };
+    let s = String::from_utf8_lossy(s_slice).to_string();
+
+    match fd {
+        // stdout
+        1 => {
+            print!("{}", s);
+        }
+        _ => return Err(Error::Failed("fd is not defined")),
+    }
+
+    Ok(())
+}
+
+fn sys_exit(status: u64) {
+    task::return_to_kernel_task(status);
+}
+
+fn sys_sbrk(len: usize) -> Result<VirtualAddress> {
+    let mem_frame_info = bitmap::alloc_mem_frame((len / PAGE_SIZE).max(1))?;
+    mem_frame_info.set_permissions_to_user()?;
+    let virt_addr = mem_frame_info.frame_start_virt_addr()?;
+    info!(
+        "syscall: sbrk: allocated {} bytes at 0x{:x}",
+        mem_frame_info.frame_size,
+        virt_addr.get()
+    );
+    Ok(virt_addr)
 }
 
 pub fn init() {
