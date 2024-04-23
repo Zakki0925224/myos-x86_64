@@ -1,6 +1,9 @@
-use self::{conf_space::*, device::PciDevice};
+use self::{
+    conf_space::*,
+    device::{PciDevice, PciDeviceFunctions},
+};
 use crate::{
-    error::Result,
+    error::{Error, Result},
     println,
     util::mutex::{Mutex, MutexError},
 };
@@ -31,11 +34,12 @@ impl PciDeviceManager {
         for bus in 0..PCI_DEVICE_BUS_LEN {
             for device in 0..PCI_DEVICE_DEVICE_LEN {
                 for func in 0..PCI_DEVICE_FUNC_LEN {
-                    if let Ok(pci_device) = PciDevice::new(bus, device, func) {
-                        if pci_device.conf_space_header.is_exist() {
-                            devices.push(pci_device);
-                        }
-                    }
+                    let pci_device = match PciDevice::new(bus, device, func) {
+                        Some(d) => d,
+                        None => continue,
+                    };
+
+                    devices.push(pci_device);
                 }
             }
         }
@@ -43,31 +47,55 @@ impl PciDeviceManager {
         self.devices = devices;
     }
 
-    pub fn find_by_class(&self, class_code: u8, subclass_code: u8, prog_if: u8) -> Vec<PciDevice> {
-        self.devices
+    pub fn find_device(&self, bus: usize, device: usize, func: usize) -> Result<&PciDevice> {
+        match self
+            .devices
             .iter()
-            .filter(|d| d.get_device_class() == (class_code, subclass_code, prog_if))
-            .cloned()
-            .collect()
+            .find(|d| d.device_bdf() == (bus, device, func))
+        {
+            Some(d) => Ok(d),
+            None => Err(Error::Failed("PCI device was not found").into()),
+        }
     }
 
-    pub fn find_by_bdf(&self, bus: usize, device: usize, func: usize) -> Option<PciDevice> {
+    pub fn find_device_mut(
+        &mut self,
+        bus: usize,
+        device: usize,
+        func: usize,
+    ) -> Result<&mut PciDevice> {
+        match self
+            .devices
+            .iter_mut()
+            .find(|d| d.device_bdf() == (bus, device, func))
+        {
+            Some(d) => Ok(d),
+            None => Err(Error::Failed("PCI device was not found").into()),
+        }
+    }
+
+    pub fn find_device_by_class_mut(
+        &mut self,
+        class_code: u8,
+        subclass_code: u8,
+        prog_if: u8,
+    ) -> Vec<&mut PciDevice> {
         self.devices
-            .iter()
-            .find(|d| d.bus == bus && d.device == device && d.func == func)
-            .cloned()
+            .iter_mut()
+            .filter(|d| d.device_class() == (class_code, subclass_code, prog_if))
+            .collect()
     }
 
     pub fn debug(&self) {
         for d in &self.devices {
-            println!("{}:{}:{}", d.bus, d.device, d.func);
-            println!("{:?}", d.conf_space_header.get_header_type());
-            println!("{:?}", d.conf_space_header.get_device_name());
+            let (bus, device, func) = d.device_bdf();
+            let conf_space_header = d.conf_space_header();
+            println!("{}:{}:{}", bus, device, func);
+            println!("{:?}", conf_space_header.get_header_type());
+            println!("{:?}", conf_space_header.get_device_name());
             println!(
                 "class: {}, subclass: {}, if: {}\n",
-                d.conf_space_header.class_code,
-                d.conf_space_header.subclass,
-                d.conf_space_header.prog_if
+                conf_space_header.class_code, conf_space_header.subclass, conf_space_header.prog_if
             );
             if let Ok(field) = d.read_conf_space_non_bridge_field() {
                 for bar in field.get_bars().unwrap() {
@@ -100,25 +128,52 @@ pub fn scan_devices() -> Result<()> {
     Err(MutexError::Locked.into())
 }
 
-pub fn find_by_class(class_code: u8, subclass_code: u8, prog_if: u8) -> Result<Vec<PciDevice>> {
-    if let Ok(pci_device_man) = unsafe { PCI_DEVICE_MAN.try_lock() } {
-        return Ok(pci_device_man.find_by_class(class_code, subclass_code, prog_if));
-    }
-
-    Err(MutexError::Locked.into())
-}
-
-pub fn find_by_bdf(bus: usize, device: usize, func: usize) -> Result<Option<PciDevice>> {
-    if let Ok(pci_device_man) = unsafe { PCI_DEVICE_MAN.try_lock() } {
-        return Ok(pci_device_man.find_by_bdf(bus, device, func));
-    }
-
-    Err(MutexError::Locked.into())
-}
-
 pub fn lspci() -> Result<()> {
     if let Ok(pci_device_man) = unsafe { PCI_DEVICE_MAN.try_lock() } {
         pci_device_man.debug();
+        return Ok(());
+    }
+
+    Err(MutexError::Locked.into())
+}
+
+pub fn is_exit_device(bus: usize, device: usize, func: usize) -> Result<bool> {
+    if let Ok(pci_device_man) = unsafe { PCI_DEVICE_MAN.try_lock() } {
+        match pci_device_man.find_device(bus, device, func) {
+            Ok(_) => return Ok(true),
+            Err(_) => return Ok(false),
+        }
+    }
+
+    Err(MutexError::Locked.into())
+}
+
+pub fn configure_device<F: FnMut(&mut dyn PciDeviceFunctions) -> Result<()>>(
+    bus: usize,
+    device: usize,
+    func: usize,
+    mut f: F,
+) -> Result<()> {
+    if let Ok(mut pci_device_man) = unsafe { PCI_DEVICE_MAN.try_lock() } {
+        let device = pci_device_man.find_device_mut(bus, device, func)?;
+        return f(device);
+    }
+
+    Err(MutexError::Locked.into())
+}
+
+pub fn configure_devices<F: FnMut(&mut dyn PciDeviceFunctions) -> Result<()>>(
+    class_code: u8,
+    subclass_code: u8,
+    prog_if: u8,
+    mut f: F,
+) -> Result<()> {
+    if let Ok(mut pci_device_man) = unsafe { PCI_DEVICE_MAN.try_lock() } {
+        let devices = pci_device_man.find_device_by_class_mut(class_code, subclass_code, prog_if);
+        for d in devices {
+            f(d)?;
+        }
+
         return Ok(());
     }
 
