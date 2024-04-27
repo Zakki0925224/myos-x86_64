@@ -8,7 +8,6 @@ BOOTLOADER_DIR = "bootloader"
 KERNEL_DIR = "kernel"
 DUMP_DIR = "dump"
 THIRD_PARTY_DIR = "third-party"
-COZETTE_DIR = "cozette"
 QEMU_DIR = "qemu"
 INITRAMFS_DIR = "initramfs"
 MNT_DIR_PATH = "/mnt"
@@ -84,17 +83,14 @@ def task_init():
     run_cmd(f"mkdir -p ./{OUTPUT_DIR}")
 
 
-def task_build_cozette():
-    d = f"./{THIRD_PARTY_DIR}/{COZETTE_DIR}"
+def task_download_cozette():
+    d = f"./{THIRD_PARTY_DIR}"
 
     if not os.path.exists(f"./{THIRD_PARTY_DIR}/{COZETTE_FILE}"):
-        run_cmd(f"{GIT_CHECKOUT_TO_LATEST_TAG}", dir=d)
         run_cmd(
-            "pipenv install --python 3 && pipenv run python3 ./build.py fonts", dir=d
-        )
-        run_cmd(
-            f"bdf2psf --fb ./build/cozette.bdf /usr/share/bdf2psf/standard.equivalents /usr/share/bdf2psf/fontsets/Uni2.512 512 ../{COZETTE_FILE}",
+            f'curl -s https://api.github.com/repos/slavfox/Cozette/releases/latest | grep "{COZETTE_FILE}" | cut -d : -f 2,3 | tr -d \\" | wget -qi -',
             dir=d,
+            ignore_error=True,
         )
 
 
@@ -131,7 +127,7 @@ def task_build_kernel():
 def task_build():
     task_clear()
     task_init()
-    task_build_cozette()
+    task_download_cozette()
     task_build_qemu()
     task_build_bootloader()
     task_build_kernel()
@@ -231,7 +227,7 @@ def task_dump():
 TASKS = [
     task_clear,
     task_init,
-    task_build_cozette,
+    task_download_cozette,
     task_build_qemu,
     task_build_bootloader,
     task_build_kernel,

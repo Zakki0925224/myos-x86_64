@@ -23,7 +23,7 @@ This is a replacement project for the previous **[myos](https://github.com/Zakki
 ## Third party
 
 -   OVMF from [EDK II](https://github.com/tianocore/edk2.git) (included)
--   [Cozette](https://github.com/slavfox/Cozette.git)
+-   [Cozette](https://github.com/slavfox/Cozette.git) (download released binary when build)
 -   [QEMU](https://gitlab.com/qemu-project/qemu.git) (for debugging)
 
 ## How to build
@@ -38,13 +38,6 @@ This is a replacement project for the previous **[myos](https://github.com/Zakki
     -   lld
     -   qemu
     -   dosfstools
-
--   For build Cozette
-
-    -   pipenv
-    -   fontforge
-    -   openjdk-8-jdk (or latest)
-    -   bdf2psf
 
 -   For build QEMU
 
