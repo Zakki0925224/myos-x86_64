@@ -38,6 +38,7 @@ This is a replacement project for the previous **[myos](https://github.com/Zakki
     -   lld
     -   qemu
     -   dosfstools
+    -   bdf2psf (convert bdf file due to [bug in cozette.psf](https://github.com/slavfox/Cozette/issues/112))
 
 -   For build QEMU
 

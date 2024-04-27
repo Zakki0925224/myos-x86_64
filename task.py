@@ -16,7 +16,7 @@ BOOTLOADER_FILE = "bootx64.efi"
 KERNEL_FILE = "kernel.elf"
 IMG_FILE = "myos.img"
 ISO_FILE = "myos.iso"
-COZETTE_FILE = "cozette.psf"
+FONT_FILE = "font.psf"
 OVMF_CODE_FILE = "OVMF_CODE.fd"
 QEMU_TRACE_FILE = "qemu_trace"
 INITRAMFS_IMG_FILE = "initramfs.img"
@@ -83,15 +83,21 @@ def task_init():
     run_cmd(f"mkdir -p ./{OUTPUT_DIR}")
 
 
-def task_download_cozette():
+def task_build_cozette():
     d = f"./{THIRD_PARTY_DIR}"
+    cozette_bdf = "cozette.bdf"
 
-    if not os.path.exists(f"./{THIRD_PARTY_DIR}/{COZETTE_FILE}"):
+    if not os.path.exists(f"./{THIRD_PARTY_DIR}/{FONT_FILE}"):
         run_cmd(
-            f'curl -s https://api.github.com/repos/slavfox/Cozette/releases/latest | grep "{COZETTE_FILE}" | cut -d : -f 2,3 | tr -d \\" | wget -qi -',
+            f'curl -s https://api.github.com/repos/slavfox/Cozette/releases/latest | grep "{cozette_bdf}" | cut -d : -f 2,3 | tr -d \\" | wget -qi -',
             dir=d,
             ignore_error=True,
         )
+        run_cmd(
+            f"bdf2psf --fb ./{cozette_bdf} /usr/share/bdf2psf/standard.equivalents /usr/share/bdf2psf/fontsets/Uni2.512 512 ./{FONT_FILE}",
+            dir=d,
+        )
+        run_cmd(f"rm ./{cozette_bdf}", dir=d)
 
 
 def task_build_qemu():
@@ -127,7 +133,7 @@ def task_build_kernel():
 def task_build():
     task_clear()
     task_init()
-    task_download_cozette()
+    task_build_cozette()
     task_build_qemu()
     task_build_bootloader()
     task_build_kernel()
@@ -227,7 +233,7 @@ def task_dump():
 TASKS = [
     task_clear,
     task_init,
-    task_download_cozette,
+    task_build_cozette,
     task_build_qemu,
     task_build_bootloader,
     task_build_kernel,

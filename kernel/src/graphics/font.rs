@@ -1,5 +1,7 @@
+use crate::error::{Error, Result};
+
 //PSF font v2
-const FONT: &'static [u8] = include_bytes!("../../../third-party/cozette.psf");
+const FONT: &'static [u8] = include_bytes!("../../../third-party/font.psf");
 const FONT_MAGIC_NUM: u32 = 0x864ab572;
 const UNICODE_TABLE_SEPARATOR: u8 = 0xff;
 
@@ -15,7 +17,7 @@ pub struct PsfFont {
 }
 
 impl PsfFont {
-    pub fn new() -> Self {
+    pub fn new() -> Result<Self> {
         fn get_magic_num() -> u32 {
             (FONT[3] as u32) << 24 | (FONT[2] as u32) << 16 | (FONT[1] as u32) << 8 | FONT[0] as u32
         }
@@ -65,7 +67,7 @@ impl PsfFont {
         }
 
         if get_magic_num() != FONT_MAGIC_NUM {
-            panic!("Invalid font binary");
+            return Err(Error::Failed("Invalid font binary"));
         }
 
         let binary_len = FONT.len();
@@ -77,7 +79,11 @@ impl PsfFont {
         let header_size = get_header_size() as usize;
         let unicode_table_offset = header_size + glyph_size * glyphs_len;
 
-        Self {
+        if height > 16 || width > 8 {
+            return Err(Error::Failed("Unsupported font size"));
+        }
+
+        Ok(Self {
             binary_len,
             height,
             width,
@@ -86,7 +92,7 @@ impl PsfFont {
             has_unicode_table,
             header_size,
             unicode_table_offset,
-        }
+        })
     }
 
     pub fn get_height(&self) -> usize {

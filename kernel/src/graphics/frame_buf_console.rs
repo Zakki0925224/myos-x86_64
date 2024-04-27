@@ -1,3 +1,5 @@
+use log::info;
+
 use super::{font::PsfFont, frame_buf, multi_layer};
 use crate::{
     error::Result,
@@ -33,7 +35,7 @@ pub struct FrameBufferConsole {
 
 impl FrameBufferConsole {
     pub fn new(back_color: ColorCode, fore_color: ColorCode) -> Result<Self> {
-        let font = PsfFont::new();
+        let font = PsfFont::new()?;
         let max_x_res = frame_buf::get_stride()?;
         let max_y_res = frame_buf::get_resolution()?.1;
         let char_max_x_len = max_x_res / font.get_width() - 1;
