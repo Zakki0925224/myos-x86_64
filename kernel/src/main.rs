@@ -28,7 +28,7 @@ use bus::pci;
 use common::boot_info::BootInfo;
 use device::console;
 use error::Result;
-use fs::{exec, initramfs};
+use fs::{exec, initramfs, vfs::VirtualFileSystem};
 use graphics::{color::COLOR_SILVER, draw::Draw, multi_layer};
 use log::error;
 use serial::ComPort;
@@ -84,6 +84,12 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
     initramfs::init(boot_info.initramfs_start_virt_addr.into());
 
     env::print_info();
+
+    let vfs = VirtualFileSystem::new();
+    println!(
+        "{:?}",
+        vfs.find_file_by_path("../test dir1/../test dir1/../test dir1/../test file1")
+    );
 
     // tasks
     task::spawn(serial_receive_task()).unwrap();
