@@ -1,3 +1,5 @@
+use common::elf::Elf64Error;
+
 use crate::{
     bus::usb::{
         device::UsbDeviceError,
@@ -5,6 +7,7 @@ use crate::{
         UsbDriverError,
     },
     device::console::ConsoleError,
+    fs::vfs::VirtualFileSystemError,
     graphics::{
         frame_buf::FrameBufferError, frame_buf_console::FrameBufferConsoleError,
         multi_layer::LayerError,
@@ -30,6 +33,8 @@ pub enum Error {
     RingBufferError(RingBufferError),
     FifoError(FifoError),
     IndexOutOfBoundsError(usize),
+    VirtualFileSystemError(VirtualFileSystemError),
+    Elf64Error(Elf64Error),
 }
 
 impl From<&'static str> for Error {
@@ -113,6 +118,18 @@ impl From<RingBufferError> for Error {
 impl From<FifoError> for Error {
     fn from(err: FifoError) -> Self {
         Error::FifoError(err)
+    }
+}
+
+impl From<VirtualFileSystemError> for Error {
+    fn from(err: VirtualFileSystemError) -> Self {
+        Error::VirtualFileSystemError(err)
+    }
+}
+
+impl From<Elf64Error> for Error {
+    fn from(err: Elf64Error) -> Self {
+        Error::Elf64Error(err)
     }
 }
 

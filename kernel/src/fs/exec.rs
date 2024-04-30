@@ -1,7 +1,7 @@
 use super::initramfs;
 use crate::{
     arch::task,
-    error::Result,
+    error::{Error, Result},
     mem::{
         bitmap,
         paging::{self, EntryMode, PageWriteThroughLevel, ReadWrite, PAGE_SIZE},
@@ -10,40 +10,23 @@ use crate::{
 use alloc::vec::Vec;
 use common::elf::{self, Elf64, SegmentType};
 use core::mem;
-use log::{error, info};
+use log::info;
 
 pub fn exec_elf(file_name: &str, args: &[&str]) -> Result<()> {
-    let (_, elf_data) = match initramfs::get_file(file_name) {
-        Ok(res) => match res {
-            Some((meta, data)) => (meta, data),
-            None => {
-                error!("exec: The file \"{}\" does not exist", file_name);
-                return Ok(());
-            }
-        },
-        Err(e) => {
-            return Err(e);
-        }
-    };
-
+    let (_, elf_data) = initramfs::get_file(file_name)?;
     let elf64 = match Elf64::new(&elf_data) {
         Ok(e) => e,
-        Err(_) => {
-            error!("exec: The file \"{}\" is not an executable file", file_name);
-            return Ok(());
-        }
+        Err(err) => return Err(err.into()),
     };
 
     let header = elf64.header();
 
     if header.elf_type() != elf::Type::Executable {
-        error!("exec: The file \"{}\" is not an executable file", file_name);
-        return Ok(());
+        return Err(Error::Failed("The file is not an executable file"));
     }
 
     if header.machine() != elf::Machine::X8664 {
-        error!("exec: Unsupported ISA");
-        return Ok(());
+        return Err(Error::Failed("Unsupported ISA"));
     }
 
     let mut allocated_mem_frames = Vec::new();
@@ -91,7 +74,7 @@ pub fn exec_elf(file_name: &str, args: &[&str]) -> Result<()> {
         let exit_code = task::exec_user_task(entry, file_name, args)?;
         info!("exec: Exited (code: {})", exit_code);
     } else {
-        error!("exec: Entry point was not found");
+        return Err(Error::Failed("Entry point was not found"));
     }
 
     for mem_frame in allocated_mem_frames {

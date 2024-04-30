@@ -18,6 +18,7 @@ pub enum FatType {
     Fat32,
 }
 
+#[derive(Debug, PartialEq, Eq)]
 pub struct FatVolume {
     volume_start_virt_addr: VirtualAddress,
 }

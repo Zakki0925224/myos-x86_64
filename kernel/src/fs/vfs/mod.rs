@@ -1,14 +1,16 @@
-use crate::{arch::addr::VirtualAddress, error::Result, println};
-use alloc::{string::String, vec::Vec};
+use super::initramfs::Initramfs;
+use crate::{error::Result, fs::fat::dir_entry::Attribute};
+use alloc::{
+    string::{String, ToString},
+    vec::Vec,
+};
 use core::sync::atomic::{AtomicU64, Ordering};
 
 pub mod file_desc;
 
-const FILE_ID_STDIN: FileId = FileId::new_val(0);
-const FILE_ID_STDOUT: FileId = FileId::new_val(1);
-const FILE_ID_STDERR: FileId = FileId::new_val(2);
+const PATH_SEPARATOR: char = '/';
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct FileId(u64);
 
 impl FileId {
@@ -31,6 +33,7 @@ enum SpecialFile {
     StdIn,
     StdOut,
     StdErr,
+    DeviceZero,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -40,16 +43,27 @@ enum FileType {
     Special(SpecialFile),
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub enum FileSystem {
+    Initramfs(Initramfs),
+}
+
 #[derive(Debug)]
 pub struct FileInfo {
     pub id: FileId,
     pub ty: FileType,
+    pub fs: Option<FileSystem>,
     pub name: String,
-    pub virt_addr: Option<VirtualAddress>,
-    pub len: Option<usize>,
     pub parent: Option<FileId>,
     pub child: Option<FileId>,
     pub next: Option<FileId>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum VirtualFileSystemError {
+    InvalidFilePathError,
+    NotDirectoryError,
+    NotFileError,
 }
 
 pub struct VirtualFileSystem {
@@ -63,7 +77,7 @@ impl VirtualFileSystem {
         let mut files = Vec::new();
 
         let rootfs_id = FileId::new();
-        let test_dir1_id = FileId::new();
+        let mnt_dir_id = FileId::new();
         let test_file1_id = FileId::new();
         let test_file2_id = FileId::new();
         let test_file3_id = FileId::new();
@@ -71,33 +85,30 @@ impl VirtualFileSystem {
         let root_fs = FileInfo {
             id: rootfs_id,
             ty: FileType::Directory,
+            fs: None,
             name: String::from("/"),
-            virt_addr: None,
-            len: None,
             parent: Some(rootfs_id),
-            child: Some(test_dir1_id),
+            child: Some(mnt_dir_id),
             next: None,
         };
         files.push(root_fs);
 
-        let test_dir1 = FileInfo {
-            id: test_dir1_id,
+        let mnt_dir = FileInfo {
+            id: mnt_dir_id,
             ty: FileType::Directory,
-            name: String::from("test dir1"),
-            virt_addr: None,
-            len: None,
+            fs: None,
+            name: String::from("mnt"),
             parent: Some(rootfs_id),
             child: Some(test_file2_id),
             next: Some(test_file1_id),
         };
-        files.push(test_dir1);
+        files.push(mnt_dir);
 
         let test_file1 = FileInfo {
             id: test_file1_id,
             ty: FileType::File,
+            fs: None,
             name: String::from("test file1"),
-            virt_addr: None,
-            len: None,
             parent: Some(rootfs_id),
             child: None,
             next: None,
@@ -107,10 +118,9 @@ impl VirtualFileSystem {
         let test_file2 = FileInfo {
             id: test_file2_id,
             ty: FileType::File,
+            fs: None,
             name: String::from("test file2"),
-            virt_addr: None,
-            len: None,
-            parent: Some(test_dir1_id),
+            parent: Some(mnt_dir_id),
             child: None,
             next: Some(test_file3_id),
         };
@@ -119,10 +129,9 @@ impl VirtualFileSystem {
         let test_file3 = FileInfo {
             id: test_file3_id,
             ty: FileType::File,
+            fs: None,
             name: String::from("test file3"),
-            virt_addr: None,
-            len: None,
-            parent: Some(test_dir1_id),
+            parent: Some(mnt_dir_id),
             child: None,
             next: None,
         };
@@ -135,34 +144,26 @@ impl VirtualFileSystem {
         }
     }
 
-    pub fn add_file(
-        &mut self,
-        file_type: FileType,
-        file_path: String,
-        virt_addr: Option<VirtualAddress>,
-        len: Option<usize>,
-    ) -> Result<()> {
-        Ok(())
-    }
-
     fn find_file(&self, id: FileId) -> Option<&FileInfo> {
         self.files.iter().find(|f| f.id.get() == id.get())
+    }
+
+    fn find_file_mut(&mut self, id: FileId) -> Option<&mut FileInfo> {
+        self.files.iter_mut().find(|f| f.id.get() == id.get())
     }
 
     pub fn find_file_by_path(&self, path: &str) -> Option<&FileInfo> {
         let mut file_ref = self.find_file(self.cwd_id)?;
 
-        if path.starts_with("/") {
+        if path.starts_with(PATH_SEPARATOR) {
             file_ref = self.find_file(self.root_id)?;
         }
 
-        for name in path.split("/") {
-            println!("name: {:?}, ref: {:?}", name, file_ref);
-
+        for name in path.split(PATH_SEPARATOR) {
             match name {
                 "" | "." => continue,
                 ".." => {
-                    if file_ref.ty == FileType::File {
+                    if self.is_directory(file_ref) {
                         return None;
                     }
 
@@ -183,8 +184,7 @@ impl VirtualFileSystem {
 
             let mut found = false;
             while let Some(next_file_id) = file_ref.next {
-                let next_file_ref = self.find_file(next_file_id)?;
-                file_ref = next_file_ref;
+                file_ref = self.find_file(next_file_id)?;
 
                 if file_ref.name == name {
                     found = true;
@@ -198,5 +198,256 @@ impl VirtualFileSystem {
         }
 
         Some(file_ref)
+    }
+
+    pub fn find_file_by_path_mut(&mut self, path: &str) -> Option<&mut FileInfo> {
+        let file_ref = self.find_file_by_path(path)?;
+        let file_ref_id = file_ref.id;
+        self.files
+            .iter_mut()
+            .find(|f| f.id.get() == file_ref_id.get())
+    }
+
+    pub fn chroot(&mut self, path: &str) -> Result<()> {
+        let file_ref = match self.find_file_by_path(path) {
+            Some(f) => f,
+            None => return Err(VirtualFileSystemError::InvalidFilePathError.into()),
+        };
+        if !self.is_directory(file_ref) {
+            return Err(VirtualFileSystemError::NotDirectoryError.into());
+        }
+
+        self.root_id = file_ref.id;
+        Ok(())
+    }
+
+    pub fn chdir(&mut self, path: &str) -> Result<()> {
+        let file_ref = match self.find_file_by_path(path) {
+            Some(f) => f,
+            None => return Err(VirtualFileSystemError::InvalidFilePathError.into()),
+        };
+        if !self.is_directory(file_ref) {
+            return Err(VirtualFileSystemError::NotDirectoryError.into());
+        }
+
+        self.cwd_id = file_ref.id;
+        Ok(())
+    }
+
+    pub fn cwd_files(&mut self) -> Vec<&FileInfo> {
+        let mut files = Vec::new();
+        let cwd_ref = match self.find_file(self.cwd_id) {
+            Some(f) => f,
+            None => return files,
+        };
+
+        if let Some(child_file_id) = cwd_ref.child {
+            let mut file_ref = match self.find_file(child_file_id) {
+                Some(f) => f,
+                None => return files,
+            };
+            //println!("{:?}", file_ref);
+            files.push(file_ref);
+
+            while let Some(next_file_id) = file_ref.next {
+                file_ref = match self.find_file(next_file_id) {
+                    Some(f) => f,
+                    None => return files,
+                };
+                //println!("{:?}", file_ref);
+                files.push(file_ref)
+            }
+        }
+
+        files
+    }
+
+    pub fn mount(&mut self, path: &str, fs: FileSystem) -> Result<()> {
+        fn map_initramfs(mount_fs: &mut FileInfo) -> Vec<FileInfo> {
+            let initramfs_ref = match &mut mount_fs.fs {
+                Some(FileSystem::Initramfs(r)) => r,
+                _ => unreachable!(),
+            };
+
+            let mut files = Vec::new();
+            fn scan_recursively(
+                initramfs_ref: &mut Initramfs,
+                parent_file_id: FileId,
+            ) -> Vec<FileInfo> {
+                let mut files: Vec<FileInfo> = Vec::new();
+
+                for metadata in initramfs_ref.scan_current_dir() {
+                    match metadata.name.trim() {
+                        "." | ".." => continue,
+                        _ => (),
+                    }
+
+                    let mut file_ref = FileInfo {
+                        id: FileId::new(),
+                        ty: match metadata.attr {
+                            Attribute::Directory => FileType::Directory,
+                            _ => FileType::File,
+                        },
+                        fs: None,
+                        name: metadata.name,
+                        parent: Some(parent_file_id),
+                        child: None,
+                        next: None,
+                    };
+
+                    if let Some(prev_file_ref) = files
+                        .iter_mut()
+                        .filter(|f| f.parent == Some(parent_file_id) && f.next.is_none())
+                        .last()
+                    {
+                        prev_file_ref.next = Some(file_ref.id);
+                    }
+
+                    if file_ref.ty == FileType::Directory {
+                        initramfs_ref.cd(&file_ref.name).unwrap();
+                        let dir_files = scan_recursively(initramfs_ref, file_ref.id);
+                        initramfs_ref.cd("..").unwrap();
+                        if let Some(child_file_ref) = dir_files
+                            .iter()
+                            .filter(|f| f.parent == Some(file_ref.id))
+                            .next()
+                        {
+                            file_ref.child = Some(child_file_ref.id);
+                        }
+
+                        files.extend(dir_files);
+                    }
+
+                    files.push(file_ref);
+                }
+                files
+            }
+            initramfs_ref.reset_cwd();
+            files.extend(scan_recursively(initramfs_ref, mount_fs.id));
+            initramfs_ref.reset_cwd();
+
+            if let Some(child_file_ref) = files
+                .iter()
+                .filter(|f| f.parent == Some(mount_fs.id))
+                .next()
+            {
+                mount_fs.child = Some(child_file_ref.id);
+            }
+
+            files
+        }
+
+        let path_parts: Vec<&str> = path.split(PATH_SEPARATOR).collect();
+        let mount_name = match path_parts.last() {
+            Some(s) => *s,
+            None => return Err(VirtualFileSystemError::InvalidFilePathError.into()),
+        };
+
+        let mut mount_fs = FileInfo {
+            id: FileId::new(),
+            ty: FileType::Directory,
+            fs: Some(fs),
+            name: mount_name.to_string(),
+            parent: None,
+            child: None,
+            next: None,
+        };
+
+        let mapped_files = match fs {
+            FileSystem::Initramfs(_) => map_initramfs(&mut mount_fs),
+        };
+        self.files.extend(mapped_files);
+
+        let parent_dir_path = &path[0..path.len() - (mount_name.len() + 1)];
+        self.add_file_into_directory(parent_dir_path, &mut mount_fs)?;
+        self.files.push(mount_fs);
+
+        // for f in &self.files {
+        //     println!("{:?}", f);
+        // }
+
+        Ok(())
+    }
+
+    pub fn read_file(&mut self, path: &str) -> Result<Vec<u8>> {
+        let file_ref = match self.find_file_by_path_mut(path) {
+            Some(f) => f,
+            None => return Err(VirtualFileSystemError::InvalidFilePathError.into()),
+        };
+
+        if file_ref.ty != FileType::File {
+            return Err(VirtualFileSystemError::NotFileError.into());
+        }
+
+        let mut file_names_to_root_file = Vec::new();
+        let mut fs_root_file_ref = file_ref;
+        // TODO: if fs not found, loop infinity
+        while let Some(parent_file_id) = fs_root_file_ref.parent {
+            file_names_to_root_file.push(fs_root_file_ref.name.clone());
+            fs_root_file_ref = match self.find_file_mut(parent_file_id) {
+                Some(f) => f,
+                None => return Err(VirtualFileSystemError::InvalidFilePathError.into()),
+            };
+
+            if fs_root_file_ref.fs.is_some() {
+                break;
+            }
+        }
+        file_names_to_root_file.reverse();
+
+        match &mut fs_root_file_ref.fs {
+            Some(FileSystem::Initramfs(initramfs)) => {
+                initramfs.reset_cwd();
+                if file_names_to_root_file.len() > 1 {
+                    for i in 0..file_names_to_root_file.len() - 1 {
+                        initramfs.cd(file_names_to_root_file[i].as_str())?;
+                    }
+                }
+
+                let (_, bytes) = initramfs.get_file(file_names_to_root_file.last().unwrap())?;
+                initramfs.reset_cwd();
+                return Ok(bytes);
+            }
+            None => unreachable!(),
+        }
+    }
+
+    fn is_directory(&self, file_ref: &FileInfo) -> bool {
+        file_ref.ty == FileType::Directory || file_ref.fs.is_some()
+    }
+
+    fn add_file_into_directory(
+        &mut self,
+        parent_dir_path: &str,
+        target_file_ref: &mut FileInfo,
+    ) -> Result<()> {
+        let parent_dir_file_ref = match self.find_file_by_path_mut(parent_dir_path) {
+            Some(f) => f,
+            None => return Err(VirtualFileSystemError::InvalidFilePathError.into()),
+        };
+        if parent_dir_file_ref.ty != FileType::Directory {
+            return Err(VirtualFileSystemError::NotDirectoryError.into());
+        }
+        target_file_ref.parent = Some(parent_dir_file_ref.id);
+
+        if let Some(child_file_id) = parent_dir_file_ref.child {
+            let mut file_ref = match self.find_file_mut(child_file_id) {
+                Some(f) => f,
+                None => return Err(VirtualFileSystemError::InvalidFilePathError.into()),
+            };
+
+            while let Some(next_file_id) = file_ref.next {
+                file_ref = match self.find_file_mut(next_file_id) {
+                    Some(f) => f,
+                    None => return Err(VirtualFileSystemError::InvalidFilePathError.into()),
+                };
+            }
+
+            file_ref.next = Some(target_file_ref.id);
+        } else {
+            parent_dir_file_ref.child = Some(target_file_ref.id);
+        }
+
+        Ok(())
     }
 }

@@ -34,6 +34,8 @@ use log::error;
 use serial::ComPort;
 use util::{ascii::AsciiCode, logger};
 
+use crate::fs::{fat::FatVolume, initramfs::Initramfs, vfs::FileSystem};
+
 #[no_mangle]
 #[start]
 pub extern "sysv64" fn kernel_entry(boot_info: &BootInfo) -> ! {
@@ -81,14 +83,25 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
     device::init();
 
     // initramfs
-    initramfs::init(boot_info.initramfs_start_virt_addr.into());
+    initramfs::init(boot_info.initramfs_start_virt_addr.into()).unwrap();
 
     env::print_info();
 
-    let vfs = VirtualFileSystem::new();
+    let mut vfs = VirtualFileSystem::new();
+    let mut _initramfs = Initramfs::new(2);
+    _initramfs
+        .init(FatVolume::new(boot_info.initramfs_start_virt_addr.into()))
+        .unwrap();
+    vfs.mount("/mnt/initramfs", FileSystem::Initramfs(_initramfs))
+        .unwrap();
+
+    println!("{:?}", vfs.chdir("/mnt/initramfs/apps"));
     println!(
         "{:?}",
-        vfs.find_file_by_path("../test dir1/../test dir1/../test dir1/../test file1")
+        vfs.cwd_files()
+            .iter()
+            .map(|f| f.name.as_str())
+            .collect::<Vec<&str>>()
     );
 
     // tasks

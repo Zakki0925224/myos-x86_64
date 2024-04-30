@@ -294,7 +294,7 @@ impl Elf64SectionHeader {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Elf64Error {
     InvalidMagicNumberError,
 }

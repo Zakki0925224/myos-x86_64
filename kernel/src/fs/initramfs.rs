@@ -4,7 +4,7 @@ use super::fat::{
 };
 use crate::{
     arch::addr::VirtualAddress,
-    error::Result,
+    error::{Error, Result},
     fs::fat::dir_entry::LongFileNameEntry,
     print, println,
     util::{
@@ -13,9 +13,7 @@ use crate::{
     },
 };
 use alloc::{collections::VecDeque, string::String, vec::Vec};
-use log::{error, info};
-
-const PATH_SEPARATOR: &str = "/";
+use log::info;
 
 static mut INITRAMFS: Mutex<Initramfs> = Mutex::new(Initramfs::new(2));
 
@@ -27,7 +25,8 @@ pub struct FileMetaData {
     pub target_cluster_num: usize,
 }
 
-struct Initramfs {
+#[derive(Debug, PartialEq, Eq)]
+pub struct Initramfs {
     fat_volume: Option<FatVolume>,
     root_cluster_num: usize,
     current_cluster_num: usize,
@@ -42,10 +41,9 @@ impl Initramfs {
         }
     }
 
-    pub fn init(&mut self, fat_volume: FatVolume) {
+    pub fn init(&mut self, fat_volume: FatVolume) -> Result<()> {
         if fat_volume.fat_type() != FatType::Fat32 {
-            error!("initramfs: FAT12 or FAT16 are not supported");
-            return;
+            return Err(Error::Failed("FAT 12 or FAT 16 are not supported"));
         }
 
         self.root_cluster_num = fat_volume.root_cluster_num();
@@ -54,17 +52,17 @@ impl Initramfs {
         info!("initramfs: Initialized");
 
         self.fat_volume = Some(fat_volume);
+        Ok(())
     }
 
-    pub fn cd(&mut self, dir_name: &str) {
+    pub fn cd(&mut self, dir_name: &str) -> Result<()> {
         let files = self.scan_current_dir();
         let dir = files
             .iter()
             .find(|f| f.attr == Attribute::Directory && f.name.trim() == dir_name);
 
         if dir.is_none() {
-            error!("initramfs: The directory \"{}\" does not exist", dir_name);
-            return;
+            return Err(Error::Failed("The directory does not exist"));
         }
 
         let cluster_num = dir.unwrap().target_cluster_num;
@@ -74,16 +72,18 @@ impl Initramfs {
         } else {
             self.root_cluster_num
         };
+
+        Ok(())
     }
 
-    pub fn get_file(&self, file_name: &str) -> Option<(FileMetaData, Vec<u8>)> {
+    pub fn get_file(&self, file_name: &str) -> Result<(FileMetaData, Vec<u8>)> {
         let files = self.scan_current_dir();
         let file = files
             .iter()
             .find(|f| f.attr == Attribute::Archive && f.name.trim() == file_name);
 
         if file.is_none() {
-            return None;
+            return Err(Error::Failed("The file does not exist"));
         }
 
         let fat_volume = self.fat_volume.as_ref().unwrap();
@@ -91,7 +91,7 @@ impl Initramfs {
         let mut bytes: Vec<u8> = dir_entries.iter().flat_map(|de| de.raw()).collect();
         bytes.resize(file.unwrap().size, 0);
 
-        Some((file.unwrap().clone(), bytes))
+        Ok((file.unwrap().clone(), bytes))
     }
 
     pub fn scan_current_dir(&self) -> Vec<FileMetaData> {
@@ -152,16 +152,21 @@ impl Initramfs {
 
         files
     }
+
+    pub fn reset_cwd(&mut self) {
+        self.current_cluster_num = self.root_cluster_num;
+    }
 }
 
-pub fn init(initramfs_start_virt_addr: VirtualAddress) {
+pub fn init(initramfs_start_virt_addr: VirtualAddress) -> Result<()> {
     let fat_volume = FatVolume::new(initramfs_start_virt_addr);
-    unsafe { INITRAMFS.try_lock() }.unwrap().init(fat_volume);
+    unsafe { INITRAMFS.try_lock() }.unwrap().init(fat_volume)?;
+    Ok(())
 }
 
-pub fn get_file(file_name: &str) -> Result<Option<(FileMetaData, Vec<u8>)>> {
+pub fn get_file(file_name: &str) -> Result<(FileMetaData, Vec<u8>)> {
     if let Ok(initramfs) = unsafe { INITRAMFS.try_lock() } {
-        return Ok(initramfs.get_file(file_name));
+        return initramfs.get_file(file_name);
     }
 
     Err(MutexError::Locked.into())
@@ -183,8 +188,7 @@ pub fn ls() -> Result<()> {
 
 pub fn cd(dir_name: &str) -> Result<()> {
     if let Ok(mut initramfs) = unsafe { INITRAMFS.try_lock() } {
-        initramfs.cd(dir_name);
-        return Ok(());
+        return initramfs.cd(dir_name);
     }
 
     Err(MutexError::Locked.into())
@@ -192,14 +196,7 @@ pub fn cd(dir_name: &str) -> Result<()> {
 
 pub fn cat(file_name: &str) -> Result<()> {
     if let Ok(initramfs) = unsafe { INITRAMFS.try_lock() } {
-        let file = match initramfs.get_file(file_name) {
-            Some((_, file)) => file,
-            None => {
-                error!("initramfs: The file \"{}\" does not exist", file_name);
-                return Ok(());
-            }
-        };
-
+        let (_, file) = initramfs.get_file(file_name)?;
         println!("{}", String::from_utf8_lossy(&file));
         return Ok(());
     }
@@ -209,13 +206,7 @@ pub fn cat(file_name: &str) -> Result<()> {
 
 pub fn hexdump(file_name: &str) -> Result<()> {
     if let Ok(initramfs) = unsafe { INITRAMFS.try_lock() } {
-        let file = match initramfs.get_file(file_name) {
-            Some((_, file)) => file,
-            None => {
-                error!("initramfs: The file \"{}\" does not exist", file_name);
-                return Ok(());
-            }
-        };
+        let (_, file) = initramfs.get_file(file_name)?;
         util::hexdump::hexdump(&file);
         return Ok(());
     }
