@@ -34,7 +34,10 @@ use log::error;
 use serial::ComPort;
 use util::{ascii::AsciiCode, logger};
 
-use crate::fs::{fat::FatVolume, initramfs::Initramfs, vfs::FileSystem};
+use crate::{
+    fs::{fat::FatVolume, initramfs::Initramfs, vfs::FileSystem},
+    util::hexdump,
+};
 
 #[no_mangle]
 #[start]
@@ -102,6 +105,10 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
             .iter()
             .map(|f| f.name.as_str())
             .collect::<Vec<&str>>()
+    );
+    println!(
+        "{:?}",
+        hexdump::hexdump(&vfs.read_file("uname/uname.elf").unwrap())
     );
 
     // tasks

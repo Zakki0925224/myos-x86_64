@@ -61,7 +61,7 @@ pub struct FileInfo {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum VirtualFileSystemError {
-    InvalidFilePathError,
+    NoSuchFileOrDirectoryError,
     NotDirectoryError,
     NotFileError,
 }
@@ -163,7 +163,7 @@ impl VirtualFileSystem {
             match name {
                 "" | "." => continue,
                 ".." => {
-                    if self.is_directory(file_ref) {
+                    if !self.is_directory(file_ref) {
                         return None;
                     }
 
@@ -211,7 +211,7 @@ impl VirtualFileSystem {
     pub fn chroot(&mut self, path: &str) -> Result<()> {
         let file_ref = match self.find_file_by_path(path) {
             Some(f) => f,
-            None => return Err(VirtualFileSystemError::InvalidFilePathError.into()),
+            None => return Err(VirtualFileSystemError::NoSuchFileOrDirectoryError.into()),
         };
         if !self.is_directory(file_ref) {
             return Err(VirtualFileSystemError::NotDirectoryError.into());
@@ -224,7 +224,7 @@ impl VirtualFileSystem {
     pub fn chdir(&mut self, path: &str) -> Result<()> {
         let file_ref = match self.find_file_by_path(path) {
             Some(f) => f,
-            None => return Err(VirtualFileSystemError::InvalidFilePathError.into()),
+            None => return Err(VirtualFileSystemError::NoSuchFileOrDirectoryError.into()),
         };
         if !self.is_directory(file_ref) {
             return Err(VirtualFileSystemError::NotDirectoryError.into());
@@ -246,7 +246,6 @@ impl VirtualFileSystem {
                 Some(f) => f,
                 None => return files,
             };
-            //println!("{:?}", file_ref);
             files.push(file_ref);
 
             while let Some(next_file_id) = file_ref.next {
@@ -254,7 +253,6 @@ impl VirtualFileSystem {
                     Some(f) => f,
                     None => return files,
                 };
-                //println!("{:?}", file_ref);
                 files.push(file_ref)
             }
         }
@@ -340,7 +338,7 @@ impl VirtualFileSystem {
         let path_parts: Vec<&str> = path.split(PATH_SEPARATOR).collect();
         let mount_name = match path_parts.last() {
             Some(s) => *s,
-            None => return Err(VirtualFileSystemError::InvalidFilePathError.into()),
+            None => return Err(VirtualFileSystemError::NoSuchFileOrDirectoryError.into()),
         };
 
         let mut mount_fs = FileInfo {
@@ -362,17 +360,13 @@ impl VirtualFileSystem {
         self.add_file_into_directory(parent_dir_path, &mut mount_fs)?;
         self.files.push(mount_fs);
 
-        // for f in &self.files {
-        //     println!("{:?}", f);
-        // }
-
         Ok(())
     }
 
     pub fn read_file(&mut self, path: &str) -> Result<Vec<u8>> {
         let file_ref = match self.find_file_by_path_mut(path) {
             Some(f) => f,
-            None => return Err(VirtualFileSystemError::InvalidFilePathError.into()),
+            None => return Err(VirtualFileSystemError::NoSuchFileOrDirectoryError.into()),
         };
 
         if file_ref.ty != FileType::File {
@@ -386,7 +380,7 @@ impl VirtualFileSystem {
             file_names_to_root_file.push(fs_root_file_ref.name.clone());
             fs_root_file_ref = match self.find_file_mut(parent_file_id) {
                 Some(f) => f,
-                None => return Err(VirtualFileSystemError::InvalidFilePathError.into()),
+                None => return Err(VirtualFileSystemError::NoSuchFileOrDirectoryError.into()),
             };
 
             if fs_root_file_ref.fs.is_some() {
@@ -423,7 +417,7 @@ impl VirtualFileSystem {
     ) -> Result<()> {
         let parent_dir_file_ref = match self.find_file_by_path_mut(parent_dir_path) {
             Some(f) => f,
-            None => return Err(VirtualFileSystemError::InvalidFilePathError.into()),
+            None => return Err(VirtualFileSystemError::NoSuchFileOrDirectoryError.into()),
         };
         if parent_dir_file_ref.ty != FileType::Directory {
             return Err(VirtualFileSystemError::NotDirectoryError.into());
@@ -433,13 +427,13 @@ impl VirtualFileSystem {
         if let Some(child_file_id) = parent_dir_file_ref.child {
             let mut file_ref = match self.find_file_mut(child_file_id) {
                 Some(f) => f,
-                None => return Err(VirtualFileSystemError::InvalidFilePathError.into()),
+                None => return Err(VirtualFileSystemError::NoSuchFileOrDirectoryError.into()),
             };
 
             while let Some(next_file_id) = file_ref.next {
                 file_ref = match self.find_file_mut(next_file_id) {
                     Some(f) => f,
-                    None => return Err(VirtualFileSystemError::InvalidFilePathError.into()),
+                    None => return Err(VirtualFileSystemError::NoSuchFileOrDirectoryError.into()),
                 };
             }
 
@@ -450,4 +444,8 @@ impl VirtualFileSystem {
 
         Ok(())
     }
+}
+
+pub trait Api {
+    fn mount(&mut self, mount_name: &str) -> (FileInfo, Vec<FileInfo>);
 }

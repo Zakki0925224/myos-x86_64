@@ -18,6 +18,7 @@ This is a replacement project for the previous **[myos](https://github.com/Zakki
 -   [x] GUI support by using UEFI GOP
 -   [x] Kernel console (input from PS/2 Keyboard)
 -   [x] Initramfs (but here we call FAT32 formatted image initramfs)
+-   [ ] Own virtual file system (WIP)
 -   [x] Userland applications (Standard C library for myos is [here](/apps/libm/))
 
 ## Third party
