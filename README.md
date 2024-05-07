@@ -4,6 +4,11 @@
 
 This is a replacement project for the previous **[myos](https://github.com/Zakki0925224/myos)**.
 
+## Screenshots
+
+![](https://github.com/Zakki0925224/myos-x86_64/assets/49384910/b134ef0a-c94e-46f8-a578-a6e160747fae)
+![](https://github.com/Zakki0925224/myos-x86_64/assets/49384910/fce1c2e4-f56b-46fa-8530-9eeec6069591)
+
 ## Features
 
 -   [x] Written in Rust
