@@ -32,7 +32,7 @@ use fs::{exec, vfs};
 use graphics::{color::COLOR_SILVER, draw::Draw, multi_layer};
 use log::error;
 use serial::ComPort;
-use util::{ascii::AsciiCode, logger};
+use util::{ascii::AsciiCode, hexdump, logger};
 
 #[no_mangle]
 #[start]
@@ -157,6 +157,12 @@ async fn exec_cmd(cmd: String) -> Result<()> {
             }
         }
         "ls" => println!("{:?}", vfs::cwd_file_names()),
+        "hexdump" => {
+            if args.len() >= 2 {
+                let file = vfs::read_file(args[1])?;
+                hexdump::hexdump(&file);
+            }
+        }
         "exec" => {
             if args.len() >= 2 {
                 exec::exec_elf(args[1], &args[2..])?;
