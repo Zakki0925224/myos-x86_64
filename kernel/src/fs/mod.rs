@@ -28,4 +28,9 @@ pub fn init(initramfs_virt_addr: VirtualAddress) {
         error!("fs: Failed to mount initramfs to VFS: {:?}", err);
     }
     info!("fs: Mounted initramfs to VFS");
+
+    let dirname = "/mnt/initramfs";
+    if let Err(err) = vfs::chdir(&dirname) {
+        error!("fs: Failed to chdir to {}: {:?}", dirname, err);
+    }
 }

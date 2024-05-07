@@ -85,9 +85,6 @@ impl VirtualFileSystem {
 
         let rootfs_id = FileId::new();
         let mnt_dir_id = FileId::new();
-        let test_file1_id = FileId::new();
-        let test_file2_id = FileId::new();
-        let test_file3_id = FileId::new();
 
         let root_fs = FileInfo {
             id: rootfs_id,
@@ -106,43 +103,10 @@ impl VirtualFileSystem {
             fs: None,
             name: String::from("mnt"),
             parent: Some(rootfs_id),
-            child: Some(test_file2_id),
-            next: Some(test_file1_id),
+            child: None,
+            next: None,
         };
         files.push(mnt_dir);
-
-        let test_file1 = FileInfo {
-            id: test_file1_id,
-            ty: FileType::File,
-            fs: None,
-            name: String::from("test file1"),
-            parent: Some(rootfs_id),
-            child: None,
-            next: None,
-        };
-        files.push(test_file1);
-
-        let test_file2 = FileInfo {
-            id: test_file2_id,
-            ty: FileType::File,
-            fs: None,
-            name: String::from("test file2"),
-            parent: Some(mnt_dir_id),
-            child: None,
-            next: Some(test_file3_id),
-        };
-        files.push(test_file2);
-
-        let test_file3 = FileInfo {
-            id: test_file3_id,
-            ty: FileType::File,
-            fs: None,
-            name: String::from("test file3"),
-            parent: Some(mnt_dir_id),
-            child: None,
-            next: None,
-        };
-        files.push(test_file3);
 
         Self {
             cwd_id: rootfs_id,

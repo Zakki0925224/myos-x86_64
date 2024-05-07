@@ -152,7 +152,7 @@ async fn exec_cmd(cmd: String) -> Result<()> {
         "exit" => qemu::exit(0),
         "break" => asm::int3(),
         "cd" => {
-            if args.len() >= 2 {
+            if args.len() == 2 {
                 vfs::chdir(args[1])?;
             }
         }
