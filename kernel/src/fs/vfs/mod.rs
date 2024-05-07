@@ -231,6 +231,35 @@ impl VirtualFileSystem {
         files
     }
 
+    pub fn cwd_path(&self) -> Result<String> {
+        let mut path = String::new();
+        let mut file_ref = match self.find_file(self.cwd_id) {
+            Some(f) => f,
+            None => return Err(VirtualFileSystemError::NoSuchFileOrDirectoryError.into()),
+        };
+        path = format!("{}", file_ref.name);
+
+        if file_ref.id == self.root_id {
+            return Ok(path);
+        }
+
+        while let Some(parent_file_id) = file_ref.parent {
+            file_ref = match self.find_file(parent_file_id) {
+                Some(f) => f,
+                None => return Err(VirtualFileSystemError::NoSuchFileOrDirectoryError.into()),
+            };
+
+            if file_ref.id == self.root_id {
+                path = format!("/{}", path);
+                break;
+            }
+
+            path = format!("{}{}{}", file_ref.name, PATH_SEPARATOR, path);
+        }
+
+        Ok(path)
+    }
+
     pub fn mount(&mut self, path: &str, fs: FileSystem) -> Result<()> {
         fn map_initramfs(mount_fs: &mut FileInfo) -> Vec<FileInfo> {
             let initramfs_ref = match &mut mount_fs.fs {
@@ -471,6 +500,18 @@ pub fn cwd_file_names() -> Result<Vec<String>> {
         if let Some(vfs) = vfs.as_mut() {
             let files = vfs.cwd_files();
             return Ok(files.iter().map(|f| f.name.clone()).collect());
+        }
+
+        return Err(VirtualFileSystemError::NotInitialized.into());
+    }
+
+    Err(MutexError::Locked.into())
+}
+
+pub fn cwd_path() -> Result<String> {
+    if let Ok(mut vfs) = unsafe { VFS.try_lock() } {
+        if let Some(vfs) = vfs.as_mut() {
+            return vfs.cwd_path();
         }
 
         return Err(VirtualFileSystemError::NotInitialized.into());

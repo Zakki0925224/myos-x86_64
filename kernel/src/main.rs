@@ -138,7 +138,9 @@ async fn serial_receive_task() {
         if let Err(err) = exec_cmd(cmd).await {
             error!("{:?}", err);
         }
-        print!("\n$> ");
+
+        let cwd_path = vfs::cwd_path().unwrap_or(String::from("<UNKNOWN>"));
+        print!("\n[{}]$ ", cwd_path);
     }
 }
 
