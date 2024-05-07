@@ -127,6 +127,7 @@ fn sys_sbrk(len: usize) -> Result<VirtualAddress> {
         mem_frame_info.frame_size,
         virt_addr.get()
     );
+    task::push_allocated_mem_frame_info_for_user_task(mem_frame_info)?;
     Ok(virt_addr)
 }
 

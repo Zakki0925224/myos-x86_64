@@ -152,11 +152,21 @@ struct Task {
     stack_mem_frame_info: MemoryFrameInfo,
     stack_size: usize,
     context: Context,
+    allocated_mem_frame_info: Vec<MemoryFrameInfo>,
 }
 
 impl Drop for Task {
     fn drop(&mut self) {
+        self.stack_mem_frame_info
+            .set_permissions_to_supervisor()
+            .unwrap();
         mem::bitmap::dealloc_mem_frame(self.stack_mem_frame_info).unwrap();
+
+        for mem_frame_info in &self.allocated_mem_frame_info {
+            mem_frame_info.set_permissions_to_supervisor().unwrap();
+            mem::bitmap::dealloc_mem_frame(*mem_frame_info).unwrap();
+        }
+
         info!("task: Dropped tid: {}", self.id.get());
     }
 }
@@ -190,6 +200,7 @@ impl Task {
             stack_mem_frame_info,
             stack_size,
             context,
+            allocated_mem_frame_info: Vec::new(),
         })
     }
 
@@ -271,6 +282,19 @@ pub fn exec_user_task(entry: extern "sysv64" fn(), file_name: &str, args: &[&str
     }
 
     Err(MutexError::Locked.into())
+}
+
+pub fn push_allocated_mem_frame_info_for_user_task(mem_frame_info: MemoryFrameInfo) -> Result<()> {
+    unsafe {
+        let user_task = USER_TASK.get_force_mut();
+        user_task
+            .as_mut()
+            .unwrap()
+            .allocated_mem_frame_info
+            .push(mem_frame_info);
+    }
+
+    Ok(())
 }
 
 pub fn return_to_kernel_task(exit_status: u64) {

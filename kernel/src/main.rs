@@ -156,7 +156,13 @@ async fn exec_cmd(cmd: String) -> Result<()> {
                 vfs::chdir(args[1])?;
             }
         }
-        "ls" => println!("{:?}", vfs::cwd_file_names()),
+        "ls" => {
+            let file_names = vfs::cwd_file_names()?;
+            for n in file_names {
+                print!("{} ", n);
+            }
+            println!();
+        }
         "hexdump" => {
             if args.len() >= 2 {
                 let file = vfs::read_file(args[1])?;
