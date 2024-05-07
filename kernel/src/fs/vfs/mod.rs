@@ -1,5 +1,9 @@
 use super::initramfs::Initramfs;
-use crate::{error::Result, fs::fat::dir_entry::Attribute};
+use crate::{
+    error::Result,
+    fs::fat::dir_entry::Attribute,
+    util::mutex::{Mutex, MutexError},
+};
 use alloc::{
     string::{String, ToString},
     vec::Vec,
@@ -9,6 +13,8 @@ use core::sync::atomic::{AtomicU64, Ordering};
 pub mod file_desc;
 
 const PATH_SEPARATOR: char = '/';
+
+static mut VFS: Mutex<Option<VirtualFileSystem>> = Mutex::new(None);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct FileId(u64);
@@ -61,12 +67,13 @@ pub struct FileInfo {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum VirtualFileSystemError {
+    NotInitialized,
     NoSuchFileOrDirectoryError,
     NotDirectoryError,
     NotFileError,
 }
 
-pub struct VirtualFileSystem {
+struct VirtualFileSystem {
     cwd_id: FileId,
     root_id: FileId,
     files: Vec<FileInfo>,
@@ -448,4 +455,74 @@ impl VirtualFileSystem {
 
 pub trait Api {
     fn mount(&mut self, mount_name: &str) -> (FileInfo, Vec<FileInfo>);
+}
+
+pub fn init() -> Result<()> {
+    if let Ok(mut vfs) = unsafe { VFS.try_lock() } {
+        *vfs = Some(VirtualFileSystem::new());
+        return Ok(());
+    }
+
+    Err(MutexError::Locked.into())
+}
+
+pub fn chroot(path: &str) -> Result<()> {
+    if let Ok(mut vfs) = unsafe { VFS.try_lock() } {
+        if let Some(vfs) = vfs.as_mut() {
+            return vfs.chroot(path);
+        }
+
+        return Err(VirtualFileSystemError::NotInitialized.into());
+    }
+
+    Err(MutexError::Locked.into())
+}
+
+pub fn chdir(path: &str) -> Result<()> {
+    if let Ok(mut vfs) = unsafe { VFS.try_lock() } {
+        if let Some(vfs) = vfs.as_mut() {
+            return vfs.chdir(path);
+        }
+
+        return Err(VirtualFileSystemError::NotInitialized.into());
+    }
+
+    Err(MutexError::Locked.into())
+}
+
+pub fn mount(path: &str, fs: FileSystem) -> Result<()> {
+    if let Ok(mut vfs) = unsafe { VFS.try_lock() } {
+        if let Some(vfs) = vfs.as_mut() {
+            return vfs.mount(path, fs);
+        }
+
+        return Err(VirtualFileSystemError::NotInitialized.into());
+    }
+
+    Err(MutexError::Locked.into())
+}
+
+pub fn cwd_file_names() -> Result<Vec<String>> {
+    if let Ok(mut vfs) = unsafe { VFS.try_lock() } {
+        if let Some(vfs) = vfs.as_mut() {
+            let files = vfs.cwd_files();
+            return Ok(files.iter().map(|f| f.name.clone()).collect());
+        }
+
+        return Err(VirtualFileSystemError::NotInitialized.into());
+    }
+
+    Err(MutexError::Locked.into())
+}
+
+pub fn read_file(path: &str) -> Result<Vec<u8>> {
+    if let Ok(mut vfs) = unsafe { VFS.try_lock() } {
+        if let Some(vfs) = vfs.as_mut() {
+            return vfs.read_file(path);
+        }
+
+        return Err(VirtualFileSystemError::NotInitialized.into());
+    }
+
+    Err(MutexError::Locked.into())
 }

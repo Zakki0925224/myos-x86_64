@@ -1,4 +1,4 @@
-use super::initramfs;
+use super::vfs;
 use crate::{
     arch::task,
     error::{Error, Result},
@@ -12,8 +12,8 @@ use common::elf::{self, Elf64, SegmentType};
 use core::mem;
 use log::info;
 
-pub fn exec_elf(file_name: &str, args: &[&str]) -> Result<()> {
-    let (_, elf_data) = initramfs::get_file(file_name)?;
+pub fn exec_elf(elf_path: &str, args: &[&str]) -> Result<()> {
+    let elf_data = vfs::read_file(elf_path)?;
     let elf64 = match Elf64::new(&elf_data) {
         Ok(e) => e,
         Err(err) => return Err(err.into()),
@@ -71,7 +71,7 @@ pub fn exec_elf(file_name: &str, args: &[&str]) -> Result<()> {
     }
 
     if let Some(entry) = entry {
-        let exit_code = task::exec_user_task(entry, file_name, args)?;
+        let exit_code = task::exec_user_task(entry, elf_path, args)?;
         info!("exec: Exited (code: {})", exit_code);
     } else {
         return Err(Error::Failed("Entry point was not found"));

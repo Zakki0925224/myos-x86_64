@@ -1,5 +1,3 @@
-use log::info;
-
 use super::{font::PsfFont, frame_buf, multi_layer};
 use crate::{
     error::Result,

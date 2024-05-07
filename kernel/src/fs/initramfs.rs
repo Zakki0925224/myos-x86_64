@@ -3,19 +3,10 @@ use super::fat::{
     FatType, FatVolume,
 };
 use crate::{
-    arch::addr::VirtualAddress,
     error::{Error, Result},
     fs::fat::dir_entry::LongFileNameEntry,
-    print, println,
-    util::{
-        self,
-        mutex::{Mutex, MutexError},
-    },
 };
 use alloc::{collections::VecDeque, string::String, vec::Vec};
-use log::info;
-
-static mut INITRAMFS: Mutex<Initramfs> = Mutex::new(Initramfs::new(2));
 
 #[derive(Debug, Clone)]
 pub struct FileMetaData {
@@ -48,8 +39,6 @@ impl Initramfs {
 
         self.root_cluster_num = fat_volume.root_cluster_num();
         self.current_cluster_num = fat_volume.root_cluster_num();
-
-        info!("initramfs: Initialized");
 
         self.fat_volume = Some(fat_volume);
         Ok(())
@@ -156,60 +145,4 @@ impl Initramfs {
     pub fn reset_cwd(&mut self) {
         self.current_cluster_num = self.root_cluster_num;
     }
-}
-
-pub fn init(initramfs_start_virt_addr: VirtualAddress) -> Result<()> {
-    let fat_volume = FatVolume::new(initramfs_start_virt_addr);
-    unsafe { INITRAMFS.try_lock() }.unwrap().init(fat_volume)?;
-    Ok(())
-}
-
-pub fn get_file(file_name: &str) -> Result<(FileMetaData, Vec<u8>)> {
-    if let Ok(initramfs) = unsafe { INITRAMFS.try_lock() } {
-        return initramfs.get_file(file_name);
-    }
-
-    Err(MutexError::Locked.into())
-}
-
-pub fn ls() -> Result<()> {
-    if let Ok(initramfs) = unsafe { INITRAMFS.try_lock() } {
-        let files = initramfs.scan_current_dir();
-        for f in files {
-            print!("{} ", f.name);
-        }
-        println!();
-
-        return Ok(());
-    }
-
-    Err(MutexError::Locked.into())
-}
-
-pub fn cd(dir_name: &str) -> Result<()> {
-    if let Ok(mut initramfs) = unsafe { INITRAMFS.try_lock() } {
-        return initramfs.cd(dir_name);
-    }
-
-    Err(MutexError::Locked.into())
-}
-
-pub fn cat(file_name: &str) -> Result<()> {
-    if let Ok(initramfs) = unsafe { INITRAMFS.try_lock() } {
-        let (_, file) = initramfs.get_file(file_name)?;
-        println!("{}", String::from_utf8_lossy(&file));
-        return Ok(());
-    }
-
-    Err(MutexError::Locked.into())
-}
-
-pub fn hexdump(file_name: &str) -> Result<()> {
-    if let Ok(initramfs) = unsafe { INITRAMFS.try_lock() } {
-        let (_, file) = initramfs.get_file(file_name)?;
-        util::hexdump::hexdump(&file);
-        return Ok(());
-    }
-
-    Err(MutexError::Locked.into())
 }

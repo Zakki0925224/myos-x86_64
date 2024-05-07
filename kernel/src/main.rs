@@ -28,16 +28,11 @@ use bus::pci;
 use common::boot_info::BootInfo;
 use device::console;
 use error::Result;
-use fs::{exec, initramfs, vfs::VirtualFileSystem};
+use fs::{exec, vfs};
 use graphics::{color::COLOR_SILVER, draw::Draw, multi_layer};
 use log::error;
 use serial::ComPort;
 use util::{ascii::AsciiCode, logger};
-
-use crate::{
-    fs::{fat::FatVolume, initramfs::Initramfs, vfs::FileSystem},
-    util::hexdump,
-};
 
 #[no_mangle]
 #[start]
@@ -85,31 +80,10 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
     // initialize device drivers
     device::init();
 
-    // initramfs
-    initramfs::init(boot_info.initramfs_start_virt_addr.into()).unwrap();
+    // initialize initramfs, VFS
+    fs::init(boot_info.initramfs_start_virt_addr.into());
 
     env::print_info();
-
-    let mut vfs = VirtualFileSystem::new();
-    let mut _initramfs = Initramfs::new(2);
-    _initramfs
-        .init(FatVolume::new(boot_info.initramfs_start_virt_addr.into()))
-        .unwrap();
-    vfs.mount("/mnt/initramfs", FileSystem::Initramfs(_initramfs))
-        .unwrap();
-
-    println!("{:?}", vfs.chdir("/mnt/initramfs/apps"));
-    println!(
-        "{:?}",
-        vfs.cwd_files()
-            .iter()
-            .map(|f| f.name.as_str())
-            .collect::<Vec<&str>>()
-    );
-    println!(
-        "{:?}",
-        hexdump::hexdump(&vfs.read_file("uname/uname.elf").unwrap())
-    );
 
     // tasks
     task::spawn(serial_receive_task()).unwrap();
@@ -177,17 +151,12 @@ async fn exec_cmd(cmd: String) -> Result<()> {
         "free" => mem::free(),
         "exit" => qemu::exit(0),
         "break" => asm::int3(),
-        "ls" => initramfs::ls()?,
         "cd" => {
-            if args.len() == 2 {
-                initramfs::cd(args[1])?;
+            if args.len() >= 2 {
+                vfs::chdir(args[1])?;
             }
         }
-        "cat" => {
-            if args.len() == 2 {
-                initramfs::cat(args[1])?;
-            }
-        }
+        "ls" => println!("{:?}", vfs::cwd_file_names()),
         "exec" => {
             if args.len() >= 2 {
                 exec::exec_elf(args[1], &args[2..])?;
@@ -199,11 +168,6 @@ async fn exec_cmd(cmd: String) -> Result<()> {
                 sample_window_layer.fill(COLOR_SILVER).unwrap();
                 multi_layer::push_layer(sample_window_layer).unwrap();
             });
-        }
-        "hexdump" => {
-            if args.len() == 2 {
-                initramfs::hexdump(args[1])?;
-            }
         }
         "" => (),
         cmd => error!("Command {:?} was not found", cmd),
