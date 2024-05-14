@@ -13,11 +13,15 @@ use core::mem;
 use log::info;
 
 pub fn exec_elf(elf_path: &str, args: &[&str]) -> Result<()> {
-    let elf_data = vfs::read_file(elf_path)?;
+    let fd_num = vfs::open_file(elf_path)?;
+
+    let elf_data = vfs::read_file(&fd_num)?;
     let elf64 = match Elf64::new(&elf_data) {
         Ok(e) => e,
         Err(err) => return Err(err.into()),
     };
+
+    vfs::close_file(&fd_num)?;
 
     let header = elf64.header();
 

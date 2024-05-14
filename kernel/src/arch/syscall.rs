@@ -52,7 +52,7 @@ extern "sysv64" fn syscall_handler(
     match arg0 {
         // write syscall
         1 => {
-            let fd = arg1 as FileDescriptorNumber;
+            let fd = FileDescriptorNumber::new_val(arg1 as u16);
             let s_ptr = arg2 as *const u8;
             let s_len = arg3 as usize;
             if let Err(err) = sys_write(fd, s_ptr, s_len) {
@@ -104,8 +104,7 @@ fn sys_write(fd: FileDescriptorNumber, s_ptr: *const u8, s_len: usize) -> Result
     let s = String::from_utf8_lossy(s_slice).to_string();
 
     match fd {
-        // stdout
-        1 => {
+        FileDescriptorNumber::STDOUT => {
             print!("{}", s);
         }
         _ => return Err(Error::Failed("fd is not defined")),

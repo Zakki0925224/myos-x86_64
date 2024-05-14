@@ -167,7 +167,9 @@ async fn exec_cmd(cmd: String) -> Result<()> {
         }
         "hexdump" => {
             if args.len() >= 2 {
-                let file = vfs::read_file(args[1])?;
+                let fd_num = vfs::open_file(args[1])?;
+                let file = vfs::read_file(&fd_num)?;
+                vfs::close_file(&fd_num)?;
                 hexdump::hexdump(&file);
             }
         }

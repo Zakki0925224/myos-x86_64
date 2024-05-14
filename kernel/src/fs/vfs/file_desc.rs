@@ -2,6 +2,8 @@ use core::sync::atomic::{AtomicU16, Ordering};
 
 use alloc::string::String;
 
+use super::FileId;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FileDescriptorNumber(u16);
 
@@ -34,5 +36,5 @@ pub enum Status {
 pub struct FileDescriptor {
     pub num: FileDescriptorNumber,
     pub status: Status,
-    pub file_path: String,
+    pub file_id: FileId,
 }

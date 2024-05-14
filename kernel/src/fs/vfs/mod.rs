@@ -1,5 +1,4 @@
 use self::file_desc::{FileDescriptor, FileDescriptorNumber};
-
 use super::initramfs::Initramfs;
 use crate::{
     error::Result,
@@ -11,6 +10,7 @@ use alloc::{
     vec::Vec,
 };
 use core::sync::atomic::{AtomicU64, Ordering};
+use log::info;
 
 pub mod file_desc;
 
@@ -73,7 +73,8 @@ pub enum VirtualFileSystemError {
     NoSuchFileOrDirectoryError,
     NotDirectoryError,
     NotFileError,
-    FileIsUsingError(FileDescriptorNumber),
+    BlockingFileResourceError(FileDescriptorNumber),
+    ReleasedFileResourceError(FileDescriptorNumber),
 }
 
 struct VirtualFileSystem {
@@ -120,19 +121,19 @@ impl VirtualFileSystem {
         }
     }
 
-    fn find_file(&self, id: FileId) -> Option<&FileInfo> {
+    fn find_file(&self, id: &FileId) -> Option<&FileInfo> {
         self.files.iter().find(|f| f.id.get() == id.get())
     }
 
-    fn find_file_mut(&mut self, id: FileId) -> Option<&mut FileInfo> {
+    fn find_file_mut(&mut self, id: &FileId) -> Option<&mut FileInfo> {
         self.files.iter_mut().find(|f| f.id.get() == id.get())
     }
 
     pub fn find_file_by_path(&self, path: &str) -> Option<&FileInfo> {
-        let mut file_ref = self.find_file(self.cwd_id)?;
+        let mut file_ref = self.find_file(&self.cwd_id)?;
 
         if path.starts_with(PATH_SEPARATOR) {
-            file_ref = self.find_file(self.root_id)?;
+            file_ref = self.find_file(&self.root_id)?;
         }
 
         for name in path.split(PATH_SEPARATOR) {
@@ -144,14 +145,14 @@ impl VirtualFileSystem {
                     }
 
                     let parent_file_id = file_ref.parent?;
-                    file_ref = self.find_file(parent_file_id)?;
+                    file_ref = self.find_file(&parent_file_id)?;
                     continue;
                 }
                 _ => (),
             }
 
             if let Some(child_file_id) = file_ref.child {
-                file_ref = self.find_file(child_file_id)?;
+                file_ref = self.find_file(&child_file_id)?;
             }
 
             if file_ref.name == name {
@@ -160,7 +161,7 @@ impl VirtualFileSystem {
 
             let mut found = false;
             while let Some(next_file_id) = file_ref.next {
-                file_ref = self.find_file(next_file_id)?;
+                file_ref = self.find_file(&next_file_id)?;
 
                 if file_ref.name == name {
                     found = true;
@@ -212,20 +213,20 @@ impl VirtualFileSystem {
 
     pub fn cwd_files(&mut self) -> Vec<&FileInfo> {
         let mut files = Vec::new();
-        let cwd_ref = match self.find_file(self.cwd_id) {
+        let cwd_ref = match self.find_file(&self.cwd_id) {
             Some(f) => f,
             None => return files,
         };
 
         if let Some(child_file_id) = cwd_ref.child {
-            let mut file_ref = match self.find_file(child_file_id) {
+            let mut file_ref = match self.find_file(&child_file_id) {
                 Some(f) => f,
                 None => return files,
             };
             files.push(file_ref);
 
             while let Some(next_file_id) = file_ref.next {
-                file_ref = match self.find_file(next_file_id) {
+                file_ref = match self.find_file(&next_file_id) {
                     Some(f) => f,
                     None => return files,
                 };
@@ -238,7 +239,7 @@ impl VirtualFileSystem {
 
     pub fn cwd_path(&self) -> Result<String> {
         let mut path = String::new();
-        let mut file_ref = match self.find_file(self.cwd_id) {
+        let mut file_ref = match self.find_file(&self.cwd_id) {
             Some(f) => f,
             None => return Err(VirtualFileSystemError::NoSuchFileOrDirectoryError.into()),
         };
@@ -249,7 +250,7 @@ impl VirtualFileSystem {
         }
 
         while let Some(parent_file_id) = file_ref.parent {
-            file_ref = match self.find_file(parent_file_id) {
+            file_ref = match self.find_file(&parent_file_id) {
                 Some(f) => f,
                 None => return Err(VirtualFileSystemError::NoSuchFileOrDirectoryError.into()),
             };
@@ -368,16 +369,15 @@ impl VirtualFileSystem {
         Ok(())
     }
 
-    // TODO
     pub fn open_file(&mut self, path: &str) -> Result<FileDescriptorNumber> {
-        if let Some(fd) = self.find_file_desc_by_path(path) {
-            return Err(VirtualFileSystemError::FileIsUsingError(fd.num).into());
-        }
-
         let file_ref = match self.find_file_by_path(path) {
             Some(f) => f,
             None => return Err(VirtualFileSystemError::NoSuchFileOrDirectoryError.into()),
         };
+
+        if let Some(fd) = self.find_fd_by_file_id(&file_ref.id) {
+            return Err(VirtualFileSystemError::BlockingFileResourceError(fd.num).into());
+        }
 
         if file_ref.ty != FileType::File {
             return Err(VirtualFileSystemError::NotFileError.into());
@@ -387,27 +387,35 @@ impl VirtualFileSystem {
         let fd = FileDescriptor {
             num: fd_num,
             status: file_desc::Status::Open,
-            file_path: path.to_string(),
+            file_id: file_ref.id,
         };
         self.file_descs.push(fd);
 
         Ok(fd_num)
     }
 
-    fn find_file_desc(&self, num: &FileDescriptorNumber) -> Option<&FileDescriptor> {
-        self.file_descs.iter().find(|fd| fd.num == *num)
+    pub fn close_file(&mut self, fd_num: &FileDescriptorNumber) -> Result<()> {
+        if self.find_fd(fd_num).is_none() {
+            return Err(VirtualFileSystemError::ReleasedFileResourceError(fd_num.clone()).into());
+        }
+
+        // remove file descriptor in self.file_descs
+        self.file_descs.retain(|fd| fd.num != *fd_num);
+
+        Ok(())
     }
 
-    fn find_file_desc_mut(&mut self, num: &FileDescriptorNumber) -> Option<&mut FileDescriptor> {
-        self.file_descs.iter_mut().find(|fd| fd.num == *num)
-    }
+    pub fn read_file(&mut self, fd_num: &FileDescriptorNumber) -> Result<Vec<u8>> {
+        let fd = match self.find_fd(fd_num) {
+            Some(f) => f,
+            None => {
+                return Err(
+                    VirtualFileSystemError::ReleasedFileResourceError(fd_num.clone()).into(),
+                )
+            }
+        };
 
-    fn find_file_desc_by_path(&self, path: &str) -> Option<&FileDescriptor> {
-        self.file_descs.iter().find(|fd| fd.file_path == path)
-    }
-
-    pub fn read_file(&mut self, path: &str) -> Result<Vec<u8>> {
-        let file_ref = match self.find_file_by_path_mut(path) {
+        let file_ref = match self.find_file_mut(&fd.file_id.clone()) {
             Some(f) => f,
             None => return Err(VirtualFileSystemError::NoSuchFileOrDirectoryError.into()),
         };
@@ -421,7 +429,7 @@ impl VirtualFileSystem {
         // TODO: if fs not found, loop infinity
         while let Some(parent_file_id) = fs_root_file_ref.parent {
             file_names_to_root_file.push(fs_root_file_ref.name.clone());
-            fs_root_file_ref = match self.find_file_mut(parent_file_id) {
+            fs_root_file_ref = match self.find_file_mut(&parent_file_id) {
                 Some(f) => f,
                 None => return Err(VirtualFileSystemError::NoSuchFileOrDirectoryError.into()),
             };
@@ -449,6 +457,18 @@ impl VirtualFileSystem {
         }
     }
 
+    fn find_fd(&self, num: &FileDescriptorNumber) -> Option<&FileDescriptor> {
+        self.file_descs.iter().find(|fd| fd.num == *num)
+    }
+
+    fn find_fd_mut(&mut self, num: &FileDescriptorNumber) -> Option<&mut FileDescriptor> {
+        self.file_descs.iter_mut().find(|fd| fd.num == *num)
+    }
+
+    fn find_fd_by_file_id(&self, file_id: &FileId) -> Option<&FileDescriptor> {
+        self.file_descs.iter().find(|fd| fd.file_id == *file_id)
+    }
+
     fn is_directory(&self, file_ref: &FileInfo) -> bool {
         file_ref.ty == FileType::Directory || file_ref.fs.is_some()
     }
@@ -468,13 +488,13 @@ impl VirtualFileSystem {
         target_file_ref.parent = Some(parent_dir_file_ref.id);
 
         if let Some(child_file_id) = parent_dir_file_ref.child {
-            let mut file_ref = match self.find_file_mut(child_file_id) {
+            let mut file_ref = match self.find_file_mut(&child_file_id) {
                 Some(f) => f,
                 None => return Err(VirtualFileSystemError::NoSuchFileOrDirectoryError.into()),
             };
 
             while let Some(next_file_id) = file_ref.next {
-                file_ref = match self.find_file_mut(next_file_id) {
+                file_ref = match self.find_file_mut(&next_file_id) {
                     Some(f) => f,
                     None => return Err(VirtualFileSystemError::NoSuchFileOrDirectoryError.into()),
                 };
@@ -487,10 +507,6 @@ impl VirtualFileSystem {
 
         Ok(())
     }
-}
-
-pub trait Api {
-    fn mount(&mut self, mount_name: &str) -> (FileInfo, Vec<FileInfo>);
 }
 
 pub fn init() -> Result<()> {
@@ -563,10 +579,38 @@ pub fn cwd_path() -> Result<String> {
     Err(MutexError::Locked.into())
 }
 
-pub fn read_file(path: &str) -> Result<Vec<u8>> {
+pub fn open_file(path: &str) -> Result<FileDescriptorNumber> {
     if let Ok(mut vfs) = unsafe { VFS.try_lock() } {
         if let Some(vfs) = vfs.as_mut() {
-            return vfs.read_file(path);
+            let fd_num = vfs.open_file(path)?;
+            info!("vfs: Generated file descriptor: {}", fd_num.get());
+            return Ok(fd_num);
+        }
+
+        return Err(VirtualFileSystemError::NotInitialized.into());
+    }
+
+    Err(MutexError::Locked.into())
+}
+
+pub fn close_file(fd_num: &FileDescriptorNumber) -> Result<()> {
+    if let Ok(mut vfs) = unsafe { VFS.try_lock() } {
+        if let Some(vfs) = vfs.as_mut() {
+            vfs.close_file(fd_num)?;
+            info!("vfs: Released file descriptor: {}", fd_num.get());
+            return Ok(());
+        }
+
+        return Err(VirtualFileSystemError::NotInitialized.into());
+    }
+
+    Err(MutexError::Locked.into())
+}
+
+pub fn read_file(fd_num: &FileDescriptorNumber) -> Result<Vec<u8>> {
+    if let Ok(mut vfs) = unsafe { VFS.try_lock() } {
+        if let Some(vfs) = vfs.as_mut() {
+            return vfs.read_file(fd_num);
         }
 
         return Err(VirtualFileSystemError::NotInitialized.into());
