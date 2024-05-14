@@ -1,3 +1,5 @@
+use self::file_desc::{FileDescriptor, FileDescriptorNumber};
+
 use super::initramfs::Initramfs;
 use crate::{
     error::Result,
@@ -21,7 +23,7 @@ struct FileId(u64);
 
 impl FileId {
     pub fn new() -> Self {
-        static NEXT_ID: AtomicU64 = AtomicU64::new(3);
+        static NEXT_ID: AtomicU64 = AtomicU64::new(0);
         Self(NEXT_ID.fetch_add(1, Ordering::Relaxed))
     }
 
@@ -71,12 +73,14 @@ pub enum VirtualFileSystemError {
     NoSuchFileOrDirectoryError,
     NotDirectoryError,
     NotFileError,
+    FileIsUsingError(FileDescriptorNumber),
 }
 
 struct VirtualFileSystem {
     cwd_id: FileId,
     root_id: FileId,
     files: Vec<FileInfo>,
+    file_descs: Vec<FileDescriptor>,
 }
 
 impl VirtualFileSystem {
@@ -112,6 +116,7 @@ impl VirtualFileSystem {
             cwd_id: rootfs_id,
             root_id: rootfs_id,
             files,
+            file_descs: Vec::new(),
         }
     }
 
@@ -361,6 +366,44 @@ impl VirtualFileSystem {
         self.files.push(mount_fs);
 
         Ok(())
+    }
+
+    // TODO
+    pub fn open_file(&mut self, path: &str) -> Result<FileDescriptorNumber> {
+        if let Some(fd) = self.find_file_desc_by_path(path) {
+            return Err(VirtualFileSystemError::FileIsUsingError(fd.num).into());
+        }
+
+        let file_ref = match self.find_file_by_path(path) {
+            Some(f) => f,
+            None => return Err(VirtualFileSystemError::NoSuchFileOrDirectoryError.into()),
+        };
+
+        if file_ref.ty != FileType::File {
+            return Err(VirtualFileSystemError::NotFileError.into());
+        }
+
+        let fd_num = FileDescriptorNumber::new();
+        let fd = FileDescriptor {
+            num: fd_num,
+            status: file_desc::Status::Open,
+            file_path: path.to_string(),
+        };
+        self.file_descs.push(fd);
+
+        Ok(fd_num)
+    }
+
+    fn find_file_desc(&self, num: &FileDescriptorNumber) -> Option<&FileDescriptor> {
+        self.file_descs.iter().find(|fd| fd.num == *num)
+    }
+
+    fn find_file_desc_mut(&mut self, num: &FileDescriptorNumber) -> Option<&mut FileDescriptor> {
+        self.file_descs.iter_mut().find(|fd| fd.num == *num)
+    }
+
+    fn find_file_desc_by_path(&self, path: &str) -> Option<&FileDescriptor> {
+        self.file_descs.iter().find(|fd| fd.file_path == path)
     }
 
     pub fn read_file(&mut self, path: &str) -> Result<Vec<u8>> {
