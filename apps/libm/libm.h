@@ -17,7 +17,7 @@
 #define FDN_STDOUT 1
 #define FDN_STDERR 2
 
-extern int64_t sys_write(uint16_t fd, const char *str, int len);
+extern int64_t sys_write(uint64_t fd, const char *str, int len);
 extern void sys_exit(uint64_t status);
 extern void *sys_sbrk(uint64_t len);
 extern int64_t sys_uname(struct utsname *buf);

@@ -1,11 +1,8 @@
-use core::sync::atomic::{AtomicU16, Ordering};
-
-use alloc::string::String;
-
 use super::FileId;
+use core::sync::atomic::{AtomicU64, Ordering};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct FileDescriptorNumber(u16);
+pub struct FileDescriptorNumber(u64);
 
 impl FileDescriptorNumber {
     pub const STDIN: Self = Self(0);
@@ -13,15 +10,15 @@ impl FileDescriptorNumber {
     pub const STDERR: Self = Self(2);
 
     pub fn new() -> Self {
-        static NEXT_NUM: AtomicU16 = AtomicU16::new(3);
+        static NEXT_NUM: AtomicU64 = AtomicU64::new(3);
         Self(NEXT_NUM.fetch_add(1, Ordering::Relaxed))
     }
 
-    pub const fn new_val(value: u16) -> Self {
+    pub const fn new_val(value: u64) -> Self {
         Self(value)
     }
 
-    pub fn get(&self) -> u16 {
+    pub fn get(&self) -> u64 {
         self.0
     }
 }

@@ -52,7 +52,7 @@ extern "sysv64" fn syscall_handler(
     match arg0 {
         // write syscall
         1 => {
-            let fd = FileDescriptorNumber::new_val(arg1 as u16);
+            let fd = FileDescriptorNumber::new_val(arg1);
             let s_ptr = arg2 as *const u8;
             let s_len = arg3 as usize;
             if let Err(err) = sys_write(fd, s_ptr, s_len) {

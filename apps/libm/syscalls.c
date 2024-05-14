@@ -19,7 +19,7 @@ static int64_t syscall(uint64_t syscall_number, uint64_t arg1, uint64_t arg2, ui
     return ret_val;
 }
 
-int64_t sys_write(uint16_t fd, const char *str, int len)
+int64_t sys_write(uint64_t fd, const char *str, int len)
 {
     return syscall(SN_WRITE, (uint64_t)fd, (uint64_t)str, (uint64_t)len, 0, 0);
 }
