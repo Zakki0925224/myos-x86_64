@@ -142,6 +142,7 @@ def task_build():
 def task_build_apps():
     d = f"./{APPS_DIR}"
     dirs = [f for f in os.listdir(d) if os.path.isdir(os.path.join(d, f))]
+    dirs.sort()
 
     for dir_name in dirs:
         pwd = f"{d}/{dir_name}"
