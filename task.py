@@ -3,6 +3,7 @@ import subprocess
 import sys
 
 APPS_DIR = "apps"
+APPS_LIBM_DIR = "libm"
 OUTPUT_DIR = "build"
 BOOTLOADER_DIR = "bootloader"
 KERNEL_DIR = "kernel"
@@ -143,6 +144,12 @@ def task_build_apps():
     d = f"./{APPS_DIR}"
     dirs = [f for f in os.listdir(d) if os.path.isdir(os.path.join(d, f))]
     dirs.sort()
+    dirs.remove(APPS_LIBM_DIR)
+
+    # compile libm
+    pwd = f"{d}/{APPS_LIBM_DIR}"
+    run_cmd("make clean", dir=pwd)
+    run_cmd("make", dir=pwd)
 
     for dir_name in dirs:
         pwd = f"{d}/{dir_name}"

@@ -7,9 +7,9 @@ use crate::{
     },
     env,
     error::{Error, Result},
-    fs::vfs::file_desc::FileDescriptorNumber,
+    fs::vfs::{self, file_desc::FileDescriptorNumber},
     mem::{bitmap, paging::PAGE_SIZE},
-    print,
+    print, println, util,
 };
 use alloc::string::{String, ToString};
 use common::libm::Utsname;
@@ -50,6 +50,16 @@ extern "sysv64" fn syscall_handler(
     info!("syscall: Called!(args: {:?})", args);
 
     match arg0 {
+        // read syscall
+        0 => {
+            let fd = FileDescriptorNumber::new_val(arg1);
+            let buf_addr = arg2.into();
+            let buf_len = arg3 as usize;
+            if let Err(err) = sys_read(fd, buf_addr, buf_len) {
+                error!("syscall: read: {:?}", err);
+                return -1;
+            }
+        }
         // write syscall
         1 => {
             let fd = FileDescriptorNumber::new_val(arg1);
@@ -57,6 +67,26 @@ extern "sysv64" fn syscall_handler(
             let s_len = arg3 as usize;
             if let Err(err) = sys_write(fd, s_ptr, s_len) {
                 error!("syscall: write: {:?}", err);
+                return -1;
+            }
+        }
+        // open syscall
+        2 => {
+            let filename_ptr = arg1 as *const u8;
+            let fd = match sys_open(filename_ptr) {
+                Ok(fd) => fd,
+                Err(err) => {
+                    error!("syscall: open: {:?}", err);
+                    return -1;
+                }
+            };
+            return fd.get() as i64;
+        }
+        // close syscall
+        3 => {
+            let fd = FileDescriptorNumber::new_val(arg1);
+            if let Err(err) = sys_close(fd) {
+                error!("syscall: close: {:?}", err);
                 return -1;
             }
         }
@@ -99,6 +129,27 @@ extern "sysv64" fn syscall_handler(
     0
 }
 
+fn sys_read(fd: FileDescriptorNumber, buf_addr: VirtualAddress, buf_len: usize) -> Result<()> {
+    match fd {
+        FileDescriptorNumber::STDIN
+        | FileDescriptorNumber::STDOUT
+        | FileDescriptorNumber::STDERR => {
+            return Err(Error::Failed("fd is not defined"));
+        }
+        fd => {
+            let data = vfs::read_file(&fd)?;
+
+            if buf_len < data.len() {
+                return Err(Error::Failed("buffer is too small"));
+            }
+
+            buf_addr.copy_from_nonoverlapping(data.as_ptr(), data.len());
+        }
+    }
+
+    Ok(())
+}
+
 fn sys_write(fd: FileDescriptorNumber, s_ptr: *const u8, s_len: usize) -> Result<()> {
     let s_slice = unsafe { slice::from_raw_parts(s_ptr, s_len) };
     let s = String::from_utf8_lossy(s_slice).to_string();
@@ -111,6 +162,15 @@ fn sys_write(fd: FileDescriptorNumber, s_ptr: *const u8, s_len: usize) -> Result
     }
 
     Ok(())
+}
+
+fn sys_open(filename_ptr: *const u8) -> Result<FileDescriptorNumber> {
+    let filename = unsafe { util::cstring::from_cstring_ptr(filename_ptr) };
+    vfs::open_file(&filename)
+}
+
+fn sys_close(fd: FileDescriptorNumber) -> Result<()> {
+    vfs::close_file(&fd)
 }
 
 fn sys_exit(status: u64) {
