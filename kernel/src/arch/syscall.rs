@@ -9,7 +9,7 @@ use crate::{
     error::{Error, Result},
     fs::vfs::{self, file_desc::FileDescriptorNumber},
     mem::{bitmap, paging::PAGE_SIZE},
-    print, println, util,
+    print, util,
 };
 use alloc::string::{String, ToString};
 use common::libm::Utsname;
@@ -52,7 +52,13 @@ extern "sysv64" fn syscall_handler(
     match arg0 {
         // read syscall
         0 => {
-            let fd = FileDescriptorNumber::new_val(arg1);
+            let fd = match FileDescriptorNumber::new_val(arg1 as i64) {
+                Ok(fd) => fd,
+                Err(err) => {
+                    error!("syscall: read: {:?}", err);
+                    return -1;
+                }
+            };
             let buf_addr = arg2.into();
             let buf_len = arg3 as usize;
             if let Err(err) = sys_read(fd, buf_addr, buf_len) {
@@ -62,7 +68,13 @@ extern "sysv64" fn syscall_handler(
         }
         // write syscall
         1 => {
-            let fd = FileDescriptorNumber::new_val(arg1);
+            let fd = match FileDescriptorNumber::new_val(arg1 as i64) {
+                Ok(fd) => fd,
+                Err(err) => {
+                    error!("syscall: write: {:?}", err);
+                    return -1;
+                }
+            };
             let s_ptr = arg2 as *const u8;
             let s_len = arg3 as usize;
             if let Err(err) = sys_write(fd, s_ptr, s_len) {
@@ -84,7 +96,13 @@ extern "sysv64" fn syscall_handler(
         }
         // close syscall
         3 => {
-            let fd = FileDescriptorNumber::new_val(arg1);
+            let fd = match FileDescriptorNumber::new_val(arg1 as i64) {
+                Ok(fd) => fd,
+                Err(err) => {
+                    error!("syscall: close: {:?}", err);
+                    return -1;
+                }
+            };
             if let Err(err) = sys_close(fd) {
                 error!("syscall: close: {:?}", err);
                 return -1;

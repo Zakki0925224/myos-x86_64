@@ -17,10 +17,10 @@
 #define FDN_STDOUT 1
 #define FDN_STDERR 2
 
-extern int64_t sys_read(uint64_t fd, void *buf, int buf_len);
-extern int64_t sys_write(uint64_t fd, const char *str, int len);
+extern int64_t sys_read(int64_t fd, void *buf, int buf_len);
+extern int64_t sys_write(int64_t fd, const char *str, int len);
 extern int64_t sys_open(const char *filepath);
-extern int64_t sys_close(uint64_t fd);
+extern int64_t sys_close(int64_t fd);
 extern void sys_exit(uint64_t status);
 extern void *sys_sbrk(uint64_t len);
 extern int64_t sys_uname(struct utsname *buf);

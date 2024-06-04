@@ -1,3 +1,5 @@
+use crate::error::{Error, Result};
+
 use super::FileId;
 use core::sync::atomic::{AtomicU64, Ordering};
 
@@ -14,8 +16,12 @@ impl FileDescriptorNumber {
         Self(NEXT_NUM.fetch_add(1, Ordering::Relaxed))
     }
 
-    pub const fn new_val(value: u64) -> Self {
-        Self(value)
+    pub const fn new_val(value: i64) -> Result<Self> {
+        if value < 0 {
+            return Err(Error::Failed("Invalid file descriptor number"));
+        }
+
+        Ok(Self(value as u64))
     }
 
     pub fn get(&self) -> u64 {
