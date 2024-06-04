@@ -28,7 +28,7 @@ use uefi::{
 
 #[entry]
 fn efi_main(handle: Handle, mut st: SystemTable<Boot>) -> Status {
-    uefi_services::init(&mut st).unwrap();
+    uefi::helpers::init(&mut st).unwrap();
     let bs = st.boot_services();
 
     info!("Running bootloader...");
@@ -52,7 +52,7 @@ fn efi_main(handle: Handle, mut st: SystemTable<Boot>) -> Status {
     info!("Exit boot services");
     let mut mem_map = Vec::with_capacity(128);
 
-    let (_, map) = st.exit_boot_services();
+    let (_, map) = st.exit_boot_services(MemoryType::RUNTIME_SERVICES_DATA);
 
     for desc in map.entries() {
         let ty = convert_mem_type(desc.ty);
@@ -187,7 +187,7 @@ fn init_graphic(bs: &BootServices, resolution: Option<(usize, usize)>) -> Graphi
 
     if let Some(resolution) = resolution {
         let mode = gop
-            .modes()
+            .modes(bs)
             .find(|mode| mode.info().resolution() == resolution)
             .unwrap();
 
