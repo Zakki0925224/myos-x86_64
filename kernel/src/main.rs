@@ -81,9 +81,26 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
     device::init();
 
     // initialize initramfs, VFS
-    fs::init(boot_info.initramfs_start_virt_addr.into());
+    fs::init(
+        boot_info.initramfs_start_virt_addr.into(),
+        &boot_info.kernel_config,
+    );
 
     env::print_info();
+
+    // execute init app
+    let init_app_exec_args = boot_info.kernel_config.init_app_exec_args;
+    if let Some(args) = init_app_exec_args {
+        let splited: Vec<&str> = args.split(" ").collect();
+
+        if splited.len() == 0 || splited[0] == "" {
+            error!("Invalid init app exec args: {:?}", args);
+        } else {
+            if let Err(err) = fs::exec::exec_elf(splited[0], &splited[1..]) {
+                error!("{:?}", err);
+            }
+        }
+    }
 
     // tasks
     task::spawn(serial_receive_task()).unwrap();

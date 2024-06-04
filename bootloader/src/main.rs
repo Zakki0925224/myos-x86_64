@@ -6,14 +6,15 @@ mod config;
 #[macro_use]
 extern crate alloc;
 
-use crate::config::DEFAULT_BOOT_CONFIG;
 use alloc::vec::Vec;
 use common::{
     boot_info::BootInfo,
     elf::{Elf64, SegmentType},
     graphic_info::{self, GraphicInfo},
+    kernel_config::KernelConfig,
     mem_desc::{self, UEFI_PAGE_SIZE},
 };
+use config::BootConfig;
 use core::{mem, slice::from_raw_parts_mut};
 use log::info;
 use uefi::{
@@ -34,7 +35,7 @@ fn efi_main(handle: Handle, mut st: SystemTable<Boot>) -> Status {
     info!("Running bootloader...");
 
     // load config
-    let config = DEFAULT_BOOT_CONFIG;
+    let config = BootConfig::default();
 
     // graphic info
     let graphic_info = init_graphic(bs, config.resolution);
@@ -70,11 +71,17 @@ fn efi_main(handle: Handle, mut st: SystemTable<Boot>) -> Status {
         });
     }
 
+    // set kernel config
+    let mut kernel_config = KernelConfig::default();
+    kernel_config.init_cwd_path = "/mnt/initramfs";
+    kernel_config.init_app_exec_args = Some("/mnt/initramfs/apps/uname/uname.elf -a");
+
     let bi = BootInfo::new(
         mem_map.as_slice(),
         graphic_info,
         initramfs_start_virt_addr,
         initramfs_page_cnt,
+        kernel_config,
     );
 
     jump_to_entry(kernel_entry_point_addr, &bi);

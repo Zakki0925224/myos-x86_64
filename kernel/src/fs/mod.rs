@@ -1,3 +1,4 @@
+use common::kernel_config::KernelConfig;
 use log::{error, info};
 
 use crate::{
@@ -10,7 +11,7 @@ pub mod fat;
 pub mod initramfs;
 pub mod vfs;
 
-pub fn init(initramfs_virt_addr: VirtualAddress) {
+pub fn init(initramfs_virt_addr: VirtualAddress, kernel_config: &KernelConfig) {
     if let Err(err) = vfs::init() {
         error!("fs: Failed to initialized VFS: {:?}", err);
     }
@@ -29,7 +30,7 @@ pub fn init(initramfs_virt_addr: VirtualAddress) {
     }
     info!("fs: Mounted initramfs to VFS");
 
-    let dirname = "/mnt/initramfs";
+    let dirname = kernel_config.init_cwd_path;
     if let Err(err) = vfs::chdir(&dirname) {
         error!("fs: Failed to chdir to {}: {:?}", dirname, err);
     }
