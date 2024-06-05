@@ -3,7 +3,7 @@ dump
 qemu_debug.log
 third-party/font.psf
 third-party/OVMF_VARS.fd
-initramfs/*
+initramfs/apps
 
 *.elf
 *.o

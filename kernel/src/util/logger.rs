@@ -6,11 +6,11 @@ use crate::{
     print,
 };
 
-const LOG_COLOR_ERROR: ColorCode = COLOR_RED;
-const LOG_COLOR_WARN: ColorCode = ColorCode::new(253, 126, 0); // orange
-const LOG_COLOR_INFO: ColorCode = COLOR_CYAN;
-const LOG_COLOR_DEBUG: ColorCode = COLOR_YELLOW;
-const LOG_COLOR_TRACE: ColorCode = COLOR_GREEN;
+const LOG_COLOR_ERROR: RgbColorCode = COLOR_RED;
+const LOG_COLOR_WARN: RgbColorCode = RgbColorCode::new(253, 126, 0); // orange
+const LOG_COLOR_INFO: RgbColorCode = COLOR_CYAN;
+const LOG_COLOR_DEBUG: RgbColorCode = COLOR_YELLOW;
+const LOG_COLOR_TRACE: RgbColorCode = COLOR_GREEN;
 
 static LOGGER: SimpleLogger = SimpleLogger;
 

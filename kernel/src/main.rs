@@ -28,9 +28,9 @@ use bus::pci;
 use common::boot_info::BootInfo;
 use device::console;
 use error::Result;
-use fs::{exec, vfs};
+use fs::{exec, file::bitmap::BitmapImage, vfs};
 use graphics::{
-    color::{ColorCode, COLOR_BLUE, COLOR_RED, COLOR_SILVER, COLOR_YELLOW},
+    color::{RgbColorCode, COLOR_BLUE, COLOR_RED, COLOR_SILVER, COLOR_YELLOW},
     draw::Draw,
     multi_layer,
 };
@@ -73,7 +73,7 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
 
     // initialize graphics shadow buffer and layer manager
     graphics::enable_shadow_buf();
-    graphics::init_layer_man(&boot_info.graphic_info, ColorCode::Rgb { r: 0, g: 0, b: 0 });
+    graphics::init_layer_man(&boot_info.graphic_info, RgbColorCode::default());
 
     // initialize syscall configurations
     syscall::init();
@@ -167,12 +167,17 @@ async fn poll_serial() {
 }
 
 async fn poll_ps2_mouse() {
-    fn create_cursor_layer() -> Result<usize> {
-        let mut cursor_layer = multi_layer::create_layer(0, 0, 5, 5)?;
-        cursor_layer.fill(COLOR_SILVER)?;
-        let cursor_layer_id = cursor_layer.id;
-        multi_layer::push_layer(cursor_layer)?;
-        Ok(cursor_layer_id)
+    fn create_pointer_layer() -> Result<usize> {
+        let pointer_bmp_fd = vfs::open_file("/mnt/initramfs/sys/mouse_pointer.bmp")?;
+        let pointer_bmp_data = vfs::read_file(&pointer_bmp_fd)?;
+        vfs::close_file(&pointer_bmp_fd)?;
+        let cursor_bmp = BitmapImage::new(&pointer_bmp_data);
+
+        let mut pointer_layer = multi_layer::create_layer_from_bitmap_image(0, 0, &cursor_bmp)?;
+        pointer_layer.always_on_top = true;
+        let pointer_layer_id = pointer_layer.id;
+        multi_layer::push_layer(pointer_layer)?;
+        Ok(pointer_layer_id)
     }
 
     let mut cursor_layer_id = None;
@@ -189,19 +194,19 @@ async fn poll_ps2_mouse() {
         if let Some(id) = cursor_layer_id {
             let _ = multi_layer::move_layer(id, mouse_event.x_pos, mouse_event.y_pos);
 
-            let cursor_color = if mouse_event.left {
-                COLOR_RED
-            } else if mouse_event.middle {
-                COLOR_BLUE
-            } else if mouse_event.right {
-                COLOR_YELLOW
-            } else {
-                COLOR_SILVER
-            };
+            // let cursor_color = if mouse_event.left {
+            //     COLOR_RED
+            // } else if mouse_event.middle {
+            //     COLOR_BLUE
+            // } else if mouse_event.right {
+            //     COLOR_YELLOW
+            // } else {
+            //     COLOR_SILVER
+            // };
 
-            let _ = multi_layer::draw_layer(id, |l| l.fill(cursor_color));
+            //let _ = multi_layer::draw_layer(id, |l| l.fill(cursor_color));
         } else {
-            let id = match create_cursor_layer() {
+            let id = match create_pointer_layer() {
                 Ok(id) => id,
                 Err(_) => {
                     task::exec_yield().await;

@@ -19,9 +19,9 @@ pub enum FrameBufferConsoleError {
 
 pub struct FrameBufferConsole {
     font: PsfFont,
-    back_color: ColorCode,
-    default_fore_color: ColorCode,
-    fore_color: ColorCode,
+    back_color: RgbColorCode,
+    default_fore_color: RgbColorCode,
+    fore_color: RgbColorCode,
     max_x_res: usize,
     max_y_res: usize,
     char_max_x_len: usize,
@@ -32,7 +32,7 @@ pub struct FrameBufferConsole {
 }
 
 impl FrameBufferConsole {
-    pub fn new(back_color: ColorCode, fore_color: ColorCode) -> Result<Self> {
+    pub fn new(back_color: RgbColorCode, fore_color: RgbColorCode) -> Result<Self> {
         let font = PsfFont::new()?;
         let max_x_res = frame_buf::get_stride()?;
         let max_y_res = frame_buf::get_resolution()?.1;
@@ -94,7 +94,7 @@ impl FrameBufferConsole {
         return self.init_console();
     }
 
-    pub fn set_fore_color(&mut self, fore_color: ColorCode) {
+    pub fn set_fore_color(&mut self, fore_color: RgbColorCode) {
         self.fore_color = fore_color;
     }
 
@@ -129,7 +129,7 @@ impl FrameBufferConsole {
         Ok(())
     }
 
-    fn draw_font(&self, x1: usize, y1: usize, c: char, color_code: ColorCode) -> Result<()> {
+    fn draw_font(&self, x1: usize, y1: usize, c: char, color_code: RgbColorCode) -> Result<()> {
         let glyph = match self
             .font
             .get_glyph(self.font.unicode_char_to_glyph_index(c))
@@ -209,7 +209,7 @@ impl FrameBufferConsole {
         Ok(())
     }
 
-    fn fill(&self, color_code: ColorCode) -> Result<()> {
+    fn fill(&self, color_code: RgbColorCode) -> Result<()> {
         if let Some(layer_id) = self.target_layer_id {
             multi_layer::draw_layer(layer_id, |l| l.fill(color_code))?;
         } else {
@@ -225,7 +225,7 @@ impl FrameBufferConsole {
         y: usize,
         width: usize,
         height: usize,
-        color_code: ColorCode,
+        color_code: RgbColorCode,
     ) -> Result<()> {
         if let Some(layer_id) = self.target_layer_id {
             multi_layer::draw_layer(layer_id, |l| l.draw_rect(x, y, width, height, color_code))?;
@@ -254,7 +254,7 @@ impl fmt::Write for FrameBufferConsole {
     }
 }
 
-pub fn init(back_color: ColorCode, fore_color: ColorCode) -> Result<()> {
+pub fn init(back_color: RgbColorCode, fore_color: RgbColorCode) -> Result<()> {
     if let Ok(mut frame_buf_console) = unsafe { FRAME_BUF_CONSOLE.try_lock() } {
         *frame_buf_console = match FrameBufferConsole::new(back_color, fore_color) {
             Ok(c) => Some(c),
@@ -280,7 +280,7 @@ pub fn set_target_layer_id(layer_id: usize) -> Result<()> {
     Err(MutexError::Locked.into())
 }
 
-pub fn set_fore_color(fore_color: ColorCode) -> Result<()> {
+pub fn set_fore_color(fore_color: RgbColorCode) -> Result<()> {
     if let Ok(mut frame_buf_console) = unsafe { FRAME_BUF_CONSOLE.try_lock() } {
         if let Some(frame_buf_console) = frame_buf_console.as_mut() {
             frame_buf_console.set_fore_color(fore_color);

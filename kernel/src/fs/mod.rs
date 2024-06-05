@@ -8,6 +8,7 @@ use crate::{
 
 pub mod exec;
 pub mod fat;
+pub mod file;
 pub mod initramfs;
 pub mod vfs;
 

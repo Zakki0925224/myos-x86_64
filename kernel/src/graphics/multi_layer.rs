@@ -1,6 +1,8 @@
-use super::{color::ColorCode, draw::Draw, frame_buf};
+use super::{color::RgbColorCode, draw::Draw, frame_buf};
 use crate::{
     error::Result,
+    fs::file::bitmap::BitmapImage,
+    println,
     util::mutex::{Mutex, MutexError},
 };
 use alloc::vec::Vec;
@@ -26,6 +28,7 @@ pub struct Layer {
     pub buf: Vec<u8>,
     pub disabled: bool,
     pub format: PixelFormat,
+    pub always_on_top: bool,
 }
 
 impl Draw for Layer {
@@ -35,7 +38,7 @@ impl Draw for Layer {
         y: usize,
         width: usize,
         height: usize,
-        color_code: ColorCode,
+        color_code: RgbColorCode,
     ) -> Result<()> {
         for y in y..y + height {
             for x in x..x + width {
@@ -46,7 +49,7 @@ impl Draw for Layer {
         Ok(())
     }
 
-    fn fill(&mut self, color_code: ColorCode) -> Result<()> {
+    fn fill(&mut self, color_code: RgbColorCode) -> Result<()> {
         for y in 0..self.height {
             for x in 0..self.width {
                 self.write(x, y, color_code)?;
@@ -63,12 +66,12 @@ impl Draw for Layer {
         Ok(())
     }
 
-    fn read(&self, x: usize, y: usize) -> Result<ColorCode> {
+    fn read(&self, x: usize, y: usize) -> Result<RgbColorCode> {
         let data = self.read_pixel(x, y)?;
-        Ok(ColorCode::from_pixel_data(data, self.format))
+        Ok(RgbColorCode::from_pixel_data(data, self.format))
     }
 
-    fn write(&mut self, x: usize, y: usize, color_code: ColorCode) -> Result<()> {
+    fn write(&mut self, x: usize, y: usize, color_code: RgbColorCode) -> Result<()> {
         self.write_pixel(x, y, color_code.to_color_code(self.format))
     }
 }
@@ -93,6 +96,7 @@ impl Layer {
             buf: vec![0; width * height * 4],
             disabled: false,
             format,
+            always_on_top: false,
         })
     }
 
@@ -162,11 +166,11 @@ impl Layer {
 
 struct LayerManager {
     layers: Vec<Layer>,
-    pub transparent_color: ColorCode,
+    pub transparent_color: RgbColorCode,
 }
 
 impl LayerManager {
-    pub fn new(transparent_color: ColorCode) -> Self {
+    pub fn new(transparent_color: RgbColorCode) -> Self {
         Self {
             layers: Vec::new(),
             transparent_color,
@@ -193,6 +197,9 @@ impl LayerManager {
     }
 
     pub fn draw_to_frame_buf(&mut self) -> Result<()> {
+        self.layers
+            .sort_by(|a, b| a.always_on_top.cmp(&b.always_on_top));
+
         for layer in &mut self.layers {
             if layer.disabled {
                 continue;
@@ -205,7 +212,7 @@ impl LayerManager {
     }
 }
 
-pub fn init(transparent_color: ColorCode) -> Result<()> {
+pub fn init(transparent_color: RgbColorCode) -> Result<()> {
     if let Ok(mut layer_man) = unsafe { LAYER_MAN.try_lock() } {
         *layer_man = Some(LayerManager::new(transparent_color));
         return Ok(());
@@ -217,6 +224,28 @@ pub fn init(transparent_color: ColorCode) -> Result<()> {
 pub fn create_layer(x: usize, y: usize, width: usize, height: usize) -> Result<Layer> {
     let format = frame_buf::get_format()?;
     let layer = Layer::new(x, y, width, height, format)?;
+
+    Ok(layer)
+}
+
+pub fn create_layer_from_bitmap_image(
+    x: usize,
+    y: usize,
+    bitmap_image: &BitmapImage,
+) -> Result<Layer> {
+    let bitmap_image_info_header = bitmap_image.info_header();
+    let bitmap_image_data = bitmap_image.bitmap()?;
+    let width = bitmap_image_info_header.width as usize;
+    let height = bitmap_image_info_header.height as usize;
+    let format = frame_buf::get_format()?;
+    let mut layer = Layer::new(x, y, width, height, format)?;
+
+    for y_pos in 0..height {
+        for x_pos in 0..width {
+            let pixel_data = bitmap_image_data[(height - 1 - y_pos) * width + x_pos];
+            layer.write_pixel(x_pos, y_pos, pixel_data.to_color_code(PixelFormat::Rgb))?;
+        }
+    }
 
     Ok(layer)
 }

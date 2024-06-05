@@ -1,4 +1,4 @@
-use super::{color::ColorCode, draw::Draw, multi_layer::Layer};
+use super::{color::RgbColorCode, draw::Draw, multi_layer::Layer};
 use crate::{
     arch::addr::*,
     error::Result,
@@ -37,7 +37,7 @@ impl Draw for FrameBuffer {
         y: usize,
         width: usize,
         height: usize,
-        color_code: ColorCode,
+        color_code: RgbColorCode,
     ) -> Result<()> {
         for y in y..y + height {
             for x in x..x + width {
@@ -48,7 +48,7 @@ impl Draw for FrameBuffer {
         Ok(())
     }
 
-    fn fill(&mut self, color_code: ColorCode) -> Result<()> {
+    fn fill(&mut self, color_code: RgbColorCode) -> Result<()> {
         let (max_x, max_y) = self.get_resolution();
         for y in 0..max_y {
             for x in 0..max_x {
@@ -66,12 +66,12 @@ impl Draw for FrameBuffer {
         Ok(())
     }
 
-    fn read(&self, x: usize, y: usize) -> Result<ColorCode> {
+    fn read(&self, x: usize, y: usize) -> Result<RgbColorCode> {
         let data = self.read_pixel(x, y)?;
-        Ok(ColorCode::from_pixel_data(data, self.format))
+        Ok(RgbColorCode::from_pixel_data(data, self.format))
     }
 
-    fn write(&mut self, x: usize, y: usize, color_code: ColorCode) -> Result<()> {
+    fn write(&mut self, x: usize, y: usize, color_code: RgbColorCode) -> Result<()> {
         self.write_pixel(x, y, color_code.to_color_code(self.format))
     }
 }
@@ -127,7 +127,7 @@ impl FrameBuffer {
     pub fn apply_layer_buf(
         &mut self,
         layer: &mut Layer,
-        transparent_color: ColorCode,
+        transparent_color: RgbColorCode,
     ) -> Result<()> {
         if layer.format != self.format {
             return Err(FrameBufferError::InvalidPixelFormatError {
@@ -269,7 +269,7 @@ pub fn draw_rect(
     y: usize,
     width: usize,
     height: usize,
-    color_code: ColorCode,
+    color_code: RgbColorCode,
 ) -> Result<()> {
     if let Ok(mut frame_buf) = unsafe { FRAME_BUF.try_lock() } {
         return frame_buf
@@ -289,7 +289,7 @@ pub fn copy(x: usize, y: usize, to_x: usize, to_y: usize) -> Result<()> {
     Err(MutexError::Locked.into())
 }
 
-pub fn fill(color_code: ColorCode) -> Result<()> {
+pub fn fill(color_code: RgbColorCode) -> Result<()> {
     if let Ok(mut frame_buf) = unsafe { FRAME_BUF.try_lock() } {
         return frame_buf.as_mut().unwrap().fill(color_code);
     }
@@ -307,7 +307,7 @@ pub fn enable_shadow_buf() -> Result<()> {
     Err(MutexError::Locked.into())
 }
 
-pub fn apply_layer_buf(layer: &mut Layer, transparent_color: ColorCode) -> Result<()> {
+pub fn apply_layer_buf(layer: &mut Layer, transparent_color: RgbColorCode) -> Result<()> {
     if let Ok(mut frame_buf) = unsafe { FRAME_BUF.try_lock() } {
         return frame_buf
             .as_mut()

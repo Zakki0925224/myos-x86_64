@@ -1,4 +1,4 @@
-use self::color::ColorCode;
+use self::color::RgbColorCode;
 use common::graphic_info::GraphicInfo;
 use log::{error, info};
 
@@ -9,7 +9,7 @@ pub mod frame_buf;
 pub mod frame_buf_console;
 pub mod multi_layer;
 
-pub fn init(graphic_info: &GraphicInfo, back_color: ColorCode, fore_color: ColorCode) {
+pub fn init(graphic_info: &GraphicInfo, back_color: RgbColorCode, fore_color: RgbColorCode) {
     if let Err(err) = frame_buf::init(graphic_info) {
         panic!("graphics: Failed to initialize frame buffer: {:?}", err);
     }
@@ -32,7 +32,7 @@ pub fn enable_shadow_buf() {
     info!("graphics: Enabled shadow buffer");
 }
 
-pub fn init_layer_man(graphic_info: &GraphicInfo, transparent_color: ColorCode) {
+pub fn init_layer_man(graphic_info: &GraphicInfo, transparent_color: RgbColorCode) {
     if let Err(err) = multi_layer::init(transparent_color) {
         error!("graphics: Failed to initialize layer manager: {:?}", err);
         return;
@@ -41,13 +41,14 @@ pub fn init_layer_man(graphic_info: &GraphicInfo, transparent_color: ColorCode) 
     info!("graphics: Initialized layer manager");
 
     let (res_x, res_y) = graphic_info.resolution;
-    let console_layer = match multi_layer::create_layer(0, 0, res_x as usize, res_y as usize / 2) {
-        Ok(l) => l,
-        Err(err) => {
-            error!("graphics: Failed to create the layer: {:?}", err);
-            return;
-        }
-    };
+    let console_layer =
+        match multi_layer::create_layer(0, 0, res_x as usize, res_y as usize * 3 / 4) {
+            Ok(l) => l,
+            Err(err) => {
+                error!("graphics: Failed to create the layer: {:?}", err);
+                return;
+            }
+        };
     let console_layer_id = console_layer.id;
 
     if let Err(err) = multi_layer::push_layer(console_layer) {

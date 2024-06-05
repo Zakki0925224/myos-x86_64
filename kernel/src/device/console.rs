@@ -25,8 +25,8 @@ static mut CONSOLE: Mutex<Console> = Mutex::new(Console::new(true));
 
 #[derive(Debug, Clone, Copy)]
 pub struct ConsoleCharacter {
-    pub back_color: ColorCode,
-    pub fore_color: ColorCode,
+    pub back_color: RgbColorCode,
+    pub fore_color: RgbColorCode,
     pub ascii_code: AsciiCode,
 }
 
@@ -76,11 +76,11 @@ impl Console {
         buf.reset_ptr();
     }
 
-    pub fn set_back_color(&mut self, back_color: ColorCode) {
+    pub fn set_back_color(&mut self, back_color: RgbColorCode) {
         self.buf_default_value.back_color = back_color;
     }
 
-    pub fn set_fore_color(&mut self, fore_color: ColorCode) {
+    pub fn set_fore_color(&mut self, fore_color: RgbColorCode) {
         self.buf_default_value.fore_color = fore_color;
     }
 
