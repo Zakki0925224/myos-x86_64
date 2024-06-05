@@ -54,7 +54,7 @@ impl Keyboard {
 
         if self.key_buf.enqueue(data).is_err() {
             self.reset_key_buf();
-            self.key_buf.enqueue(data).unwrap();
+            self.key_buf.enqueue(data)?;
         }
 
         let key_buf_ref = self.key_buf.get_buf_ref();

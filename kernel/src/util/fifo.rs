@@ -35,6 +35,13 @@ impl<T: Sized + Copy, const SIZE: usize> Fifo<T, SIZE> {
         self.write_ptr.store(0, Ordering::Relaxed);
     }
 
+    pub fn get_read_write_ptr(&self) -> (usize, usize) {
+        (
+            self.read_ptr.load(Ordering::Relaxed),
+            self.write_ptr.load(Ordering::Relaxed),
+        )
+    }
+
     pub fn enqueue(&mut self, value: T) -> Result<()> {
         let read_ptr = self.read_ptr.load(Ordering::Relaxed);
         let write_ptr = self.write_ptr.load(Ordering::Relaxed);

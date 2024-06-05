@@ -77,7 +77,7 @@ impl Draw for FrameBuffer {
 }
 
 impl FrameBuffer {
-    pub fn new(graphic_info: GraphicInfo) -> Self {
+    pub fn new(graphic_info: &GraphicInfo) -> Self {
         let resolution = (
             graphic_info.resolution.0 as usize,
             graphic_info.resolution.1 as usize,
@@ -124,7 +124,11 @@ impl FrameBuffer {
     }
 
     // no check disabled layer
-    pub fn apply_layer_buf(&mut self, layer: &Layer, transparent_color: ColorCode) -> Result<()> {
+    pub fn apply_layer_buf(
+        &mut self,
+        layer: &mut Layer,
+        transparent_color: ColorCode,
+    ) -> Result<()> {
         if layer.format != self.format {
             return Err(FrameBufferError::InvalidPixelFormatError {
                 _self: self.format,
@@ -134,7 +138,7 @@ impl FrameBuffer {
         }
 
         let (res_x, _) = self.get_resolution();
-        let layer_buf_ptr = layer.buf.as_ptr();
+        let layer_buf_ptr = layer.buf.as_mut_ptr();
         let frame_buf_ptr = if let Some(shadow_buf) = &mut self.shadow_buf {
             shadow_buf.as_mut_ptr()
         } else {
@@ -142,21 +146,19 @@ impl FrameBuffer {
         };
 
         let transparent_color = transparent_color.to_color_code(layer.format);
-
         for y in layer.y..layer.y + layer.height {
             let layer_buf_offset = (layer.width * (y - layer.y) * 4) as isize;
             let frame_buf_offset = ((res_x * y + layer.x) * 4) as isize;
 
             unsafe {
-                // TODO: replace transparent color to frame buf color
-                let buf_vec = slice::from_raw_parts(
+                let buf = slice::from_raw_parts_mut(
                     layer_buf_ptr.offset(layer_buf_offset).cast::<u32>(),
                     layer.width,
-                )
-                .to_vec();
+                );
 
-                // but hangged up in this code
-                // for (i, data) in buf_vec.iter_mut().enumerate() {
+                // TODO: replace transparent color to frame buf color
+                //but hangged up in this code
+                // for (i, data) in buf.iter_mut().enumerate() {
                 //     if *data == transparent_color {
                 //         *data = frame_buf_ptr
                 //             .offset(frame_buf_offset + (i as isize) * 4)
@@ -168,7 +170,7 @@ impl FrameBuffer {
                 frame_buf_ptr
                     .offset(frame_buf_offset)
                     .copy_from_nonoverlapping(
-                        buf_vec.as_ptr().cast::<u8>(),
+                        buf.as_ptr().cast::<u8>(),
                         layer.width.min(res_x - layer.x) * 4,
                     );
             }
@@ -229,7 +231,7 @@ impl FrameBuffer {
     }
 }
 
-pub fn init(graphic_info: GraphicInfo) -> Result<()> {
+pub fn init(graphic_info: &GraphicInfo) -> Result<()> {
     if let Ok(mut frame_buf) = unsafe { FRAME_BUF.try_lock() } {
         *frame_buf = Some(FrameBuffer::new(graphic_info));
         return Ok(());
@@ -305,7 +307,7 @@ pub fn enable_shadow_buf() -> Result<()> {
     Err(MutexError::Locked.into())
 }
 
-pub fn apply_layer_buf(layer: &Layer, transparent_color: ColorCode) -> Result<()> {
+pub fn apply_layer_buf(layer: &mut Layer, transparent_color: ColorCode) -> Result<()> {
     if let Ok(mut frame_buf) = unsafe { FRAME_BUF.try_lock() } {
         return frame_buf
             .as_mut()

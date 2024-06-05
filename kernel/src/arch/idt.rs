@@ -280,8 +280,7 @@ extern "x86-interrupt" fn ps2_keyboard_handler() {
 }
 
 extern "x86-interrupt" fn ps2_mouse_handler() {
-    let data = ps2_mouse::receive();
-    info!("ps2 mouse: 0x{:x}", data);
+    let _ = ps2_mouse::receive();
     pic_notify_end_of_int();
 }
 

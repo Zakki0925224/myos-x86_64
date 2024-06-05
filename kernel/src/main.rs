@@ -29,7 +29,11 @@ use common::boot_info::BootInfo;
 use device::console;
 use error::Result;
 use fs::{exec, vfs};
-use graphics::{color::COLOR_SILVER, draw::Draw, multi_layer};
+use graphics::{
+    color::{ColorCode, COLOR_BLUE, COLOR_RED, COLOR_SILVER, COLOR_YELLOW},
+    draw::Draw,
+    multi_layer,
+};
 use log::error;
 use serial::ComPort;
 use util::{ascii::AsciiCode, hexdump, logger};
@@ -53,7 +57,7 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
 
     // initialize frame buffer, console
     graphics::init(
-        boot_info.graphic_info,
+        &boot_info.graphic_info,
         (3, 26, 0).into(),
         (18, 202, 99).into(),
     );
@@ -68,8 +72,8 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
     idt::init_idt();
 
     // initialize graphics shadow buffer and layer manager
-    //graphics::enable_shadow_buf();
-    //graphics::init_layer_man(boot_info.graphic_info, ColorCode::Rgb { r: 0, g: 0, b: 0 });
+    graphics::enable_shadow_buf();
+    graphics::init_layer_man(&boot_info.graphic_info, ColorCode::Rgb { r: 0, g: 0, b: 0 });
 
     // initialize syscall configurations
     syscall::init();
@@ -78,7 +82,7 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
     bus::init();
 
     // initialize device drivers
-    device::init();
+    device::init(&boot_info.graphic_info);
 
     // initialize initramfs, VFS
     fs::init(
@@ -103,7 +107,8 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
     }
 
     // tasks
-    task::spawn(serial_receive_task()).unwrap();
+    task::spawn(poll_serial()).unwrap();
+    task::spawn(poll_ps2_mouse()).unwrap();
     task::run().unwrap();
 
     // unreachable?
@@ -112,7 +117,7 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
     }
 }
 
-async fn serial_receive_task() {
+async fn poll_serial() {
     loop {
         let ascii_code = match serial::receive_data() {
             Some(data) => match data.try_into() {
@@ -158,6 +163,55 @@ async fn serial_receive_task() {
 
         let cwd_path = vfs::cwd_path().unwrap_or(String::from("<UNKNOWN>"));
         print!("\n[{}]$ ", cwd_path);
+    }
+}
+
+async fn poll_ps2_mouse() {
+    fn create_cursor_layer() -> Result<usize> {
+        let mut cursor_layer = multi_layer::create_layer(0, 0, 5, 5)?;
+        cursor_layer.fill(COLOR_SILVER)?;
+        let cursor_layer_id = cursor_layer.id;
+        multi_layer::push_layer(cursor_layer)?;
+        Ok(cursor_layer_id)
+    }
+
+    let mut cursor_layer_id = None;
+
+    loop {
+        let mouse_event = match device::ps2_mouse::update() {
+            Ok(Some(e)) => e,
+            _ => {
+                task::exec_yield().await;
+                continue;
+            }
+        };
+
+        if let Some(id) = cursor_layer_id {
+            let _ = multi_layer::move_layer(id, mouse_event.x_pos, mouse_event.y_pos);
+
+            let cursor_color = if mouse_event.left {
+                COLOR_RED
+            } else if mouse_event.middle {
+                COLOR_BLUE
+            } else if mouse_event.right {
+                COLOR_YELLOW
+            } else {
+                COLOR_SILVER
+            };
+
+            let _ = multi_layer::draw_layer(id, |l| l.fill(cursor_color));
+        } else {
+            let id = match create_cursor_layer() {
+                Ok(id) => id,
+                Err(_) => {
+                    task::exec_yield().await;
+                    continue;
+                }
+            };
+            cursor_layer_id = Some(id);
+        }
+
+        task::exec_yield().await;
     }
 }
 

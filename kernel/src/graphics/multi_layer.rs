@@ -270,3 +270,17 @@ pub fn draw_layer<F: Fn(&mut dyn Draw) -> Result<()>>(layer_id: usize, draw: F) 
 
     Err(MutexError::Locked.into())
 }
+
+pub fn move_layer(layer_id: usize, to_x: usize, to_y: usize) -> Result<()> {
+    if let Ok(mut layer_man) = unsafe { LAYER_MAN.try_lock() } {
+        if let Some(layer_man) = layer_man.as_mut() {
+            let layer_inst = layer_man.get_layer(layer_id)?;
+            layer_inst.move_to(to_x, to_y)?;
+            return Ok(());
+        }
+
+        return Err(LayerError::LayerManagerNotInitialized.into());
+    }
+
+    Err(MutexError::Locked.into())
+}
