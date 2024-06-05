@@ -27,7 +27,7 @@ use arch::{apic, asm, context, gdt, idt, qemu, syscall, task};
 use bus::pci;
 use common::boot_info::BootInfo;
 use device::console;
-use error::Result;
+use error::{Error, Result};
 use fs::{exec, file::bitmap::BitmapImage, vfs};
 use graphics::{
     color::{RgbColorCode, COLOR_BLUE, COLOR_RED, COLOR_SILVER, COLOR_YELLOW},
@@ -172,6 +172,10 @@ async fn poll_ps2_mouse() {
         let pointer_bmp_data = vfs::read_file(&pointer_bmp_fd)?;
         vfs::close_file(&pointer_bmp_fd)?;
         let cursor_bmp = BitmapImage::new(&pointer_bmp_data);
+
+        if !cursor_bmp.is_valid() {
+            return Err(Error::Failed("Invalid bitmap image"));
+        }
 
         let mut pointer_layer = multi_layer::create_layer_from_bitmap_image(0, 0, &cursor_bmp)?;
         pointer_layer.always_on_top = true;

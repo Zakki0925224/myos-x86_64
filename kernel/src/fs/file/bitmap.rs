@@ -1,6 +1,8 @@
 use crate::{error::Error, graphics::color::RgbColorCode, Result};
 use core::{mem::size_of, slice};
 
+const MAGIC: [u8; 2] = *b"BM";
+
 #[derive(Debug)]
 #[repr(C, packed)]
 pub struct BitmapImageHeader {
@@ -42,6 +44,10 @@ impl<'a> BitmapImage<'a> {
     pub fn info_header(&self) -> &BitmapImageInfoHeader {
         let offset = size_of::<BitmapImageHeader>();
         unsafe { &*(self.data.as_ptr().add(offset) as *const BitmapImageInfoHeader) }
+    }
+
+    pub fn is_valid(&self) -> bool {
+        self.header().type_ == MAGIC
     }
 
     pub fn bitmap(&self) -> Result<&[RgbColorCode]> {
