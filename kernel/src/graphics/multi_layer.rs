@@ -242,7 +242,7 @@ pub fn create_layer_from_bitmap_image(
     for h in 0..height {
         for w in 0..width {
             let pixel_data = bitmap_image_data[h * width + w];
-            layer.write_pixel(w, h, pixel_data.to_color_code(PixelFormat::Rgb))?;
+            layer.write_pixel(w, h, pixel_data.to_color_code(PixelFormat::Bgr))?;
         }
     }
 
