@@ -2,7 +2,6 @@ use super::{color::RgbColorCode, draw::Draw, frame_buf};
 use crate::{
     error::Result,
     fs::file::bitmap::BitmapImage,
-    println,
     util::mutex::{Mutex, MutexError},
 };
 use alloc::vec::Vec;
@@ -234,16 +233,16 @@ pub fn create_layer_from_bitmap_image(
     bitmap_image: &BitmapImage,
 ) -> Result<Layer> {
     let bitmap_image_info_header = bitmap_image.info_header();
-    let bitmap_image_data = bitmap_image.bitmap()?;
+    let bitmap_image_data = bitmap_image.bitmap_to_rgb_color_code();
     let width = bitmap_image_info_header.width as usize;
     let height = bitmap_image_info_header.height as usize;
     let format = frame_buf::get_format()?;
     let mut layer = Layer::new(x, y, width, height, format)?;
 
-    for y_pos in 0..height {
-        for x_pos in 0..width {
-            let pixel_data = bitmap_image_data[(height - 1 - y_pos) * width + x_pos];
-            layer.write_pixel(x_pos, y_pos, pixel_data.to_color_code(PixelFormat::Rgb))?;
+    for h in 0..height {
+        for w in 0..width {
+            let pixel_data = bitmap_image_data[h * width + w];
+            layer.write_pixel(w, h, pixel_data.to_color_code(PixelFormat::Rgb))?;
         }
     }
 

@@ -1,5 +1,7 @@
-use crate::{error::Error, graphics::color::RgbColorCode, Result};
-use core::{mem::size_of, slice};
+use alloc::vec::Vec;
+
+use crate::graphics::color::RgbColorCode;
+use core::mem::size_of;
 
 const MAGIC: [u8; 2] = *b"BM";
 
@@ -50,24 +52,32 @@ impl<'a> BitmapImage<'a> {
         self.header().type_ == MAGIC
     }
 
-    pub fn bitmap(&self) -> Result<&[RgbColorCode]> {
-        let color_code_size = size_of::<RgbColorCode>();
-        let header = self.header();
-        let info_header = self.info_header();
-        let offset = header.offset as usize;
-        let bitmap_data = &self.data[offset..];
-        let num_pixels = bitmap_data.len() / color_code_size;
+    pub fn bitmap(&self) -> &[u8] {
+        let offset = self.header().offset as usize;
+        &self.data[offset..]
+    }
 
-        if info_header.bits_per_pixel as usize != color_code_size * 8
-            || info_header.width as usize * info_header.height as usize * color_code_size
-                > bitmap_data.len()
-        {
-            return Err(Error::Failed("Invalid bitmap data"));
+    pub fn bitmap_to_rgb_color_code(&self) -> Vec<RgbColorCode> {
+        let bitmap = self.bitmap();
+        let info_header = self.info_header();
+        let width = info_header.width.abs() as usize;
+        let height = info_header.height.abs() as usize;
+        let bits_per_pixel = info_header.bits_per_pixel as usize / 8;
+        let padding = (4 - (width * bits_per_pixel) % 4) % 4;
+        let mut data = Vec::new();
+
+        for y in 0..height {
+            for x in 0..width {
+                let offset = (height - y - 1) as usize
+                    * (width * bits_per_pixel + padding) as usize
+                    + x as usize * bits_per_pixel as usize;
+                let b = bitmap[offset];
+                let g = bitmap[offset + 1];
+                let r = bitmap[offset + 2];
+                data.push(RgbColorCode { r, g, b });
+            }
         }
 
-        let casted_data = unsafe {
-            slice::from_raw_parts(bitmap_data.as_ptr() as *const RgbColorCode, num_pixels)
-        };
-        Ok(casted_data)
+        data
     }
 }

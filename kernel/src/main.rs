@@ -30,9 +30,9 @@ use device::console;
 use error::{Error, Result};
 use fs::{exec, file::bitmap::BitmapImage, vfs};
 use graphics::{
-    color::{RgbColorCode, COLOR_BLUE, COLOR_RED, COLOR_SILVER, COLOR_YELLOW},
+    color::{RgbColorCode, COLOR_SILVER},
     draw::Draw,
-    multi_layer,
+    multi_layer::{self, Layer},
 };
 use log::error;
 use serial::ComPort;
@@ -177,7 +177,12 @@ async fn poll_ps2_mouse() {
             return Err(Error::Failed("Invalid bitmap image"));
         }
 
-        let mut pointer_layer = multi_layer::create_layer_from_bitmap_image(0, 0, &cursor_bmp)?;
+        let mut pointer_layer = multi_layer::create_layer_from_bitmap_image(0, 0, &cursor_bmp)
+            .unwrap_or({
+                let mut layer = multi_layer::create_layer(0, 0, 5, 14)?;
+                layer.fill(COLOR_SILVER)?;
+                layer
+            });
         pointer_layer.always_on_top = true;
         let pointer_layer_id = pointer_layer.id;
         multi_layer::push_layer(pointer_layer)?;
