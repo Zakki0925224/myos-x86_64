@@ -185,6 +185,8 @@ impl LayerManager {
             return Err(LayerError::InvalidLayerIdError(layer_id).into());
         }
 
+        self.layers.retain(|l| l.id != layer_id);
+
         Ok(())
     }
 
@@ -305,6 +307,18 @@ pub fn move_layer(layer_id: usize, to_x: usize, to_y: usize) -> Result<()> {
             let layer_inst = layer_man.get_layer(layer_id)?;
             layer_inst.move_to(to_x, to_y)?;
             return Ok(());
+        }
+
+        return Err(LayerError::LayerManagerNotInitialized.into());
+    }
+
+    Err(MutexError::Locked.into())
+}
+
+pub fn remove_layer(layer_id: usize) -> Result<()> {
+    if let Ok(mut layer_man) = unsafe { LAYER_MAN.try_lock() } {
+        if let Some(layer_man) = layer_man.as_mut() {
+            return layer_man.remove_layer(layer_id);
         }
 
         return Err(LayerError::LayerManagerNotInitialized.into());

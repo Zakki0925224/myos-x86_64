@@ -32,7 +32,7 @@ use fs::{exec, file::bitmap::BitmapImage, vfs};
 use graphics::{
     color::{RgbColorCode, COLOR_SILVER},
     draw::Draw,
-    multi_layer::{self, Layer},
+    multi_layer,
 };
 use log::error;
 use serial::ComPort;

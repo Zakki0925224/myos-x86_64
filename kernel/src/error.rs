@@ -10,7 +10,7 @@ use crate::{
     fs::vfs::VirtualFileSystemError,
     graphics::{
         frame_buf::FrameBufferError, frame_buf_console::FrameBufferConsoleError,
-        multi_layer::LayerError,
+        multi_layer::LayerError, simple_window_manager::SimpleWindowManagerError,
     },
     mem::{bitmap::BitmapMemoryManagerError, paging::PageManagerError},
     util::{ascii::AsciiCodeError, fifo::FifoError, mutex::MutexError},
@@ -35,101 +35,108 @@ pub enum Error {
     IndexOutOfBoundsError(usize),
     VirtualFileSystemError(VirtualFileSystemError),
     Elf64Error(Elf64Error),
+    SimpleWindowManagerError(SimpleWindowManagerError),
 }
 
 impl From<&'static str> for Error {
     fn from(s: &'static str) -> Self {
-        Error::Failed(s)
+        Self::Failed(s)
     }
 }
 
 impl From<MutexError> for Error {
     fn from(err: MutexError) -> Self {
-        Error::MutexError(err)
+        Self::MutexError(err)
     }
 }
 
 impl From<AsciiCodeError> for Error {
     fn from(err: AsciiCodeError) -> Self {
-        Error::AsciiCodeError(err)
+        Self::AsciiCodeError(err)
     }
 }
 
 impl From<FrameBufferError> for Error {
     fn from(err: FrameBufferError) -> Self {
-        Error::FrameBufferError(err)
+        Self::FrameBufferError(err)
     }
 }
 
 impl From<LayerError> for Error {
     fn from(err: LayerError) -> Self {
-        Error::LayerError(err)
+        Self::LayerError(err)
     }
 }
 
 impl From<FrameBufferConsoleError> for Error {
     fn from(err: FrameBufferConsoleError) -> Self {
-        Error::FrameBufferConsoleError(err)
+        Self::FrameBufferConsoleError(err)
     }
 }
 
 impl From<BitmapMemoryManagerError> for Error {
     fn from(err: BitmapMemoryManagerError) -> Self {
-        Error::BitmapMemoryManagerError(err)
+        Self::BitmapMemoryManagerError(err)
     }
 }
 
 impl From<PageManagerError> for Error {
     fn from(err: PageManagerError) -> Self {
-        Error::PageManagerError(err)
+        Self::PageManagerError(err)
     }
 }
 
 impl From<ConsoleError> for Error {
     fn from(err: ConsoleError) -> Self {
-        Error::ConsoleError(err)
+        Self::ConsoleError(err)
     }
 }
 
 impl From<UsbDriverError> for Error {
     fn from(err: UsbDriverError) -> Self {
-        Error::UsbDriverError(err)
+        Self::UsbDriverError(err)
     }
 }
 
 impl From<UsbDeviceError> for Error {
     fn from(err: UsbDeviceError) -> Self {
-        Error::UsbDeviceError(err)
+        Self::UsbDeviceError(err)
     }
 }
 
 impl From<XhcDriverError> for Error {
     fn from(err: XhcDriverError) -> Self {
-        Error::XhcDriverError(err)
+        Self::XhcDriverError(err)
     }
 }
 
 impl From<RingBufferError> for Error {
     fn from(err: RingBufferError) -> Self {
-        Error::RingBufferError(err)
+        Self::RingBufferError(err)
     }
 }
 
 impl From<FifoError> for Error {
     fn from(err: FifoError) -> Self {
-        Error::FifoError(err)
+        Self::FifoError(err)
     }
 }
 
 impl From<VirtualFileSystemError> for Error {
     fn from(err: VirtualFileSystemError) -> Self {
-        Error::VirtualFileSystemError(err)
+        Self::VirtualFileSystemError(err)
     }
 }
 
 impl From<Elf64Error> for Error {
     fn from(err: Elf64Error) -> Self {
-        Error::Elf64Error(err)
+        Self::Elf64Error(err)
+    }
+}
+
+impl From<SimpleWindowManagerError> for Error {
+    fn from(err: SimpleWindowManagerError) -> Self {
+        Self::SimpleWindowManagerError(err)
     }
 }
 

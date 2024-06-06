@@ -8,6 +8,7 @@ pub mod font;
 pub mod frame_buf;
 pub mod frame_buf_console;
 pub mod multi_layer;
+pub mod simple_window_manager;
 
 pub fn init(graphic_info: &GraphicInfo, back_color: RgbColorCode, fore_color: RgbColorCode) {
     if let Err(err) = frame_buf::init(graphic_info) {
