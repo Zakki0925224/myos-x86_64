@@ -67,3 +67,14 @@ pub fn init_layer_man(graphic_info: &GraphicInfo, transparent_color: RgbColorCod
         );
     }
 }
+
+pub fn init_simple_wm() {
+    if let Err(err) = simple_window_manager::init() {
+        error!(
+            "graphics: Failed to initialize simple window manager: {:?}",
+            err
+        );
+    }
+
+    info!("graphics: Initialized simple window manager");
+}

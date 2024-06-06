@@ -1,6 +1,5 @@
-use alloc::vec::Vec;
-
 use crate::graphics::color::RgbColorCode;
+use alloc::vec::Vec;
 use core::mem::size_of;
 
 const MAGIC: [u8; 2] = *b"BM";

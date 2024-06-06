@@ -1,11 +1,15 @@
-use super::{color::COLOR_SILVER, draw::Draw, multi_layer};
+use super::{
+    color::{COLOR_BLUE, COLOR_SILVER},
+    draw::Draw,
+    multi_layer::{self, LayerPositionInfo},
+};
 use crate::{
     device::ps2_mouse::MouseEvent,
     error::{Error, Result},
     fs::file::bitmap::BitmapImage,
     util::mutex::{Mutex, MutexError},
 };
-use alloc::vec::Vec;
+use alloc::{string::String, vec::Vec};
 
 static mut SIMPLE_WM: Mutex<Option<SimpleWindowManager>> = Mutex::new(None);
 
@@ -16,11 +20,12 @@ pub enum SimpleWindowManagerError {
 }
 
 struct Window {
-    x: usize,
-    y: usize,
-    width: usize,
-    height: usize,
-    layer_id: usize,
+    // x: usize,
+    // y: usize,
+    // width: usize,
+    // height: usize,
+    pub layer_id: usize,
+    pub title: String,
 }
 
 struct SimpleWindowManager {
@@ -64,7 +69,54 @@ impl SimpleWindowManager {
             Some(id) => id,
             None => return Err(SimpleWindowManagerError::MousePointerLayerWasNotFound.into()),
         };
+
+        // drag window
+        if mouse_event.left {
+            let LayerPositionInfo {
+                x: mouse_x,
+                y: mouse_y,
+                width: _,
+                height: _,
+            } = multi_layer::get_layer_pos_info(layer_id)?;
+
+            for w in self.windows.iter().rev() {
+                let LayerPositionInfo {
+                    x,
+                    y,
+                    width,
+                    height,
+                } = multi_layer::get_layer_pos_info(w.layer_id)?;
+
+                if mouse_x >= x && mouse_x <= x + width && mouse_y >= y && mouse_y <= y + height {
+                    multi_layer::move_layer(w.layer_id, mouse_event.x_pos, mouse_event.y_pos)?;
+                    break;
+                }
+            }
+        }
+
         multi_layer::move_layer(layer_id, mouse_event.x_pos, mouse_event.y_pos)?;
+
+        Ok(())
+    }
+
+    pub fn create_window(
+        &mut self,
+        title: String,
+        x: usize,
+        y: usize,
+        width: usize,
+        height: usize,
+    ) -> Result<()> {
+        let mut window_layer = multi_layer::create_layer(x, y, width, height)?;
+        window_layer.fill(COLOR_SILVER)?;
+        window_layer.draw_rect(0, 0, width, 20, COLOR_BLUE)?;
+        let window_layer_id = window_layer.id;
+        multi_layer::push_layer(window_layer)?;
+        let window = Window {
+            layer_id: window_layer_id,
+            title,
+        };
+        self.windows.push(window);
 
         Ok(())
     }
@@ -96,6 +148,17 @@ pub fn move_mouse_pointer(mouse_event: MouseEvent) -> Result<()> {
             .as_mut()
             .ok_or(SimpleWindowManagerError::NotInitialized)?
             .move_mouse_pointer(mouse_event)
+    } else {
+        Err(MutexError::Locked.into())
+    }
+}
+
+pub fn create_window(title: String, x: usize, y: usize, width: usize, height: usize) -> Result<()> {
+    if let Ok(mut simple_wm) = unsafe { SIMPLE_WM.try_lock() } {
+        simple_wm
+            .as_mut()
+            .ok_or(SimpleWindowManagerError::NotInitialized)?
+            .create_window(title, x, y, width, height)
     } else {
         Err(MutexError::Locked.into())
     }

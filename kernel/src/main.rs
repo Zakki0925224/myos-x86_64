@@ -22,18 +22,17 @@ mod util;
 #[macro_use]
 extern crate alloc;
 
-use alloc::{string::String, vec::Vec};
+use alloc::{
+    string::{String, ToString},
+    vec::Vec,
+};
 use arch::{apic, asm, context, gdt, idt, qemu, syscall, task};
 use bus::pci;
 use common::boot_info::BootInfo;
-use device::console;
-use error::{Error, Result};
+use device::{console, ps2_mouse};
+use error::Result;
 use fs::{exec, file::bitmap::BitmapImage, vfs};
-use graphics::{
-    color::{RgbColorCode, COLOR_SILVER},
-    draw::Draw,
-    multi_layer,
-};
+use graphics::{color::RgbColorCode, simple_window_manager};
 use log::error;
 use serial::ComPort;
 use util::{ascii::AsciiCode, hexdump, logger};
@@ -74,6 +73,8 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
     // initialize graphics shadow buffer and layer manager
     graphics::enable_shadow_buf();
     graphics::init_layer_man(&boot_info.graphic_info, RgbColorCode::default());
+    // initialize simple window manager
+    graphics::init_simple_wm();
 
     // initialize syscall configurations
     syscall::init();
@@ -167,32 +168,29 @@ async fn poll_serial() {
 }
 
 async fn poll_ps2_mouse() {
-    fn create_pointer_layer() -> Result<usize> {
-        let pointer_bmp_fd = vfs::open_file("/mnt/initramfs/sys/mouse_pointer.bmp")?;
-        let pointer_bmp_data = vfs::read_file(&pointer_bmp_fd)?;
-        vfs::close_file(&pointer_bmp_fd)?;
-        let cursor_bmp = BitmapImage::new(&pointer_bmp_data);
-
-        if !cursor_bmp.is_valid() {
-            return Err(Error::Failed("Invalid bitmap image"));
+    let mut is_created_mouse_pointer_layer = false;
+    let mouse_pointer_bmp_fd = match vfs::open_file("/mnt/initramfs/sys/mouse_pointer.bmp") {
+        Ok(fd) => fd,
+        Err(_) => {
+            error!("Failed to open mouse pointer bitmap");
+            return;
         }
-
-        let mut pointer_layer = multi_layer::create_layer_from_bitmap_image(0, 0, &cursor_bmp)
-            .unwrap_or({
-                let mut layer = multi_layer::create_layer(0, 0, 5, 14)?;
-                layer.fill(COLOR_SILVER)?;
-                layer
-            });
-        pointer_layer.always_on_top = true;
-        let pointer_layer_id = pointer_layer.id;
-        multi_layer::push_layer(pointer_layer)?;
-        Ok(pointer_layer_id)
+    };
+    let bmp_data = match vfs::read_file(&mouse_pointer_bmp_fd) {
+        Ok(data) => data,
+        Err(_) => {
+            error!("Failed to read mouse pointer bitmap");
+            return;
+        }
+    };
+    let pointer_bmp = BitmapImage::new(&bmp_data);
+    if vfs::close_file(&mouse_pointer_bmp_fd).is_err() {
+        error!("Failed to close mouse pointer bitmap");
+        return;
     }
 
-    let mut cursor_layer_id = None;
-
     loop {
-        let mouse_event = match device::ps2_mouse::update() {
+        let mouse_event = match ps2_mouse::update() {
             Ok(Some(e)) => e,
             _ => {
                 task::exec_yield().await;
@@ -200,31 +198,15 @@ async fn poll_ps2_mouse() {
             }
         };
 
-        if let Some(id) = cursor_layer_id {
-            let _ = multi_layer::move_layer(id, mouse_event.x_pos, mouse_event.y_pos);
-
-            // let cursor_color = if mouse_event.left {
-            //     COLOR_RED
-            // } else if mouse_event.middle {
-            //     COLOR_BLUE
-            // } else if mouse_event.right {
-            //     COLOR_YELLOW
-            // } else {
-            //     COLOR_SILVER
-            // };
-
-            //let _ = multi_layer::draw_layer(id, |l| l.fill(cursor_color));
-        } else {
-            let id = match create_pointer_layer() {
-                Ok(id) => id,
-                Err(_) => {
-                    task::exec_yield().await;
-                    continue;
-                }
-            };
-            cursor_layer_id = Some(id);
+        if !is_created_mouse_pointer_layer
+            && simple_window_manager::create_mouse_pointer_layer(&pointer_bmp).is_ok()
+        {
+            is_created_mouse_pointer_layer = true;
         }
 
+        if is_created_mouse_pointer_layer {
+            let _ = simple_window_manager::move_mouse_pointer(mouse_event);
+        }
         task::exec_yield().await;
     }
 }
@@ -264,11 +246,7 @@ async fn exec_cmd(cmd: String) -> Result<()> {
             }
         }
         "window" => {
-            asm::disabled_int_func(|| {
-                let mut sample_window_layer = multi_layer::create_layer(200, 50, 500, 300).unwrap();
-                sample_window_layer.fill(COLOR_SILVER).unwrap();
-                multi_layer::push_layer(sample_window_layer).unwrap();
-            });
+            let _ = simple_window_manager::create_window("".to_string(), 200, 50, 300, 200);
         }
         "" => (),
         cmd => error!("Command {:?} was not found", cmd),

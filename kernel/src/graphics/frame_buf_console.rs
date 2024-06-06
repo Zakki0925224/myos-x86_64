@@ -1,4 +1,8 @@
-use super::{font::PsfFont, frame_buf, multi_layer};
+use super::{
+    font::PsfFont,
+    frame_buf,
+    multi_layer::{self, LayerPositionInfo},
+};
 use crate::{
     error::Result,
     graphics::color::*,
@@ -56,9 +60,14 @@ impl FrameBufferConsole {
 
     pub fn init_console(&mut self) -> Result<()> {
         if let Some(layer_id) = self.target_layer_id {
-            let (x_res, y_res) = multi_layer::get_layer_resolution(layer_id)?;
-            self.max_x_res = x_res;
-            self.max_y_res = y_res;
+            let LayerPositionInfo {
+                x: _,
+                y: _,
+                width,
+                height,
+            } = multi_layer::get_layer_pos_info(layer_id)?;
+            self.max_x_res = width;
+            self.max_y_res = height;
             self.char_max_x_len = self.max_x_res / self.font.get_width() - 1;
             self.char_max_y_len = self.max_y_res / self.font.get_height() - 1;
         }

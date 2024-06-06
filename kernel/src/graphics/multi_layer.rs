@@ -17,13 +17,18 @@ pub enum LayerError {
     LayerManagerNotInitialized,
 }
 
-#[derive(Debug)]
-pub struct Layer {
-    pub id: usize,
+#[derive(Debug, Clone)]
+pub struct LayerPositionInfo {
     pub x: usize,
     pub y: usize,
     pub width: usize,
     pub height: usize,
+}
+
+#[derive(Debug)]
+pub struct Layer {
+    pub id: usize,
+    pub pos_info: LayerPositionInfo,
     pub buf: Vec<u8>,
     pub disabled: bool,
     pub format: PixelFormat,
@@ -49,8 +54,10 @@ impl Draw for Layer {
     }
 
     fn fill(&mut self, color_code: RgbColorCode) -> Result<()> {
-        for y in 0..self.height {
-            for x in 0..self.width {
+        let (width, height) = self.get_resolution();
+
+        for y in 0..height {
+            for x in 0..width {
                 self.write(x, y, color_code)?;
             }
         }
@@ -88,10 +95,12 @@ impl Layer {
 
         Ok(Self {
             id,
-            x,
-            y,
-            width,
-            height,
+            pos_info: LayerPositionInfo {
+                x,
+                y,
+                width,
+                height,
+            },
             buf: vec![0; width * height * 4],
             disabled: false,
             format,
@@ -99,31 +108,29 @@ impl Layer {
         })
     }
 
-    pub fn get_resolution(&self) -> (usize, usize) {
-        (self.width, self.height)
-    }
-
     pub fn move_to(&mut self, x: usize, y: usize) -> Result<()> {
-        let (res_x, res_y) = frame_buf::get_resolution()?;
+        // let (res_x, res_y) = frame_buf::get_resolution()?;
+        // let (width, height) = self.get_resolution();
 
-        if (x + self.width) > res_x || (y + self.height) > res_y {
-            return Err(LayerError::OutsideBufferAreaError {
-                layer_id: self.id,
-                x: x + self.width,
-                y: y + self.height,
-            }
-            .into());
-        }
+        // if (x + width) > res_x || (y + height) > res_y {
+        //     return Err(LayerError::OutsideBufferAreaError {
+        //         layer_id: self.id,
+        //         x: x + width,
+        //         y: y + height,
+        //     }
+        //     .into());
+        // }
 
-        self.x = x;
-        self.y = y;
+        self.pos_info.x = x;
+        self.pos_info.y = y;
         Ok(())
     }
 
     fn read_pixel(&self, x: usize, y: usize) -> Result<u32> {
-        let offset = (self.width * y + x) * 4;
+        let (width, height) = self.get_resolution();
+        let offset = (width * y + x) * 4;
 
-        if x >= self.width || y >= self.height {
+        if x >= width || y >= height {
             return Err(LayerError::OutsideBufferAreaError {
                 layer_id: self.id,
                 x,
@@ -143,9 +150,10 @@ impl Layer {
     }
 
     fn write_pixel(&mut self, x: usize, y: usize, data: u32) -> Result<()> {
-        let offset = (self.width * y + x) * 4;
+        let (width, height) = self.get_resolution();
+        let offset = (width * y + x) * 4;
 
-        if x >= self.width || y >= self.height {
+        if x >= width || y >= height {
             return Err(LayerError::OutsideBufferAreaError {
                 layer_id: self.id,
                 x,
@@ -160,6 +168,13 @@ impl Layer {
         self.buf[offset + 2] = c;
         self.buf[offset + 3] = d;
         Ok(())
+    }
+
+    fn get_resolution(&self) -> (usize, usize) {
+        let height = self.pos_info.height;
+        let width = self.pos_info.width;
+
+        (width, height)
     }
 }
 
@@ -211,6 +226,11 @@ impl LayerManager {
 
         Ok(())
     }
+
+    pub fn get_layer_pos_info(&mut self, layer_id: usize) -> Result<LayerPositionInfo> {
+        let layer = self.get_layer(layer_id)?;
+        Ok(layer.pos_info.clone())
+    }
 }
 
 pub fn init(transparent_color: RgbColorCode) -> Result<()> {
@@ -253,76 +273,70 @@ pub fn create_layer_from_bitmap_image(
 
 pub fn push_layer(layer: Layer) -> Result<()> {
     if let Ok(mut layer_man) = unsafe { LAYER_MAN.try_lock() } {
-        if let Some(layer_man) = layer_man.as_mut() {
-            layer_man.push_layer(layer);
-            return Ok(());
-        }
-
-        return Err(LayerError::LayerManagerNotInitialized.into());
+        layer_man
+            .as_mut()
+            .ok_or(LayerError::LayerManagerNotInitialized)?
+            .push_layer(layer);
+        Ok(())
+    } else {
+        Err(MutexError::Locked.into())
     }
-
-    Err(MutexError::Locked.into())
 }
 
 pub fn draw_to_frame_buf() -> Result<()> {
     if let Ok(mut layer_man) = unsafe { LAYER_MAN.try_lock() } {
-        if let Some(layer_man) = layer_man.as_mut() {
-            return layer_man.draw_to_frame_buf();
-        }
-
-        return Err(LayerError::LayerManagerNotInitialized.into());
+        layer_man
+            .as_mut()
+            .ok_or(LayerError::LayerManagerNotInitialized)?
+            .draw_to_frame_buf()
+    } else {
+        Err(MutexError::Locked.into())
     }
-
-    Err(MutexError::Locked.into())
-}
-
-pub fn get_layer_resolution(layer_id: usize) -> Result<(usize, usize)> {
-    if let Ok(mut layer_man) = unsafe { LAYER_MAN.try_lock() } {
-        if let Some(layer_man) = layer_man.as_mut() {
-            return Ok(layer_man.get_layer(layer_id)?.get_resolution());
-        }
-
-        return Err(LayerError::LayerManagerNotInitialized.into());
-    }
-
-    Err(MutexError::Locked.into())
 }
 
 pub fn draw_layer<F: Fn(&mut dyn Draw) -> Result<()>>(layer_id: usize, draw: F) -> Result<()> {
     if let Ok(mut layer_man) = unsafe { LAYER_MAN.try_lock() } {
-        if let Some(layer_man) = layer_man.as_mut() {
-            let layer_inst = layer_man.get_layer(layer_id)?;
-            return draw(layer_inst);
-        }
-
-        return Err(LayerError::LayerManagerNotInitialized.into());
+        draw(
+            layer_man
+                .as_mut()
+                .ok_or(LayerError::LayerManagerNotInitialized)?
+                .get_layer(layer_id)?,
+        )
+    } else {
+        Err(MutexError::Locked.into())
     }
-
-    Err(MutexError::Locked.into())
 }
 
 pub fn move_layer(layer_id: usize, to_x: usize, to_y: usize) -> Result<()> {
     if let Ok(mut layer_man) = unsafe { LAYER_MAN.try_lock() } {
-        if let Some(layer_man) = layer_man.as_mut() {
-            let layer_inst = layer_man.get_layer(layer_id)?;
-            layer_inst.move_to(to_x, to_y)?;
-            return Ok(());
-        }
-
-        return Err(LayerError::LayerManagerNotInitialized.into());
+        layer_man
+            .as_mut()
+            .ok_or(LayerError::LayerManagerNotInitialized)?
+            .get_layer(layer_id)?
+            .move_to(to_x, to_y)
+    } else {
+        Err(MutexError::Locked.into())
     }
-
-    Err(MutexError::Locked.into())
 }
 
 pub fn remove_layer(layer_id: usize) -> Result<()> {
     if let Ok(mut layer_man) = unsafe { LAYER_MAN.try_lock() } {
-        if let Some(layer_man) = layer_man.as_mut() {
-            return layer_man.remove_layer(layer_id);
-        }
-
-        return Err(LayerError::LayerManagerNotInitialized.into());
+        layer_man
+            .as_mut()
+            .ok_or(LayerError::LayerManagerNotInitialized)?
+            .remove_layer(layer_id)
+    } else {
+        Err(MutexError::Locked.into())
     }
+}
 
-    Err(MutexError::Locked.into())
+pub fn get_layer_pos_info(layer_id: usize) -> Result<LayerPositionInfo> {
+    if let Ok(mut layer_man) = unsafe { LAYER_MAN.try_lock() } {
+        layer_man
+            .as_mut()
+            .ok_or(LayerError::LayerManagerNotInitialized)?
+            .get_layer_pos_info(layer_id)
+    } else {
+        Err(MutexError::Locked.into())
+    }
 }

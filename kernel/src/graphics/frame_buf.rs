@@ -1,4 +1,8 @@
-use super::{color::RgbColorCode, draw::Draw, multi_layer::Layer};
+use super::{
+    color::RgbColorCode,
+    draw::Draw,
+    multi_layer::{Layer, LayerPositionInfo},
+};
 use crate::{
     arch::addr::*,
     error::Result,
@@ -146,14 +150,20 @@ impl FrameBuffer {
         };
 
         let transparent_color = transparent_color.to_color_code(layer.format);
-        for y in layer.y..layer.y + layer.height {
-            let layer_buf_offset = (layer.width * (y - layer.y) * 4) as isize;
-            let frame_buf_offset = ((res_x * y + layer.x) * 4) as isize;
+        let LayerPositionInfo {
+            x: layer_x,
+            y: layer_y,
+            width: layer_width,
+            height: layer_height,
+        } = layer.pos_info;
+        for y in layer_y..layer_y + layer_height {
+            let layer_buf_offset = (layer_width * (y - layer_y) * 4) as isize;
+            let frame_buf_offset = ((res_x * y + layer_x) * 4) as isize;
 
             unsafe {
                 let buf = slice::from_raw_parts_mut(
                     layer_buf_ptr.offset(layer_buf_offset).cast::<u32>(),
-                    layer.width,
+                    layer_width,
                 );
 
                 // TODO: replace transparent color to frame buf color
@@ -171,7 +181,7 @@ impl FrameBuffer {
                     .offset(frame_buf_offset)
                     .copy_from_nonoverlapping(
                         buf.as_ptr().cast::<u8>(),
-                        layer.width.min(res_x - layer.x) * 4,
+                        layer_width.min(res_x - layer_x) * 4,
                     );
             }
         }
