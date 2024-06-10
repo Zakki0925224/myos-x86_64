@@ -109,7 +109,7 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
 
     // tasks
     task::spawn(poll_serial()).unwrap();
-    task::spawn(poll_ps2_keyboard()).unwrap();
+    //task::spawn(poll_ps2_keyboard()).unwrap();
     task::spawn(poll_ps2_mouse()).unwrap();
     task::run().unwrap();
 
