@@ -158,18 +158,6 @@ impl Layer {
     }
 
     pub fn move_to(&mut self, x: usize, y: usize) -> Result<()> {
-        // let (res_x, res_y) = frame_buf::get_resolution()?;
-        // let (width, height) = self.get_resolution();
-
-        // if (x + width) > res_x || (y + height) > res_y {
-        //     return Err(LayerError::OutsideBufferAreaError {
-        //         layer_id: self.id,
-        //         x: x + width,
-        //         y: y + height,
-        //     }
-        //     .into());
-        // }
-
         self.pos_info.x = x;
         self.pos_info.y = y;
         Ok(())

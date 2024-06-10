@@ -70,15 +70,15 @@ impl SimpleWindowManager {
             None => return Err(SimpleWindowManagerError::MousePointerLayerWasNotFound.into()),
         };
 
+        let LayerPositionInfo {
+            x: mouse_x,
+            y: mouse_y,
+            width: _,
+            height: _,
+        } = multi_layer::get_layer_pos_info(layer_id)?;
+
         // drag window
         if mouse_event.left {
-            let LayerPositionInfo {
-                x: mouse_x,
-                y: mouse_y,
-                width: _,
-                height: _,
-            } = multi_layer::get_layer_pos_info(layer_id)?;
-
             for w in self.windows.iter().rev() {
                 let LayerPositionInfo {
                     x,

@@ -74,7 +74,7 @@ fn efi_main(handle: Handle, mut st: SystemTable<Boot>) -> Status {
     // set kernel config
     let mut kernel_config = KernelConfig::default();
     kernel_config.init_cwd_path = "/mnt/initramfs";
-    kernel_config.init_app_exec_args = Some("/mnt/initramfs/apps/uname/uname.elf -a");
+    //kernel_config.init_app_exec_args = Some("/mnt/initramfs/apps/uname/uname.elf -a");
 
     let bi = BootInfo::new(
         mem_map.as_slice(),

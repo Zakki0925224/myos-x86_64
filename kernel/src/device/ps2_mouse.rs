@@ -55,13 +55,17 @@ impl Mouse {
     }
 
     pub fn receive(&mut self, data: u8) -> Result<()> {
-        self.data_buf.enqueue(data)?;
+        if self.data_buf.enqueue(data).is_err() {
+            self.data_buf.reset_ptr();
+            self.data_buf.enqueue(data)?;
+        }
+
         Ok(())
     }
 
     pub fn read(&mut self) -> Result<Option<MouseEvent>> {
         fn is_valid_data_0(data: u8) -> bool {
-            data & 0xc8 == 0x08
+            data & 0x08 != 0
         }
 
         let data = self.data_buf.dequeue()?;
@@ -86,52 +90,57 @@ impl Mouse {
 
         if let (Some(data_0), Some(data_1), Some(data_2)) = (self.data_0, self.data_1, self.data_2)
         {
+            let mut x = self.x as isize;
+            let mut y = self.y as isize;
+
             let button_m = data_0 & 0x4 != 0;
             let button_r = data_0 & 0x2 != 0;
             let button_l = data_0 & 0x1 != 0;
-            let move_x = -(data_1 as i8);
-            let move_y = data_2 as i8;
 
-            // x
-            if move_x < 0 {
-                let move_x = -move_x as usize;
-                if self.x >= move_x {
-                    self.x -= move_x;
-                }
-            } else {
-                let move_x = move_x as usize;
-                if self.x + move_x < self.x_max {
-                    self.x += move_x;
-                }
+            let mut x_pos = data_1 as isize;
+            let mut y_pos = data_2 as isize;
+
+            let x_sign = data_0 & 0x10 != 0;
+            let y_sign = data_0 & 0x20 != 0;
+
+            if x_sign {
+                x_pos -= 0x100;
+            }
+            if y_sign {
+                y_pos -= 0x100;
             }
 
-            // y
-            if move_y < 0 {
-                let move_y = -move_y as usize;
-                if self.y >= move_y {
-                    self.y -= move_y;
-                }
+            x -= x_pos;
+            y += y_pos;
+
+            if x < 0 {
+                self.x = 0;
+            } else if x > self.x_max as isize - 1 {
+                self.x = self.x_max - 1;
             } else {
-                let move_y = move_y as usize;
-                if self.y + move_y < self.y_max {
-                    self.y += move_y;
-                }
+                self.x = x as usize;
             }
 
-            return Ok(Some(MouseEvent {
+            if y < 0 {
+                self.y = 0;
+            } else if y > self.y_max as isize - 1 {
+                self.y = self.y_max - 1;
+            } else {
+                self.y = y as usize;
+            }
+
+            let e = MouseEvent {
                 middle: button_m,
                 right: button_r,
                 left: button_l,
                 x_pos: self.x,
                 y_pos: self.y,
-            }));
+            };
+
+            return Ok(Some(e));
         }
 
         Ok(None)
-    }
-
-    fn reset_data_buf(&mut self) {
-        self.data_buf = Fifo::new(0);
     }
 }
 
