@@ -29,7 +29,7 @@ use alloc::{
 use arch::{apic, asm, context, gdt, idt, qemu, syscall, task};
 use bus::pci;
 use common::boot_info::BootInfo;
-use device::{console, ps2_mouse};
+use device::{console, ps2_keyboard, ps2_mouse};
 use error::Result;
 use fs::{exec, file::bitmap::BitmapImage, vfs};
 use graphics::{color::RgbColorCode, simple_window_manager};
@@ -49,7 +49,7 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
     apic::timer::start();
 
     // initialize serial
-    serial::init(ComPort::Com1);
+    serial::init(ComPort::Com1).unwrap();
 
     // initialize logger
     logger::init();
@@ -109,6 +109,7 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
 
     // tasks
     task::spawn(poll_serial()).unwrap();
+    task::spawn(poll_ps2_keyboard()).unwrap();
     task::spawn(poll_ps2_mouse()).unwrap();
     task::run().unwrap();
 
@@ -120,15 +121,15 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
 
 async fn poll_serial() {
     loop {
-        let ascii_code = match serial::receive_data() {
-            Some(data) => match data.try_into() {
+        let ascii_code = match serial::receive() {
+            Ok(Some(data)) => match data.try_into() {
                 Ok(c) => c,
                 Err(_) => {
                     task::exec_yield().await;
                     continue;
                 }
             },
-            None => {
+            _ => {
                 task::exec_yield().await;
                 continue;
             }
@@ -144,15 +145,8 @@ async fn poll_serial() {
         }
 
         let cmd = match console::input(ascii_code) {
-            Ok(s) => match s {
-                Some(s) => s,
-                None => {
-                    task::exec_yield().await;
-                    continue;
-                }
-            },
-            Err(_) => {
-                error!("Console is locked");
+            Ok(Some(s)) => s,
+            _ => {
                 task::exec_yield().await;
                 continue;
             }
@@ -164,6 +158,26 @@ async fn poll_serial() {
 
         let cwd_path = vfs::cwd_path().unwrap_or(String::from("<UNKNOWN>"));
         print!("\n[{}]$ ", cwd_path);
+
+        task::exec_yield().await;
+    }
+}
+
+async fn poll_ps2_keyboard() {
+    loop {
+        let key_evnet = match ps2_keyboard::get_event() {
+            Ok(Some(e)) => e,
+            _ => {
+                task::exec_yield().await;
+                continue;
+            }
+        };
+
+        if let Some(ascii_code) = key_evnet.ascii {
+            let _ = console::input(ascii_code);
+        }
+
+        task::exec_yield().await;
     }
 }
 
@@ -190,7 +204,7 @@ async fn poll_ps2_mouse() {
     }
 
     loop {
-        let mouse_event = match ps2_mouse::update() {
+        let mouse_event = match ps2_mouse::get_event() {
             Ok(Some(e)) => e,
             _ => {
                 task::exec_yield().await;

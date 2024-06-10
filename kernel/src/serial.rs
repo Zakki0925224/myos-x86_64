@@ -1,4 +1,8 @@
-use crate::{arch::addr::IoPortAddress, util::mutex::Mutex};
+use crate::{
+    arch::addr::IoPortAddress,
+    error::{Error, Result},
+    util::mutex::{Mutex, MutexError},
+};
 
 static mut SERIAL: Mutex<Option<SerialPort>> = Mutex::new(None);
 
@@ -20,7 +24,7 @@ struct SerialPort {
 }
 
 impl SerialPort {
-    pub fn new(com_port: ComPort) -> Option<Self> {
+    pub fn new(com_port: ComPort) -> Result<Self> {
         let io_port_addr = IoPortAddress::new(com_port as u32);
 
         io_port_addr.offset(1).out8(0x00); // IER - disable all interrupts
@@ -34,15 +38,14 @@ impl SerialPort {
         io_port_addr.offset(0).out8(0xae); // RBR - test the serial chip (send 0xae)
 
         if io_port_addr.offset(0).in8() != 0xae {
-            return None;
+            return Err(Error::Failed("Failed to initialize serial port"));
         }
 
         // if serial isn't faulty, set normal mode
         io_port_addr.offset(4).out8(0x0f);
-
         let serial = Self { io_port_addr };
 
-        Some(serial)
+        Ok(serial)
     }
 
     pub fn receive_data(&self) -> Option<u8> {
@@ -67,26 +70,35 @@ impl SerialPort {
     }
 }
 
-pub fn init(com_port: ComPort) {
+pub fn init(com_port: ComPort) -> Result<()> {
     if let Ok(mut serial) = unsafe { SERIAL.try_lock() } {
-        *serial = SerialPort::new(com_port);
+        *serial = Some(SerialPort::new(com_port)?);
+        return Ok(());
     }
+
+    Err(MutexError::Locked.into())
 }
 
-pub fn receive_data() -> Option<u8> {
+pub fn receive() -> Result<Option<u8>> {
     if let Ok(serial) = unsafe { SERIAL.try_lock() } {
-        if let Some(serial) = serial.as_ref() {
-            return serial.receive_data();
-        }
+        let data = serial
+            .as_ref()
+            .ok_or(Error::Failed("Serial port was not initialized"))?
+            .receive_data();
+        return Ok(data);
     }
 
-    None
+    Err(MutexError::Locked.into())
 }
 
-pub fn send_data(data: u8) {
+pub fn send(data: u8) -> Result<()> {
     if let Ok(serial) = unsafe { SERIAL.try_lock() } {
-        if let Some(serial) = serial.as_ref() {
-            serial.send_data(data);
-        }
+        serial
+            .as_ref()
+            .ok_or(Error::Failed("Serial port was not initialized"))?
+            .send_data(data);
+        return Ok(());
     }
+
+    Err(MutexError::Locked.into())
 }

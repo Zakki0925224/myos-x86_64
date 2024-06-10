@@ -273,9 +273,7 @@ extern "x86-interrupt" fn local_apic_timer_handler() {
 }
 
 extern "x86-interrupt" fn ps2_keyboard_handler() {
-    if let Err(err) = ps2_keyboard::receive() {
-        error!("ps2 kbd: {:?}", err);
-    }
+    let _ = ps2_keyboard::receive();
     pic_notify_end_of_int();
 }
 

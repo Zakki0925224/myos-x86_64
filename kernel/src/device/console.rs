@@ -112,7 +112,7 @@ impl Console {
         if (buf_type == BufferType::Output || buf_type == BufferType::ErrorOutput)
             && self.use_serial_port
         {
-            serial::send_data(value.ascii_code as u8);
+            serial::send(value.ascii_code as u8)?;
         }
 
         Ok(())

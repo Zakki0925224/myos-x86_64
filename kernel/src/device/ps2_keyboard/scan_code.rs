@@ -109,6 +109,24 @@ pub enum KeyCode {
     Slash,        // / p: 0x35, r: 0xb5
 }
 
+impl KeyCode {
+    pub fn is_shift(&self) -> bool {
+        *self == KeyCode::LShift || *self == KeyCode::RShift
+    }
+
+    pub fn is_ctrl(&self) -> bool {
+        *self == KeyCode::LCtrl || *self == KeyCode::RCtrl
+    }
+
+    pub fn is_gui(&self) -> bool {
+        *self == KeyCode::LGui || *self == KeyCode::RGui
+    }
+
+    pub fn is_alt(&self) -> bool {
+        *self == KeyCode::LAlt || *self == KeyCode::RAlt
+    }
+}
+
 // https://wiki.osdev.org/PS2_Keyboard
 // scan code set 1
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]

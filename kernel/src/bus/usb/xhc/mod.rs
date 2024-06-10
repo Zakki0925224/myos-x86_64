@@ -8,9 +8,7 @@ use super::device::*;
 use crate::{
     arch::{addr::*, apic::local_apic_id, idt::VEC_XHCI_INT, register::msi::*},
     bus::{
-        pci::{
-            self, conf_space::BaseAddress, device::PciDeviceFunctions, device_id::PCI_USB_XHCI_ID,
-        },
+        pci::{self, conf_space::BaseAddress, device_id::PCI_USB_XHCI_ID},
         usb::xhc::{port::ConfigState, register::*},
     },
     error::Result,
@@ -883,20 +881,17 @@ pub fn init() -> Result<()> {
 
 pub fn start() -> Result<()> {
     if let Ok(mut xhc_driver) = unsafe { XHC_DRIVER.try_lock() } {
-        if let Some(xhc_driver) = xhc_driver.as_mut() {
-            return xhc_driver.start();
-        }
-
-        return Err(XhcDriverError::NotInitialized.into());
+        return xhc_driver
+            .as_mut()
+            .ok_or(XhcDriverError::NotInitialized)?
+            .start();
     }
 
     Err(MutexError::Locked.into())
 }
 pub fn find_port_by_slot_id(slot_id: usize) -> Option<Port> {
     if let Ok(mut xhc_driver) = unsafe { XHC_DRIVER.try_lock() } {
-        if let Some(xhc_driver) = xhc_driver.as_mut() {
-            return xhc_driver.find_port_by_slot_id(slot_id);
-        }
+        return xhc_driver.as_mut()?.find_port_by_slot_id(slot_id);
     }
 
     None
@@ -904,9 +899,7 @@ pub fn find_port_by_slot_id(slot_id: usize) -> Option<Port> {
 
 pub fn read_device_context(slot_id: usize) -> Option<DeviceContext> {
     if let Ok(xhc_driver) = unsafe { XHC_DRIVER.try_lock() } {
-        if let Some(xhc_driver) = xhc_driver.as_ref() {
-            return xhc_driver.read_device_context(slot_id);
-        }
+        return xhc_driver.as_ref()?.read_device_context(slot_id);
     }
 
     None
@@ -914,11 +907,10 @@ pub fn read_device_context(slot_id: usize) -> Option<DeviceContext> {
 
 pub fn push_cmd_ring(trb: TransferRequestBlock) -> Result<()> {
     if let Ok(mut xhc_driver) = unsafe { XHC_DRIVER.try_lock() } {
-        if let Some(xhc_driver) = xhc_driver.as_mut() {
-            return xhc_driver.push_cmd_ring(trb);
-        }
-
-        return Err(XhcDriverError::NotInitialized.into());
+        return xhc_driver
+            .as_mut()
+            .ok_or(XhcDriverError::NotInitialized)?
+            .push_cmd_ring(trb);
     }
 
     Err(MutexError::Locked.into())
@@ -926,12 +918,11 @@ pub fn push_cmd_ring(trb: TransferRequestBlock) -> Result<()> {
 
 pub fn ring_doorbell(index: usize, value: u8) -> Result<()> {
     if let Ok(xhc_driver) = unsafe { XHC_DRIVER.try_lock() } {
-        if let Some(xhc_driver) = xhc_driver.as_ref() {
-            xhc_driver.ring_doorbell(index, value);
-            return Ok(());
-        }
-
-        return Err(XhcDriverError::NotInitialized.into());
+        xhc_driver
+            .as_ref()
+            .ok_or(XhcDriverError::NotInitialized)?
+            .ring_doorbell(index, value);
+        return Ok(());
     }
 
     Err(MutexError::Locked.into())
@@ -939,11 +930,10 @@ pub fn ring_doorbell(index: usize, value: u8) -> Result<()> {
 
 pub fn scan_ports() -> Result<Vec<usize>> {
     if let Ok(mut xhc_driver) = unsafe { XHC_DRIVER.try_lock() } {
-        if let Some(xhc_driver) = xhc_driver.as_mut() {
-            return xhc_driver.scan_ports();
-        }
-
-        return Err(XhcDriverError::NotInitialized.into());
+        return xhc_driver
+            .as_mut()
+            .ok_or(XhcDriverError::NotInitialized)?
+            .scan_ports();
     }
 
     Err(MutexError::Locked.into())
@@ -951,11 +941,10 @@ pub fn scan_ports() -> Result<Vec<usize>> {
 
 pub fn reset_port(port_id: usize) -> Result<()> {
     if let Ok(mut xhc_driver) = unsafe { XHC_DRIVER.try_lock() } {
-        if let Some(xhc_driver) = xhc_driver.as_mut() {
-            return xhc_driver.reset_port(port_id);
-        }
-
-        return Err(XhcDriverError::NotInitialized.into());
+        return xhc_driver
+            .as_mut()
+            .ok_or(XhcDriverError::NotInitialized)?
+            .reset_port(port_id);
     }
 
     Err(MutexError::Locked.into())
@@ -963,11 +952,10 @@ pub fn reset_port(port_id: usize) -> Result<()> {
 
 pub fn alloc_address_to_device(port_id: usize) -> Result<UsbDevice> {
     if let Ok(mut xhc_driver) = unsafe { XHC_DRIVER.try_lock() } {
-        if let Some(xhc_driver) = xhc_driver.as_mut() {
-            return xhc_driver.alloc_address_to_device(port_id);
-        }
-
-        return Err(XhcDriverError::NotInitialized.into());
+        return xhc_driver
+            .as_mut()
+            .ok_or(XhcDriverError::NotInitialized)?
+            .alloc_address_to_device(port_id);
     }
 
     Err(MutexError::Locked.into())
@@ -975,12 +963,11 @@ pub fn alloc_address_to_device(port_id: usize) -> Result<UsbDevice> {
 
 pub fn on_updated_event_ring() -> Result<()> {
     if let Ok(mut xhc_driver) = unsafe { XHC_DRIVER.try_lock() } {
-        if let Some(xhc_driver) = xhc_driver.as_mut() {
-            xhc_driver.on_updated_event_ring();
-            return Ok(());
-        }
-
-        return Err(XhcDriverError::NotInitialized.into());
+        xhc_driver
+            .as_mut()
+            .ok_or(XhcDriverError::NotInitialized)?
+            .on_updated_event_ring();
+        return Ok(());
     }
 
     Err(MutexError::Locked.into())

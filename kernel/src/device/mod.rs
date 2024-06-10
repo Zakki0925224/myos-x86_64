@@ -12,8 +12,11 @@ pub fn init(graphic_info: &GraphicInfo) {
     info!("ps2 kbd: Initialized");
 
     // initialize ps/2 mouse
-    ps2_mouse::init(graphic_info);
-    info!("ps2 mouse: Initialized");
+    if let Err(err) = ps2_mouse::init(graphic_info) {
+        error!("ps2 mouse: {:?}", err);
+    } else {
+        info!("ps2 mouse: Initialized");
+    }
 
     // clear console input
     if console::clear_input_buf().is_err() {

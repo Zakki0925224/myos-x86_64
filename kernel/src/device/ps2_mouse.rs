@@ -63,7 +63,7 @@ impl Mouse {
         Ok(())
     }
 
-    pub fn read(&mut self) -> Result<Option<MouseEvent>> {
+    pub fn get_event(&mut self) -> Result<Option<MouseEvent>> {
         fn is_valid_data_0(data: u8) -> bool {
             data & 0x08 != 0
         }
@@ -178,9 +178,9 @@ pub fn receive() -> Result<()> {
     Err(MutexError::Locked.into())
 }
 
-pub fn update() -> Result<Option<MouseEvent>> {
+pub fn get_event() -> Result<Option<MouseEvent>> {
     if let Ok(mut mouse) = unsafe { MOUSE.try_lock() } {
-        return mouse.read();
+        return mouse.get_event();
     }
 
     Err(MutexError::Locked.into())

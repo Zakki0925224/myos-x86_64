@@ -8,7 +8,7 @@ pub enum KeyState {
     Released,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Default, Debug, Clone, Copy)]
 pub struct ModifierKeysState {
     pub shift: bool,
     pub ctrl: bool,
