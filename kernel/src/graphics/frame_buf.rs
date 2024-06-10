@@ -1,6 +1,7 @@
 use super::{
     color::RgbColorCode,
     draw::Draw,
+    font::{FONT, TAB_DISP_STR},
     multi_layer::{Layer, LayerPositionInfo},
 };
 use crate::{
@@ -24,6 +25,7 @@ pub enum FrameBufferError {
         _self: PixelFormat,
         target: PixelFormat,
     },
+    NotInitialized,
 }
 
 pub struct FrameBuffer {
@@ -46,6 +48,50 @@ impl Draw for FrameBuffer {
         for y in y..y + height {
             for x in x..x + width {
                 self.write(x, y, color_code)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn draw_string(&mut self, x: usize, y: usize, s: &str, color_code: RgbColorCode) -> Result<()> {
+        let font_width = FONT.get_width();
+        let font_height = FONT.get_height();
+        let mut char_x = x;
+        let mut char_y = y;
+
+        for c in s.chars() {
+            match c {
+                '\n' => {
+                    char_y += font_height;
+                    continue;
+                }
+                '\t' => {
+                    for c in TAB_DISP_STR.chars() {
+                        self.draw_font(char_x, char_y, c, color_code)?;
+                        char_x += font_width;
+                    }
+                }
+                _ => (),
+            }
+
+            self.draw_font(char_x, char_y, c, color_code)?;
+            char_x += font_width;
+        }
+
+        Ok(())
+    }
+
+    fn draw_font(&mut self, x: usize, y: usize, c: char, color_code: RgbColorCode) -> Result<()> {
+        let glyph = FONT.get_glyph(FONT.unicode_char_to_glyph_index(c))?;
+
+        for h in 0..FONT.get_height() {
+            for w in 0..FONT.get_width() {
+                if !(glyph[h] << w) & 0x80 == 0x80 {
+                    continue;
+                }
+
+                self.draw_rect(x + w, y + h, 1, 1, color_code)?;
             }
         }
 
@@ -252,7 +298,10 @@ pub fn init(graphic_info: &GraphicInfo) -> Result<()> {
 
 pub fn get_resolution() -> Result<(usize, usize)> {
     if let Ok(frame_buf) = unsafe { FRAME_BUF.try_lock() } {
-        return Ok(frame_buf.as_ref().unwrap().get_resolution());
+        return Ok(frame_buf
+            .as_ref()
+            .ok_or(FrameBufferError::NotInitialized)?
+            .get_resolution());
     }
 
     Err(MutexError::Locked.into())
@@ -260,7 +309,10 @@ pub fn get_resolution() -> Result<(usize, usize)> {
 
 pub fn get_stride() -> Result<usize> {
     if let Ok(frame_buf) = unsafe { FRAME_BUF.try_lock() } {
-        return Ok(frame_buf.as_ref().unwrap().get_stride());
+        return Ok(frame_buf
+            .as_ref()
+            .ok_or(FrameBufferError::NotInitialized)?
+            .get_stride());
     }
 
     Err(MutexError::Locked.into())
@@ -268,7 +320,10 @@ pub fn get_stride() -> Result<usize> {
 
 pub fn get_format() -> Result<PixelFormat> {
     if let Ok(frame_buf) = unsafe { FRAME_BUF.try_lock() } {
-        return Ok(frame_buf.as_ref().unwrap().get_format());
+        return Ok(frame_buf
+            .as_ref()
+            .ok_or(FrameBufferError::NotInitialized)?
+            .get_format());
     }
 
     Err(MutexError::Locked.into())
@@ -291,9 +346,23 @@ pub fn draw_rect(
     Err(MutexError::Locked.into())
 }
 
+pub fn draw_font(x: usize, y: usize, c: char, color_code: RgbColorCode) -> Result<()> {
+    if let Ok(mut frame_buf) = unsafe { FRAME_BUF.try_lock() } {
+        return frame_buf
+            .as_mut()
+            .ok_or(FrameBufferError::NotInitialized)?
+            .draw_font(x, y, c, color_code);
+    }
+
+    Err(MutexError::Locked.into())
+}
+
 pub fn copy(x: usize, y: usize, to_x: usize, to_y: usize) -> Result<()> {
     if let Ok(mut frame_buf) = unsafe { FRAME_BUF.try_lock() } {
-        return frame_buf.as_mut().unwrap().copy(x, y, to_x, to_y);
+        return frame_buf
+            .as_mut()
+            .ok_or(FrameBufferError::NotInitialized)?
+            .copy(x, y, to_x, to_y);
     }
 
     Err(MutexError::Locked.into())
@@ -301,7 +370,10 @@ pub fn copy(x: usize, y: usize, to_x: usize, to_y: usize) -> Result<()> {
 
 pub fn fill(color_code: RgbColorCode) -> Result<()> {
     if let Ok(mut frame_buf) = unsafe { FRAME_BUF.try_lock() } {
-        return frame_buf.as_mut().unwrap().fill(color_code);
+        return frame_buf
+            .as_mut()
+            .ok_or(FrameBufferError::NotInitialized)?
+            .fill(color_code);
     }
 
     Err(MutexError::Locked.into())
@@ -309,7 +381,10 @@ pub fn fill(color_code: RgbColorCode) -> Result<()> {
 
 pub fn enable_shadow_buf() -> Result<()> {
     if let Ok(mut frame_buf) = unsafe { FRAME_BUF.try_lock() } {
-        frame_buf.as_mut().unwrap().enable_shadow_buf();
+        frame_buf
+            .as_mut()
+            .ok_or(FrameBufferError::NotInitialized)?
+            .enable_shadow_buf();
 
         return Ok(());
     }
@@ -321,7 +396,7 @@ pub fn apply_layer_buf(layer: &mut Layer, transparent_color: RgbColorCode) -> Re
     if let Ok(mut frame_buf) = unsafe { FRAME_BUF.try_lock() } {
         return frame_buf
             .as_mut()
-            .unwrap()
+            .ok_or(FrameBufferError::NotInitialized)?
             .apply_layer_buf(layer, transparent_color);
     }
 
@@ -330,7 +405,10 @@ pub fn apply_layer_buf(layer: &mut Layer, transparent_color: RgbColorCode) -> Re
 
 pub fn apply_shadow_buf() -> Result<()> {
     if let Ok(frame_buf) = unsafe { FRAME_BUF.try_lock() } {
-        frame_buf.as_ref().unwrap().apply_shadow_buf();
+        frame_buf
+            .as_ref()
+            .ok_or(FrameBufferError::NotInitialized)?
+            .apply_shadow_buf();
 
         return Ok(());
     }

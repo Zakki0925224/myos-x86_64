@@ -1,4 +1,9 @@
-use super::{color::RgbColorCode, draw::Draw, frame_buf};
+use super::{
+    color::RgbColorCode,
+    draw::Draw,
+    font::{FONT, TAB_DISP_STR},
+    frame_buf,
+};
 use crate::{
     error::Result,
     fs::file::bitmap::BitmapImage,
@@ -59,6 +64,50 @@ impl Draw for Layer {
         for y in 0..height {
             for x in 0..width {
                 self.write(x, y, color_code)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn draw_string(&mut self, x: usize, y: usize, s: &str, color_code: RgbColorCode) -> Result<()> {
+        let font_width = FONT.get_width();
+        let font_height = FONT.get_height();
+        let mut char_x = x;
+        let mut char_y = y;
+
+        for c in s.chars() {
+            match c {
+                '\n' => {
+                    char_y += font_height;
+                    continue;
+                }
+                '\t' => {
+                    for c in TAB_DISP_STR.chars() {
+                        self.draw_font(char_x, char_y, c, color_code)?;
+                        char_x += font_width;
+                    }
+                }
+                _ => (),
+            }
+
+            self.draw_font(char_x, char_y, c, color_code)?;
+            char_x += font_width;
+        }
+
+        Ok(())
+    }
+
+    fn draw_font(&mut self, x: usize, y: usize, c: char, color_code: RgbColorCode) -> Result<()> {
+        let glyph = FONT.get_glyph(FONT.unicode_char_to_glyph_index(c))?;
+
+        for h in 0..FONT.get_height() {
+            for w in 0..FONT.get_width() {
+                if !(glyph[h] << w) & 0x80 == 0x80 {
+                    continue;
+                }
+
+                self.draw_rect(x + w, y + h, 1, 1, color_code)?;
             }
         }
 

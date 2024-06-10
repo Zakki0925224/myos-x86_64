@@ -1,5 +1,5 @@
 use super::{
-    font::PsfFont,
+    font::{FONT, TAB_DISP_STR},
     frame_buf,
     multi_layer::{self, LayerPositionInfo},
 };
@@ -10,19 +10,14 @@ use crate::{
 };
 use core::fmt::{self, Write};
 
-const TAB_DISP_CHAR: char = ' ';
-const TAB_INDENT_SIZE: usize = 4;
-
 static mut FRAME_BUF_CONSOLE: Mutex<Option<FrameBufferConsole>> = Mutex::new(None);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FrameBufferConsoleError {
     NotInitialized,
-    FontGlyphError,
 }
 
 pub struct FrameBufferConsole {
-    font: PsfFont,
     back_color: RgbColorCode,
     default_fore_color: RgbColorCode,
     fore_color: RgbColorCode,
@@ -37,14 +32,12 @@ pub struct FrameBufferConsole {
 
 impl FrameBufferConsole {
     pub fn new(back_color: RgbColorCode, fore_color: RgbColorCode) -> Result<Self> {
-        let font = PsfFont::new()?;
         let max_x_res = frame_buf::get_stride()?;
         let max_y_res = frame_buf::get_resolution()?.1;
-        let char_max_x_len = max_x_res / font.get_width() - 1;
-        let char_max_y_len = max_y_res / font.get_height() - 1;
+        let char_max_x_len = max_x_res / FONT.get_width() - 1;
+        let char_max_y_len = max_y_res / FONT.get_height() - 1;
 
         return Ok(Self {
-            font,
             back_color,
             default_fore_color: fore_color,
             fore_color,
@@ -68,8 +61,8 @@ impl FrameBufferConsole {
             } = multi_layer::get_layer_pos_info(layer_id)?;
             self.max_x_res = width;
             self.max_y_res = height;
-            self.char_max_x_len = self.max_x_res / self.font.get_width() - 1;
-            self.char_max_y_len = self.max_y_res / self.font.get_height() - 1;
+            self.char_max_x_len = self.max_x_res / FONT.get_width() - 1;
+            self.char_max_y_len = self.max_y_res / FONT.get_height() - 1;
         }
 
         self.cursor_x = 0;
@@ -119,8 +112,8 @@ impl FrameBufferConsole {
         }
 
         self.draw_font(
-            self.cursor_x * self.font.get_width(),
-            self.cursor_y * self.font.get_height(),
+            self.cursor_x * FONT.get_width(),
+            self.cursor_y * FONT.get_height(),
             c,
             self.fore_color,
         )?;
@@ -133,28 +126,6 @@ impl FrameBufferConsole {
     pub fn write_string(&mut self, string: &str) -> Result<()> {
         for c in string.chars() {
             self.write_char(c)?;
-        }
-
-        Ok(())
-    }
-
-    fn draw_font(&self, x1: usize, y1: usize, c: char, color_code: RgbColorCode) -> Result<()> {
-        let glyph = match self
-            .font
-            .get_glyph(self.font.unicode_char_to_glyph_index(c))
-        {
-            Some(g) => g,
-            None => return Err(FrameBufferConsoleError::FontGlyphError.into()),
-        };
-
-        for h in 0..self.font.get_height() {
-            for w in 0..self.font.get_width() {
-                if !(glyph[h] << w) & 0x80 == 0x80 {
-                    continue;
-                }
-
-                self.draw_rect(x1 + w, y1 + h, 1, 1, color_code)?;
-            }
         }
 
         Ok(())
@@ -178,8 +149,8 @@ impl FrameBufferConsole {
     }
 
     fn tab(&mut self) -> Result<()> {
-        for _ in 0..TAB_INDENT_SIZE {
-            self.write_char(TAB_DISP_CHAR)?;
+        for c in TAB_DISP_STR.chars() {
+            self.write_char(c)?;
             self.inc_cursor()?;
         }
 
@@ -199,7 +170,7 @@ impl FrameBufferConsole {
     }
 
     fn scroll(&self) -> Result<()> {
-        let font_glyph_size_y = self.font.get_height();
+        let font_glyph_size_y = FONT.get_height();
 
         for y in font_glyph_size_y..self.max_y_res {
             for x in 0..self.max_x_res {
@@ -240,6 +211,16 @@ impl FrameBufferConsole {
             multi_layer::draw_layer(layer_id, |l| l.draw_rect(x, y, width, height, color_code))?;
         } else {
             frame_buf::draw_rect(x, y, width, height, color_code)?;
+        }
+
+        Ok(())
+    }
+
+    fn draw_font(&self, x: usize, y: usize, c: char, color_code: RgbColorCode) -> Result<()> {
+        if let Some(layer_id) = self.target_layer_id {
+            multi_layer::draw_layer(layer_id, |l| l.draw_font(x, y, c, color_code))?;
+        } else {
+            frame_buf::draw_font(x, y, c, color_code)?;
         }
 
         Ok(())

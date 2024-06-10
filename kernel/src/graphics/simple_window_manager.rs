@@ -1,5 +1,5 @@
 use super::{
-    color::{COLOR_BLUE, COLOR_SILVER},
+    color::{COLOR_BLUE, COLOR_SILVER, COLOR_WHITE},
     draw::Draw,
     multi_layer::{self, LayerPositionInfo},
 };
@@ -110,6 +110,7 @@ impl SimpleWindowManager {
         let mut window_layer = multi_layer::create_layer(x, y, width, height)?;
         window_layer.fill(COLOR_SILVER)?;
         window_layer.draw_rect(0, 0, width, 20, COLOR_BLUE)?;
+        window_layer.draw_string(0, 0, &title, COLOR_WHITE)?;
         let window_layer_id = window_layer.id;
         multi_layer::push_layer(window_layer)?;
         let window = Window {

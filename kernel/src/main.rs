@@ -246,7 +246,8 @@ async fn exec_cmd(cmd: String) -> Result<()> {
             }
         }
         "window" => {
-            let _ = simple_window_manager::create_window("".to_string(), 200, 50, 300, 200);
+            let _ =
+                simple_window_manager::create_window("test window".to_string(), 200, 50, 300, 200);
         }
         "" => (),
         cmd => error!("Command {:?} was not found", cmd),

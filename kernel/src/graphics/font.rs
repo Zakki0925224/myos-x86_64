@@ -1,9 +1,17 @@
-use crate::error::{Error, Result};
+use crate::error::Result;
 
 //PSF font v2
-const FONT: &'static [u8] = include_bytes!("../../../third-party/font.psf");
+const FONT_BIN: &'static [u8] = include_bytes!("../../../third-party/font.psf");
 const FONT_MAGIC_NUM: u32 = 0x864ab572;
 const UNICODE_TABLE_SEPARATOR: u8 = 0xff;
+pub const TAB_DISP_STR: &str = "    ";
+
+pub static FONT: PsfFont = PsfFont::new();
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FontError {
+    FontGlyphError,
+}
 
 pub struct PsfFont {
     binary_len: usize,
@@ -17,60 +25,63 @@ pub struct PsfFont {
 }
 
 impl PsfFont {
-    pub fn new() -> Result<Self> {
-        fn get_magic_num() -> u32 {
-            (FONT[3] as u32) << 24 | (FONT[2] as u32) << 16 | (FONT[1] as u32) << 8 | FONT[0] as u32
+    pub const fn new() -> Self {
+        const fn get_magic_num() -> u32 {
+            (FONT_BIN[3] as u32) << 24
+                | (FONT_BIN[2] as u32) << 16
+                | (FONT_BIN[1] as u32) << 8
+                | FONT_BIN[0] as u32
         }
 
-        fn get_pixel_height() -> u32 {
-            (FONT[27] as u32) << 24
-                | (FONT[26] as u32) << 16
-                | (FONT[25] as u32) << 8
-                | FONT[24] as u32
+        const fn get_pixel_height() -> u32 {
+            (FONT_BIN[27] as u32) << 24
+                | (FONT_BIN[26] as u32) << 16
+                | (FONT_BIN[25] as u32) << 8
+                | FONT_BIN[24] as u32
         }
 
-        fn get_pixel_width() -> u32 {
-            (FONT[31] as u32) << 24
-                | (FONT[30] as u32) << 16
-                | (FONT[29] as u32) << 8
-                | FONT[28] as u32
+        const fn get_pixel_width() -> u32 {
+            (FONT_BIN[31] as u32) << 24
+                | (FONT_BIN[30] as u32) << 16
+                | (FONT_BIN[29] as u32) << 8
+                | FONT_BIN[28] as u32
         }
 
-        fn get_glyphs_len() -> u32 {
-            (FONT[19] as u32) << 24
-                | (FONT[18] as u32) << 16
-                | (FONT[17] as u32) << 8
-                | FONT[16] as u32
+        const fn get_glyphs_len() -> u32 {
+            (FONT_BIN[19] as u32) << 24
+                | (FONT_BIN[18] as u32) << 16
+                | (FONT_BIN[17] as u32) << 8
+                | FONT_BIN[16] as u32
         }
 
-        fn get_glyph_size() -> u32 {
-            (FONT[23] as u32) << 24
-                | (FONT[22] as u32) << 16
-                | (FONT[21] as u32) << 8
-                | FONT[20] as u32
+        const fn get_glyph_size() -> u32 {
+            (FONT_BIN[23] as u32) << 24
+                | (FONT_BIN[22] as u32) << 16
+                | (FONT_BIN[21] as u32) << 8
+                | FONT_BIN[20] as u32
         }
 
-        fn has_unicode_table() -> bool {
-            let flags = (FONT[15] as u32) << 24
-                | (FONT[14] as u32) << 16
-                | (FONT[13] as u32) << 8
-                | FONT[12] as u32;
+        const fn has_unicode_table() -> bool {
+            let flags = (FONT_BIN[15] as u32) << 24
+                | (FONT_BIN[14] as u32) << 16
+                | (FONT_BIN[13] as u32) << 8
+                | FONT_BIN[12] as u32;
 
             flags == 1
         }
 
-        fn get_header_size() -> u32 {
-            (FONT[11] as u32) << 24
-                | (FONT[10] as u32) << 16
-                | (FONT[9] as u32) << 8
-                | FONT[8] as u32
+        const fn get_header_size() -> u32 {
+            (FONT_BIN[11] as u32) << 24
+                | (FONT_BIN[10] as u32) << 16
+                | (FONT_BIN[9] as u32) << 8
+                | FONT_BIN[8] as u32
         }
 
         if get_magic_num() != FONT_MAGIC_NUM {
-            return Err(Error::Failed("Invalid font binary"));
+            panic!("Invalid font binary");
         }
 
-        let binary_len = FONT.len();
+        let binary_len = FONT_BIN.len();
         let height = get_pixel_height() as usize;
         let width = get_pixel_width() as usize;
         let glyphs_len = get_glyphs_len() as usize;
@@ -80,10 +91,10 @@ impl PsfFont {
         let unicode_table_offset = header_size + glyph_size * glyphs_len;
 
         if height > 16 || width > 8 {
-            return Err(Error::Failed("Unsupported font size"));
+            panic!("Unsupported font size");
         }
 
-        Ok(Self {
+        Self {
             binary_len,
             height,
             width,
@@ -92,7 +103,7 @@ impl PsfFont {
             has_unicode_table,
             header_size,
             unicode_table_offset,
-        })
+        }
     }
 
     pub fn get_height(&self) -> usize {
@@ -113,11 +124,11 @@ impl PsfFont {
         let mut index = 0;
 
         for i in self.unicode_table_offset..self.binary_len {
-            if code_point == FONT[i] {
+            if code_point == FONT_BIN[i] {
                 break;
             }
 
-            if FONT[i] == UNICODE_TABLE_SEPARATOR {
+            if FONT_BIN[i] == UNICODE_TABLE_SEPARATOR {
                 index += 1;
             }
         }
@@ -125,12 +136,12 @@ impl PsfFont {
         index
     }
 
-    pub fn get_glyph(&self, index: usize) -> Option<&'static [u8]> {
+    pub fn get_glyph(&self, index: usize) -> Result<&'static [u8]> {
         if index > self.glyphs_len {
-            return None;
+            return Err(FontError::FontGlyphError.into());
         }
 
         let offset = self.header_size + self.glyph_size * index;
-        Some(&FONT[offset..offset + self.glyph_size])
+        Ok(&FONT_BIN[offset..offset + self.glyph_size])
     }
 }

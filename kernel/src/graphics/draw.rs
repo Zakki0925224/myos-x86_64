@@ -10,6 +10,8 @@ pub trait Draw {
         height: usize,
         color_code: RgbColorCode,
     ) -> Result<()>;
+    fn draw_string(&mut self, x: usize, y: usize, s: &str, color_code: RgbColorCode) -> Result<()>;
+    fn draw_font(&mut self, x: usize, y: usize, c: char, color_code: RgbColorCode) -> Result<()>;
     fn fill(&mut self, color_code: RgbColorCode) -> Result<()>;
     fn copy(&mut self, x: usize, y: usize, to_x: usize, to_y: usize) -> Result<()>;
     fn read(&self, x: usize, y: usize) -> Result<RgbColorCode>;

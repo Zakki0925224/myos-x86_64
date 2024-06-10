@@ -9,7 +9,7 @@ use crate::{
     device::console::ConsoleError,
     fs::vfs::VirtualFileSystemError,
     graphics::{
-        frame_buf::FrameBufferError, frame_buf_console::FrameBufferConsoleError,
+        font::FontError, frame_buf::FrameBufferError, frame_buf_console::FrameBufferConsoleError,
         multi_layer::LayerError, simple_window_manager::SimpleWindowManagerError,
     },
     mem::{bitmap::BitmapMemoryManagerError, paging::PageManagerError},
@@ -21,6 +21,7 @@ pub enum Error {
     Failed(&'static str),
     MutexError(MutexError),
     AsciiCodeError(AsciiCodeError),
+    FontError(FontError),
     FrameBufferError(FrameBufferError),
     LayerError(LayerError),
     FrameBufferConsoleError(FrameBufferConsoleError),
@@ -53,6 +54,12 @@ impl From<MutexError> for Error {
 impl From<AsciiCodeError> for Error {
     fn from(err: AsciiCodeError) -> Self {
         Self::AsciiCodeError(err)
+    }
+}
+
+impl From<FontError> for Error {
+    fn from(err: FontError) -> Self {
+        Self::FontError(err)
     }
 }
 
