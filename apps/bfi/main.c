@@ -1,8 +1,10 @@
 #include "../libm/libm.h"
 
 #define MEM_LEN 30000
+#define STACK_LEN 32
 
 static uint8_t mem[MEM_LEN] = {0};
+static int stack[STACK_LEN] = {0};
 
 int exec_bf(const char *bf_code)
 {
@@ -10,8 +12,11 @@ int exec_bf(const char *bf_code)
     char str[2];
     // instruction pointer
     int ip = 0;
-    // memory pointer register
-    int pr = 0;
+    // memory pointer
+    int mp = 0;
+    // stack pointer
+    int sp = 0;
+
     while (1)
     {
         if (code_len <= ip)
@@ -21,31 +26,133 @@ int exec_bf(const char *bf_code)
 
         switch (bf_code[ip])
         {
+        // increment pointed value
         case '+':
-            mem[pr]++;
+            if (mem[mp] == UINT8_MAX)
+            {
+                printf("[ERR]Memory overflow\n");
+                return -1;
+            }
+            mem[mp]++;
             break;
+
+        // decrement pointed value
+        case '-':
+            if (mem[mp] == 0)
+            {
+                printf("[ERR]Memory underflow\n");
+                return -1;
+            }
+            mem[mp]--;
+            break;
+
+        // output pointed value to ascii
         case '.':
-            str[0] = (char)mem[pr];
+            str[0] = (char)mem[mp];
             str[1] = '\0';
             printf(str);
             break;
 
+        // increment pointer
+        case '>':
+            // printf(">");
+            if (mp == MEM_LEN - 1)
+            {
+                printf("[ERR]Memory pointer overflow\n");
+                return -1;
+            }
+            mp++;
+            break;
+
+        // decrement pointer
+        case '<':
+            if (mp == 0)
+            {
+                printf("[ERR]Memory pointer underflow\n");
+                return -1;
+            }
+            mp--;
+            break;
+
+        // start loop
+        case '[':
+            stack[sp++] = ip;
+            if (sp >= STACK_LEN)
+            {
+                printf("[ERR]Stack overflow\n");
+                return -1;
+            }
+
+            if (mem[mp] == 0)
+            {
+                while (1)
+                {
+                    ip++;
+                    if (ip >= code_len)
+                    {
+                        printf("[ERR]Unmatched '['\n");
+                        return -1;
+                    }
+                    if (bf_code[ip] == ']')
+                    {
+                        sp--;
+                        break;
+                    }
+                    else if (bf_code[ip] == '[')
+                    {
+                        sp++;
+                        break;
+                    }
+                }
+            }
+            break;
+
+        // end loop
+        case ']':
+            if (sp == 0)
+            {
+                printf("[ERR]Unmatched ']'\n");
+                return -1;
+            }
+
+            if (mem[mp] != 0)
+            {
+                ip = stack[sp - 1];
+            }
+            else
+            {
+                sp--;
+            }
+            break;
+
+        // skip
+        case ' ':
+            break;
+
+        case ',':
+            printf("[ERR]Unimplemented instruction\n");
+            return -1;
+
         default:
-            printf("Unknown instruction\n");
+            printf("[ERR]Invalid instruction\n");
             return -1;
         }
 
         ip++;
     }
 
+    printf("\n");
     return 0;
 }
 
 void _start(int argc, char *argv[])
 {
-    char *bf_code = "+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++.";
+    char *bf_code = "++ ++ ++ ++[ > ++ ++[ > ++ > ++ + > ++ + > + < < < < -] > + > + >->> +[ < ] < -] >>.> -- -.++ ++ ++ +..++ +.>>.<-.<.++ +.-- -- --.-- -- -- --.>> +.>++.";
 
     printf("Welcome to Brainf**k interpreter!\n");
+    printf("code: \"");
+    printf(bf_code);
+    printf("\"\n");
     int res = exec_bf(bf_code);
     sys_exit(res);
 }
