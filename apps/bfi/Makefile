@@ -2,10 +2,10 @@
 SRC_FILE := main.c
 
 # Output file (executable)
-OUT_FILE := bfc.elf
+OUT_FILE := bfi.elf
 
 # Object file
-OBJ_FILE := bfc.o
+OBJ_FILE := bfi.o
 
 # Compiler flags
 CC := gcc

@@ -69,8 +69,10 @@ pub fn exec_elf(elf_path: &str, args: &[&str]) -> Result<()> {
         )?;
         allocated_mem_frames.push(user_mem_frame_info);
 
-        if p_virt_addr == header.entry_point {
-            entry = Some(unsafe { mem::transmute(p_virt_addr as *const ()) });
+        if header.entry_point >= p_virt_addr
+            && header.entry_point < p_virt_addr + program_data.len() as u64
+        {
+            entry = Some(unsafe { mem::transmute(header.entry_point as *const ()) });
         }
     }
 
