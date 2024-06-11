@@ -149,6 +149,11 @@ void _start(int argc, char *argv[])
 {
     char *bf_code = "++ ++ ++ ++[ > ++ ++[ > ++ > ++ + > ++ + > + < < < < -] > + > + >->> +[ < ] < -] >>.> -- -.++ ++ ++ +..++ +.>>.<-.<.++ +.-- -- --.-- -- -- --.>> +.>++.";
 
+    if (argc > 1)
+    {
+        bf_code = argv[1];
+    }
+
     printf("Welcome to Brainf**k interpreter!\n");
     printf("code: \"");
     printf(bf_code);
