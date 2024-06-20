@@ -42,14 +42,13 @@ pub fn init_layer_man(graphic_info: &GraphicInfo, transparent_color: RgbColorCod
     info!("graphics: Initialized layer manager");
 
     let (res_x, res_y) = graphic_info.resolution;
-    let console_layer =
-        match multi_layer::create_layer(0, 0, res_x as usize, res_y as usize * 3 / 4) {
-            Ok(l) => l,
-            Err(err) => {
-                error!("graphics: Failed to create the layer: {:?}", err);
-                return;
-            }
-        };
+    let console_layer = match multi_layer::create_layer(0, 0, res_x, res_y * 3 / 4) {
+        Ok(l) => l,
+        Err(err) => {
+            error!("graphics: Failed to create the layer: {:?}", err);
+            return;
+        }
+    };
     let console_layer_id = console_layer.id;
 
     if let Err(err) = multi_layer::push_layer(console_layer) {

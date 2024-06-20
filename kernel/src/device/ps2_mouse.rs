@@ -50,8 +50,8 @@ impl Mouse {
     pub fn init(&mut self, graphic_info: &GraphicInfo) {
         let (res_x, res_y) = graphic_info.resolution;
 
-        self.x_max = res_x as usize;
-        self.y_max = res_y as usize;
+        self.x_max = res_x;
+        self.y_max = res_y;
     }
 
     pub fn receive(&mut self, data: u8) -> Result<()> {

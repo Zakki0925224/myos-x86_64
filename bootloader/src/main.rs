@@ -28,6 +28,7 @@ use uefi::{
 };
 
 #[entry]
+// TODO: Panic occurs when running on VirtualBox and actual device
 fn efi_main(handle: Handle, mut st: SystemTable<Boot>) -> Status {
     uefi::helpers::init(&mut st).unwrap();
     let bs = st.boot_services();
@@ -47,7 +48,6 @@ fn efi_main(handle: Handle, mut st: SystemTable<Boot>) -> Status {
 
     // load initramfs
     let (initramfs_start_virt_addr, initramfs_page_cnt) = load_initramfs(bs, config.initramfs_path);
-    //let (initramfs_start_virt_addr, initramfs_page_cnt) = (0, 0);
 
     // exit boot service and get memory map
     info!("Exit boot services");
@@ -76,13 +76,13 @@ fn efi_main(handle: Handle, mut st: SystemTable<Boot>) -> Status {
     kernel_config.init_cwd_path = "/mnt/initramfs";
     //kernel_config.init_app_exec_args = Some("/mnt/initramfs/apps/uname/uname.elf -a");
 
-    let bi = BootInfo::new(
-        mem_map.as_slice(),
+    let bi = BootInfo {
+        mem_map: &mem_map,
         graphic_info,
         initramfs_start_virt_addr,
         initramfs_page_cnt,
         kernel_config,
-    );
+    };
 
     jump_to_entry(kernel_entry_point_addr, &bi);
 
@@ -162,7 +162,7 @@ fn load_elf(bs: &BootServices, path: &str) -> u64 {
     elf.header().entry_point
 }
 
-fn load_initramfs(bs: &BootServices, path: &str) -> (u64, u64) {
+fn load_initramfs(bs: &BootServices, path: &str) -> (u64, usize) {
     let mut file = read_file(bs, path);
 
     let file_info = file.get_boxed_info::<FileInfo>().unwrap();
@@ -183,34 +183,31 @@ fn load_initramfs(bs: &BootServices, path: &str) -> (u64, u64) {
 
     info!("Loaded initramfs at: 0x{:x}", phys_addr);
 
-    (phys_addr, pages as u64)
+    (phys_addr, pages)
 }
 
-fn init_graphic(bs: &BootServices, resolution: Option<(usize, usize)>) -> GraphicInfo {
+fn init_graphic(bs: &BootServices, resolution: (usize, usize)) -> GraphicInfo {
     let gop_handle = bs.get_handle_for_protocol::<GraphicsOutput>().unwrap();
     let mut gop = bs
         .open_protocol_exclusive::<GraphicsOutput>(gop_handle)
         .unwrap();
 
-    if let Some(resolution) = resolution {
-        let mode = gop
-            .modes(bs)
-            .find(|mode| mode.info().resolution() == resolution)
-            .unwrap();
-
-        info!("Switching graphic mode...");
-        gop.set_mode(&mode).unwrap();
-    }
+    let mode = gop
+        .modes(bs)
+        .find(|mode| mode.info().resolution() == resolution)
+        .unwrap();
+    info!("Switching graphic mode...");
+    gop.set_mode(&mode).unwrap();
 
     let mode_info = gop.current_mode_info();
-    let res = mode_info.resolution();
+    let (width, height) = gop.current_mode_info().resolution();
 
     GraphicInfo {
-        resolution: (res.0 as u32, res.1 as u32),
+        resolution: (width, height),
         format: convert_pixel_format(mode_info.pixel_format()),
-        stride: mode_info.stride() as u32,
+        stride: mode_info.stride(),
         framebuf_addr: gop.frame_buffer().as_mut_ptr() as u64,
-        framebuf_size: gop.frame_buffer().size() as u64,
+        framebuf_size: gop.frame_buffer().size(),
     }
 }
 

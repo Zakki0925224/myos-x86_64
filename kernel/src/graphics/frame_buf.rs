@@ -128,19 +128,11 @@ impl Draw for FrameBuffer {
 
 impl FrameBuffer {
     pub fn new(graphic_info: &GraphicInfo) -> Self {
-        let resolution = (
-            graphic_info.resolution.0 as usize,
-            graphic_info.resolution.1 as usize,
-        );
-        let format = graphic_info.format;
-        let frame_buf_virt_addr = VirtualAddress::new(graphic_info.framebuf_addr);
-        let stride = graphic_info.stride as usize;
-
         Self {
-            resolution,
-            format,
-            frame_buf_virt_addr,
-            stride,
+            resolution: graphic_info.resolution,
+            format: graphic_info.format,
+            frame_buf_virt_addr: graphic_info.framebuf_addr.into(),
+            stride: graphic_info.stride,
             shadow_buf: None,
         }
     }
