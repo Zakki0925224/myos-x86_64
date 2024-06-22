@@ -6,7 +6,7 @@ use self::{
 use crate::{
     arch::asm,
     error::{Error, Result},
-    util::mutex::{Mutex, MutexError},
+    util::mutex::Mutex,
 };
 use alloc::{boxed::Box, vec::Vec};
 use log::{info, warn};
@@ -250,25 +250,13 @@ impl UsbDriver {
 }
 
 pub fn init() -> Result<()> {
-    if let Ok(mut usb_driver) = unsafe { USB_DRIVER.try_lock() } {
-        return usb_driver.init();
-    }
-
-    Err(MutexError::Locked.into())
+    unsafe { USB_DRIVER.try_lock() }?.init()
 }
 
-pub fn find_device_by_slot_id(slot_id: usize) -> Option<UsbDevice> {
-    if let Ok(usb_driver) = unsafe { USB_DRIVER.try_lock() } {
-        return usb_driver.find_device_by_slot_id(slot_id);
-    }
-
-    None
+pub fn find_device_by_slot_id(slot_id: usize) -> Result<Option<UsbDevice>> {
+    Ok(unsafe { USB_DRIVER.try_lock() }?.find_device_by_slot_id(slot_id))
 }
 
 pub fn update_device(device: UsbDevice) -> Result<()> {
-    if let Ok(mut usb_driver) = unsafe { USB_DRIVER.try_lock() } {
-        return usb_driver.update_device(device);
-    }
-
-    Err(MutexError::Locked.into())
+    unsafe { USB_DRIVER.try_lock() }?.update_device(device)
 }

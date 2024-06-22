@@ -1,10 +1,7 @@
 use crate::{
     arch::addr::IoPortAddress,
     error::Result,
-    util::{
-        fifo::Fifo,
-        mutex::{Mutex, MutexError},
-    },
+    util::{fifo::Fifo, mutex::Mutex},
 };
 use common::graphic_info::GraphicInfo;
 
@@ -160,30 +157,17 @@ pub fn init(graphic_info: &GraphicInfo) -> Result<()> {
     PS2_DATA_REG_ADDR.out8(0xf4);
     wait_ready();
 
-    if let Ok(mut mouse) = unsafe { MOUSE.try_lock() } {
-        mouse.init(graphic_info);
-        return Ok(());
-    }
-
-    Err(MutexError::Locked.into())
+    unsafe { MOUSE.try_lock() }?.init(graphic_info);
+    Ok(())
 }
 
 pub fn receive() -> Result<()> {
     let data = PS2_DATA_REG_ADDR.in8();
-
-    if let Ok(mut mouse) = unsafe { MOUSE.try_lock() } {
-        return mouse.receive(data);
-    }
-
-    Err(MutexError::Locked.into())
+    unsafe { MOUSE.try_lock() }?.receive(data)
 }
 
 pub fn get_event() -> Result<Option<MouseEvent>> {
-    if let Ok(mut mouse) = unsafe { MOUSE.try_lock() } {
-        return mouse.get_event();
-    }
-
-    Err(MutexError::Locked.into())
+    unsafe { MOUSE.try_lock() }?.get_event()
 }
 
 fn wait_ready() {

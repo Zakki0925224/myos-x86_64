@@ -2,7 +2,7 @@ use super::paging::{self, EntryMode, ReadWrite, PAGE_SIZE};
 use crate::{
     arch::addr::*,
     error::{Error, Result},
-    util::mutex::{Mutex, MutexError},
+    util::mutex::Mutex,
 };
 use common::mem_desc::*;
 
@@ -391,65 +391,42 @@ impl BitmapMemoryManager {
 }
 
 pub fn init(mem_map: &[MemoryDescriptor]) -> Result<()> {
-    if let Ok(mut bitmap_mem_man) = unsafe { BITMAP_MEM_MAN.try_lock() } {
-        let mut bmm = BitmapMemoryManager::new(mem_map);
-        bmm.init(mem_map)?;
-        *bitmap_mem_man = Some(bmm);
-
-        return Ok(());
-    }
-
-    Err(MutexError::Locked.into())
+    let mut bmm = BitmapMemoryManager::new(mem_map);
+    bmm.init(mem_map)?;
+    *unsafe { BITMAP_MEM_MAN.try_lock() }? = Some(bmm);
+    Ok(())
 }
 
-// (used, total)
 pub fn get_mem_size() -> Result<(usize, usize)> {
-    if let Ok(bitmap_mem_man) = unsafe { BITMAP_MEM_MAN.try_lock() } {
-        if let Some(bitmap_mem_man) = bitmap_mem_man.as_ref() {
-            return Ok((
-                bitmap_mem_man.get_used_mem_size(),
-                bitmap_mem_man.get_total_mem_size(),
-            ));
-        }
-    }
-
-    Err(MutexError::Locked.into())
+    let binding = unsafe { BITMAP_MEM_MAN.try_lock() }?;
+    let bitmap_mem_man = binding
+        .as_ref()
+        .ok_or(BitmapMemoryManagerError::NotInitialized)?;
+    let used = bitmap_mem_man.get_used_mem_size();
+    let total = bitmap_mem_man.get_total_mem_size();
+    Ok((used, total))
 }
 
 pub fn alloc_mem_frame(len: usize) -> Result<MemoryFrameInfo> {
-    if let Ok(mut bitmap_mem_man) = unsafe { BITMAP_MEM_MAN.try_lock() } {
-        if let Some(bitmap_mem_man) = bitmap_mem_man.as_mut() {
-            return bitmap_mem_man.alloc_multi_mem_frame(len);
-        }
-
-        return Err(BitmapMemoryManagerError::NotInitialized.into());
-    }
-
-    Err(MutexError::Locked.into())
+    unsafe { BITMAP_MEM_MAN.try_lock() }?
+        .as_mut()
+        .ok_or(BitmapMemoryManagerError::NotInitialized)?
+        .alloc_multi_mem_frame(len)
 }
 
 pub fn dealloc_mem_frame(mem_frame_info: MemoryFrameInfo) -> Result<()> {
-    if let Ok(mut bitmap_mem_man) = unsafe { BITMAP_MEM_MAN.try_lock() } {
-        if let Some(bitmap_mem_man) = bitmap_mem_man.as_mut() {
-            return bitmap_mem_man.dealloc_mem_frame(mem_frame_info);
-        }
-
-        return Err(BitmapMemoryManagerError::NotInitialized.into());
-    }
-
-    Err(MutexError::Locked.into())
+    unsafe { BITMAP_MEM_MAN.try_lock() }?
+        .as_mut()
+        .ok_or(BitmapMemoryManagerError::NotInitialized)?
+        .dealloc_mem_frame(mem_frame_info)
 }
 
 pub fn mem_clear(mem_frame_info: &MemoryFrameInfo) -> Result<()> {
     unsafe {
-        if let Ok(bitmap_mem_man) = BITMAP_MEM_MAN.try_lock() {
-            if let Some(bitmap_mem_man) = bitmap_mem_man.as_ref() {
-                return bitmap_mem_man.mem_clear(mem_frame_info);
-            }
-
-            return Err(BitmapMemoryManagerError::NotInitialized.into());
-        }
+        BITMAP_MEM_MAN
+            .try_lock()?
+            .as_mut()
+            .ok_or(BitmapMemoryManagerError::NotInitialized)?
+            .mem_clear(mem_frame_info)
     }
-
-    Err(MutexError::Locked.into())
 }

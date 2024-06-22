@@ -7,7 +7,7 @@ use crate::{
     device::ps2_mouse::MouseEvent,
     error::{Error, Result},
     fs::file::bitmap::BitmapImage,
-    util::mutex::{Mutex, MutexError},
+    util::mutex::Mutex,
 };
 use alloc::{string::String, vec::Vec};
 
@@ -124,43 +124,27 @@ impl SimpleWindowManager {
 }
 
 pub fn init() -> Result<()> {
-    if let Ok(mut simple_wm) = unsafe { SIMPLE_WM.try_lock() } {
-        *simple_wm = Some(SimpleWindowManager::new());
-        return Ok(());
-    }
-
-    Err(MutexError::Locked.into())
+    *unsafe { SIMPLE_WM.try_lock() }? = Some(SimpleWindowManager::new());
+    Ok(())
 }
 
 pub fn create_mouse_pointer_layer(pointer_bmp: &BitmapImage) -> Result<()> {
-    if let Ok(mut simple_wm) = unsafe { SIMPLE_WM.try_lock() } {
-        simple_wm
-            .as_mut()
-            .ok_or(SimpleWindowManagerError::NotInitialized)?
-            .create_mouse_pointer_layer(pointer_bmp)
-    } else {
-        Err(MutexError::Locked.into())
-    }
+    unsafe { SIMPLE_WM.try_lock() }?
+        .as_mut()
+        .ok_or(SimpleWindowManagerError::NotInitialized)?
+        .create_mouse_pointer_layer(pointer_bmp)
 }
 
 pub fn move_mouse_pointer(mouse_event: MouseEvent) -> Result<()> {
-    if let Ok(mut simple_wm) = unsafe { SIMPLE_WM.try_lock() } {
-        simple_wm
-            .as_mut()
-            .ok_or(SimpleWindowManagerError::NotInitialized)?
-            .move_mouse_pointer(mouse_event)
-    } else {
-        Err(MutexError::Locked.into())
-    }
+    unsafe { SIMPLE_WM.try_lock() }?
+        .as_mut()
+        .ok_or(SimpleWindowManagerError::NotInitialized)?
+        .move_mouse_pointer(mouse_event)
 }
 
 pub fn create_window(title: String, x: usize, y: usize, width: usize, height: usize) -> Result<()> {
-    if let Ok(mut simple_wm) = unsafe { SIMPLE_WM.try_lock() } {
-        simple_wm
-            .as_mut()
-            .ok_or(SimpleWindowManagerError::NotInitialized)?
-            .create_window(title, x, y, width, height)
-    } else {
-        Err(MutexError::Locked.into())
-    }
+    unsafe { SIMPLE_WM.try_lock() }?
+        .as_mut()
+        .ok_or(SimpleWindowManagerError::NotInitialized)?
+        .create_window(title, x, y, width, height)
 }

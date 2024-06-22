@@ -1,7 +1,7 @@
 use crate::{
     arch::addr::IoPortAddress,
     error::{Error, Result},
-    util::mutex::{Mutex, MutexError},
+    util::mutex::Mutex,
 };
 
 static mut SERIAL: Mutex<Option<SerialPort>> = Mutex::new(None);
@@ -71,34 +71,21 @@ impl SerialPort {
 }
 
 pub fn init(com_port: ComPort) -> Result<()> {
-    if let Ok(mut serial) = unsafe { SERIAL.try_lock() } {
-        *serial = Some(SerialPort::new(com_port)?);
-        return Ok(());
-    }
-
-    Err(MutexError::Locked.into())
+    *unsafe { SERIAL.try_lock() }? = Some(SerialPort::new(com_port)?);
+    return Ok(());
 }
 
 pub fn receive() -> Result<Option<u8>> {
-    if let Ok(serial) = unsafe { SERIAL.try_lock() } {
-        let data = serial
-            .as_ref()
-            .ok_or(Error::Failed("Serial port was not initialized"))?
-            .receive_data();
-        return Ok(data);
-    }
-
-    Err(MutexError::Locked.into())
+    Ok(unsafe { SERIAL.try_lock() }?
+        .as_ref()
+        .ok_or(Error::Failed("Serial port was not initialized"))?
+        .receive_data())
 }
 
 pub fn send(data: u8) -> Result<()> {
-    if let Ok(serial) = unsafe { SERIAL.try_lock() } {
-        serial
-            .as_ref()
-            .ok_or(Error::Failed("Serial port was not initialized"))?
-            .send_data(data);
-        return Ok(());
-    }
-
-    Err(MutexError::Locked.into())
+    unsafe { SERIAL.try_lock() }?
+        .as_ref()
+        .ok_or(Error::Failed("Serial port was not initialized"))?
+        .send_data(data);
+    Ok(())
 }

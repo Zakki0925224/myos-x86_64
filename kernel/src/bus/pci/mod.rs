@@ -5,7 +5,7 @@ use self::{
 use crate::{
     error::{Error, Result},
     println,
-    util::mutex::{Mutex, MutexError},
+    util::mutex::Mutex,
 };
 use alloc::vec::Vec;
 
@@ -120,32 +120,19 @@ impl PciDeviceManager {
 }
 
 pub fn scan_devices() -> Result<()> {
-    if let Ok(mut pci_device_man) = unsafe { PCI_DEVICE_MAN.try_lock() } {
-        pci_device_man.scan_devices();
-        return Ok(());
-    }
-
-    Err(MutexError::Locked.into())
+    unsafe { PCI_DEVICE_MAN.try_lock() }?.scan_devices();
+    Ok(())
 }
 
 pub fn lspci() -> Result<()> {
-    if let Ok(pci_device_man) = unsafe { PCI_DEVICE_MAN.try_lock() } {
-        pci_device_man.debug();
-        return Ok(());
-    }
-
-    Err(MutexError::Locked.into())
+    unsafe { PCI_DEVICE_MAN.try_lock() }?.debug();
+    Ok(())
 }
 
 pub fn is_exit_device(bus: usize, device: usize, func: usize) -> Result<bool> {
-    if let Ok(pci_device_man) = unsafe { PCI_DEVICE_MAN.try_lock() } {
-        match pci_device_man.find_device(bus, device, func) {
-            Ok(_) => return Ok(true),
-            Err(_) => return Ok(false),
-        }
-    }
-
-    Err(MutexError::Locked.into())
+    return Ok(unsafe { PCI_DEVICE_MAN.try_lock() }?
+        .find_device(bus, device, func)
+        .is_ok());
 }
 
 pub fn configure_device<F: FnMut(&mut dyn PciDeviceFunctions) -> Result<()>>(
@@ -154,12 +141,7 @@ pub fn configure_device<F: FnMut(&mut dyn PciDeviceFunctions) -> Result<()>>(
     func: usize,
     mut f: F,
 ) -> Result<()> {
-    if let Ok(mut pci_device_man) = unsafe { PCI_DEVICE_MAN.try_lock() } {
-        let device = pci_device_man.find_device_mut(bus, device, func)?;
-        return f(device);
-    }
-
-    Err(MutexError::Locked.into())
+    return f(unsafe { PCI_DEVICE_MAN.try_lock() }?.find_device_mut(bus, device, func)?);
 }
 
 pub fn configure_devices<F: FnMut(&mut dyn PciDeviceFunctions) -> Result<()>>(
@@ -168,14 +150,10 @@ pub fn configure_devices<F: FnMut(&mut dyn PciDeviceFunctions) -> Result<()>>(
     prog_if: u8,
     mut f: F,
 ) -> Result<()> {
-    if let Ok(mut pci_device_man) = unsafe { PCI_DEVICE_MAN.try_lock() } {
-        let devices = pci_device_man.find_device_by_class_mut(class_code, subclass_code, prog_if);
-        for d in devices {
-            f(d)?;
-        }
-
-        return Ok(());
+    let mut pci_device_man = unsafe { PCI_DEVICE_MAN.try_lock() }?;
+    let devices = pci_device_man.find_device_by_class_mut(class_code, subclass_code, prog_if);
+    for d in devices {
+        f(d)?;
     }
-
-    Err(MutexError::Locked.into())
+    Ok(())
 }

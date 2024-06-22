@@ -3,11 +3,7 @@ use super::{
     frame_buf,
     multi_layer::{self, LayerPositionInfo},
 };
-use crate::{
-    error::Result,
-    graphics::color::*,
-    util::mutex::{Mutex, MutexError},
-};
+use crate::{error::Result, graphics::color::*, util::mutex::Mutex};
 use core::fmt::{self, Write};
 
 static mut FRAME_BUF_CONSOLE: Mutex<Option<FrameBufferConsole>> = Mutex::new(None);
@@ -245,66 +241,39 @@ impl fmt::Write for FrameBufferConsole {
 }
 
 pub fn init(back_color: RgbColorCode, fore_color: RgbColorCode) -> Result<()> {
-    if let Ok(mut frame_buf_console) = unsafe { FRAME_BUF_CONSOLE.try_lock() } {
-        *frame_buf_console = match FrameBufferConsole::new(back_color, fore_color) {
-            Ok(c) => Some(c),
-            Err(e) => return Err(e),
-        };
-
-        frame_buf_console.as_mut().unwrap().init_console()?;
-        return Ok(());
-    }
-
-    Err(MutexError::Locked.into())
+    let mut fbc = FrameBufferConsole::new(back_color, fore_color)?;
+    fbc.init_console()?;
+    *unsafe { FRAME_BUF_CONSOLE.try_lock() }? = Some(fbc);
+    Ok(())
 }
 
 pub fn set_target_layer_id(layer_id: usize) -> Result<()> {
-    if let Ok(mut frame_buf_console) = unsafe { FRAME_BUF_CONSOLE.try_lock() } {
-        if let Some(frame_buf_console) = frame_buf_console.as_mut() {
-            return frame_buf_console.set_target_layer_id(layer_id);
-        }
-
-        return Err(FrameBufferConsoleError::NotInitialized.into());
-    }
-
-    Err(MutexError::Locked.into())
+    unsafe { FRAME_BUF_CONSOLE.try_lock() }?
+        .as_mut()
+        .ok_or(FrameBufferConsoleError::NotInitialized)?
+        .set_target_layer_id(layer_id)
 }
 
 pub fn set_fore_color(fore_color: RgbColorCode) -> Result<()> {
-    if let Ok(mut frame_buf_console) = unsafe { FRAME_BUF_CONSOLE.try_lock() } {
-        if let Some(frame_buf_console) = frame_buf_console.as_mut() {
-            frame_buf_console.set_fore_color(fore_color);
-            return Ok(());
-        }
-
-        return Err(FrameBufferConsoleError::NotInitialized.into());
-    }
-
-    Err(MutexError::Locked.into())
+    unsafe { FRAME_BUF_CONSOLE.try_lock() }?
+        .as_mut()
+        .ok_or(FrameBufferConsoleError::NotInitialized)?
+        .set_fore_color(fore_color);
+    Ok(())
 }
 
 pub fn reset_fore_color() -> Result<()> {
-    if let Ok(mut frame_buf_console) = unsafe { FRAME_BUF_CONSOLE.try_lock() } {
-        if let Some(frame_buf_console) = frame_buf_console.as_mut() {
-            frame_buf_console.reset_fore_color();
-            return Ok(());
-        }
-
-        return Err(FrameBufferConsoleError::NotInitialized.into());
-    }
-
-    Err(MutexError::Locked.into())
+    unsafe { FRAME_BUF_CONSOLE.try_lock() }?
+        .as_mut()
+        .ok_or(FrameBufferConsoleError::NotInitialized)?
+        .reset_fore_color();
+    Ok(())
 }
 
 pub fn write_fmt(args: fmt::Arguments) -> Result<()> {
-    if let Ok(mut frame_buf_console) = unsafe { FRAME_BUF_CONSOLE.try_lock() } {
-        if let Some(frame_buf_console) = frame_buf_console.as_mut() {
-            let _ = frame_buf_console.write_fmt(args);
-            return Ok(());
-        }
-
-        return Err(FrameBufferConsoleError::NotInitialized.into());
-    }
-
-    Err(MutexError::Locked.into())
+    let _ = unsafe { FRAME_BUF_CONSOLE.try_lock() }?
+        .as_mut()
+        .ok_or(FrameBufferConsoleError::NotInitialized)?
+        .write_fmt(args);
+    Ok(())
 }

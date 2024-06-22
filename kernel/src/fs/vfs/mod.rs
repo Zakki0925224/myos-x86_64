@@ -1,10 +1,6 @@
 use self::file_desc::{FileDescriptor, FileDescriptorNumber};
 use super::initramfs::Initramfs;
-use crate::{
-    error::Result,
-    fs::fat::dir_entry::Attribute,
-    util::mutex::{Mutex, MutexError},
-};
+use crate::{error::Result, fs::fat::dir_entry::Attribute, util::mutex::Mutex};
 use alloc::{
     string::{String, ToString},
     vec::Vec,
@@ -510,111 +506,69 @@ impl VirtualFileSystem {
 }
 
 pub fn init() -> Result<()> {
-    if let Ok(mut vfs) = unsafe { VFS.try_lock() } {
-        *vfs = Some(VirtualFileSystem::new());
-        return Ok(());
-    }
-
-    Err(MutexError::Locked.into())
+    *unsafe { VFS.try_lock() }? = Some(VirtualFileSystem::new());
+    Ok(())
 }
 
 pub fn chroot(path: &str) -> Result<()> {
-    if let Ok(mut vfs) = unsafe { VFS.try_lock() } {
-        if let Some(vfs) = vfs.as_mut() {
-            return vfs.chroot(path);
-        }
-
-        return Err(VirtualFileSystemError::NotInitialized.into());
-    }
-
-    Err(MutexError::Locked.into())
+    unsafe { VFS.try_lock() }?
+        .as_mut()
+        .ok_or(VirtualFileSystemError::NotInitialized)?
+        .chroot(path)
 }
 
 pub fn chdir(path: &str) -> Result<()> {
-    if let Ok(mut vfs) = unsafe { VFS.try_lock() } {
-        if let Some(vfs) = vfs.as_mut() {
-            return vfs.chdir(path);
-        }
-
-        return Err(VirtualFileSystemError::NotInitialized.into());
-    }
-
-    Err(MutexError::Locked.into())
+    unsafe { VFS.try_lock() }?
+        .as_mut()
+        .ok_or(VirtualFileSystemError::NotInitialized)?
+        .chdir(path)
 }
 
 pub fn mount(path: &str, fs: FileSystem) -> Result<()> {
-    if let Ok(mut vfs) = unsafe { VFS.try_lock() } {
-        if let Some(vfs) = vfs.as_mut() {
-            return vfs.mount(path, fs);
-        }
-
-        return Err(VirtualFileSystemError::NotInitialized.into());
-    }
-
-    Err(MutexError::Locked.into())
+    unsafe { VFS.try_lock() }?
+        .as_mut()
+        .ok_or(VirtualFileSystemError::NotInitialized)?
+        .mount(path, fs)
 }
 
 pub fn cwd_file_names() -> Result<Vec<String>> {
-    if let Ok(mut vfs) = unsafe { VFS.try_lock() } {
-        if let Some(vfs) = vfs.as_mut() {
-            let files = vfs.cwd_files();
-            return Ok(files.iter().map(|f| f.name.clone()).collect());
-        }
-
-        return Err(VirtualFileSystemError::NotInitialized.into());
-    }
-
-    Err(MutexError::Locked.into())
+    Ok(unsafe { VFS.try_lock() }?
+        .as_mut()
+        .ok_or(VirtualFileSystemError::NotInitialized)?
+        .cwd_files()
+        .iter()
+        .map(|f| f.name.clone())
+        .collect())
 }
 
 pub fn cwd_path() -> Result<String> {
-    if let Ok(mut vfs) = unsafe { VFS.try_lock() } {
-        if let Some(vfs) = vfs.as_mut() {
-            return vfs.cwd_path();
-        }
-
-        return Err(VirtualFileSystemError::NotInitialized.into());
-    }
-
-    Err(MutexError::Locked.into())
+    unsafe { VFS.try_lock() }?
+        .as_mut()
+        .ok_or(VirtualFileSystemError::NotInitialized)?
+        .cwd_path()
 }
 
 pub fn open_file(path: &str) -> Result<FileDescriptorNumber> {
-    if let Ok(mut vfs) = unsafe { VFS.try_lock() } {
-        if let Some(vfs) = vfs.as_mut() {
-            let fd_num = vfs.open_file(path)?;
-            info!("vfs: Generated file descriptor: {}", fd_num.get());
-            return Ok(fd_num);
-        }
-
-        return Err(VirtualFileSystemError::NotInitialized.into());
-    }
-
-    Err(MutexError::Locked.into())
+    let fd_num = unsafe { VFS.try_lock() }?
+        .as_mut()
+        .ok_or(VirtualFileSystemError::NotInitialized)?
+        .open_file(path)?;
+    info!("vfs: Generated file descriptor: {}", fd_num.get());
+    Ok(fd_num)
 }
 
 pub fn close_file(fd_num: &FileDescriptorNumber) -> Result<()> {
-    if let Ok(mut vfs) = unsafe { VFS.try_lock() } {
-        if let Some(vfs) = vfs.as_mut() {
-            vfs.close_file(fd_num)?;
-            info!("vfs: Released file descriptor: {}", fd_num.get());
-            return Ok(());
-        }
-
-        return Err(VirtualFileSystemError::NotInitialized.into());
-    }
-
-    Err(MutexError::Locked.into())
+    unsafe { VFS.try_lock() }?
+        .as_mut()
+        .ok_or(VirtualFileSystemError::NotInitialized)?
+        .close_file(fd_num)?;
+    info!("vfs: Released file descriptor: {}", fd_num.get());
+    Ok(())
 }
 
 pub fn read_file(fd_num: &FileDescriptorNumber) -> Result<Vec<u8>> {
-    if let Ok(mut vfs) = unsafe { VFS.try_lock() } {
-        if let Some(vfs) = vfs.as_mut() {
-            return vfs.read_file(fd_num);
-        }
-
-        return Err(VirtualFileSystemError::NotInitialized.into());
-    }
-
-    Err(MutexError::Locked.into())
+    unsafe { VFS.try_lock() }?
+        .as_mut()
+        .ok_or(VirtualFileSystemError::NotInitialized)?
+        .read_file(fd_num)
 }

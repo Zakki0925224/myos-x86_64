@@ -4,11 +4,7 @@ use super::{
     font::{FONT, TAB_DISP_STR},
     frame_buf,
 };
-use crate::{
-    error::Result,
-    fs::file::bitmap::BitmapImage,
-    util::mutex::{Mutex, MutexError},
-};
+use crate::{error::Result, fs::file::bitmap::BitmapImage, util::mutex::Mutex};
 use alloc::vec::Vec;
 use common::graphic_info::PixelFormat;
 use core::sync::atomic::{AtomicUsize, Ordering};
@@ -271,12 +267,8 @@ impl LayerManager {
 }
 
 pub fn init(transparent_color: RgbColorCode) -> Result<()> {
-    if let Ok(mut layer_man) = unsafe { LAYER_MAN.try_lock() } {
-        *layer_man = Some(LayerManager::new(transparent_color));
-        return Ok(());
-    }
-
-    Err(MutexError::Locked.into())
+    *unsafe { LAYER_MAN.try_lock() }? = Some(LayerManager::new(transparent_color));
+    Ok(())
 }
 
 pub fn create_layer(x: usize, y: usize, width: usize, height: usize) -> Result<Layer> {
@@ -309,71 +301,47 @@ pub fn create_layer_from_bitmap_image(
 }
 
 pub fn push_layer(layer: Layer) -> Result<()> {
-    if let Ok(mut layer_man) = unsafe { LAYER_MAN.try_lock() } {
-        layer_man
-            .as_mut()
-            .ok_or(LayerError::LayerManagerNotInitialized)?
-            .push_layer(layer);
-        Ok(())
-    } else {
-        Err(MutexError::Locked.into())
-    }
+    unsafe { LAYER_MAN.try_lock() }?
+        .as_mut()
+        .ok_or(LayerError::LayerManagerNotInitialized)?
+        .push_layer(layer);
+    Ok(())
 }
 
 pub fn draw_to_frame_buf() -> Result<()> {
-    if let Ok(mut layer_man) = unsafe { LAYER_MAN.try_lock() } {
-        layer_man
-            .as_mut()
-            .ok_or(LayerError::LayerManagerNotInitialized)?
-            .draw_to_frame_buf()
-    } else {
-        Err(MutexError::Locked.into())
-    }
+    unsafe { LAYER_MAN.try_lock() }?
+        .as_mut()
+        .ok_or(LayerError::LayerManagerNotInitialized)?
+        .draw_to_frame_buf()
 }
 
 pub fn draw_layer<F: Fn(&mut dyn Draw) -> Result<()>>(layer_id: usize, draw: F) -> Result<()> {
-    if let Ok(mut layer_man) = unsafe { LAYER_MAN.try_lock() } {
-        draw(
-            layer_man
-                .as_mut()
-                .ok_or(LayerError::LayerManagerNotInitialized)?
-                .get_layer(layer_id)?,
-        )
-    } else {
-        Err(MutexError::Locked.into())
-    }
+    draw(
+        unsafe { LAYER_MAN.try_lock() }?
+            .as_mut()
+            .ok_or(LayerError::LayerManagerNotInitialized)?
+            .get_layer(layer_id)?,
+    )
 }
 
 pub fn move_layer(layer_id: usize, to_x: usize, to_y: usize) -> Result<()> {
-    if let Ok(mut layer_man) = unsafe { LAYER_MAN.try_lock() } {
-        layer_man
-            .as_mut()
-            .ok_or(LayerError::LayerManagerNotInitialized)?
-            .get_layer(layer_id)?
-            .move_to(to_x, to_y)
-    } else {
-        Err(MutexError::Locked.into())
-    }
+    unsafe { LAYER_MAN.try_lock() }?
+        .as_mut()
+        .ok_or(LayerError::LayerManagerNotInitialized)?
+        .get_layer(layer_id)?
+        .move_to(to_x, to_y)
 }
 
 pub fn remove_layer(layer_id: usize) -> Result<()> {
-    if let Ok(mut layer_man) = unsafe { LAYER_MAN.try_lock() } {
-        layer_man
-            .as_mut()
-            .ok_or(LayerError::LayerManagerNotInitialized)?
-            .remove_layer(layer_id)
-    } else {
-        Err(MutexError::Locked.into())
-    }
+    unsafe { LAYER_MAN.try_lock() }?
+        .as_mut()
+        .ok_or(LayerError::LayerManagerNotInitialized)?
+        .remove_layer(layer_id)
 }
 
 pub fn get_layer_pos_info(layer_id: usize) -> Result<LayerPositionInfo> {
-    if let Ok(mut layer_man) = unsafe { LAYER_MAN.try_lock() } {
-        layer_man
-            .as_mut()
-            .ok_or(LayerError::LayerManagerNotInitialized)?
-            .get_layer_pos_info(layer_id)
-    } else {
-        Err(MutexError::Locked.into())
-    }
+    unsafe { LAYER_MAN.try_lock() }?
+        .as_mut()
+        .ok_or(LayerError::LayerManagerNotInitialized)?
+        .get_layer_pos_info(layer_id)
 }

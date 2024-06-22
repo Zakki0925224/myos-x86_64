@@ -1,6 +1,5 @@
-use crate::error::Result;
-
 use super::{bitmap, paging::PAGE_SIZE};
+use crate::{error::Result, util::mutex::MutexError};
 use core::alloc::Layout;
 use linked_list_allocator::LockedHeap;
 
@@ -81,12 +80,11 @@ pub fn init_heap() -> Result<()> {
     bitmap::mem_clear(&mem_frame_info)?;
 
     unsafe {
-        ALLOCATOR.try_lock().unwrap().init(
+        ALLOCATOR.try_lock().ok_or(MutexError::Locked)?.init(
             frame_start_virt_addr.as_ptr_mut(),
             mem_frame_info.frame_size,
-        );
+        )
     }
-
     Ok(())
 }
 

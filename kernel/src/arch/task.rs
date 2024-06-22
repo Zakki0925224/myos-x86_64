@@ -6,7 +6,7 @@ use crate::{
         bitmap::{self, MemoryFrameInfo},
         paging::PAGE_SIZE,
     },
-    util::mutex::{Mutex, MutexError},
+    util::mutex::Mutex,
 };
 use alloc::{boxed::Box, collections::VecDeque, ffi::CString, vec::Vec};
 use core::{
@@ -127,22 +127,14 @@ pub async fn exec_yield() {
 }
 
 pub fn spawn(future: impl Future<Output = ()> + 'static) -> Result<()> {
-    if let Ok(mut executor) = unsafe { TASK_EXECUTOR.try_lock() } {
-        let task = ExecutorTask::new(future);
-        executor.spawn(task);
-        return Ok(());
-    }
-
-    Err(MutexError::Locked.into())
+    let task = ExecutorTask::new(future);
+    unsafe { TASK_EXECUTOR.try_lock() }?.spawn(task);
+    Ok(())
 }
 
 pub fn run() -> Result<()> {
-    if let Ok(mut executor) = unsafe { TASK_EXECUTOR.try_lock() } {
-        executor.run();
-        return Ok(());
-    }
-
-    Err(MutexError::Locked.into())
+    unsafe { TASK_EXECUTOR.try_lock() }?.run();
+    Ok(())
 }
 
 // non-preemptive multitask
@@ -250,49 +242,44 @@ pub fn exec_user_task(entry: extern "sysv64" fn(), file_name: &str, args: &[&str
         ContextMode::User,
     )?;
 
-    if let (Ok(mut kernel_task), Ok(mut user_task)) =
-        unsafe { (KERNEL_TASK.try_lock(), USER_TASK.try_lock()) }
-    {
-        if kernel_task.is_none() {
-            // stack is unused, because already allocated static area for kernel stack
-            *kernel_task = Some(Task::new(0, None, 0, 0, ContextMode::Kernel)?)
-        }
+    let mut kernel_task = unsafe { KERNEL_TASK.try_lock() }?;
+    let mut user_task = unsafe { USER_TASK.try_lock() }?;
 
-        *user_task = Some(task);
-        kernel_task
-            .as_ref()
-            .unwrap()
-            .switch_to(user_task.as_ref().unwrap());
-
-        // returned
-        args_mem_frame_info.set_permissions_to_supervisor()?;
-        bitmap::dealloc_mem_frame(args_mem_frame_info)?;
-
-        // get exit status
-        let exit_status = unsafe {
-            let status = match USER_EXIT_STATUS {
-                Some(s) => s,
-                None => panic!("task: User exit status was not found"),
-            };
-            USER_EXIT_STATUS = None;
-            status
-        };
-
-        return Ok(exit_status);
+    if kernel_task.is_none() {
+        // stack is unused, because already allocated static area for kernel stack
+        *kernel_task = Some(Task::new(0, None, 0, 0, ContextMode::Kernel)?);
     }
 
-    Err(MutexError::Locked.into())
+    *user_task = Some(task);
+    kernel_task
+        .as_ref()
+        .unwrap()
+        .switch_to(user_task.as_ref().unwrap());
+
+    // returned
+    args_mem_frame_info.set_permissions_to_supervisor()?;
+    bitmap::dealloc_mem_frame(args_mem_frame_info)?;
+
+    // get exit status
+    let exit_status = unsafe {
+        let status = match USER_EXIT_STATUS {
+            Some(s) => s,
+            None => panic!("task: User exit status was not found"),
+        };
+        USER_EXIT_STATUS = None;
+        status
+    };
+
+    return Ok(exit_status);
 }
 
 pub fn push_allocated_mem_frame_info_for_user_task(mem_frame_info: MemoryFrameInfo) -> Result<()> {
-    unsafe {
-        let user_task = USER_TASK.get_force_mut();
-        user_task
-            .as_mut()
-            .unwrap()
-            .allocated_mem_frame_info
-            .push(mem_frame_info);
-    }
+    let user_task = unsafe { USER_TASK.get_force_mut() };
+    user_task
+        .as_mut()
+        .unwrap()
+        .allocated_mem_frame_info
+        .push(mem_frame_info);
 
     Ok(())
 }
@@ -302,8 +289,8 @@ pub fn return_to_kernel_task(exit_status: u64) {
         USER_EXIT_STATUS = Some(exit_status);
     }
 
-    let (kernel_task, user_task) =
-        unsafe { (KERNEL_TASK.get_force_mut(), USER_TASK.get_force_mut()) };
+    let kernel_task = unsafe { KERNEL_TASK.get_force_mut() };
+    let user_task = unsafe { USER_TASK.get_force_mut() };
     user_task
         .as_ref()
         .unwrap()

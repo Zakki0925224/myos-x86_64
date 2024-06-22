@@ -2,11 +2,7 @@ use crate::{
     error::{Error, Result},
     graphics::{color::*, frame_buf_console},
     serial,
-    util::{
-        ascii::AsciiCode,
-        fifo::Fifo,
-        mutex::{Mutex, MutexError},
-    },
+    util::{ascii::AsciiCode, fifo::Fifo, mutex::Mutex},
 };
 use alloc::{boxed::Box, string::String};
 use core::fmt::{self, Write};
@@ -194,28 +190,21 @@ macro_rules! println
 }
 
 pub fn clear_input_buf() -> Result<()> {
-    if let Ok(mut console) = unsafe { CONSOLE.try_lock() } {
-        console.reset_buf(BufferType::Input);
-        return Ok(());
-    } else {
-        return Err(MutexError::Locked.into());
-    }
+    unsafe { CONSOLE.try_lock() }?.reset_buf(BufferType::Input);
+    Ok(())
 }
 
 pub fn input(ascii_code: AsciiCode) -> Result<Option<String>> {
     let mut input_str = None;
+    let mut console = unsafe { CONSOLE.try_lock() }?;
 
-    if let Ok(mut console) = unsafe { CONSOLE.try_lock() } {
-        if let Err(_) = console.write(ascii_code, BufferType::Input) {
-            console.reset_buf(BufferType::Input);
-            console.write(ascii_code, BufferType::Input).unwrap();
-        }
+    if let Err(_) = console.write(ascii_code, BufferType::Input) {
+        console.reset_buf(BufferType::Input);
+        console.write(ascii_code, BufferType::Input).unwrap();
+    }
 
-        if ascii_code == AsciiCode::CarriageReturn || ascii_code == AsciiCode::NewLine {
-            input_str = Some(console.get_str(BufferType::Input));
-        }
-    } else {
-        return Err(MutexError::Locked.into());
+    if ascii_code == AsciiCode::CarriageReturn || ascii_code == AsciiCode::NewLine {
+        input_str = Some(console.get_str(BufferType::Input));
     }
 
     Ok(input_str)

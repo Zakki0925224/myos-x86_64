@@ -6,10 +6,7 @@ use crate::{
         key_map::ANSI_US_104_KEY_MAP,
     },
     error::Result,
-    util::{
-        fifo::Fifo,
-        mutex::{Mutex, MutexError},
-    },
+    util::{fifo::Fifo, mutex::Mutex},
 };
 
 mod key_event;
@@ -162,19 +159,11 @@ pub fn init() {
 
 pub fn receive() -> Result<()> {
     let data = PS2_DATA_REG_ADDR.in8();
-    if let Ok(mut keyboard) = unsafe { KEYBOARD.try_lock() } {
-        return keyboard.input(data);
-    }
-
-    Err(MutexError::Locked.into())
+    unsafe { KEYBOARD.try_lock() }?.input(data)
 }
 
 pub fn get_event() -> Result<Option<KeyEvent>> {
-    if let Ok(mut keyboard) = unsafe { KEYBOARD.try_lock() } {
-        return keyboard.get_event();
-    }
-
-    Err(MutexError::Locked.into())
+    unsafe { KEYBOARD.try_lock() }?.get_event()
 }
 
 fn wait_ready() {

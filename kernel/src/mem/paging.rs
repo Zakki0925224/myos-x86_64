@@ -499,23 +499,11 @@ impl PageManager {
 }
 
 pub fn calc_virt_addr(phys_addr: PhysicalAddress) -> Result<VirtualAddress> {
-    unsafe {
-        if let Ok(page_man) = PAGE_MAN.try_lock() {
-            return page_man.calc_virt_addr(phys_addr);
-        }
-    }
-
-    Err(MutexError::Locked.into())
+    unsafe { PAGE_MAN.try_lock()?.calc_virt_addr(phys_addr) }
 }
 
 pub fn calc_phys_addr(virt_addr: VirtualAddress) -> Result<PhysicalAddress> {
-    unsafe {
-        if let Ok(page_man) = PAGE_MAN.try_lock() {
-            return page_man.calc_phys_addr(virt_addr);
-        }
-    }
-
-    Err(MutexError::Locked.into())
+    unsafe { PAGE_MAN.try_lock()?.calc_phys_addr(virt_addr) }
 }
 
 pub fn create_new_page_table(
@@ -527,21 +515,23 @@ pub fn create_new_page_table(
     write_through_level: PageWriteThroughLevel,
 ) -> Result<()> {
     unsafe {
-        if let Ok(page_man) = PAGE_MAN.try_lock() {
-            page_man.create_new_page_table(start, end, phys_addr, rw, mode, write_through_level)?;
-            info!(
-                "paging: Created new page table (virt 0x{:x}-0x{:x} -> phys 0x{:x}-0x{:x})",
-                start.get(),
-                end.get(),
-                phys_addr.get(),
-                phys_addr.offset((end.get() - start.get()) as usize).get()
-            );
-
-            return Ok(());
-        }
+        PAGE_MAN.try_lock()?.create_new_page_table(
+            start,
+            end,
+            phys_addr,
+            rw,
+            mode,
+            write_through_level,
+        )?
     }
-
-    Err(MutexError::Locked.into())
+    info!(
+        "paging: Created new page table (virt 0x{:x}-0x{:x} -> phys 0x{:x}-0x{:x})",
+        start.get(),
+        end.get(),
+        phys_addr.get(),
+        phys_addr.offset((end.get() - start.get()) as usize).get()
+    );
+    Ok(())
 }
 
 pub fn update_mapping(
@@ -553,21 +543,18 @@ pub fn update_mapping(
     write_through_level: PageWriteThroughLevel,
 ) -> Result<()> {
     unsafe {
-        if let Ok(page_man) = PAGE_MAN.try_lock() {
-            page_man.update_mapping(start, end, phys_addr, rw, mode, write_through_level)?;
-            info!(
-                "paging: Updated mapping (virt 0x{:x}-0x{:x} -> phys 0x{:x}-0x{:x})",
-                start.get(),
-                end.get(),
-                phys_addr.get(),
-                phys_addr.offset((end.get() - start.get()) as usize).get()
-            );
-
-            return Ok(());
-        }
+        PAGE_MAN
+            .try_lock()?
+            .update_mapping(start, end, phys_addr, rw, mode, write_through_level)?
     }
-
-    Err(MutexError::Locked.into())
+    info!(
+        "paging: Updated mapping (virt 0x{:x}-0x{:x} -> phys 0x{:x}-0x{:x})",
+        start.get(),
+        end.get(),
+        phys_addr.get(),
+        phys_addr.offset((end.get() - start.get()) as usize).get()
+    );
+    Ok(())
 }
 
 pub fn set_page_permissions(
@@ -576,40 +563,27 @@ pub fn set_page_permissions(
     mode: EntryMode,
 ) -> Result<()> {
     unsafe {
-        if let Ok(page_man) = PAGE_MAN.try_lock() {
-            let entry = page_man.page_table_entry(virt_addr)?;
-            return page_man.update_mapping(
-                virt_addr,
-                virt_addr,
-                entry.addr().into(),
-                rw,
-                mode,
-                entry.pwt(),
-            );
-        }
+        let page_man = PAGE_MAN.try_lock()?;
+        let entry = page_man.page_table_entry(virt_addr)?;
+        page_man.update_mapping(
+            virt_addr,
+            virt_addr,
+            entry.addr().into(),
+            rw,
+            mode,
+            entry.pwt(),
+        )
     }
-
-    Err(MutexError::Locked.into())
 }
 
 pub fn get_page_permissions(virt_addr: VirtualAddress) -> Result<(ReadWrite, EntryMode)> {
     unsafe {
-        if let Ok(page_man) = PAGE_MAN.try_lock() {
-            let entry = page_man.page_table_entry(virt_addr)?;
-            return Ok((entry.rw(), entry.us()));
-        }
+        let page_man = PAGE_MAN.try_lock()?;
+        let entry = page_man.page_table_entry(virt_addr)?;
+        Ok((entry.rw(), entry.us()))
     }
-
-    Err(MutexError::Locked.into())
 }
 
 pub fn read_page_table_entry(virt_addr: VirtualAddress) -> Result<PageTableEntry> {
-    unsafe {
-        if let Ok(page_man) = PAGE_MAN.try_lock() {
-            let entry = page_man.page_table_entry(virt_addr)?;
-            return Ok(entry.clone());
-        }
-    }
-
-    Err(MutexError::Locked.into())
+    Ok(unsafe { PAGE_MAN.try_lock()?.page_table_entry(virt_addr)?.clone() })
 }

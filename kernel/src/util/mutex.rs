@@ -30,10 +30,10 @@ impl<T: Sized> Mutex<T> {
             .compare_exchange(false, true, Ordering::SeqCst, Ordering::Relaxed)
             .is_ok()
         {
-            Ok(unsafe { MutexGuard::new(self, &self.value) })
-        } else {
-            Err(MutexError::Locked.into())
+            return Ok(unsafe { MutexGuard::new(self, &self.value) });
         }
+
+        Err(MutexError::Locked.into())
     }
 
     pub unsafe fn get_force_mut(&mut self) -> &mut T {
