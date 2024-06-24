@@ -13,7 +13,7 @@ use core::{
     future::Future,
     pin::Pin,
     ptr::null,
-    sync::atomic::{AtomicBool, AtomicU64, Ordering},
+    sync::atomic::{AtomicBool, AtomicUsize, Ordering},
     task::{Context as ExecutorContext, Poll, RawWaker, RawWakerVTable, Waker},
 };
 use log::info;
@@ -43,15 +43,15 @@ impl Future for Yield {
 }
 
 #[derive(Debug)]
-struct TaskId(u64);
+struct TaskId(usize);
 
 impl TaskId {
     pub fn new() -> Self {
-        static NEXT_ID: AtomicU64 = AtomicU64::new(0);
+        static NEXT_ID: AtomicUsize = AtomicUsize::new(0);
         Self(NEXT_ID.fetch_add(1, Ordering::Relaxed))
     }
 
-    pub fn get(&self) -> u64 {
+    pub fn get(&self) -> usize {
         self.0
     }
 }

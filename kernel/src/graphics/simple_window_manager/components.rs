@@ -1,18 +1,16 @@
 use crate::{
     error::{Error, Result},
     fs::file::bitmap::BitmapImage,
-    graphics::{draw::Draw, multi_layer},
+    graphics::multi_layer::{self, LayerId},
 };
 
-use super::RgbColorCode;
-
 pub struct Image {
-    pub layer_id: usize,
+    pub layer_id: LayerId,
 }
 
 impl Drop for Image {
     fn drop(&mut self) {
-        let _ = multi_layer::remove_layer(self.layer_id);
+        let _ = multi_layer::remove_layer(&self.layer_id);
     }
 }
 
@@ -29,7 +27,7 @@ impl Image {
 
         let mut layer = multi_layer::create_layer_from_bitmap_image(x, y, bitmap_image)?;
         layer.always_on_top = always_on_top;
-        let layer_id = layer.id;
+        let layer_id = layer.id.clone();
         multi_layer::push_layer(layer)?;
         Ok(Self { layer_id })
     }

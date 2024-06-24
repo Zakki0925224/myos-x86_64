@@ -5,7 +5,7 @@ use alloc::{
     string::{String, ToString},
     vec::Vec,
 };
-use core::sync::atomic::{AtomicU64, Ordering};
+use core::sync::atomic::{AtomicUsize, Ordering};
 use log::info;
 
 pub mod file_desc;
@@ -15,19 +15,19 @@ const PATH_SEPARATOR: char = '/';
 static mut VFS: Mutex<Option<VirtualFileSystem>> = Mutex::new(None);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct FileId(u64);
+struct FileId(usize);
 
 impl FileId {
     pub fn new() -> Self {
-        static NEXT_ID: AtomicU64 = AtomicU64::new(0);
+        static NEXT_ID: AtomicUsize = AtomicUsize::new(0);
         Self(NEXT_ID.fetch_add(1, Ordering::Relaxed))
     }
 
-    pub const fn new_val(value: u64) -> Self {
+    pub const fn new_val(value: usize) -> Self {
         Self(value)
     }
 
-    pub fn get(&self) -> u64 {
+    pub fn get(&self) -> usize {
         self.0
     }
 }

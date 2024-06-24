@@ -49,7 +49,7 @@ pub fn init_layer_man(graphic_info: &GraphicInfo, transparent_color: RgbColorCod
             return;
         }
     };
-    let console_layer_id = console_layer.id;
+    let console_layer_id = console_layer.id.clone();
 
     if let Err(err) = multi_layer::push_layer(console_layer) {
         error!(
@@ -59,7 +59,7 @@ pub fn init_layer_man(graphic_info: &GraphicInfo, transparent_color: RgbColorCod
         return;
     }
 
-    if let Err(err) = frame_buf_console::set_target_layer_id(console_layer_id) {
+    if let Err(err) = frame_buf_console::set_target_layer_id(&console_layer_id) {
         error!(
             "graphics: Failed to configure the layer for the frame buffer console: {:?}",
             err

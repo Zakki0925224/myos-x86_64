@@ -1,7 +1,7 @@
 use super::{
     font::{FONT, TAB_DISP_STR},
     frame_buf,
-    multi_layer::{self, LayerPositionInfo},
+    multi_layer::{self, LayerId, LayerPositionInfo},
 };
 use crate::{error::Result, graphics::color::*, util::mutex::Mutex};
 use core::fmt::{self, Write};
@@ -23,7 +23,7 @@ pub struct FrameBufferConsole {
     char_max_y_len: usize,
     cursor_x: usize,
     cursor_y: usize,
-    target_layer_id: Option<usize>,
+    target_layer_id: Option<LayerId>,
 }
 
 impl FrameBufferConsole {
@@ -48,7 +48,7 @@ impl FrameBufferConsole {
     }
 
     pub fn init_console(&mut self) -> Result<()> {
-        if let Some(layer_id) = self.target_layer_id {
+        if let Some(layer_id) = &self.target_layer_id {
             let LayerPositionInfo {
                 x: _,
                 y: _,
@@ -85,8 +85,8 @@ impl FrameBufferConsole {
         Ok(())
     }
 
-    pub fn set_target_layer_id(&mut self, layer_id: usize) -> Result<()> {
-        self.target_layer_id = Some(layer_id);
+    pub fn set_target_layer_id(&mut self, layer_id: &LayerId) -> Result<()> {
+        self.target_layer_id = Some(layer_id.clone());
 
         // update
         return self.init_console();
@@ -186,7 +186,7 @@ impl FrameBufferConsole {
     }
 
     fn fill(&self, color_code: RgbColorCode) -> Result<()> {
-        if let Some(layer_id) = self.target_layer_id {
+        if let Some(layer_id) = &self.target_layer_id {
             multi_layer::draw_layer(layer_id, |l| l.fill(color_code))?;
         } else {
             frame_buf::fill(color_code)?;
@@ -203,7 +203,7 @@ impl FrameBufferConsole {
         height: usize,
         color_code: RgbColorCode,
     ) -> Result<()> {
-        if let Some(layer_id) = self.target_layer_id {
+        if let Some(layer_id) = &self.target_layer_id {
             multi_layer::draw_layer(layer_id, |l| l.draw_rect(x, y, width, height, color_code))?;
         } else {
             frame_buf::draw_rect(x, y, width, height, color_code)?;
@@ -213,7 +213,7 @@ impl FrameBufferConsole {
     }
 
     fn draw_font(&self, x: usize, y: usize, c: char, color_code: RgbColorCode) -> Result<()> {
-        if let Some(layer_id) = self.target_layer_id {
+        if let Some(layer_id) = &self.target_layer_id {
             multi_layer::draw_layer(layer_id, |l| l.draw_font(x, y, c, color_code))?;
         } else {
             frame_buf::draw_font(x, y, c, color_code)?;
@@ -223,7 +223,7 @@ impl FrameBufferConsole {
     }
 
     fn copy(&self, x: usize, y: usize, to_x: usize, to_y: usize) -> Result<()> {
-        if let Some(layer_id) = self.target_layer_id {
+        if let Some(layer_id) = &self.target_layer_id {
             multi_layer::draw_layer(layer_id, |l| l.copy(x, y, to_x, to_y))?;
         } else {
             frame_buf::copy(x, y, to_x, to_y)?;
@@ -247,7 +247,7 @@ pub fn init(back_color: RgbColorCode, fore_color: RgbColorCode) -> Result<()> {
     Ok(())
 }
 
-pub fn set_target_layer_id(layer_id: usize) -> Result<()> {
+pub fn set_target_layer_id(layer_id: &LayerId) -> Result<()> {
     unsafe { FRAME_BUF_CONSOLE.try_lock() }?
         .as_mut()
         .ok_or(FrameBufferConsoleError::NotInitialized)?
