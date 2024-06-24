@@ -1,6 +1,5 @@
-use crate::util::ascii::AsciiCode;
-
 use super::scan_code::KeyCode;
+use crate::util::ascii::AsciiCode;
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum KeyState {

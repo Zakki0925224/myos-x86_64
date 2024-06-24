@@ -9,7 +9,7 @@ use crate::{
     util::{fifo::Fifo, mutex::Mutex},
 };
 
-mod key_event;
+pub mod key_event;
 mod key_map;
 mod scan_code;
 
@@ -56,6 +56,8 @@ impl Keyboard {
             self.data_buf.enqueue(data)?;
         }
 
+        //println!("{:?}", self.data_buf.get_buf_ref());
+
         Ok(())
     }
 
@@ -75,75 +77,75 @@ impl Keyboard {
         } else if self.data_5.is_none() {
             self.data_5 = Some(data);
         } else {
+            self.clear_data();
             self.data_0 = Some(data);
-            self.data_1 = None;
-            self.data_2 = None;
-            self.data_3 = None;
-            self.data_4 = None;
-            self.data_5 = None;
         }
 
-        if let (
-            Some(data_0),
-            Some(data_1),
-            Some(data_2),
-            Some(data_3),
-            Some(data_4),
-            Some(data_5),
-        ) = (
-            self.data_0,
-            self.data_1,
-            self.data_2,
-            self.data_3,
-            self.data_4,
-            self.data_5,
-        ) {
-            let code = [data_0, data_1, data_2, data_3, data_4, data_5];
-            let key_map = match self.key_map {
-                KeyMap::AnsiUs104(map) => map,
+        let code = [
+            self.data_0.unwrap_or(0),
+            self.data_1.unwrap_or(0),
+            self.data_2.unwrap_or(0),
+            self.data_3.unwrap_or(0),
+            self.data_4.unwrap_or(0),
+            self.data_5.unwrap_or(0),
+        ];
+        let key_map = match self.key_map {
+            KeyMap::AnsiUs104(map) => map,
+        };
+
+        for scan_code in key_map {
+            let key_code = scan_code.key_code;
+
+            let key_state = if scan_code.pressed == code {
+                KeyState::Pressed
+            } else if scan_code.released == code {
+                KeyState::Released
+            } else {
+                continue;
             };
 
-            for scan_code in key_map {
-                let key_code = scan_code.key_code;
+            // println!("{:?}", code);
+            // println!("{:?}, {:?}", key_code, key_state);
 
-                let key_state = if scan_code.pressed == code {
-                    KeyState::Pressed
-                } else if scan_code.released == code {
-                    KeyState::Released
-                } else {
-                    continue;
-                };
+            let ModifierKeysState {
+                shift: prev_shift,
+                ctrl: prev_ctrl,
+                gui: prev_gui,
+                alt: prev_alt,
+            } = self.mod_keys_state;
 
-                let ModifierKeysState {
-                    shift: prev_shift,
-                    ctrl: prev_ctrl,
-                    gui: prev_gui,
-                    alt: prev_alt,
-                } = self.mod_keys_state;
+            self.mod_keys_state = ModifierKeysState {
+                shift: key_code.is_shift() || prev_shift,
+                ctrl: key_code.is_ctrl() || prev_ctrl,
+                gui: key_code.is_gui() || prev_gui,
+                alt: key_code.is_alt() || prev_alt,
+            };
 
-                self.mod_keys_state = ModifierKeysState {
-                    shift: key_code.is_shift() || prev_shift,
-                    ctrl: key_code.is_ctrl() || prev_ctrl,
-                    gui: key_code.is_gui() || prev_gui,
-                    alt: key_code.is_alt() || prev_alt,
-                };
+            let ascii_code = match self.mod_keys_state.shift {
+                true => scan_code.on_shift_ascii_code,
+                false => scan_code.ascii_code,
+            };
 
-                let ascii_code = match self.mod_keys_state.shift {
-                    true => scan_code.on_shift_ascii_code,
-                    false => scan_code.ascii_code,
-                };
+            let key_event = KeyEvent {
+                code: key_code,
+                state: key_state,
+                ascii: ascii_code,
+            };
 
-                let key_event = KeyEvent {
-                    code: key_code,
-                    state: key_state,
-                    ascii: ascii_code,
-                };
-
-                return Ok(Some(key_event));
-            }
+            self.clear_data();
+            return Ok(Some(key_event));
         }
 
         Ok(None)
+    }
+
+    fn clear_data(&mut self) {
+        self.data_0 = None;
+        self.data_1 = None;
+        self.data_2 = None;
+        self.data_3 = None;
+        self.data_4 = None;
+        self.data_5 = None;
     }
 }
 

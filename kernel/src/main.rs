@@ -29,7 +29,11 @@ use alloc::{
 use arch::{apic, asm, context, gdt, idt, qemu, syscall, task};
 use bus::pci;
 use common::boot_info::BootInfo;
-use device::{console, ps2_keyboard, ps2_mouse};
+use device::{
+    console,
+    ps2_keyboard::{self, key_event::KeyState},
+    ps2_mouse,
+};
 use error::Result;
 use fs::{exec, file::bitmap::BitmapImage, vfs};
 use graphics::{color::RgbColorCode, simple_window_manager};
@@ -109,7 +113,7 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
 
     // tasks
     task::spawn(poll_serial()).unwrap();
-    //task::spawn(poll_ps2_keyboard()).unwrap();
+    task::spawn(poll_ps2_keyboard()).unwrap();
     task::spawn(poll_ps2_mouse()).unwrap();
     task::run().unwrap();
 
@@ -173,9 +177,42 @@ async fn poll_ps2_keyboard() {
             }
         };
 
-        if let Some(ascii_code) = key_evnet.ascii {
-            let _ = console::input(ascii_code);
+        if key_evnet.state == KeyState::Released {
+            task::exec_yield().await;
+            continue;
         }
+
+        let ascii_code = match key_evnet.ascii {
+            Some(c) => c,
+            None => {
+                task::exec_yield().await;
+                continue;
+            }
+        };
+
+        match ascii_code {
+            AsciiCode::CarriageReturn => {
+                println!();
+            }
+            code => {
+                print!("{}", code as u8 as char);
+            }
+        }
+
+        let cmd = match console::input(ascii_code) {
+            Ok(Some(s)) => s,
+            _ => {
+                task::exec_yield().await;
+                continue;
+            }
+        };
+
+        if let Err(err) = exec_cmd(cmd).await {
+            error!("{:?}", err);
+        }
+
+        let cwd_path = vfs::cwd_path().unwrap_or(String::from("<UNKNOWN>"));
+        print!("\n[{}]$ ", cwd_path);
 
         task::exec_yield().await;
     }
