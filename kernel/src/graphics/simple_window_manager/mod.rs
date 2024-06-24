@@ -5,12 +5,12 @@ use super::{
     multi_layer::{self, LayerPositionInfo},
 };
 use crate::{
-    device::ps2_mouse::MouseEvent,
-    error::{Error, Result},
-    fs::file::bitmap::BitmapImage,
-    util::mutex::Mutex,
+    device::ps2_mouse::MouseEvent, error::Result, fs::file::bitmap::BitmapImage, util::mutex::Mutex,
 };
 use alloc::{string::String, vec::Vec};
+use components::Image;
+
+pub mod components;
 
 static mut SIMPLE_WM: Mutex<Option<SimpleWindowManager>> = Mutex::new(None);
 
@@ -31,46 +31,27 @@ struct Taskbar {
     pub layer_id: usize,
 }
 
-struct MousePointer {
-    pub layer_id: usize,
-}
-
 struct SimpleWindowManager {
     windows: Vec<Window>,
     taskbar: Option<Taskbar>,
-    mouse_pointer: Option<MousePointer>,
+    mouse_pointer: Option<Image>,
+    res_x: usize,
+    res_y: usize,
 }
 
 impl SimpleWindowManager {
-    pub fn new() -> Self {
+    pub fn new(res_x: usize, res_y: usize) -> Self {
         Self {
             windows: Vec::new(),
             taskbar: None,
             mouse_pointer: None,
+            res_x,
+            res_y,
         }
     }
 
     pub fn create_mouse_pointer(&mut self, pointer_bmp: &BitmapImage) -> Result<()> {
-        if let Some(layer_id) = self.mouse_pointer.as_ref().map(|m| m.layer_id) {
-            multi_layer::remove_layer(layer_id)?;
-        }
-
-        if !pointer_bmp.is_valid() {
-            return Err(Error::Failed("Invalid bitmap image"));
-        }
-
-        let mut pointer_layer = multi_layer::create_layer_from_bitmap_image(0, 0, pointer_bmp)
-            .unwrap_or({
-                let mut layer = multi_layer::create_layer(0, 0, 5, 14)?;
-                layer.fill(COLOR_SILVER)?;
-                layer
-            });
-        pointer_layer.always_on_top = true;
-        let pointer_layer_id = pointer_layer.id;
-        multi_layer::push_layer(pointer_layer)?;
-        self.mouse_pointer = Some(MousePointer {
-            layer_id: pointer_layer_id,
-        });
+        self.mouse_pointer = Some(Image::new(pointer_bmp, 0, 0, true)?);
 
         Ok(())
     }
@@ -80,11 +61,9 @@ impl SimpleWindowManager {
             multi_layer::remove_layer(layer_id)?;
         }
 
-        let (res_x, res_y) = frame_buf::get_resolution()?;
-
-        let width = res_x;
+        let width = self.res_x;
         let height = 30;
-        let mut taskbar_layer = multi_layer::create_layer(0, res_y - height, width, height)?;
+        let mut taskbar_layer = multi_layer::create_layer(0, self.res_y - height, width, height)?;
         taskbar_layer.fill(COLOR_SILVER)?;
         let taskbar_layer_id = taskbar_layer.id;
         multi_layer::push_layer(taskbar_layer)?;
@@ -175,7 +154,8 @@ impl SimpleWindowManager {
 }
 
 pub fn init() -> Result<()> {
-    *unsafe { SIMPLE_WM.try_lock() }? = Some(SimpleWindowManager::new());
+    let (res_x, res_y) = frame_buf::get_resolution()?;
+    *unsafe { SIMPLE_WM.try_lock() }? = Some(SimpleWindowManager::new(res_x, res_y));
     Ok(())
 }
 
