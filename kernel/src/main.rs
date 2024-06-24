@@ -250,7 +250,7 @@ async fn poll_ps2_mouse() {
         };
 
         if !is_created_mouse_pointer_layer
-            && simple_window_manager::create_mouse_pointer_layer(&pointer_bmp).is_ok()
+            && simple_window_manager::create_mouse_pointer(&pointer_bmp).is_ok()
         {
             is_created_mouse_pointer_layer = true;
         }
@@ -299,6 +299,9 @@ async fn exec_cmd(cmd: String) -> Result<()> {
         "window" => {
             let _ =
                 simple_window_manager::create_window("test window".to_string(), 200, 50, 300, 200);
+        }
+        "taskbar" => {
+            let _ = simple_window_manager::create_taskbar();
         }
         "" => (),
         cmd => error!("Command {:?} was not found", cmd),
