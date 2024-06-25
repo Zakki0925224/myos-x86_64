@@ -22,10 +22,7 @@ mod util;
 #[macro_use]
 extern crate alloc;
 
-use alloc::{
-    string::{String, ToString},
-    vec::Vec,
-};
+use alloc::{string::String, vec::Vec};
 use arch::{apic, asm, context, gdt, idt, qemu, syscall, task};
 use bus::pci;
 use common::boot_info::BootInfo;
@@ -39,7 +36,7 @@ use fs::{exec, file::bitmap::BitmapImage, vfs};
 use graphics::{color::RgbColorCode, simple_window_manager};
 use log::error;
 use serial::ComPort;
-use util::{ascii::AsciiCode, hexdump, logger};
+use util::{ascii::AsciiCode, hexdump, logger, random};
 
 #[no_mangle]
 #[start]
@@ -87,7 +84,7 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
     bus::init();
 
     // initialize device drivers
-    device::init(&boot_info.graphic_info);
+    device::init();
 
     // initialize initramfs, VFS
     fs::init(
@@ -256,7 +253,7 @@ async fn poll_ps2_mouse() {
         }
 
         if is_created_mouse_pointer_layer {
-            let _ = simple_window_manager::move_mouse_pointer(mouse_event);
+            let _ = simple_window_manager::mouse_pointer_event(mouse_event);
         }
         task::exec_yield().await;
     }
@@ -297,11 +294,11 @@ async fn exec_cmd(cmd: String) -> Result<()> {
             }
         }
         "window" => {
-            let _ =
-                simple_window_manager::create_window("test window".to_string(), 200, 50, 300, 200);
+            let window_title = format!("window {}", random::xorshift64_seed_is_apic_timer());
+            simple_window_manager::create_window(window_title, 200, 50, 300, 200)?;
         }
         "taskbar" => {
-            let _ = simple_window_manager::create_taskbar();
+            simple_window_manager::create_taskbar()?;
         }
         "" => (),
         cmd => error!("Command {:?} was not found", cmd),

@@ -1,9 +1,9 @@
 use crate::{
     arch::addr::IoPortAddress,
     error::Result,
+    println,
     util::{fifo::Fifo, mutex::Mutex},
 };
-use common::graphic_info::GraphicInfo;
 
 const PS2_DATA_REG_ADDR: IoPortAddress = IoPortAddress::new(0x60);
 const PS2_CMD_AND_STATE_REG_ADDR: IoPortAddress = IoPortAddress::new(0x64);
@@ -15,15 +15,11 @@ pub struct MouseEvent {
     pub middle: bool,
     pub right: bool,
     pub left: bool,
-    pub x_pos: usize,
-    pub y_pos: usize,
+    pub rel_x: isize,
+    pub rel_y: isize,
 }
 
 struct Mouse {
-    x_max: usize,
-    y_max: usize,
-    x: usize,
-    y: usize,
     data_buf: Fifo<u8, 128>,
     data_0: Option<u8>,
     data_1: Option<u8>,
@@ -33,22 +29,11 @@ struct Mouse {
 impl Mouse {
     pub const fn new() -> Self {
         Self {
-            x_max: 0,
-            y_max: 0,
-            x: 0,
-            y: 0,
             data_buf: Fifo::new(0),
             data_0: None,
             data_1: None,
             data_2: None,
         }
-    }
-
-    pub fn init(&mut self, graphic_info: &GraphicInfo) {
-        let (res_x, res_y) = graphic_info.resolution;
-
-        self.x_max = res_x;
-        self.y_max = res_y;
     }
 
     pub fn receive(&mut self, data: u8) -> Result<()> {
@@ -87,51 +72,27 @@ impl Mouse {
 
         if let (Some(data_0), Some(data_1), Some(data_2)) = (self.data_0, self.data_1, self.data_2)
         {
-            let mut x = self.x as isize;
-            let mut y = self.y as isize;
-
             let button_m = data_0 & 0x4 != 0;
             let button_r = data_0 & 0x2 != 0;
             let button_l = data_0 & 0x1 != 0;
+            let x_of = data_0 & 0x40 != 0;
+            let y_of = data_0 & 0x80 != 0;
 
-            let mut x_pos = data_1 as isize;
-            let mut y_pos = data_2 as isize;
-
-            let x_sign = data_0 & 0x10 != 0;
-            let y_sign = data_0 & 0x20 != 0;
-
-            if x_sign {
-                x_pos -= 0x100;
-            }
-            if y_sign {
-                y_pos -= 0x100;
+            if x_of || y_of {
+                return Ok(None);
             }
 
-            x -= x_pos;
-            y += y_pos;
+            let rel_x = -(data_1 as isize - (((data_0 as isize) << 4) & 0x100));
+            let rel_y = data_2 as isize - (((data_0 as isize) << 3) & 0x100);
 
-            if x < 0 {
-                self.x = 0;
-            } else if x > self.x_max as isize - 1 {
-                self.x = self.x_max - 1;
-            } else {
-                self.x = x as usize;
-            }
-
-            if y < 0 {
-                self.y = 0;
-            } else if y > self.y_max as isize - 1 {
-                self.y = self.y_max - 1;
-            } else {
-                self.y = y as usize;
-            }
+            //println!("{}:{}", rel_x, rel_y);
 
             let e = MouseEvent {
                 middle: button_m,
                 right: button_r,
                 left: button_l,
-                x_pos: self.x,
-                y_pos: self.y,
+                rel_x,
+                rel_y,
             };
 
             return Ok(Some(e));
@@ -141,7 +102,7 @@ impl Mouse {
     }
 }
 
-pub fn init(graphic_info: &GraphicInfo) -> Result<()> {
+pub fn init() {
     // send next wrote byte to ps/2 secondary port
     PS2_CMD_AND_STATE_REG_ADDR.out8(0xd4);
     wait_ready();
@@ -156,9 +117,6 @@ pub fn init(graphic_info: &GraphicInfo) -> Result<()> {
     // start streaming
     PS2_DATA_REG_ADDR.out8(0xf4);
     wait_ready();
-
-    unsafe { MOUSE.try_lock() }?.init(graphic_info);
-    Ok(())
 }
 
 pub fn receive() -> Result<()> {

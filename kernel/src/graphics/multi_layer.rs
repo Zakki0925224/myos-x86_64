@@ -86,6 +86,15 @@ impl Draw for Layer {
         let mut char_y = y;
 
         for c in s.chars() {
+            if char_x + font_width > self.pos_info.width {
+                char_y += font_height;
+                char_x = x;
+            }
+
+            if char_y + font_height > self.pos_info.height {
+                continue;
+            }
+
             match c {
                 '\n' => {
                     char_y += font_height;
