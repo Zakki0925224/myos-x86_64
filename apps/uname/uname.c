@@ -2,7 +2,12 @@
 
 void _start(int argc, char *argv[])
 {
-    struct utsname *buf = sys_sbrk(sizeof(struct utsname));
+    utsname *buf = (utsname *)malloc(sizeof(utsname));
+    if (buf == NULL)
+    {
+        sys_exit(1);
+    }
+
     sys_uname(buf);
 
     if (argc == 1)

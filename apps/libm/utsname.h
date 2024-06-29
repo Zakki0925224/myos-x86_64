@@ -1,6 +1,6 @@
 #define UTS_LEN 64
 
-struct utsname
+typedef struct
 {
     char sysname[UTS_LEN];
     char nodename[UTS_LEN];
@@ -8,4 +8,4 @@ struct utsname
     char version[UTS_LEN];
     char machine[UTS_LEN];
     char domainname[UTS_LEN];
-};
+} utsname;

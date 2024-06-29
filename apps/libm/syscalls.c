@@ -50,7 +50,7 @@ void *sys_sbrk(uint64_t len)
     return (void *)addr;
 }
 
-int64_t sys_uname(struct utsname *buf)
+int64_t sys_uname(utsname *buf)
 {
     return syscall(SN_UNAME, (uint64_t)buf, 0, 0, 0, 0);
 }

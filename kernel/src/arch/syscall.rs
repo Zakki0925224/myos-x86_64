@@ -46,7 +46,7 @@ extern "sysv64" fn syscall_handler(
     arg4: u64, // (sysv abi) r8
     arg5: u64, // (sysv abi) r9
 ) -> i64 /* rax */ {
-    let args = [arg0, arg1, arg2, arg3, arg4, arg5];
+    //let args = [arg0, arg1, arg2, arg3, arg4, arg5];
     //info!("syscall: Called!(args: {:?})", args);
 
     match arg0 {

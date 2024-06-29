@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <stddef.h>
 #include "utsname.h"
 
 // syscalls.c
@@ -23,7 +24,7 @@ extern int64_t sys_open(const char *filepath);
 extern int64_t sys_close(int64_t fd);
 extern void sys_exit(uint64_t status);
 extern void *sys_sbrk(uint64_t len);
-extern int64_t sys_uname(struct utsname *buf);
+extern int64_t sys_uname(utsname *buf);
 extern void sys_break(void);
 
 // string.h
@@ -32,3 +33,6 @@ extern int strlen(const char *str);
 
 // printf.c
 extern int printf(const char *str);
+
+// malloc.c
+extern void *malloc(size_t len);
