@@ -121,6 +121,23 @@ int printf(const char *fmt, ...)
             break;
         }
 
+        case 'c':
+        {
+            char cfv = va_arg(ap, int);
+            buf_i = push_buf_and_write(buf_i, cfv);
+            break;
+        }
+        case 's':
+        {
+            const char *s = va_arg(ap, char *);
+            int s_len = strlen(s);
+            for (int i = 0; i < s_len; i++)
+            {
+                buf_i = push_buf_and_write(buf_i, s[i]);
+            }
+            break;
+        }
+
         case '%':
             buf_i = push_buf_and_write(buf_i, '%');
             break;

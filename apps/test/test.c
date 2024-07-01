@@ -2,6 +2,7 @@
 
 void _start(void)
 {
-    printf("Hello %dworld!\n", 123456);
+    // char s[18] = "hoge huga hogera\0";
+    printf("c=%c, s=%s\n", 'h', "hoge huga hogera");
     sys_exit(0);
 }

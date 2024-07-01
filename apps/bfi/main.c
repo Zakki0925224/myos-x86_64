@@ -50,7 +50,7 @@ int exec_bf(const char *bf_code)
         case '.':
             str[0] = (char)mem[mp];
             str[1] = '\0';
-            printf(str);
+            printf("%s", str);
             break;
 
         // increment pointer
@@ -155,9 +155,7 @@ void _start(int argc, char *argv[])
     }
 
     printf("Welcome to Brainf**k interpreter!\n");
-    printf("code: \"");
-    printf(bf_code);
-    printf("\"\n");
+    printf("code: \"%s\"\n", bf_code);
     int res = exec_bf(bf_code);
     sys_exit(res);
 }
