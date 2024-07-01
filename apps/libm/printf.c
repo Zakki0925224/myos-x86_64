@@ -33,9 +33,16 @@ int printf(const char *fmt, ...)
     va_list ap;
     va_start(ap, fmt);
 
+    int i;
     int str_len = strlen(fmt);
     int str_i = 0;
     int buf_i = 0;
+    char c, nc;
+
+    int va_num, va_num_tmp, va_num_digit, digit;
+    char va_c;
+    const char *va_s = NULL;
+    int va_s_len;
 
     if (str_len <= 0)
     {
@@ -54,7 +61,7 @@ int printf(const char *fmt, ...)
             break;
         }
 
-        char c = fmt[str_i++];
+        c = fmt[str_i++];
 
         if (c != '%')
         {
@@ -68,40 +75,39 @@ int printf(const char *fmt, ...)
             continue;
         }
 
-        char nc = fmt[str_i++];
+        nc = fmt[str_i++];
         switch (nc)
         {
         case 'd':
         {
-            int num = va_arg(ap, int);
-            int tmp;
-            int num_digit = 0;
+            va_num = va_arg(ap, int);
+            va_num_digit = 0;
 
-            if (num == 0)
+            if (va_num == 0)
             {
                 buf_i = push_buf_and_write(buf_i, '0');
                 break;
             }
-            else if (num < 0)
+            else if (va_num < 0)
             {
                 buf_i = push_buf_and_write(buf_i, '-');
-                num = -num;
+                va_num = -va_num;
             }
 
-            tmp = num;
-            while (tmp > 0)
+            va_num_tmp = va_num;
+            while (va_num_tmp > 0)
             {
-                tmp /= 10;
-                num_digit++;
+                va_num_tmp /= 10;
+                va_num_digit++;
             }
 
-            if (num_digit >= BUF_SIZE)
+            if (va_num_digit >= BUF_SIZE)
             {
                 ret = -1;
                 break;
             }
 
-            if (buf_i + num_digit >= BUF_SIZE)
+            if (buf_i + va_num_digit >= BUF_SIZE)
             {
                 if (write_buf(buf_i) == -1)
                 {
@@ -110,30 +116,30 @@ int printf(const char *fmt, ...)
                 }
             }
 
-            for (int i = num_digit - 1; i >= 0; i--)
+            for (i = va_num_digit - 1; i >= 0; i--)
             {
-                int digit = num % 10;
-                num /= 10;
+                digit = va_num % 10;
+                va_num /= 10;
                 push_buf_and_write(buf_i + i, '0' + digit);
             }
 
-            buf_i += num_digit;
+            buf_i += va_num_digit;
             break;
         }
 
         case 'c':
         {
-            char cfv = va_arg(ap, int);
-            buf_i = push_buf_and_write(buf_i, cfv);
+            va_c = va_arg(ap, int);
+            buf_i = push_buf_and_write(buf_i, va_c);
             break;
         }
         case 's':
         {
-            const char *s = va_arg(ap, char *);
-            int s_len = strlen(s);
-            for (int i = 0; i < s_len; i++)
+            va_s = va_arg(ap, char *);
+            va_s_len = strlen(va_s);
+            for (i = 0; i < va_s_len; i++)
             {
-                buf_i = push_buf_and_write(buf_i, s[i]);
+                buf_i = push_buf_and_write(buf_i, va_s[i]);
             }
             break;
         }
