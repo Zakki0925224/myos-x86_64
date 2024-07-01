@@ -9,7 +9,7 @@ LIB_FILE := libm.a
 
 # Compiler flags
 CC := gcc
-CFLAGS := -Wall -g -m64 -nostdlib -fno-builtin -std=c11
+CFLAGS := -Wall -g -m64 -nostdlib -fno-builtin -fno-stack-protector -std=c11
 
 # Create static library
 $(LIB_FILE): $(OBJ_FILES)

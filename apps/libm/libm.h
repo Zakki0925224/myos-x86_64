@@ -32,7 +32,7 @@ extern int strcmp(const char *s1, const char *s2);
 extern int strlen(const char *str);
 
 // printf.c
-extern int printf(const char *str);
+extern int printf(const char *fmt, ...);
 
 // malloc.c
 extern void *malloc(size_t len);

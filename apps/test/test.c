@@ -2,5 +2,6 @@
 
 void _start(void)
 {
-    sys_break();
+    printf("Hello %dworld!\n", 123456);
+    sys_exit(0);
 }
