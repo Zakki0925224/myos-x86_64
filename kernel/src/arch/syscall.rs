@@ -5,13 +5,19 @@ use crate::{
         register::model_specific::*,
         task,
     },
+    device::ps2_keyboard::{self, key_event::KeyState},
     env,
     error::{Error, Result},
     fs::vfs::{self, file_desc::FileDescriptorNumber},
     mem::{bitmap, paging::PAGE_SIZE},
-    print, util,
+    print, println,
+    util::{self, ascii::AsciiCode},
 };
-use alloc::string::{String, ToString};
+use alloc::{
+    ffi::CString,
+    string::{String, ToString},
+    vec::Vec,
+};
 use common::libm::Utsname;
 use core::{arch::asm, slice};
 use log::{error, info};
@@ -149,10 +155,48 @@ extern "sysv64" fn syscall_handler(
 
 fn sys_read(fd: FileDescriptorNumber, buf_addr: VirtualAddress, buf_len: usize) -> Result<()> {
     match fd {
-        FileDescriptorNumber::STDIN
-        | FileDescriptorNumber::STDOUT
-        | FileDescriptorNumber::STDERR => {
+        FileDescriptorNumber::STDOUT | FileDescriptorNumber::STDERR => {
             return Err(Error::Failed("fd is not defined"));
+        }
+        FileDescriptorNumber::STDIN => {
+            // wait input enter
+            let mut input_buf = Vec::new();
+            loop {
+                if input_buf.len() >= buf_len - 1 {
+                    break;
+                }
+
+                let key_event = match ps2_keyboard::get_event() {
+                    Ok(Some(e)) => e,
+                    _ => continue,
+                };
+
+                if key_event.state == KeyState::Released {
+                    continue;
+                }
+
+                let ascii_code = match key_event.ascii {
+                    Some(c) => c,
+                    None => continue,
+                };
+
+                let c = ascii_code as u8;
+                input_buf.push(c);
+                match ascii_code {
+                    AsciiCode::CarriageReturn | AsciiCode::NewLine => {
+                        println!();
+                        break;
+                    }
+                    _ => {
+                        print!("{}", c as char);
+                    }
+                }
+            }
+
+            let c_s = CString::new(String::from_utf8_lossy(&input_buf).to_string())
+                .unwrap()
+                .into_bytes_with_nul();
+            buf_addr.copy_from_nonoverlapping(c_s.as_ptr(), buf_len);
         }
         fd => {
             let data = vfs::read_file(&fd)?;

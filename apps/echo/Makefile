@@ -1,38 +1,26 @@
-# Source file (C code)
-SRC_FILE := echo.c
-
-# Output file (executable)
+SRC_FILES := echo.c
+OBJ_FILES := $(SRC_FILES:.c=.o)
 OUT_FILE := echo.elf
 
-# Object file
-OBJ_FILE := echo.o
-
-# Compiler flags
 CC := gcc
 CFLAGS := -O2 -Wall -g -m64 -nostdlib -fno-builtin -fno-stack-protector -std=c11
 
-# Linker flags
 LD := ld.lld
 LDFLAGS := -z norelro --static
 
-# Library flags
 LIB_DIR := ../libm
 LIB := -L$(LIB_DIR) -lm
 
-# Compile and link
-$(OUT_FILE): $(OBJ_FILE)
-	$(LD) $< $(LIB) -o $@ $(LDFLAGS)
-
-# Compile
-$(OBJ_FILE): $(SRC_FILE)
+$(OUT_FILE): $(OBJ_FILES)
 	make -C $(LIB_DIR)
-	$(CC) $< $(LIB) -c -o $@ $(CFLAGS)
+	$(LD) $(OBJ_FILES) $(LIB) -o $@ $(LDFLAGS)
 
-# Clean rule
+%.o: %.c
+	$(CC) -c $< -o $@ $(CFLAGS)
+
 clean:
-	rm -f $(OUT_FILE) $(OBJ_FILE)
+	rm -f $(OUT_FILE) $(OBJ_FILES)
 
-# Default target
 all: $(OUT_FILE)
 
 .PHONY: clean all

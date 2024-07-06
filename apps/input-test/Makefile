@@ -1,6 +1,6 @@
-SRC_FILES := test.c
+SRC_FILES := main.c
 OBJ_FILES := $(SRC_FILES:.c=.o)
-OUT_FILE := test.elf
+OUT_FILE := input-test.elf
 
 CC := gcc
 CFLAGS := -O2 -Wall -g -m64 -nostdlib -fno-builtin -fno-stack-protector -std=c11
