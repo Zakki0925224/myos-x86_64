@@ -136,11 +136,18 @@ int printf(const char *fmt, ...)
         case 's':
         {
             va_s = va_arg(ap, char *);
+            if (va_s == NULL)
+            {
+                ret = -1;
+                break;
+            }
+
             va_s_len = strlen(va_s);
             for (i = 0; i < va_s_len; i++)
             {
                 buf_i = push_buf_and_write(buf_i, va_s[i]);
             }
+            va_s = NULL;
             break;
         }
 

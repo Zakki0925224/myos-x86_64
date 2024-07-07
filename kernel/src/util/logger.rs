@@ -45,7 +45,7 @@ impl log::Log for SimpleLogger {
         let local_apic_timer_tick = arch::apic::timer::get_current_tick();
 
         print!(
-            "[tk={}][{}{}]: ",
+            "[T:0x{:08x}][{}{}]: ",
             local_apic_timer_tick,
             if record.level() == Level::Error || record.level() == Level::Debug {
                 ""
