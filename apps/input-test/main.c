@@ -13,6 +13,6 @@ void _start(void)
         sys_exit(2);
     }
 
-    printf(str_buf);
+    printf("\"%s\"\n", str_buf);
     sys_exit(0);
 }

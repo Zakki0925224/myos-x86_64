@@ -3,7 +3,7 @@ OBJ_FILES := $(SRC_FILES:.c=.o)
 LIB_FILE := libm.a
 
 CC := gcc
-CFLAGS := -Wall -g -m64 -nostdlib -fno-builtin -fno-stack-protector -mno-sse -std=c11
+CFLAGS := -Wall -g -m64 -nostdlib -fno-builtin -fno-stack-protector -mno-sse -mno-mmx -std=c11
 
 $(LIB_FILE): $(OBJ_FILES)
 	ar rcs $@ $^

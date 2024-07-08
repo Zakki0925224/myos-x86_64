@@ -2,7 +2,7 @@ use super::{addr::VirtualAddress, asm};
 use crate::{
     arch::{
         gdt::{KERNEL_MODE_CS_VALUE, KERNEL_MODE_SS_VALUE},
-        register::model_specific::*,
+        register::{model_specific::*, Register},
         task,
     },
     device::ps2_keyboard::{self, key_event::KeyState},
@@ -275,24 +275,35 @@ fn sys_break() {
     asm::int3();
 }
 
-pub fn init() {
+pub fn enable() {
     let mut efer = ExtendedFeatureEnableRegister::read();
-    efer.set_system_call_enable(true);
+    efer.set_syscall_enable(true);
     efer.write();
+    assert_eq!(ExtendedFeatureEnableRegister::read().syscall_enable(), true);
 
+    let asm_syscall_handler_addr = asm_syscall_handler as *const () as u64;
     let mut lstar = LongModeSystemCallTargetAddressRegister::read();
-    lstar.set_target_addr(asm_syscall_handler as *const () as u64);
+    lstar.set_target_addr(asm_syscall_handler_addr);
     lstar.write();
+    assert_eq!(
+        LongModeSystemCallTargetAddressRegister::read().target_addr(),
+        asm_syscall_handler_addr
+    );
 
+    let target_addr =
+        ((KERNEL_MODE_CS_VALUE as u64) << 32) | ((KERNEL_MODE_SS_VALUE as u64 | 3) << 48);
     let mut star = SystemCallTargetAddressRegister::read();
-    star.set_target_addr(
-        ((KERNEL_MODE_CS_VALUE as u64) << 32) | ((KERNEL_MODE_SS_VALUE as u64 | 3) << 48),
-    ); // set CS and SS to kernel segment
+    star.set_target_addr(target_addr); // set CS and SS to kernel segment
     star.write();
+    assert_eq!(
+        SystemCallTargetAddressRegister::read().target_addr(),
+        target_addr
+    );
 
     let mut fmask = SystemCallFlagMaskRegister::read();
     fmask.set_value(0);
     fmask.write();
+    assert_eq!(SystemCallFlagMaskRegister::read().value(), 0);
 
-    info!("syscall: Initialized syscall");
+    info!("syscall: Enabled syscall");
 }

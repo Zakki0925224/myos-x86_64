@@ -17,7 +17,7 @@ impl Register<u64> for Cr0 {
 
     fn write(&self) {
         unsafe {
-            asm!("mov cr3, {}", in(reg) self.0);
+            asm!("mov cr0, {}", in(reg) self.0);
         }
     }
 
@@ -34,6 +34,26 @@ impl Cr0 {
     pub fn set_paging(&mut self, value: bool) {
         self.0 = (self.0 & !0x8000_0000) | ((value as u64) << 31);
     }
+
+    pub fn set_emulation(&mut self, value: bool) {
+        self.0 = (self.0 & !0x40) | ((value as u64) << 2);
+    }
+
+    pub fn set_monitor_coporsessor(&mut self, value: bool) {
+        self.0 = (self.0 & !0x20) | ((value as u64) << 1);
+    }
+
+    pub fn paging(&self) -> bool {
+        (self.0 & 0x8000_0000) != 0
+    }
+
+    pub fn emulation(&self) -> bool {
+        (self.0 & 0x40) != 0
+    }
+
+    pub fn monitor_coprocessor(&self) -> bool {
+        (self.0 & 0x20) != 0
+    }
 }
 
 pub struct Cr2(u64);
@@ -41,7 +61,6 @@ pub struct Cr2(u64);
 impl Register<u64> for Cr2 {
     fn read() -> Self {
         let cr2;
-
         unsafe {
             asm!("mov {}, cr2", out(reg) cr2);
         }
@@ -50,15 +69,17 @@ impl Register<u64> for Cr2 {
     }
 
     fn write(&self) {
-        panic!();
+        unsafe {
+            asm!("mov cr2, {}", in(reg) self.0);
+        }
     }
 
     fn raw(&self) -> u64 {
         self.0
     }
 
-    fn set_raw(&mut self, _value: u64) {
-        panic!()
+    fn set_raw(&mut self, value: u64) {
+        self.0 = value;
     }
 }
 
@@ -90,8 +111,48 @@ impl Register<u64> for Cr3 {
     }
 }
 
-impl Cr3 {
-    pub const fn new() -> Self {
-        Self(0)
+#[derive(Debug)]
+pub struct Cr4(u64);
+
+impl Register<u64> for Cr4 {
+    fn read() -> Self {
+        let cr4;
+        unsafe {
+            asm!("mov {}, cr4", out(reg) cr4);
+        }
+
+        Self(cr4)
+    }
+
+    fn write(&self) {
+        unsafe {
+            asm!("mov cr4, {}", in(reg) self.0);
+        }
+    }
+
+    fn raw(&self) -> u64 {
+        self.0
+    }
+
+    fn set_raw(&mut self, value: u64) {
+        self.0 = value;
+    }
+}
+
+impl Cr4 {
+    pub fn set_osfxsr(&mut self, value: bool) {
+        self.0 = (self.0 & !0x200) | ((value as u64) << 9);
+    }
+
+    pub fn set_osxmmexcept(&mut self, value: bool) {
+        self.0 = (self.0 & !0x400) | ((value as u64) << 10);
+    }
+
+    pub fn osfxsr(&self) -> bool {
+        (self.0 & 0x200) != 0
+    }
+
+    pub fn osxmmexcept(&self) -> bool {
+        (self.0 & 0x400) != 0
     }
 }

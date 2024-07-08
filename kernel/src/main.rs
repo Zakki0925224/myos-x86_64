@@ -77,8 +77,8 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
     // initialize simple window manager
     graphics::init_simple_wm();
 
-    // initialize syscall configurations
-    syscall::init();
+    // enable syscall
+    syscall::enable();
 
     // initialize pci, usb
     bus::init();

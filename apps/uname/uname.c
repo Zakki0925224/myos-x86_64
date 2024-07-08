@@ -12,7 +12,7 @@ void _start(int argc, char *argv[])
 
     if (argc == 1)
     {
-        printf(buf->sysname);
+        printf("%s", buf->sysname);
         sys_exit(0);
     }
 
@@ -34,17 +34,7 @@ void _start(int argc, char *argv[])
     {
         if (strcmp(argv[i], "-a") == 0)
         {
-            printf(buf->sysname);
-            printf(" ");
-            printf(buf->nodename);
-            printf(" ");
-            printf(buf->release);
-            printf(" ");
-            printf(buf->version);
-            printf(" ");
-            printf(buf->machine);
-            printf(" ");
-            printf(buf->domainname);
+            printf("%s %s %s %s %s %s", buf->sysname, buf->nodename, buf->release, buf->version, buf->machine, buf->domainname);
             sys_exit(0);
         }
     }
@@ -53,33 +43,27 @@ void _start(int argc, char *argv[])
     {
         if (strcmp(argv[i], "-s") == 0)
         {
-            printf(buf->sysname);
-            printf(" ");
+            printf("%s ", buf->sysname);
         }
         else if (strcmp(argv[i], "-n") == 0)
         {
-            printf(buf->nodename);
-            printf(" ");
+            printf("%s ", buf->nodename);
         }
         else if (strcmp(argv[i], "-r") == 0)
         {
-            printf(buf->release);
-            printf(" ");
+            printf("%s ", buf->release);
         }
         else if (strcmp(argv[i], "-v") == 0)
         {
-            printf(buf->version);
-            printf(" ");
+            printf("%s ", buf->version);
         }
         else if (strcmp(argv[i], "-m") == 0)
         {
-            printf(buf->machine);
-            printf(" ");
+            printf("%s ", buf->machine);
         }
         else if (strcmp(argv[i], "-d") == 0)
         {
-            printf(buf->domainname);
-            printf(" ");
+            printf("%s ", buf->domainname);
         }
     }
 

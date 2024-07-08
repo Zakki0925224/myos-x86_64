@@ -3,7 +3,7 @@ OBJ_FILES := $(SRC_FILES:.c=.o)
 OUT_FILE := fib.elf
 
 CC := gcc
-CFLAGS := -O2 -Wall -g -m64 -nostdlib -fno-builtin -fno-stack-protector -std=c11
+CFLAGS := -O2 -Wall -g -m64 -nostdlib -fno-builtin -fno-stack-protector -mno-sse -mno-mmx -std=c11
 
 LD := ld.lld
 LDFLAGS := -z norelro --static
