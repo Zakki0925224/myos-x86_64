@@ -1,26 +1,21 @@
-use super::{addr::VirtualAddress, asm};
+use super::{addr::VirtualAddress, task};
 use crate::{
     arch::{
-        gdt::{KERNEL_MODE_CS_VALUE, KERNEL_MODE_SS_VALUE},
+        gdt::*,
         register::{model_specific::*, Register},
-        task,
     },
     device::ps2_keyboard::{self, key_event::KeyState},
     env,
-    error::{Error, Result},
+    error::*,
     fs::vfs::{self, file_desc::FileDescriptorNumber},
     mem::{bitmap, paging::PAGE_SIZE},
     print, println,
     util::{self, ascii::AsciiCode},
 };
-use alloc::{
-    ffi::CString,
-    string::{String, ToString},
-    vec::Vec,
-};
+use alloc::{ffi::CString, string::*, vec::Vec};
 use common::libm::Utsname;
 use core::{arch::asm, slice};
-use log::{error, info};
+use log::*;
 
 #[naked]
 extern "sysv64" fn asm_syscall_handler() {
@@ -272,7 +267,7 @@ fn sys_uname(buf_addr: VirtualAddress) -> Result<()> {
 }
 
 fn sys_break() {
-    asm::int3();
+    super::int3();
 }
 
 pub fn enable() {

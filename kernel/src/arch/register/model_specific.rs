@@ -1,6 +1,5 @@
-use crate::arch::asm;
-
 use super::Register;
+use crate::arch;
 
 const IA32_EFER_MSR_ADDR: u32 = 0xc0000080;
 const IA32_STAR_MSR_ADDR: u32 = 0xc0000081;
@@ -12,11 +11,11 @@ pub struct ExtendedFeatureEnableRegister(u64);
 
 impl Register<u64> for ExtendedFeatureEnableRegister {
     fn read() -> Self {
-        Self(asm::read_msr(IA32_EFER_MSR_ADDR))
+        Self(arch::read_msr(IA32_EFER_MSR_ADDR))
     }
 
     fn write(&self) {
-        asm::write_msr(IA32_EFER_MSR_ADDR, self.0)
+        arch::write_msr(IA32_EFER_MSR_ADDR, self.0)
     }
 
     fn raw(&self) -> u64 {
@@ -43,11 +42,11 @@ pub struct LongModeSystemCallTargetAddressRegister(u64);
 
 impl Register<u64> for LongModeSystemCallTargetAddressRegister {
     fn read() -> Self {
-        Self(asm::read_msr(IA32_LSTAR_MSR_ADDR))
+        Self(arch::read_msr(IA32_LSTAR_MSR_ADDR))
     }
 
     fn write(&self) {
-        asm::write_msr(IA32_LSTAR_MSR_ADDR, self.0)
+        arch::write_msr(IA32_LSTAR_MSR_ADDR, self.0)
     }
 
     fn raw(&self) -> u64 {
@@ -74,11 +73,11 @@ pub struct SystemCallTargetAddressRegister(u64);
 
 impl Register<u64> for SystemCallTargetAddressRegister {
     fn read() -> Self {
-        Self(asm::read_msr(IA32_STAR_MSR_ADDR))
+        Self(arch::read_msr(IA32_STAR_MSR_ADDR))
     }
 
     fn write(&self) {
-        asm::write_msr(IA32_STAR_MSR_ADDR, self.0)
+        arch::write_msr(IA32_STAR_MSR_ADDR, self.0)
     }
 
     fn raw(&self) -> u64 {
@@ -105,11 +104,11 @@ pub struct SystemCallFlagMaskRegister(u64);
 
 impl Register<u64> for SystemCallFlagMaskRegister {
     fn read() -> Self {
-        Self(asm::read_msr(IA32_FMASK_MSR_ADDR))
+        Self(arch::read_msr(IA32_FMASK_MSR_ADDR))
     }
 
     fn write(&self) {
-        asm::write_msr(IA32_FMASK_MSR_ADDR, self.0)
+        arch::write_msr(IA32_FMASK_MSR_ADDR, self.0)
     }
 
     fn raw(&self) -> u64 {

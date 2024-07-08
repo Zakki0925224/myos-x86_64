@@ -1,9 +1,6 @@
-use super::{
-    asm::{self, DescriptorTableArgs},
-    tss::TaskStateSegmentDescriptor,
-};
 use crate::{
     arch::{
+        self,
         register::{
             segment::{self, *},
             Register,
@@ -112,14 +109,14 @@ impl SegmentDescriptor {
 #[repr(C)]
 struct GlobalDescriptorTable {
     entries: [SegmentDescriptor; GDT_LEN],
-    tss_desc: TaskStateSegmentDescriptor,
+    tss_desc: arch::tss::TaskStateSegmentDescriptor,
 }
 
 impl GlobalDescriptorTable {
     pub const fn new() -> Self {
         Self {
             entries: [SegmentDescriptor::new(); GDT_LEN],
-            tss_desc: TaskStateSegmentDescriptor::new(),
+            tss_desc: arch::tss::TaskStateSegmentDescriptor::new(),
         }
     }
 
@@ -139,9 +136,9 @@ impl GlobalDescriptorTable {
         let limit = (size_of::<Self>() - 1) as u16;
         let base = self.entries.as_ptr() as u64;
 
-        let args = DescriptorTableArgs { limit, base };
-        asm::lgdt(&args);
-        asm::ltr(TSS_SEL);
+        let args = arch::DescriptorTableArgs { limit, base };
+        arch::lgdt(&args);
+        arch::ltr(TSS_SEL);
     }
 }
 

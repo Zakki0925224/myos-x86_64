@@ -23,7 +23,7 @@ mod util;
 extern crate alloc;
 
 use alloc::{string::String, vec::Vec};
-use arch::{apic, asm, context, gdt, idt, qemu, syscall, task};
+use arch::*;
 use bus::pci;
 use common::boot_info::BootInfo;
 use device::{
@@ -116,7 +116,7 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
 
     // unreachable?
     loop {
-        asm::hlt();
+        arch::hlt();
     }
 }
 
@@ -267,7 +267,7 @@ async fn exec_cmd(cmd: String) -> Result<()> {
         "lspci" => pci::lspci()?,
         "free" => mem::free(),
         "exit" => qemu::exit(0),
-        "break" => asm::int3(),
+        "break" => arch::int3(),
         "cd" => {
             if args.len() == 2 {
                 vfs::chdir(args[1])?;

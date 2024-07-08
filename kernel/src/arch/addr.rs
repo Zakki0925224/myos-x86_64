@@ -1,7 +1,5 @@
+use crate::{arch, error::Result, mem::paging};
 use core::ptr::{read_volatile, write_volatile};
-
-use super::asm;
-use crate::{error::Result, mem::paging};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(transparent)]
@@ -149,21 +147,21 @@ impl IoPortAddress {
     pub fn out8(&self, value: u8) {
         assert!(self.0 <= u16::MAX as u32);
 
-        asm::out8(self.0 as u16, value);
+        arch::out8(self.0 as u16, value);
     }
 
     pub fn in8(&self) -> u8 {
         assert!(self.0 <= u16::MAX as u32);
 
-        asm::in8(self.0 as u16)
+        arch::in8(self.0 as u16)
     }
 
     pub fn out32(&self, value: u32) {
-        asm::out32(self.0, value);
+        arch::out32(self.0, value);
     }
 
     pub fn in32(&self) -> u32 {
-        asm::in32(self.0)
+        arch::in32(self.0)
     }
 }
 

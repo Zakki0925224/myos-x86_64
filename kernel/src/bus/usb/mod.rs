@@ -4,7 +4,7 @@ use self::{
     xhc::context::endpoint::EndpointType,
 };
 use crate::{
-    arch::asm,
+    arch,
     error::{Error, Result},
     util::mutex::Mutex,
 };
@@ -40,7 +40,7 @@ impl UsbDriver {
         let mut result = Ok(());
         self.devices = Vec::new();
 
-        asm::disabled_int_func(|| {
+        arch::disabled_int_func(|| {
             if let Err(err) = xhc::init() {
                 result = Err(err);
                 return;
@@ -58,7 +58,7 @@ impl UsbDriver {
 
         let mut port_ids = Vec::new();
 
-        asm::disabled_int_func(|| {
+        arch::disabled_int_func(|| {
             result = match xhc::scan_ports() {
                 Ok(ids) => {
                     port_ids = ids;
@@ -73,7 +73,7 @@ impl UsbDriver {
         }
 
         for port_id in port_ids {
-            asm::disabled_int_func(|| {
+            arch::disabled_int_func(|| {
                 result = xhc::reset_port(port_id);
             });
 
@@ -81,7 +81,7 @@ impl UsbDriver {
                 return result;
             }
 
-            asm::disabled_int_func(|| {
+            arch::disabled_int_func(|| {
                 result = match xhc::alloc_address_to_device(port_id) {
                     Ok(device) => {
                         self.devices.push(device);
@@ -99,7 +99,7 @@ impl UsbDriver {
         for device in self.devices.iter_mut() {
             let slot_id = device.slot_id();
 
-            asm::disabled_int_func(|| {
+            arch::disabled_int_func(|| {
                 if let Err(err) = device.init() {
                     result = Err(UsbDriverError::UsbDeviceError {
                         slot_id,
@@ -115,7 +115,7 @@ impl UsbDriver {
 
             device.read_dev_desc();
 
-            asm::disabled_int_func(|| {
+            arch::disabled_int_func(|| {
                 if let Err(err) = device.request_to_get_desc(DescriptorType::Configration, 0) {
                     result = Err(UsbDriverError::UsbDeviceError {
                         slot_id,
@@ -151,7 +151,7 @@ impl UsbDriver {
                 _ => unreachable!(),
             };
 
-            asm::disabled_int_func(|| {
+            arch::disabled_int_func(|| {
                 if let Err(err) = device.configure_endpoint(EndpointType::InterruptIn) {
                     result = Err(UsbDriverError::UsbDeviceError {
                         slot_id,
@@ -165,7 +165,7 @@ impl UsbDriver {
                 return result;
             }
 
-            asm::disabled_int_func(|| {
+            arch::disabled_int_func(|| {
                 if let Err(err) = device.request_to_set_conf(conf_desc.conf_value) {
                     result = Err(UsbDriverError::UsbDeviceError {
                         slot_id,
@@ -179,7 +179,7 @@ impl UsbDriver {
                 return result;
             }
 
-            asm::disabled_int_func(|| {
+            arch::disabled_int_func(|| {
                 if let Err(err) = device.request_to_set_interface(boot_interface) {
                     result = Err(UsbDriverError::UsbDeviceError {
                         slot_id,
@@ -193,7 +193,7 @@ impl UsbDriver {
                 return result;
             }
 
-            asm::disabled_int_func(|| {
+            arch::disabled_int_func(|| {
                 if let Err(err) = device.request_to_set_protocol(boot_interface, 0) {
                     result = Err(UsbDriverError::UsbDeviceError {
                         slot_id,
@@ -206,7 +206,7 @@ impl UsbDriver {
             if result.is_err() {
                 return result;
             }
-            asm::disabled_int_func(|| {
+            arch::disabled_int_func(|| {
                 if let Err(err) = device.configure_endpoint_transfer_ring() {
                     result = Err(UsbDriverError::UsbDeviceError {
                         slot_id,

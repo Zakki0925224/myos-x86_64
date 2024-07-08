@@ -1,4 +1,4 @@
-use crate::{arch::asm, error};
+use crate::{arch, error};
 use core::panic::PanicInfo;
 
 #[panic_handler]
@@ -7,6 +7,6 @@ fn panic(info: &PanicInfo) -> ! {
     error!("{:?}", info.location());
 
     loop {
-        asm::hlt();
+        arch::hlt();
     }
 }

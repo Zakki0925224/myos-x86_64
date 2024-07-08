@@ -1,18 +1,18 @@
-use super::{addr::*, apic, register::segment::Cs};
+use super::addr::*;
 use crate::{
     arch::{
-        asm::{self, DescriptorTableArgs},
-        register::{control::Cr2, Register},
+        self,
+        register::{control::Cr2, segment::Cs, Register},
     },
     bus::usb::xhc,
-    device::{ps2_keyboard, ps2_mouse},
-    graphics::{frame_buf, multi_layer},
+    device::*,
+    graphics::*,
     mem::paging,
     util::mutex::Mutex,
 };
-use alloc::{format, string::String};
+use alloc::string::String;
 use core::mem::size_of;
-use log::{error, info};
+use log::*;
 
 static mut IDT: Mutex<InterruptDescriptorTable> = Mutex::new(InterruptDescriptorTable::new());
 
@@ -209,11 +209,11 @@ impl InterruptDescriptorTable {
     pub fn load(&self) {
         let limit = (size_of::<GateDescriptor>() * IDT_LEN - 1) as u16;
         let base = self.entries.as_ptr() as u64;
-        let args = DescriptorTableArgs { limit, base };
-        asm::lidt(&args);
+        let args = arch::DescriptorTableArgs { limit, base };
+        arch::lidt(&args);
 
         //info!("idt: Loaded IDT: {:?}", args);
-        asm::sti();
+        arch::sti();
     }
 }
 
@@ -263,8 +263,8 @@ extern "x86-interrupt" fn xhc_primary_event_ring_handler() {
 }
 
 extern "x86-interrupt" fn local_apic_timer_handler() {
-    asm::disabled_int_func(|| {
-        apic::timer::tick();
+    arch::disabled_int_func(|| {
+        arch::apic::timer::tick();
         let _ = multi_layer::draw_to_frame_buf();
         let _ = frame_buf::apply_shadow_buf();
 
