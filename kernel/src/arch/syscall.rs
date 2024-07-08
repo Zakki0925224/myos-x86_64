@@ -267,6 +267,7 @@ fn sys_uname(buf_addr: VirtualAddress) -> Result<()> {
 }
 
 fn sys_break() {
+    task::debug_user_task();
     super::int3();
 }
 

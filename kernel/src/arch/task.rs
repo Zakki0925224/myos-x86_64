@@ -6,6 +6,7 @@ use crate::{
         bitmap::{self, MemoryFrameInfo},
         paging::PAGE_SIZE,
     },
+    println,
     util::mutex::Mutex,
 };
 use alloc::{boxed::Box, collections::VecDeque, ffi::CString, vec::Vec};
@@ -259,6 +260,7 @@ pub fn exec_user_task(entry: extern "sysv64" fn(), file_name: &str, args: &[&str
     // returned
     args_mem_frame_info.set_permissions_to_supervisor()?;
     bitmap::dealloc_mem_frame(args_mem_frame_info)?;
+    *user_task = None;
 
     // get exit status
     let exit_status = unsafe {
@@ -297,4 +299,45 @@ pub fn return_to_kernel_task(exit_status: u64) {
         .switch_to(kernel_task.as_ref().unwrap());
 
     unreachable!();
+}
+
+pub fn debug_user_task() {
+    println!("===USER TASK INFO===");
+    let user_task = unsafe { USER_TASK.get_force_mut() };
+    if let Some(t) = user_task {
+        let ctx = &t.context;
+        println!("task id: {}", t.id.get());
+        println!(
+            "stack: (phys)0x{:x}, size: 0x{:x}bytes",
+            t.stack_mem_frame_info.frame_start_phys_addr.get(),
+            t.stack_size
+        );
+        println!("context:");
+        println!(
+            "\tcr3: 0x{:016x}, rip: 0x{:016x}, rflags: 0x{:016x},",
+            ctx.cr3, ctx.rip, ctx.rflags
+        );
+        println!(
+            "\tcs : 0x{:016x}, ss : 0x{:016x}, fs : 0x{:016x}, gs : 0x{:016x},",
+            ctx.cs, ctx.ss, ctx.fs, ctx.gs
+        );
+        println!(
+            "\trax: 0x{:016x}, rbx: 0x{:016x}, rcx: 0x{:016x}, rdx: 0x{:016x},",
+            ctx.rax, ctx.rbx, ctx.rcx, ctx.rdx
+        );
+        println!(
+            "\trdi: 0x{:016x}, rsi: 0x{:016x}, rsp: 0x{:016x}, rbp: 0x{:016x},",
+            ctx.rdi, ctx.rsi, ctx.rsp, ctx.rbp
+        );
+        println!(
+            "\tr8 : 0x{:016x}, r9 : 0x{:016x}, r10: 0x{:016x}, r11: 0x{:016x},",
+            ctx.r8, ctx.r9, ctx.r10, ctx.r11
+        );
+        println!(
+            "\tr12: 0x{:016x}, r13: 0x{:016x}, r14: 0x{:016x}, r15: 0x{:016x}",
+            ctx.r12, ctx.r13, ctx.r14, ctx.r15
+        );
+    } else {
+        println!("User task no available");
+    }
 }
