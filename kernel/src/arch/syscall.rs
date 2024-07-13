@@ -157,6 +157,8 @@ fn sys_read(fd: FileDescriptorNumber, buf_addr: VirtualAddress, buf_len: usize) 
             // wait input enter
             let mut input_buf = Vec::new();
             loop {
+                super::hlt();
+
                 if input_buf.len() >= buf_len - 1 {
                     break;
                 }
