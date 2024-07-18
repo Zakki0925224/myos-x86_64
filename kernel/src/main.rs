@@ -16,7 +16,6 @@ mod fs;
 mod graphics;
 mod mem;
 mod panic;
-mod serial;
 mod util;
 
 #[macro_use]
@@ -30,12 +29,12 @@ use device::{
     console,
     ps2_keyboard::{self, key_event::KeyState},
     ps2_mouse,
+    serial::{self, ComPort},
 };
 use error::Result;
 use fs::{exec, file::bitmap::BitmapImage, vfs};
 use graphics::{color::RgbColorCode, simple_window_manager};
 use log::error;
-use serial::ComPort;
 use util::{ascii::AsciiCode, hexdump, logger, random};
 
 #[no_mangle]

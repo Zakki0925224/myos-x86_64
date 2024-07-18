@@ -7,7 +7,7 @@ use crate::{
     device::ps2_mouse::MouseEvent, error::Result, fs::file::bitmap::BitmapImage, util::mutex::Mutex,
 };
 use alloc::{string::String, vec::Vec};
-use components::{Image, Panel, Window};
+use components::*;
 
 pub mod components;
 
