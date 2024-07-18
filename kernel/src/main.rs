@@ -111,6 +111,7 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
     task::spawn(poll_serial()).unwrap();
     task::spawn(poll_ps2_keyboard()).unwrap();
     task::spawn(poll_ps2_mouse()).unwrap();
+    task::spawn(poll_devices()).unwrap();
     task::run().unwrap();
 
     // unreachable?
@@ -304,4 +305,11 @@ async fn exec_cmd(cmd: String) -> Result<()> {
     }
 
     Ok(())
+}
+
+async fn poll_devices() {
+    loop {
+        let _ = device::manager::update_all_polls();
+        task::exec_yield().await;
+    }
 }

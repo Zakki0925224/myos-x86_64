@@ -72,7 +72,7 @@ impl SerialPort {
 
 pub fn init(com_port: ComPort) -> Result<()> {
     *unsafe { SERIAL.try_lock() }? = Some(SerialPort::new(com_port)?);
-    return Ok(());
+    Ok(())
 }
 
 pub fn receive() -> Result<Option<u8>> {

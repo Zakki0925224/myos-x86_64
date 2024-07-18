@@ -1,7 +1,6 @@
 use crate::{
     arch::addr::IoPortAddress,
     error::Result,
-    println,
     util::{fifo::Fifo, mutex::Mutex},
 };
 

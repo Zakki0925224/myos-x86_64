@@ -1,9 +1,11 @@
 use crate::error::Result;
-use alloc::string::String;
+use alloc::boxed::Box;
 use core::sync::atomic::{AtomicUsize, Ordering};
 use log::{error, info};
+use test::TestDevice;
 
 pub mod console;
+pub mod manager;
 pub mod ps2_keyboard;
 pub mod ps2_mouse;
 pub mod serial;
@@ -33,7 +35,7 @@ pub enum DeviceClass {
 pub enum DevicePollMode {
     //Interrupt,
     Sync,
-    Async,
+    //Async,
     None,
 }
 
@@ -41,25 +43,20 @@ pub enum DevicePollMode {
 pub struct DeviceDriverInfo {
     pub id: DeviceId,
     pub class: DeviceClass,
-    pub name: String,
-    pub device_file_path: Option<String>,
+    pub name: &'static str,
+    pub device_file_path: Option<&'static str>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum DeviceDriverError {
-    InvalidPollMode(DevicePollMode),
-}
-
-trait DeviceFunction {
-    fn new() -> Self;
+pub trait DeviceFunction {
     fn get_info(&self) -> DeviceDriverInfo;
+    fn is_attached(&self) -> bool;
+    fn poll_mode(&self) -> DevicePollMode;
     fn attach(&mut self) -> Result<()>;
     fn detach(&mut self) -> Result<()>;
     fn update_poll(&mut self) -> Result<()>;
-    async fn update_poll_async(&mut self) -> Result<()>;
 }
 
-struct DeviceDriverBase {
+pub struct DeviceDriverBase {
     info: DeviceDriverInfo,
     attached: bool,
     poll_mode: DevicePollMode,
@@ -68,8 +65,8 @@ struct DeviceDriverBase {
 impl DeviceDriverBase {
     pub fn new(
         class: DeviceClass,
-        name: String,
-        device_file_path: Option<String>,
+        name: &'static str,
+        device_file_path: Option<&'static str>,
         poll_mode: DevicePollMode,
     ) -> Self {
         Self {
@@ -98,4 +95,9 @@ pub fn init() {
     if console::clear_input_buf().is_err() {
         error!("Console is locked");
     }
+
+    manager::register_device(Box::new(TestDevice::new())).unwrap();
+    manager::register_device(Box::new(TestDevice::new())).unwrap();
+    manager::register_device(Box::new(TestDevice::new())).unwrap();
+    manager::attach_all_devices().unwrap();
 }

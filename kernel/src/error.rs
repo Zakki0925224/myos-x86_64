@@ -6,7 +6,7 @@ use crate::{
         xhc::{ring_buffer::RingBufferError, XhcDriverError},
         UsbDriverError,
     },
-    device::{console::ConsoleError, DeviceDriverError},
+    device::{console::ConsoleError, manager::DeviceManagerError},
     fs::vfs::VirtualFileSystemError,
     graphics::{
         font::FontError, frame_buf::FrameBufferError, frame_buf_console::FrameBufferConsoleError,
@@ -37,7 +37,7 @@ pub enum Error {
     VirtualFileSystemError(VirtualFileSystemError),
     Elf64Error(Elf64Error),
     SimpleWindowManagerError(SimpleWindowManagerError),
-    DeviceDriverError(DeviceDriverError),
+    DeviceManagerError(DeviceManagerError),
 }
 
 impl From<&'static str> for Error {
@@ -148,9 +148,9 @@ impl From<SimpleWindowManagerError> for Error {
     }
 }
 
-impl From<DeviceDriverError> for Error {
-    fn from(err: DeviceDriverError) -> Self {
-        Self::DeviceDriverError(err)
+impl From<DeviceManagerError> for Error {
+    fn from(err: DeviceManagerError) -> Self {
+        Self::DeviceManagerError(err)
     }
 }
 
