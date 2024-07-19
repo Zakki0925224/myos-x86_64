@@ -6,7 +6,7 @@ use crate::{
         xhc::{ring_buffer::RingBufferError, XhcDriverError},
         UsbDriverError,
     },
-    device::{console::ConsoleError, manager::DeviceManagerError},
+    device::console::ConsoleError,
     fs::vfs::VirtualFileSystemError,
     graphics::{
         font::FontError, frame_buf::FrameBufferError, frame_buf_console::FrameBufferConsoleError,
@@ -37,7 +37,7 @@ pub enum Error {
     VirtualFileSystemError(VirtualFileSystemError),
     Elf64Error(Elf64Error),
     SimpleWindowManagerError(SimpleWindowManagerError),
-    DeviceManagerError(DeviceManagerError),
+    //DeviceManagerError(DeviceManagerError),
 }
 
 impl From<&'static str> for Error {
@@ -148,10 +148,10 @@ impl From<SimpleWindowManagerError> for Error {
     }
 }
 
-impl From<DeviceManagerError> for Error {
-    fn from(err: DeviceManagerError) -> Self {
-        Self::DeviceManagerError(err)
-    }
-}
+// impl From<DeviceManagerError> for Error {
+//     fn from(err: DeviceManagerError) -> Self {
+//         Self::DeviceManagerError(err)
+//     }
+// }
 
 pub type Result<T> = core::result::Result<T, Error>;
