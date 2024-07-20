@@ -8,7 +8,7 @@ use super::device::*;
 use crate::{
     arch::{addr::*, apic::local_apic_id, idt::VEC_XHCI_INT, register::msi::*},
     bus::{
-        pci::{self, conf_space::BaseAddress, device_id::PCI_USB_XHCI_ID},
+        pci::{self, conf_space::BaseAddress},
         usb::xhc::{port::ConfigState, register::*},
     },
     error::Result,
@@ -72,10 +72,9 @@ pub struct XhcDriver {
 
 impl XhcDriver {
     pub fn new() -> Result<Self> {
-        let (class_code, subclass_code, prog_if) = PCI_USB_XHCI_ID;
         let mut device_bdf = None;
 
-        pci::configure_devices(class_code, subclass_code, prog_if, |d| {
+        pci::configure_devices(0x0c, 0x03, 0x30, |d| {
             let device_name = d.conf_space_header().get_device_name().unwrap();
 
             // TODO

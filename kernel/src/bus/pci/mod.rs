@@ -11,7 +11,6 @@ use alloc::vec::Vec;
 
 pub mod conf_space;
 pub mod device;
-pub mod device_id;
 pub mod vendor_id;
 
 static mut PCI_DEVICE_MAN: Mutex<PciDeviceManager> = Mutex::new(PciDeviceManager::new());
@@ -23,7 +22,7 @@ pub struct PciDeviceManager {
 
 impl PciDeviceManager {
     pub const fn new() -> Self {
-        PciDeviceManager {
+        Self {
             devices: Vec::new(),
         }
     }
@@ -93,6 +92,10 @@ impl PciDeviceManager {
             println!("{}:{}:{}", bus, device, func);
             println!("{:?}", conf_space_header.get_header_type());
             println!("{:?}", conf_space_header.get_device_name());
+            println!(
+                "vendor: 0x{:x}, device: 0x{:x}",
+                conf_space_header.vendor_id, conf_space_header.device_id
+            );
             println!(
                 "class: {}, subclass: {}, if: {}\n",
                 conf_space_header.class_code, conf_space_header.subclass, conf_space_header.prog_if

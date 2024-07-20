@@ -148,10 +148,4 @@ impl From<SimpleWindowManagerError> for Error {
     }
 }
 
-// impl From<DeviceManagerError> for Error {
-//     fn from(err: DeviceManagerError) -> Self {
-//         Self::DeviceManagerError(err)
-//     }
-// }
-
 pub type Result<T> = core::result::Result<T, Error>;
