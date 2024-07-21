@@ -74,7 +74,7 @@ impl XhcDriver {
     pub fn new() -> Result<Self> {
         let mut device_bdf = None;
 
-        pci::configure_devices(0x0c, 0x03, 0x30, |d| {
+        pci::find_devices(0x0c, 0x03, 0x30, |d| {
             let device_name = d.conf_space_header().get_device_name().unwrap();
 
             // TODO

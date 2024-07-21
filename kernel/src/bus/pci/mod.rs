@@ -147,7 +147,7 @@ pub fn configure_device<F: FnMut(&mut dyn PciDeviceFunctions) -> Result<()>>(
     return f(unsafe { PCI_DEVICE_MAN.try_lock() }?.find_device_mut(bus, device, func)?);
 }
 
-pub fn configure_devices<F: FnMut(&mut dyn PciDeviceFunctions) -> Result<()>>(
+pub fn find_devices<F: FnMut(&mut dyn PciDeviceFunctions) -> Result<()>>(
     class_code: u8,
     subclass_code: u8,
     prog_if: u8,

@@ -397,6 +397,10 @@ impl MsiMessageControlField {
         let value = value & 0x7; // 3 bits
         self.0 = (self.0 & !0x70) | ((value as u16) << 4);
     }
+
+    pub fn raw(&self) -> u16 {
+        self.0
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default)]

@@ -8,7 +8,23 @@ pub mod serial;
 pub mod usb;
 pub mod virtio;
 
+#[derive(Debug, Clone)]
+pub struct DeviceDriverInfo {
+    name: &'static str,
+    attached: bool,
+}
+
+impl DeviceDriverInfo {
+    pub const fn new(name: &'static str) -> Self {
+        Self {
+            name,
+            attached: false,
+        }
+    }
+}
+
 trait DeviceDriverFunction {
+    fn get_device_driver_info(&self) -> Result<DeviceDriverInfo>;
     // check and find device
     fn probe(&mut self) -> Result<()>;
     // initialize device
@@ -32,4 +48,8 @@ pub fn init() {
     if let Err(err) = virtio::net::probe_and_attach() {
         error!("vtnet: Failed to probe and attach device: {:?}", err);
     }
+    info!(
+        "vtnet: Attached: {:?}",
+        virtio::net::get_device_driver_info()
+    );
 }
