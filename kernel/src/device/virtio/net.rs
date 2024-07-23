@@ -3,7 +3,6 @@ use crate::{
     bus::pci::{self, conf_space::BaseAddress, vendor_id},
     device::{virtio::DeviceStatus, DeviceDriverFunction, DeviceDriverInfo},
     error::{Error, Result},
-    println,
     util::mutex::Mutex,
 };
 
@@ -54,6 +53,14 @@ impl DeviceDriverFunction for VirtioNetDriver {
 
         let (bus, device, func) = self.pci_device_bdf.unwrap();
         pci::configure_device(bus, device, func, |d| {
+            fn read_device_status(io_port_base: u16) -> u8 {
+                arch::in8(io_port_base + 0x12)
+            }
+
+            fn write_device_status(io_port_base: u16, status: u8) {
+                arch::out8(io_port_base + 0x12, status)
+            }
+
             let conf_space = d.read_conf_space_non_bridge_field()?;
             let bars = conf_space.get_bars()?;
             let (_, mmio_bar) = bars
@@ -66,12 +73,10 @@ impl DeviceDriverFunction for VirtioNetDriver {
 
             // enable device dirver
             // http://www.dumais.io/index.php?article=aca38a9a2b065b24dfa1dee728062a12
-            // device_layout
-            arch::out8(io_port as u16 + 0x12, DeviceStatus::Acknowledge as u8);
-            // device_layout
-            arch::out8(
-                io_port as u16 + 0x12,
-                arch::in8(io_port as u16 + 0x12) | DeviceStatus::Driver as u8,
+            write_device_status(io_port as u16, DeviceStatus::Acknowledge as u8);
+            write_device_status(
+                io_port as u16,
+                read_device_status(io_port as u16) | DeviceStatus::Driver as u8,
             );
 
             // enable device supported features + VIRTIO_NET_F_MAC
@@ -82,10 +87,9 @@ impl DeviceDriverFunction for VirtioNetDriver {
                 device_features | NetworkDeviceFeature::Mac as u32,
             );
 
-            // device_layout
-            arch::out8(
-                io_port as u16 + 0x12,
-                arch::in8(io_port as u16 + 0x12) | DeviceStatus::FeaturesOk as u8,
+            write_device_status(
+                io_port as u16,
+                read_device_status(io_port as u16) | DeviceStatus::FeaturesOk as u8,
             );
 
             Ok(())

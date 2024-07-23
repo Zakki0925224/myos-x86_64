@@ -1,4 +1,5 @@
 pub mod net;
+mod virt_queue;
 
 // reference: https://docs.oasis-open.org/virtio/virtio/v1.2/csd01/virtio-v1.2-csd01.html
 // 2.1 Device Status Field
