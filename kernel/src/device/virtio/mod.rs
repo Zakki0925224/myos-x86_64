@@ -1,60 +1,33 @@
-use crate::addr::VirtualAddress;
-use core::mem::transmute;
-
 pub mod net;
 
-const MMIO_DEVICE_REG_MAGIC: u32 = 0x74726976;
-
 // reference: https://docs.oasis-open.org/virtio/virtio/v1.2/csd01/virtio-v1.2-csd01.html
-
-// 4.2.2 MMIO Device Register Layout
+// 2.1 Device Status Field
 #[derive(Debug)]
-#[repr(C)]
-struct MmioDeviceRegister {
-    /*r */ magic: u32,
-    /*r */ version: u32,
-    /*r */ device_id: u32,
-    /*r */ vendor_id: u32,
-    /*r */ device_features: u32,
-    /*w */ device_features_sel: u32,
-    /*w */ driver_features: u32,
-    /*w */ driver_features_sel: u32,
-    /*w */ queue_sel: u32,
-    /*r */ queue_num_max: u32,
-    /*w */ queue_num: u32,
-    /*rw*/ queue_ready: u32,
-    /*w */ queue_notify: u32,
-    /*r */ int_status: u32,
-    /*w */ int_ack: u32,
-    /*rw*/ status: u32,
-    /*w */ queue_desc_low: u32,
-    /*w */ queue_desc_high: u32,
-    /*w */ queue_device_low: u32,
-    /*w */ queue_device_high: u32,
-    /*w */ shm_sel: u32, // shared memory
-    /*r */ shm_len_low: u32,
-    /*r */ shm_len_high: u32,
-    /*r */ shm_base_low: u32,
-    /*r */ shm_base_high: u32,
-    /*rw*/ queue_reset: u32,
-    /*r */ conf_gen: u32,
-    // /*rw*/ config: N
+#[repr(u8)]
+enum DeviceStatus {
+    Acknowledge = 1,
+    Driver = 2,
+    Failed = 128,
+    FeaturesOk = 8,
+    DriverOk = 4,
+    DeviceNeedsReset = 64,
 }
 
-impl MmioDeviceRegister {
-    pub fn read(base_addr: VirtualAddress) -> Self {
-        let mut data = [0; 27];
-        for (i, field) in data.iter_mut().enumerate() {
-            *field = base_addr.offset(i * 4).read_volatile();
-        }
+// 4.1.4.10 Legacy Interfaces: A Note on PCI Device Layout
+// BAR0
+// offset   bits  rw    desc
+// +0x00    32    r     device_features
+// +0x04    32    r/w   driver_features
+// +0x08    32    r/w   queue_address
+// +0x0c    16    r     queue_size
+// +0x0e    16    r/w   queue_select
+// +0x10    16    r/w   queue_notify
+// +0x12    8     r/w   device_status
+// +0x13    8     r     isr_status
 
-        let reg = unsafe { transmute::<[u32; 27], Self>(data) };
-        assert_eq!(reg.magic, MMIO_DEVICE_REG_MAGIC, "Invalid magic number");
-        reg
-    }
-
-    #[allow(dead_code)]
-    pub fn write(&self) {
-        unimplemented!();
-    }
+// 5.1.3 Feature bits
+#[derive(Debug)]
+#[repr(u32)]
+enum NetworkDeviceFeature {
+    Mac = 5,
 }

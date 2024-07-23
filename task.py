@@ -34,7 +34,7 @@ QEMU_DEVICES = [
     "-device ide-cd,drive=disk,bus=ahci.0,bootindex=1",
     # "-device usb-kbd",
     "-device isa-debug-exit,iobase=0xf4,iosize=0x04",
-    "-device virtio-net-pci,netdev=net0 -netdev user,id=net0",
+    "-nic user,model=virtio",
 ]
 
 QEMU_DRIVES = [

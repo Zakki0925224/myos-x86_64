@@ -1,10 +1,13 @@
 use crate::{
+    arch,
     bus::pci::{self, conf_space::BaseAddress, vendor_id},
-    device::{virtio::MmioDeviceRegister, DeviceDriverFunction, DeviceDriverInfo},
+    device::{virtio::DeviceStatus, DeviceDriverFunction, DeviceDriverInfo},
     error::{Error, Result},
     println,
     util::mutex::Mutex,
 };
+
+use super::NetworkDeviceFeature;
 
 static mut VIRTIO_NET_DRIVER: Mutex<VirtioNetDriver> = Mutex::new(VirtioNetDriver::new());
 
@@ -31,7 +34,11 @@ impl DeviceDriverFunction for VirtioNetDriver {
             let vendor_id = d.conf_space_header().vendor_id;
             let device_id = d.conf_space_header().device_id;
 
-            if vendor_id == vendor_id::RED_HAT && device_id == 0x1000 {
+            if vendor_id == vendor_id::RED_HAT
+                && device_id >= 0x1000
+                && device_id <= 0x103f
+                && d.read_conf_space_non_bridge_field()?.subsystem_id == 1
+            {
                 self.pci_device_bdf = Some(d.device_bdf());
             }
             Ok(())
@@ -50,53 +57,36 @@ impl DeviceDriverFunction for VirtioNetDriver {
             let conf_space = d.read_conf_space_non_bridge_field()?;
             let bars = conf_space.get_bars()?;
             let (_, mmio_bar) = bars
-                .get(1)
+                .get(0)
                 .ok_or(Error::Failed("Failed to read MMIO base address register"))?;
-            let mmio_addr = match mmio_bar {
-                //BaseAddress::MmioAddressSpace(addr) => (*addr as u64).into(),
-                BaseAddress::MemoryAddress32BitSpace(phy_addr, _) => phy_addr.get_virt_addr(),
+            let io_port = match mmio_bar {
+                BaseAddress::MmioAddressSpace(addr) => *addr,
                 _ => return Err(Error::Failed("Invalid base address register")),
-            }?;
+            };
 
-            // TODO: magic number is 0
-            let dev_reg = MmioDeviceRegister::read(mmio_addr);
-            println!("{:?}", dev_reg);
+            // enable device dirver
+            // http://www.dumais.io/index.php?article=aca38a9a2b065b24dfa1dee728062a12
+            // device_layout
+            arch::out8(io_port as u16 + 0x12, DeviceStatus::Acknowledge as u8);
+            // device_layout
+            arch::out8(
+                io_port as u16 + 0x12,
+                arch::in8(io_port as u16 + 0x12) | DeviceStatus::Driver as u8,
+            );
 
-            // let mut c_common = None;
-            // let mut c_notify = None;
-            // let mut c_isr = None;
-            // let mut c_device = None;
-            // let mut c_pci = None;
-            // let mut c_memory = None;
-            // let mut c_vendor = None;
+            // enable device supported features + VIRTIO_NET_F_MAC
+            let device_features = arch::in32(io_port);
+            // driver_features
+            arch::out32(
+                io_port + 0x04,
+                device_features | NetworkDeviceFeature::Mac as u32,
+            );
 
-            // let caps_list = d.read_msi_caps_list();
-            // for c in caps_list {
-            //     let ty = (c.msg_ctrl.raw() >> 8) as u8;
-
-            //     if c.cap_id != 0x09 {
-            //         continue;
-            //     }
-
-            //     match ty {
-            //         0x01 => c_common = Some(c),
-            //         0x02 => c_notify = Some(c),
-            //         0x03 => c_isr = Some(c),
-            //         0x04 => c_device = Some(c),
-            //         0x05 => c_pci = Some(c),
-            //         0x08 => c_memory = Some(c),
-            //         0x09 => c_vendor = Some(c),
-            //         _ => (),
-            //     }
-            // }
-
-            // println!("common: {:?}", c_common);
-            // println!("notify: {:?}", c_notify);
-            // println!("isr: {:?}", c_isr);
-            // println!("device: {:?}", c_device);
-            // println!("pci: {:?}", c_pci);
-            // println!("memory: {:?}", c_memory);
-            // println!("vendor: {:?}", c_vendor);
+            // device_layout
+            arch::out8(
+                io_port as u16 + 0x12,
+                arch::in8(io_port as u16 + 0x12) | DeviceStatus::FeaturesOk as u8,
+            );
 
             Ok(())
         })?;

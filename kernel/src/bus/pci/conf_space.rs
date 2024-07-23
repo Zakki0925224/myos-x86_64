@@ -212,7 +212,7 @@ pub struct ConfigurationSpaceNonBridgeField {
     bar5: BaseAddressRegister,
     cardbus_cis_ptr: u32,
     subsystem_vendor_id: u16,
-    subsystem_id: u16,
+    pub subsystem_id: u16,
     expansion_rom_base_addr: u32,
     pub caps_ptr: u8,
     reserved0: [u8; 3],
