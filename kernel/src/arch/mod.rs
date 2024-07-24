@@ -85,6 +85,28 @@ pub fn in8(port: u16) -> u8 {
     data
 }
 
+pub fn out16(port: u16, data: u16) {
+    unsafe {
+        asm!(
+            "out dx, ax",
+            in("dx") port,
+            in("ax") data
+        );
+    }
+}
+
+pub fn in16(port: u16) -> u16 {
+    let mut data: u16;
+    unsafe {
+        asm!(
+            "in ax, dx",
+            out("ax") data,
+            in("dx") port
+        );
+    }
+    data
+}
+
 pub fn out32(port: u32, data: u32) {
     unsafe {
         asm!(

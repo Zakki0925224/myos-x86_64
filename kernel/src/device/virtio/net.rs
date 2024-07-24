@@ -1,24 +1,34 @@
 use crate::{
     arch,
     bus::pci::{self, conf_space::BaseAddress, vendor_id},
-    device::{virtio::DeviceStatus, DeviceDriverFunction, DeviceDriverInfo},
+    device::{
+        virtio::{
+            virt_queue::{self, QueueDescriptor},
+            DeviceStatus, NetworkDeviceFeature,
+        },
+        DeviceDriverFunction, DeviceDriverInfo,
+    },
     error::{Error, Result},
+    mem::{self, bitmap::MemoryFrameInfo},
     util::mutex::Mutex,
 };
-
-use super::NetworkDeviceFeature;
+use alloc::vec::Vec;
+use core::mem::size_of;
 
 static mut VIRTIO_NET_DRIVER: Mutex<VirtioNetDriver> = Mutex::new(VirtioNetDriver::new());
 
 struct VirtioNetDriver {
     device_driver_info: DeviceDriverInfo,
     pci_device_bdf: Option<(usize, usize, usize)>,
+
+    allocated_mem_frame_info: Vec<MemoryFrameInfo>,
 }
 impl VirtioNetDriver {
     const fn new() -> Self {
         Self {
             device_driver_info: DeviceDriverInfo::new("vtnet"),
             pci_device_bdf: None,
+            allocated_mem_frame_info: Vec::new(),
         }
     }
 }
@@ -91,6 +101,33 @@ impl DeviceDriverFunction for VirtioNetDriver {
                 io_port as u16,
                 read_device_status(io_port as u16) | DeviceStatus::FeaturesOk as u8,
             );
+
+            // config virtqueue
+            // queue_select
+            arch::out16(io_port as u16 + 0x0e, 0); // index: 0
+            let queue_size = arch::in16(io_port as u16 + 0x0c);
+            // allocate descs
+            let mem_frame_info = mem::bitmap::alloc_mem_frame(
+                size_of::<virt_queue::QueueDescriptor>() * queue_size as usize,
+            )?;
+            let virt_addr = mem_frame_info.frame_start_virt_addr()?;
+            let phys_addr = mem_frame_info.frame_start_phys_addr;
+            if phys_addr.get() & 0x0fff != 0 {
+                return Err(Error::Failed("Physical address not aligned by 4K"));
+            }
+
+            for i in 0..queue_size as usize {
+                let queue_desc = QueueDescriptor::default();
+
+                unsafe {
+                    virt_addr
+                        .offset(size_of::<virt_queue::QueueDescriptor>() * i)
+                        .as_ptr_mut::<virt_queue::QueueDescriptor>()
+                        .write(queue_desc);
+                }
+            }
+
+            self.allocated_mem_frame_info.push(mem_frame_info);
 
             Ok(())
         })?;
