@@ -15,7 +15,6 @@ enum DeviceStatus {
 }
 
 // 4.1.4.10 Legacy Interfaces: A Note on PCI Device Layout
-// BAR0
 // offset   bits  rw    desc
 // +0x00    32    r     device_features
 // +0x04    32    r/w   driver_features

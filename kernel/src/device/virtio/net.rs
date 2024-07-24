@@ -2,17 +2,13 @@ use crate::{
     arch,
     bus::pci::{self, conf_space::BaseAddress, vendor_id},
     device::{
-        virtio::{
-            virt_queue::{self, QueueDescriptor},
-            DeviceStatus, NetworkDeviceFeature,
-        },
+        virtio::{virt_queue, DeviceStatus, NetworkDeviceFeature},
         DeviceDriverFunction, DeviceDriverInfo,
     },
     error::{Error, Result},
-    mem::{self, bitmap::MemoryFrameInfo},
+    mem::{bitmap, paging::PAGE_SIZE},
     util::mutex::Mutex,
 };
-use alloc::vec::Vec;
 use core::mem::size_of;
 
 static mut VIRTIO_NET_DRIVER: Mutex<VirtioNetDriver> = Mutex::new(VirtioNetDriver::new());
@@ -21,14 +17,14 @@ struct VirtioNetDriver {
     device_driver_info: DeviceDriverInfo,
     pci_device_bdf: Option<(usize, usize, usize)>,
 
-    allocated_mem_frame_info: Vec<MemoryFrameInfo>,
+    queue_info: Option<virt_queue::Queue>,
 }
 impl VirtioNetDriver {
     const fn new() -> Self {
         Self {
             device_driver_info: DeviceDriverInfo::new("vtnet"),
             pci_device_bdf: None,
-            allocated_mem_frame_info: Vec::new(),
+            queue_info: None,
         }
     }
 }
@@ -43,11 +39,8 @@ impl DeviceDriverFunction for VirtioNetDriver {
             let vendor_id = d.conf_space_header().vendor_id;
             let device_id = d.conf_space_header().device_id;
 
-            if vendor_id == vendor_id::RED_HAT
-                && device_id >= 0x1000
-                && device_id <= 0x103f
-                && d.read_conf_space_non_bridge_field()?.subsystem_id == 1
-            {
+            // transitional virtio-net device
+            if vendor_id == vendor_id::RED_HAT && device_id == 0x1000 {
                 self.pci_device_bdf = Some(d.device_bdf());
             }
             Ok(())
@@ -104,30 +97,27 @@ impl DeviceDriverFunction for VirtioNetDriver {
 
             // config virtqueue
             // queue_select
-            arch::out16(io_port as u16 + 0x0e, 0); // index: 0
+            arch::out16(io_port as u16 + 0x0e, /* queue index */ 0);
             let queue_size = arch::in16(io_port as u16 + 0x0c);
             // allocate descs
-            let mem_frame_info = mem::bitmap::alloc_mem_frame(
-                size_of::<virt_queue::QueueDescriptor>() * queue_size as usize,
-            )?;
-            let virt_addr = mem_frame_info.frame_start_virt_addr()?;
-            let phys_addr = mem_frame_info.frame_start_phys_addr;
-            if phys_addr.get() & 0x0fff != 0 {
-                return Err(Error::Failed("Physical address not aligned by 4K"));
-            }
+            let bytes_of_descs = size_of::<virt_queue::QueueDescriptor>() * queue_size as usize;
+            let bytes_of_queue_available = size_of::<virt_queue::QueueAvailableHeader>()
+                + size_of::<u16>() * queue_size as usize;
+            let bytes_of_queue_used = size_of::<virt_queue::QueueUsedHeader>()
+                + size_of::<virt_queue::QueueUsedElement>() * queue_size as usize;
+            let queue_page_cnt = ((bytes_of_descs + bytes_of_queue_available) / PAGE_SIZE).max(1)
+                + (bytes_of_queue_used / PAGE_SIZE).max(1);
 
-            for i in 0..queue_size as usize {
-                let queue_desc = QueueDescriptor::default();
+            let mem_frame_info = bitmap::alloc_mem_frame(queue_page_cnt)?;
 
-                unsafe {
-                    virt_addr
-                        .offset(size_of::<virt_queue::QueueDescriptor>() * i)
-                        .as_ptr_mut::<virt_queue::QueueDescriptor>()
-                        .write(queue_desc);
+            let queue_info = match virt_queue::Queue::init(mem_frame_info, queue_size as usize) {
+                Ok(info) => info,
+                Err(err) => {
+                    bitmap::dealloc_mem_frame(mem_frame_info)?;
+                    return Err(err);
                 }
-            }
-
-            self.allocated_mem_frame_info.push(mem_frame_info);
+            };
+            self.queue_info = Some(queue_info);
 
             Ok(())
         })?;
