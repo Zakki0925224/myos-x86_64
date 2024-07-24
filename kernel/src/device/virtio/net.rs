@@ -7,24 +7,68 @@ use crate::{
     },
     error::{Error, Result},
     mem::{bitmap, paging::PAGE_SIZE},
+    println,
     util::mutex::Mutex,
 };
 use core::mem::size_of;
 
 static mut VIRTIO_NET_DRIVER: Mutex<VirtioNetDriver> = Mutex::new(VirtioNetDriver::new());
 
+#[derive(Debug)]
+struct ConfigurationField {
+    /* +0x00 */ mac: [u8; 6],
+    /* +0x06 */ status: u16,
+    /* +0x08 */ max_virtqueue_pairs: u16,
+    /* +0x0a */ mtu: u16,
+    /* +0x0c */ speed: u32,
+    /* +0x10 */ duplex: u8,
+    /* +0x11 */ rss_max_key_size: u8,
+    /* +0x12 */ supported_hash_types: u32,
+}
+
+impl ConfigurationField {
+    fn read(io_port_base: u32) -> Self {
+        let mac = [
+            arch::in8(io_port_base as u16 + 0x00),
+            arch::in8(io_port_base as u16 + 0x01),
+            arch::in8(io_port_base as u16 + 0x02),
+            arch::in8(io_port_base as u16 + 0x03),
+            arch::in8(io_port_base as u16 + 0x04),
+            arch::in8(io_port_base as u16 + 0x05),
+        ];
+        let status = arch::in16(io_port_base as u16 + 0x06);
+        let max_virtqueue_pairs = arch::in16(io_port_base as u16 + 0x08);
+        let mtu = arch::in16(io_port_base as u16 + 0x0a);
+        let speed = arch::in32(io_port_base + 0x0c);
+        let duplex = arch::in8(io_port_base as u16 + 0x10);
+        let rss_max_key_size = arch::in8(io_port_base as u16 + 0x11);
+        let supported_hash_types = arch::in32(io_port_base + 0x12);
+
+        Self {
+            mac,
+            status,
+            max_virtqueue_pairs,
+            mtu,
+            speed,
+            duplex,
+            rss_max_key_size,
+            supported_hash_types,
+        }
+    }
+}
+
 struct VirtioNetDriver {
     device_driver_info: DeviceDriverInfo,
     pci_device_bdf: Option<(usize, usize, usize)>,
 
-    queue_info: Option<virt_queue::Queue>,
+    queue: Option<virt_queue::Queue>,
 }
 impl VirtioNetDriver {
     const fn new() -> Self {
         Self {
             device_driver_info: DeviceDriverInfo::new("vtnet"),
             pci_device_bdf: None,
-            queue_info: None,
+            queue: None,
         }
     }
 }
@@ -74,6 +118,10 @@ impl DeviceDriverFunction for VirtioNetDriver {
                 _ => return Err(Error::Failed("Invalid base address register")),
             };
 
+            if io_port >= u16::MAX as u32 {
+                return Err(Error::Failed("Invalid I/O port address"));
+            }
+
             // enable device dirver
             // http://www.dumais.io/index.php?article=aca38a9a2b065b24dfa1dee728062a12
             write_device_status(io_port as u16, DeviceStatus::Acknowledge as u8);
@@ -109,6 +157,7 @@ impl DeviceDriverFunction for VirtioNetDriver {
                 + (bytes_of_queue_used / PAGE_SIZE).max(1);
 
             let mem_frame_info = bitmap::alloc_mem_frame(queue_page_cnt)?;
+            let queue_phys_addr = mem_frame_info.frame_start_phys_addr;
 
             let queue_info = match virt_queue::Queue::init(mem_frame_info, queue_size as usize) {
                 Ok(info) => info,
@@ -117,7 +166,22 @@ impl DeviceDriverFunction for VirtioNetDriver {
                     return Err(err);
                 }
             };
-            self.queue_info = Some(queue_info);
+            self.queue = Some(queue_info);
+
+            // queue_address
+            // physical page number
+            arch::out32(
+                io_port + 0x08,
+                (queue_phys_addr.get() as usize / PAGE_SIZE) as u32,
+            );
+
+            write_device_status(
+                io_port as u16,
+                read_device_status(io_port as u16) | DeviceStatus::DriverOk as u8,
+            );
+
+            let conf_field = ConfigurationField::read(io_port + 0x14);
+            println!("{:?}", conf_field);
 
             Ok(())
         })?;

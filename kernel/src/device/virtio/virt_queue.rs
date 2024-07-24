@@ -49,7 +49,7 @@ impl Drop for Queue {
 
 impl Queue {
     pub fn init(mem_frame_info: MemoryFrameInfo, queue_size: usize) -> Result<Self> {
-        if mem_frame_info.frame_start_phys_addr.get() & 0x0fff != 0 {
+        if mem_frame_info.frame_start_phys_addr.get() % PAGE_SIZE as u64 != 0 {
             return Err(Error::Failed("Physical address not aligned by 4K"));
         }
 
