@@ -1,7 +1,7 @@
 use crate::{arch, error::Result, mem::paging};
 use core::ptr::{read_volatile, write_volatile};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 #[repr(transparent)]
 pub struct PhysicalAddress(u64);
 
@@ -27,19 +27,13 @@ impl PhysicalAddress {
     }
 }
 
-impl Default for PhysicalAddress {
-    fn default() -> Self {
-        Self(0)
-    }
-}
-
 impl From<u64> for PhysicalAddress {
     fn from(addr: u64) -> Self {
-        PhysicalAddress::new(addr)
+        Self::new(addr)
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 #[repr(transparent)]
 pub struct VirtualAddress(u64);
 
@@ -111,19 +105,13 @@ impl VirtualAddress {
     }
 }
 
-impl Default for VirtualAddress {
-    fn default() -> Self {
-        Self(0)
-    }
-}
-
 impl From<u64> for VirtualAddress {
     fn from(addr: u64) -> Self {
-        VirtualAddress::new(addr)
+        Self::new(addr)
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 #[repr(transparent)]
 pub struct IoPortAddress(u32);
 
@@ -146,14 +134,22 @@ impl IoPortAddress {
 
     pub fn out8(&self, value: u8) {
         assert!(self.0 <= u16::MAX as u32);
-
         arch::out8(self.0 as u16, value);
     }
 
     pub fn in8(&self) -> u8 {
         assert!(self.0 <= u16::MAX as u32);
-
         arch::in8(self.0 as u16)
+    }
+
+    pub fn out16(&self, value: u16) {
+        assert!(self.0 <= u16::MAX as u32);
+        arch::out16(self.0 as u16, value);
+    }
+
+    pub fn in16(&self) -> u16 {
+        assert!(self.0 <= u16::MAX as u32);
+        arch::in16(self.0 as u16)
     }
 
     pub fn out32(&self, value: u32) {
@@ -165,8 +161,14 @@ impl IoPortAddress {
     }
 }
 
-impl Default for IoPortAddress {
-    fn default() -> Self {
-        Self(0)
+impl From<u16> for IoPortAddress {
+    fn from(addr: u16) -> Self {
+        Self::new(addr as u32)
+    }
+}
+
+impl From<u32> for IoPortAddress {
+    fn from(addr: u32) -> Self {
+        Self::new(addr)
     }
 }

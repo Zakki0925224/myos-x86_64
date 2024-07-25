@@ -15,6 +15,7 @@ mod error;
 mod fs;
 mod graphics;
 mod mem;
+mod net;
 mod panic;
 mod util;
 

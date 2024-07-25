@@ -6,35 +6,46 @@ use crate::{
         paging::PAGE_SIZE,
     },
 };
-use core::mem::size_of;
+use core::{
+    mem::size_of,
+    slice::{from_raw_parts, from_raw_parts_mut},
+};
 
 #[derive(Debug, Default)]
 #[repr(C, packed)]
 pub struct QueueDescriptor {
-    addr: u64,
-    len: u32,
-    flags: u16,
-    next: u16,
+    pub addr: u64,
+    pub len: u32,
+    pub flags: u16,
+    pub next: u16,
+}
+
+impl QueueDescriptor {
+    pub fn data(&self) -> &[u8] {
+        let ptr = VirtualAddress::new(self.addr).as_ptr();
+        unsafe { from_raw_parts(ptr, self.len as usize) }
+    }
 }
 
 #[repr(C)]
 pub struct QueueAvailableHeader {
-    flags: u16,
-    index: u16,
+    pub flags: u16,
+    pub index: u16,
 }
 
 #[repr(C)]
 pub struct QueueUsedHeader {
-    flags: u16,
-    index: u16,
+    pub flags: u16,
+    pub index: u16,
 }
 
 #[repr(C)]
 pub struct QueueUsedElement {
-    id: u32,
-    len: u32,
+    pub id: u32,
+    pub len: u32,
 }
 
+#[derive(Debug)]
 pub struct Queue {
     mem_frame_info: MemoryFrameInfo,
     base_virt_addr: VirtualAddress,
@@ -63,34 +74,57 @@ impl Queue {
         })
     }
 
-    pub fn read_desc(&self, index: usize) -> Result<QueueDescriptor> {
-        if index >= self.queue_size {
-            return Err(Error::IndexOutOfBoundsError(index));
-        }
-
-        let desc = unsafe {
-            self.base_virt_addr
-                .offset(self.offset_of_descs() + size_of::<QueueDescriptor>() * index)
-                .as_ptr::<QueueDescriptor>()
-                .read()
-        };
-
-        Ok(desc)
+    pub fn send_packet(&mut self, payload: &[u8]) -> Result<()> {
+        Ok(())
     }
 
-    pub fn write_desc(&self, index: usize, desc: QueueDescriptor) -> Result<()> {
-        if index >= self.queue_size {
-            return Err(Error::IndexOutOfBoundsError(index));
-        }
+    pub fn descs_mut(&self) -> &mut [QueueDescriptor] {
+        let ptr_mut: *mut QueueDescriptor = self
+            .base_virt_addr
+            .offset(self.offset_of_descs())
+            .as_ptr_mut();
 
-        unsafe {
-            self.base_virt_addr
-                .offset(self.offset_of_descs() + size_of::<QueueDescriptor>() * index)
-                .as_ptr_mut::<QueueDescriptor>()
-                .write(desc);
-        }
+        unsafe { from_raw_parts_mut(ptr_mut, self.queue_size) }
+    }
 
-        Ok(())
+    pub fn available_header_mut(&self) -> &mut QueueAvailableHeader {
+        let ptr_mut: *mut QueueAvailableHeader = self
+            .base_virt_addr
+            .offset(self.offset_of_queue_available())
+            .as_ptr_mut();
+
+        unsafe { &mut *ptr_mut }
+    }
+
+    pub fn available_elements_mut(&self) -> &mut [u16] {
+        let ptr_mut: *mut u16 = self
+            .base_virt_addr
+            .offset(self.offset_of_queue_available() + size_of::<QueueAvailableHeader>())
+            .as_ptr_mut();
+
+        unsafe { from_raw_parts_mut(ptr_mut, self.queue_size) }
+    }
+
+    pub fn used_header_mut(&self) -> &mut QueueUsedHeader {
+        let ptr_mut: *mut QueueUsedHeader = self
+            .base_virt_addr
+            .offset(self.offset_of_queue_used())
+            .as_ptr_mut();
+
+        unsafe { &mut *ptr_mut }
+    }
+
+    pub fn used_elements_mut(&self) -> &mut [QueueUsedElement] {
+        let ptr_mut: *mut QueueUsedElement = self
+            .base_virt_addr
+            .offset(self.offset_of_queue_used() + size_of::<QueueUsedHeader>())
+            .as_ptr_mut();
+
+        unsafe { from_raw_parts_mut(ptr_mut, self.queue_size) }
+    }
+
+    pub fn queue_size(&self) -> usize {
+        self.queue_size
     }
 
     fn bytes_of_descs(&self) -> usize {
