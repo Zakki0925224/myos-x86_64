@@ -1,15 +1,12 @@
 use crate::{
-    addr::VirtualAddress,
+    addr::{PhysicalAddress, VirtualAddress},
     error::{Error, Result},
     mem::{
         bitmap::{self, MemoryFrameInfo},
         paging::PAGE_SIZE,
     },
 };
-use core::{
-    mem::size_of,
-    slice::{from_raw_parts, from_raw_parts_mut},
-};
+use core::{mem::size_of, slice::from_raw_parts_mut};
 
 #[derive(Debug, Default)]
 #[repr(C, packed)]
@@ -21,9 +18,18 @@ pub struct QueueDescriptor {
 }
 
 impl QueueDescriptor {
-    pub fn data(&self) -> &[u8] {
-        let ptr = VirtualAddress::new(self.addr).as_ptr();
-        unsafe { from_raw_parts(ptr, self.len as usize) }
+    pub fn data<T>(&self) -> &T {
+        let ptr = self.virt_addr().as_ptr();
+        unsafe { &*ptr }
+    }
+
+    pub fn write_data<T>(&self, data: &T) {
+        self.virt_addr()
+            .copy_from_nonoverlapping(data as *const T, 1);
+    }
+
+    fn virt_addr(&self) -> VirtualAddress {
+        self.addr.into()
     }
 }
 
@@ -59,8 +65,19 @@ impl Drop for Queue {
 }
 
 impl Queue {
-    pub fn init(mem_frame_info: MemoryFrameInfo, queue_size: usize) -> Result<Self> {
+    pub fn new(queue_size: usize) -> Result<Self> {
+        let bytes_of_descs = size_of::<QueueDescriptor>() * queue_size;
+        let bytes_of_queue_available =
+            size_of::<QueueAvailableHeader>() + size_of::<u16>() * queue_size;
+        let bytes_of_queue_used =
+            size_of::<QueueUsedHeader>() + size_of::<QueueUsedElement>() * queue_size;
+        let queue_page_cnt = ((bytes_of_descs + bytes_of_queue_available) / PAGE_SIZE).max(1)
+            + (bytes_of_queue_used / PAGE_SIZE).max(1);
+
+        let mem_frame_info = bitmap::alloc_mem_frame(queue_page_cnt)?;
+
         if mem_frame_info.frame_start_phys_addr.get() % PAGE_SIZE as u64 != 0 {
+            bitmap::dealloc_mem_frame(mem_frame_info)?;
             return Err(Error::Failed("Physical address not aligned by 4K"));
         }
 
@@ -74,7 +91,17 @@ impl Queue {
         })
     }
 
-    pub fn send_packet(&mut self, payload: &[u8]) -> Result<()> {
+    pub fn set_data<T>(&mut self, data: &T) -> Result<()> {
+        let index = self.available_header_mut().index as usize % self.queue_size;
+        let desc = &mut self.descs_mut()[index];
+
+        if size_of::<T>() > desc.len as usize {
+            return Err(Error::Failed("Data too long"));
+        }
+
+        desc.write_data(data);
+        self.available_elements_mut()[index] = index as u16;
+        self.available_header_mut().index = (index + 1) as u16;
         Ok(())
     }
 
@@ -125,6 +152,10 @@ impl Queue {
 
     pub fn queue_size(&self) -> usize {
         self.queue_size
+    }
+
+    pub fn phys_addr(&self) -> &PhysicalAddress {
+        &self.mem_frame_info.frame_start_phys_addr
     }
 
     fn bytes_of_descs(&self) -> usize {

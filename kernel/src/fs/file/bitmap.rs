@@ -6,15 +6,15 @@ const MAGIC: [u8; 2] = *b"BM";
 
 #[derive(Debug)]
 #[repr(C, packed)]
-pub struct BitmapImageHeader {
-    pub type_: [u8; 2],
+pub struct ImageHeader {
+    pub magic: [u8; 2],
     pub file_size: u32,
     reserved: [u16; 2],
     pub offset: u32,
 }
 
 #[repr(C)]
-pub struct BitmapImageInfoHeader {
+pub struct InfoHeader {
     pub header_size: u32,
     pub width: i32,
     pub height: i32,
@@ -38,17 +38,17 @@ impl<'a> BitmapImage<'a> {
         Self { data }
     }
 
-    pub fn header(&self) -> &BitmapImageHeader {
-        unsafe { &*(self.data.as_ptr() as *const BitmapImageHeader) }
+    pub fn header(&self) -> &ImageHeader {
+        unsafe { &*(self.data.as_ptr() as *const ImageHeader) }
     }
 
-    pub fn info_header(&self) -> &BitmapImageInfoHeader {
-        let offset = size_of::<BitmapImageHeader>();
-        unsafe { &*(self.data.as_ptr().add(offset) as *const BitmapImageInfoHeader) }
+    pub fn info_header(&self) -> &InfoHeader {
+        let offset = size_of::<ImageHeader>();
+        unsafe { &*(self.data.as_ptr().add(offset) as *const InfoHeader) }
     }
 
     pub fn is_valid(&self) -> bool {
-        self.header().type_ == MAGIC
+        self.header().magic == MAGIC
     }
 
     pub fn bitmap(&self) -> &[u8] {

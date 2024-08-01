@@ -4,8 +4,8 @@ use crate::{
         self,
         register::{control::Cr2, segment::Cs, Register},
     },
-    bus::usb::xhc,
     device::*,
+    error::{Error, Result},
     graphics::*,
     mem::paging,
     util::mutex::Mutex,
@@ -114,7 +114,6 @@ const _VEC_MACHINE_CHECK: usize = 0x12;
 const _VEC_SIMD_FLOATING_POINT_EX: usize = 0x13;
 const _VEC_VIRT_EX: usize = 0x14;
 const _VEC_CTRL_PROTECTION_EX: usize = 0x15;
-pub const VEC_XHCI_INT: usize = 0x40;
 pub const VEC_LOCAL_APIC_TIMER_INT: usize = 0x41;
 
 const END_OF_INT_REG_ADDR: VirtualAddress = VirtualAddress::new(0xfee000b0);
@@ -145,11 +144,11 @@ pub enum GateType {
 pub struct GateDescriptor(u128);
 
 impl GateDescriptor {
-    pub const fn new() -> Self {
+    const fn new() -> Self {
         Self(0)
     }
 
-    pub fn set_handler(&mut self, handler: InterruptHandler, gate_type: GateType) {
+    fn set_handler(&mut self, handler: InterruptHandler, gate_type: GateType) {
         let handler_addr = match handler {
             InterruptHandler::Normal(handler) => handler as *const (),
             InterruptHandler::WithStackFrame(handler) => handler as *const (),
@@ -183,6 +182,10 @@ impl GateDescriptor {
     fn set_p(&mut self, value: bool) {
         self.0 = (self.0 & !0x8000_0000_0000) | ((value as u128) << 47);
     }
+
+    fn is_null(self) -> bool {
+        self.0 == 0
+    }
 }
 
 struct InterruptDescriptorTable {
@@ -190,23 +193,48 @@ struct InterruptDescriptorTable {
 }
 
 impl InterruptDescriptorTable {
-    pub const fn new() -> Self {
+    const fn new() -> Self {
         Self {
             entries: [GateDescriptor::new(); IDT_LEN],
         }
     }
 
-    pub fn set_handler(&mut self, vec_num: usize, handler: InterruptHandler, gate_type: GateType) {
+    fn set_handler(
+        &mut self,
+        vec_num: usize,
+        handler: InterruptHandler,
+        gate_type: GateType,
+    ) -> Result<()> {
         if vec_num >= IDT_LEN {
-            return;
+            return Err(Error::Failed("Invalid interrupt vector number"));
         }
 
-        let mut desc = GateDescriptor::new();
+        let desc = &mut self.entries[vec_num];
+        if !desc.is_null() {
+            return Err(Error::Failed("Interrupt handler already set"));
+        }
         desc.set_handler(handler, gate_type);
-        self.entries[vec_num] = desc;
+
+        Ok(())
     }
 
-    pub fn load(&self) {
+    fn set_handler_dyn_vec(
+        &mut self,
+        handler: InterruptHandler,
+        gate_type: GateType,
+    ) -> Result<u8> {
+        for i in 32..IDT_LEN {
+            let desc = &mut self.entries[i];
+            if desc.is_null() {
+                desc.set_handler(handler, gate_type);
+                return Ok(i as u8);
+            }
+        }
+
+        Err(Error::Failed("No available interrupt vector"))
+    }
+
+    fn load(&self) {
         let limit = (size_of::<GateDescriptor>() * IDT_LEN - 1) as u16;
         let base = self.entries.as_ptr() as u64;
         let args = arch::DescriptorTableArgs { limit, base };
@@ -223,7 +251,7 @@ fn notify_end_of_int() {
     }
 }
 
-fn pic_notify_end_of_int() {
+pub fn pic_notify_end_of_int() {
     MASTER_PIC_ADDR.out8(PIC_END_OF_INT_CMD);
     SLAVE_PIC_ADDR.out8(PIC_END_OF_INT_CMD);
 }
@@ -252,14 +280,6 @@ extern "x86-interrupt" fn page_fault_handler(
 
 extern "x86-interrupt" fn double_fault_handler() {
     panic!("int: DOUBLE FAULT");
-}
-
-extern "x86-interrupt" fn xhc_primary_event_ring_handler() {
-    if let Err(err) = xhc::on_updated_event_ring() {
-        error!("xhc: {:?}", err);
-    }
-
-    notify_end_of_int();
 }
 
 extern "x86-interrupt" fn local_apic_timer_handler() {
@@ -316,43 +336,52 @@ pub fn init_idt() {
         VEC_BREAKPOINT,
         InterruptHandler::WithStackFrame(breakpoint_handler),
         GateType::Trap,
-    );
+    )
+    .unwrap();
     idt.set_handler(
         VEC_GENERAL_PROTECTION,
         InterruptHandler::WithStackFrame(general_protection_fault_handler),
         GateType::Interrupt,
-    );
+    )
+    .unwrap();
     idt.set_handler(
         VEC_PAGE_FAULT,
         InterruptHandler::PageFault(page_fault_handler),
         GateType::Interrupt,
-    );
+    )
+    .unwrap();
     idt.set_handler(
         VEC_DOUBLE_FAULT,
         InterruptHandler::Normal(double_fault_handler),
         GateType::Interrupt,
-    );
-    idt.set_handler(
-        VEC_XHCI_INT,
-        InterruptHandler::Normal(xhc_primary_event_ring_handler),
-        GateType::Interrupt,
-    );
+    )
+    .unwrap();
     idt.set_handler(
         VEC_LOCAL_APIC_TIMER_INT,
         InterruptHandler::Normal(local_apic_timer_handler),
         GateType::Interrupt,
-    );
+    )
+    .unwrap();
     idt.set_handler(
         VEC_PIC_IRQ1,
         InterruptHandler::Normal(ps2_keyboard_handler),
         GateType::Interrupt,
-    );
+    )
+    .unwrap();
     idt.set_handler(
         VEC_PIC_IRQ12,
         InterruptHandler::Normal(ps2_mouse_handler),
         GateType::Interrupt,
-    );
+    )
+    .unwrap();
     idt.load();
 
     info!("idt: Initialized IDT");
+}
+
+pub fn set_handler_dyn_vec(handler: InterruptHandler, gate_type: GateType) -> Result<u8> {
+    let mut idt = unsafe { IDT.try_lock() }?;
+    let vec_num = idt.set_handler_dyn_vec(handler, gate_type)?;
+    idt.load();
+    Ok(vec_num)
 }

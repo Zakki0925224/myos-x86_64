@@ -29,6 +29,10 @@ trait DeviceDriverFunction {
     fn probe(&mut self) -> Result<()>;
     // initialize device
     fn attach(&mut self) -> Result<()>;
+    // normal polling
+    fn poll_normal(&mut self) -> Result<()>;
+    // interrupt polling
+    fn poll_int(&mut self) -> Result<()>;
 }
 
 pub fn init() {

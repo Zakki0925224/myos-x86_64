@@ -1,4 +1,4 @@
-use super::conf_space::*;
+use super::conf_space::{self, *};
 use crate::{
     arch::register::msi::{MsiMessageAddressField, MsiMessageDataField},
     error::{Error, Result},
@@ -13,6 +13,8 @@ pub trait PciDeviceFunctions {
     ) -> Result<ConfigurationSpacePciToPciBridgeField>;
     fn read_space_pci_to_cardbus_bridge_field(&self)
         -> Result<ConfigurationSpacePciToCardBusField>;
+    fn read_interrupt_line(&self) -> Result<u8>;
+    fn write_interrupt_line(&self, value: u8) -> Result<()>;
     fn device_class(&self) -> (u8, u8, u8);
     fn device_bdf(&self) -> (usize, usize, usize);
     fn is_available_msi_int(&self) -> bool;
@@ -105,6 +107,19 @@ impl PciDeviceFunctions for PciDevice {
             }
             _ => Err(Error::Failed("Invalid configuration space header type")),
         }
+    }
+
+    fn read_interrupt_line(&self) -> Result<u8> {
+        let data = conf_space::read_conf_space(self.bus, self.device, self.func, 0x3c)?;
+        Ok(data as u8)
+    }
+
+    fn write_interrupt_line(&self, value: u8) -> Result<()> {
+        let data = conf_space::read_conf_space(self.bus, self.device, self.func, 0x3c)? & !0xff
+            | value as u32;
+        conf_space::write_conf_space(self.bus, self.device, self.func, 0x3c, data)?;
+
+        Ok(())
     }
 
     fn device_class(&self) -> (u8, u8, u8) {

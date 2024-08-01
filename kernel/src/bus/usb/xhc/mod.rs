@@ -6,12 +6,13 @@ use self::{
 };
 use super::device::*;
 use crate::{
-    arch::{addr::*, apic::local_apic_id, idt::VEC_XHCI_INT, register::msi::*},
+    arch::{addr::*, apic::local_apic_id, register::msi::*},
     bus::{
         pci::{self, conf_space::BaseAddress},
         usb::xhc::{port::ConfigState, register::*},
     },
     error::Result,
+    idt,
     mem::bitmap,
     util::mutex::Mutex,
 };
@@ -312,9 +313,14 @@ impl XhcDriver {
                 info!("xhc: Initialized event ring");
 
                 // setting up msi
+                let vec_num = idt::set_handler_dyn_vec(
+                    idt::InterruptHandler::Normal(poll_int_xhc_driver),
+                    idt::GateType::Interrupt,
+                )?;
+
                 let msg_addr = MsiMessageAddressField::new(false, false, local_apic_id());
                 let msg_data = MsiMessageDataField::new(
-                    VEC_XHCI_INT as u8,
+                    vec_num,
                     DeliveryMode::Fixed,
                     Level::Assert,
                     TriggerMode::Level,
@@ -932,4 +938,12 @@ pub fn on_updated_event_ring() -> Result<()> {
         .ok_or(XhcDriverError::NotInitialized)?
         .on_updated_event_ring();
     Ok(())
+}
+
+extern "x86-interrupt" fn poll_int_xhc_driver() {
+    if let Err(err) = on_updated_event_ring() {
+        error!("xhc: {:?}", err);
+    }
+
+    idt::pic_notify_end_of_int();
 }

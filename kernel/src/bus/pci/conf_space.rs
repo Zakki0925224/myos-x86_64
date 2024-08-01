@@ -438,7 +438,7 @@ impl MsiCapabilityField {
     }
 }
 
-fn read_conf_space(bus: usize, device: usize, func: usize, byte_offset: usize) -> Result<u32> {
+pub fn read_conf_space(bus: usize, device: usize, func: usize, byte_offset: usize) -> Result<u32> {
     if bus >= PCI_DEVICE_BUS_LEN
         || device >= PCI_DEVICE_DEVICE_LEN
         || func >= PCI_DEVICE_FUNC_LEN
@@ -457,7 +457,7 @@ fn read_conf_space(bus: usize, device: usize, func: usize, byte_offset: usize) -
     Ok(PCI_PORT_CONF_DATA_REG_ADDR.in32())
 }
 
-fn write_conf_space(
+pub fn write_conf_space(
     bus: usize,
     device: usize,
     func: usize,
