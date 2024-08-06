@@ -52,11 +52,19 @@ QEMU_ARGS = [
     "-gdb tcp::3333",
 ]
 
+is_kernel_test = False
+test_kernel_path = ""
+
 
 def qemu_cmd() -> str:
+    global is_kernel_test
+
     qemu_args = " ".join(QEMU_ARGS)
     qemu_drives = " ".join(QEMU_DRIVES)
     qemu_devices = " ".join(QEMU_DEVICES)
+
+    if is_kernel_test:
+        qemu_args += " -display none"
 
     return f"{QEMU_ARCH} {qemu_args} {qemu_drives} {qemu_devices}"
 
@@ -65,13 +73,28 @@ def own_qemu_cmd() -> str:
     return f"./{THIRD_PARTY_DIR}/{QEMU_DIR}/build/{qemu_cmd()} --display sdl --trace events=./{QEMU_TRACE_FILE}"
 
 
-def run_cmd(cmd: str, dir: str = "./", ignore_error: bool = False):
+def run_cmd(
+    cmd: str,
+    dir: str = "./",
+    ignore_error: bool = False,
+    check_qemu_exit_code: bool = False,
+):
     print(f"\033[32m{cmd}\033[0m")
     cp = subprocess.run(cmd, shell=True, cwd=dir)
+    exit_code = cp.returncode
+    if check_qemu_exit_code:
+        if exit_code == 33:  # EXIT_SUCCESS
+            print("Received QEMU exit code: EXIT_SUCCESS")
+            exit(0)
+        elif exit_code == 35:  # EXIT_FAILURE
+            print("Received QEMU exit code: EXIT_FAILURE")
+            exit(1)
+        else:
+            print(f"Received QEMU exit code: Unknown({exit_code})")
+            exit(1)
 
-    if cp.returncode != 0 and not ignore_error:
-        print(f"returncode: {cp.returncode}")
-        exit(0)
+    if exit_code != 0 and not ignore_error:
+        exit(exit_code)
 
 
 # tasks
@@ -103,7 +126,12 @@ def task_build_cozette():
 
 
 def task_build_qemu():
+    global is_kernel_test
+
     d = f"./{THIRD_PARTY_DIR}/{QEMU_DIR}"
+
+    if is_kernel_test:
+        return
 
     if not os.path.exists(f"{d}/build/{QEMU_ARCH}"):
         run_cmd(f"{GIT_CHECKOUT_TO_LATEST_TAG}", dir=d)
@@ -125,11 +153,17 @@ def task_build_bootloader():
 
 
 def task_build_kernel():
+    global is_kernel_test, test_kernel_path
     d = f"./{KERNEL_DIR}"
+    kernel_path = (
+        test_kernel_path
+        if is_kernel_test and test_kernel_path != ""
+        else "./target/x86_64-kernel/debug/kernel"
+    )
 
     task_init()
     run_cmd("cargo build", d)
-    run_cmd(f"cp ./target/x86_64-kernel/debug/kernel ../{OUTPUT_DIR}/{KERNEL_FILE}", d)
+    run_cmd(f"cp {kernel_path} ../{OUTPUT_DIR}/{KERNEL_FILE}", d)
 
 
 def task_build():
@@ -208,8 +242,12 @@ def task_make_iso():
 
 
 def task_run():
+    global is_kernel_test
+
     task_make_img()
-    run_cmd(own_qemu_cmd(), ignore_error=True)
+    cmd = qemu_cmd() if is_kernel_test else own_qemu_cmd()
+
+    run_cmd(cmd, ignore_error=not is_kernel_test, check_qemu_exit_code=is_kernel_test)
 
 
 def task_run_nographic():
@@ -239,6 +277,14 @@ def task_dump():
     )
 
 
+def kernel_test_runner(kernel_path: str):
+    global is_kernel_test, test_kernel_path
+    os.chdir("../")
+    is_kernel_test = True
+    test_kernel_path = kernel_path
+    task_run()
+
+
 TASKS = [
     task_clear,
     task_init,
@@ -262,7 +308,11 @@ TASKS = [
 if __name__ == "__main__":
     args = sys.argv
 
-    if len(args) == 2:
+    if len(args) >= 2:
+        if args[1] == "test" and len(args) >= 3:
+            kernel_test_runner(args[2])
+            exit(0)
+
         for task in TASKS:
             if task.__name__ == args[1]:
                 task()

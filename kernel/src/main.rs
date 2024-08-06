@@ -6,6 +6,9 @@
 #![feature(alloc_error_handler)]
 #![feature(sync_unsafe_cell)]
 #![feature(naked_functions)]
+#![feature(custom_test_frameworks)]
+#![test_runner(test::test_runner)]
+#![reexport_test_harness_main = "test_main"]
 
 mod arch;
 mod bus;
@@ -17,6 +20,7 @@ mod graphics;
 mod mem;
 mod net;
 mod panic;
+mod test;
 mod util;
 
 #[macro_use]
@@ -91,6 +95,9 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
         boot_info.initramfs_start_virt_addr.into(),
         &boot_info.kernel_config,
     );
+
+    #[cfg(test)]
+    test_main();
 
     env::print_info();
 
@@ -267,7 +274,7 @@ async fn exec_cmd(cmd: String) -> Result<()> {
         "info" => env::print_info(),
         "lspci" => pci::lspci()?,
         "free" => mem::free(),
-        "exit" => qemu::exit(0),
+        "exit" => qemu::exit(qemu::EXIT_SUCCESS),
         "break" => arch::int3(),
         "cd" => {
             if args.len() == 2 {
@@ -313,4 +320,14 @@ async fn poll_devices() {
         //let _ = device::virtio::net::poll_normal();
         task::exec_yield().await;
     }
+}
+
+#[test_case]
+fn test1() {
+    assert_eq!(0, 0);
+}
+
+#[test_case]
+fn test2() {
+    assert_eq!(10, 10);
 }

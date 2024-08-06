@@ -59,4 +59,11 @@ $ cd myos-x86_64
 $ python3 ./task.py task_build
 ```
 
+## How to run kernel test
+
+```bash
+$ cd myos-x86_64/kenrel
+$ cargo test
+```
+
 If you run `task.py` without an argument, you can see the list of commands.
