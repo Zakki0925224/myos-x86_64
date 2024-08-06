@@ -62,7 +62,7 @@ $ python3 ./task.py task_build
 ## How to run kernel test
 
 ```bash
-$ cd myos-x86_64/kenrel
+$ cd myos-x86_64/kernel
 $ cargo test
 ```
 
