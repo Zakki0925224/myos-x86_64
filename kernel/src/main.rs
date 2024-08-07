@@ -321,13 +321,3 @@ async fn poll_devices() {
         task::exec_yield().await;
     }
 }
-
-#[test_case]
-fn test1() {
-    assert_eq!(0, 0);
-}
-
-#[test_case]
-fn test2() {
-    assert_eq!(10, 10);
-}

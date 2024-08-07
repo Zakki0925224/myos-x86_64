@@ -98,3 +98,36 @@ impl<T: Sized + Copy, const SIZE: usize> Fifo<T, SIZE> {
         &self.buf
     }
 }
+
+#[test_case]
+fn test_new() {
+    let fifo: Fifo<u8, 4> = Fifo::new(0);
+    assert_eq!(fifo.len(), 0);
+    assert_eq!(fifo.get_read_write_ptr(), (0, 0));
+}
+
+#[test_case]
+fn test_enqueue_dequeue() {
+    let mut fifo: Fifo<u8, 4> = Fifo::new(0);
+    assert!(fifo.enqueue(1).is_ok());
+    assert!(fifo.enqueue(2).is_ok());
+    assert!(fifo.enqueue(3).is_ok());
+    assert!(fifo.enqueue(4).is_err());
+
+    assert_eq!(fifo.dequeue(), Ok(1));
+    assert_eq!(fifo.dequeue(), Ok(2));
+    assert_eq!(fifo.dequeue(), Ok(3));
+    assert!(fifo.dequeue().is_err());
+}
+
+#[test_case]
+fn test_reset() {
+    let mut fifo: Fifo<u8, 4> = Fifo::new(0);
+    fifo.enqueue(1).unwrap();
+    fifo.enqueue(2).unwrap();
+    fifo.enqueue(3).unwrap();
+    fifo.reset_ptr();
+
+    assert_eq!(fifo.get_read_write_ptr(), (0, 0));
+    assert!(fifo.dequeue().is_err());
+}

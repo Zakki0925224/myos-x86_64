@@ -86,3 +86,32 @@ impl<'a, T> Drop for MutexGuard<'a, T> {
         self.mutex.locked.store(false, Ordering::Relaxed);
     }
 }
+
+#[test_case]
+fn test_lock_unlock() {
+    let mutex = Mutex::new(0);
+
+    {
+        let mut guard = mutex.try_lock().unwrap();
+        *guard += 1;
+        assert_eq!(*guard, 1);
+    }
+
+    {
+        let guard = mutex.try_lock().unwrap();
+        assert_eq!(*guard, 1);
+    }
+}
+
+#[test_case]
+fn test_unlock_force() {
+    let mut mutex = Mutex::new(0);
+
+    unsafe {
+        let guard = mutex.get_force_mut();
+        *guard += 1;
+    }
+
+    let guard = mutex.try_lock().unwrap();
+    assert_eq!(*guard, 1);
+}
