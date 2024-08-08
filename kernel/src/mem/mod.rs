@@ -34,16 +34,6 @@ pub fn init(mem_map: &[MemoryDescriptor]) {
         panic!("mem: {:?}", err);
     }
     info!("mem: Initialized heap allocator");
-
-    assert_eq!(
-        paging::calc_phys_addr(0xabcd000.into()).unwrap().get(),
-        0xabcd000
-    );
-
-    assert_eq!(
-        paging::calc_virt_addr(0xabcd123.into()).unwrap().get(),
-        0xabcd123
-    );
 }
 
 pub fn free() {

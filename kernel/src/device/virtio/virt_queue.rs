@@ -6,7 +6,10 @@ use crate::{
         paging::PAGE_SIZE,
     },
 };
-use core::{mem::size_of, slice::from_raw_parts_mut};
+use core::{
+    mem::size_of,
+    slice::{from_raw_parts, from_raw_parts_mut},
+};
 
 #[derive(Debug, Default)]
 #[repr(C, packed)]
@@ -91,7 +94,7 @@ impl Queue {
         })
     }
 
-    pub fn set_data<T>(&mut self, data: &T) -> Result<()> {
+    pub fn write_data<T>(&mut self, data: &T) -> Result<()> {
         let index = self.available_header_mut().index as usize % self.queue_size;
         let desc = &mut self.descs_mut()[index];
 
@@ -103,6 +106,17 @@ impl Queue {
         self.available_elements_mut()[index] = index as u16;
         self.available_header_mut().index = (index + 1) as u16;
         Ok(())
+    }
+
+    pub fn read_data(&mut self) -> Result<&[u8]> {
+        let index = self.used_header_mut().index as usize % self.queue_size;
+        let desc = &mut self.descs_mut()[self.used_elements_mut()[index].id as usize];
+
+        let data_len = self.used_elements_mut()[index].len as usize;
+        let data_ptr = desc.virt_addr().as_ptr();
+
+        self.used_header_mut().index = (index + 1) as u16;
+        Ok(unsafe { from_raw_parts(data_ptr, data_len) })
     }
 
     pub fn descs_mut(&self) -> &mut [QueueDescriptor] {

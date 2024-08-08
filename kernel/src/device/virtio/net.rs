@@ -1,12 +1,12 @@
 use crate::{
     addr::IoPortAddress,
+    arch,
     bus::pci::{self, conf_space::BaseAddress, vendor_id},
     device::{
-        virtio::{virt_queue, DeviceStatus, NetworkDeviceFeature},
+        virtio::{virt_queue, DeviceStatus, InterruptType, IoRegister, NetworkDeviceFeature},
         DeviceDriverFunction, DeviceDriverInfo,
     },
     error::{Error, Result},
-    idt,
     mem::{bitmap, paging::PAGE_SIZE},
     util::mutex::Mutex,
 };
@@ -90,7 +90,8 @@ struct VirtioNetDriver {
     device_driver_info: DeviceDriverInfo,
     pci_device_bdf: Option<(usize, usize, usize)>,
 
-    io_register: Option<super::IoRegister>,
+    io_register: Option<IoRegister>,
+    conf_field: Option<ConfigurationField>,
     rx_queue: Option<virt_queue::Queue>,
     tx_queue: Option<virt_queue::Queue>,
 }
@@ -103,26 +104,36 @@ impl VirtioNetDriver {
             device_driver_info: DeviceDriverInfo::new("vtnet"),
             pci_device_bdf: None,
             io_register: None,
+            conf_field: None,
             rx_queue: None,
             tx_queue: None,
         }
     }
 
-    fn io_register(&self) -> Result<&super::IoRegister> {
+    fn io_register(&self) -> Result<&IoRegister> {
         self.io_register
             .as_ref()
             .ok_or(Error::Failed("I/O register is not initialized"))
     }
 
+    fn rx_queue(&mut self) -> Result<&mut virt_queue::Queue> {
+        self.rx_queue
+            .as_mut()
+            .ok_or(Error::Failed("RX queue is not initialized"))
+    }
+
+    fn tx_queue(&mut self) -> Result<&mut virt_queue::Queue> {
+        self.tx_queue
+            .as_mut()
+            .ok_or(Error::Failed("TX queue is not initialized"))
+    }
+
     fn send_packet(&mut self) -> Result<()> {
-        let tx_queue = match self.tx_queue.as_mut() {
-            Some(q) => q,
-            None => return Err(Error::Failed("TX queue is not initialized")),
-        };
+        let tx_queue = self.tx_queue()?;
         let mut header = PacketHeader::default();
         header.gso_type = PacketHeader::GSO_NONE;
 
-        tx_queue.set_data(&header)?;
+        tx_queue.write_data(&header)?;
         self.io_register()?.write_queue_notify(Self::TX_QUEUE_INDEX);
 
         Ok(())
@@ -185,7 +196,7 @@ impl DeviceDriverFunction for VirtioNetDriver {
                 _ => return Err(Error::Failed("Invalid base address register")),
             }
             .into();
-            self.io_register = Some(super::IoRegister::new(io_port_base));
+            self.io_register = Some(IoRegister::new(io_port_base));
 
             // enable device dirver
             // http://www.dumais.io/index.php?article=aca38a9a2b065b24dfa1dee728062a12
@@ -202,14 +213,15 @@ impl DeviceDriverFunction for VirtioNetDriver {
             self.io_register()?.write_device_status(
                 self.io_register()?.read_device_status() | DeviceStatus::FeaturesOk as u8,
             );
+            self.conf_field = Some(ConfigurationField::read(&io_port_base.offset(0x14)));
 
             // configure interrupt
             // TODO
-            let vec_num = idt::set_handler_dyn_vec(
-                idt::InterruptHandler::Normal(poll_int_vtnet_driver),
-                idt::GateType::Interrupt,
-            )?;
-            d.write_interrupt_line(vec_num)?;
+            // let vec_num = idt::set_handler_dyn_vec(
+            //     idt::InterruptHandler::Normal(poll_int_vtnet_driver),
+            //     idt::GateType::Interrupt,
+            // )?;
+            // d.write_interrupt_line(vec_num)?;
 
             // register virtqueues
             let queue_size = self.io_register()?.read_queue_size() as usize;
@@ -245,6 +257,7 @@ impl DeviceDriverFunction for VirtioNetDriver {
             }
 
             self.send_packet()?;
+            info!("{:?}", self.conf_field);
 
             Ok(())
         })?;
@@ -254,19 +267,30 @@ impl DeviceDriverFunction for VirtioNetDriver {
     }
 
     fn poll_normal(&mut self) -> Result<()> {
-        if let Some(ty) = self.io_register()?.interrupt_type() {
-            info!("{:?}", ty);
+        if !self.device_driver_info.attached {
+            return Err(Error::Failed("Device driver is not attached"));
+        }
+
+        match self.io_register()?.interrupt_type() {
+            Some(InterruptType::DeviceConfiguration) => {
+                info!("device configuration updated");
+            }
+            Some(InterruptType::Queue) => {
+                // TODO
+                arch::cli();
+                let rx_queue = self.rx_queue()?;
+                let data = rx_queue.read_data()?;
+                info!("data: {:?}", data);
+                arch::sti();
+            }
+            None => (),
         }
 
         Ok(())
     }
 
     fn poll_int(&mut self) -> Result<()> {
-        if let Some(ty) = self.io_register()?.interrupt_type() {
-            info!("{:?}", ty);
-        }
-
-        Ok(())
+        unimplemented!();
     }
 }
 
@@ -287,9 +311,9 @@ pub fn poll_normal() -> Result<()> {
     driver.poll_normal()
 }
 
-extern "x86-interrupt" fn poll_int_vtnet_driver() {
-    if let Ok(mut driver) = unsafe { VIRTIO_NET_DRIVER.try_lock() } {
-        let _ = driver.poll_int();
-    }
-    idt::pic_notify_end_of_int();
-}
+// extern "x86-interrupt" fn poll_int_vtnet_driver() {
+//     if let Ok(mut driver) = unsafe { VIRTIO_NET_DRIVER.try_lock() } {
+//         let _ = driver.poll_int();
+//     }
+//     idt::pic_notify_end_of_int();
+// }

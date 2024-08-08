@@ -317,7 +317,7 @@ async fn exec_cmd(cmd: String) -> Result<()> {
 
 async fn poll_devices() {
     loop {
-        //let _ = device::virtio::net::poll_normal();
+        let _ = device::virtio::net::poll_normal();
         task::exec_yield().await;
     }
 }

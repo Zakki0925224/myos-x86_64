@@ -587,3 +587,11 @@ pub fn get_page_permissions(virt_addr: VirtualAddress) -> Result<(ReadWrite, Ent
 pub fn read_page_table_entry(virt_addr: VirtualAddress) -> Result<PageTableEntry> {
     Ok(unsafe { PAGE_MAN.try_lock()?.page_table_entry(virt_addr)?.clone() })
 }
+
+#[test_case]
+fn test_map_identity() {
+    // already mapped by identity
+    assert_eq!(calc_phys_addr(0xabcd000.into()).unwrap().get(), 0xabcd000);
+    assert_eq!(calc_virt_addr(0xabcd123.into()).unwrap().get(), 0xabcd123);
+    assert_eq!(calc_virt_addr(0xdeadbeaf.into()).unwrap().get(), 0xdeadbeaf);
+}

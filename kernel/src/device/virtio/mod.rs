@@ -103,7 +103,7 @@ impl IoRegister {
     }
 
     fn interrupt_type(&self) -> Option<InterruptType> {
-        let status = self.read_device_status();
+        let status = self.read_isr_status();
 
         if status & 0x1 != 0 {
             Some(InterruptType::Queue)
