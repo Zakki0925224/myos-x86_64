@@ -1,11 +1,20 @@
 use crate::{
+    arch,
+    bus::pci,
+    env,
     error::{Error, Result},
-    graphics::{color::*, frame_buf_console},
-    serial,
-    util::{ascii::AsciiCode, fifo::Fifo, mutex::Mutex},
+    fs::{exec, vfs},
+    graphics::{color::*, frame_buf_console, simple_window_manager},
+    mem, qemu, uart,
+    util::{ascii::AsciiCode, fifo::Fifo, hexdump, mutex::Mutex, random},
 };
-use alloc::{boxed::Box, string::String};
+use alloc::{
+    boxed::Box,
+    string::{String, ToString},
+    vec::Vec,
+};
 use core::fmt::{self, Write};
+use log::error;
 
 const IO_BUF_LEN: usize = 512;
 const IO_BUF_DEFAULT_VALUE: ConsoleCharacter = ConsoleCharacter {
@@ -108,7 +117,7 @@ impl Console {
         if (buf_type == BufferType::Output || buf_type == BufferType::ErrorOutput)
             && self.use_serial_port
         {
-            serial::send(value.ascii_code as u8)?;
+            uart::send_data(value.ascii_code as u8);
         }
 
         Ok(())
@@ -208,4 +217,57 @@ pub fn input(ascii_code: AsciiCode) -> Result<Option<String>> {
     }
 
     Ok(input_str)
+}
+
+pub fn print_prompt() {
+    let cwd_path = vfs::cwd_path().unwrap_or("<UNKNOWN>".to_string());
+    print!("\n[{}]$ ", cwd_path);
+}
+
+pub fn exec_cmd(cmd: String) -> Result<()> {
+    let args: Vec<&str> = cmd.trim().split(" ").collect();
+
+    match args[0] {
+        "info" => env::print_info(),
+        "lspci" => pci::lspci()?,
+        "free" => mem::free(),
+        "exit" => qemu::exit(qemu::EXIT_SUCCESS),
+        "break" => arch::int3(),
+        "cd" => {
+            if args.len() == 2 {
+                vfs::chdir(args[1])?;
+            }
+        }
+        "ls" => {
+            let file_names = vfs::cwd_file_names()?;
+            for n in file_names {
+                print!("{} ", n);
+            }
+            println!();
+        }
+        "hexdump" => {
+            if args.len() >= 2 {
+                let fd_num = vfs::open_file(args[1])?;
+                let file = vfs::read_file(&fd_num)?;
+                vfs::close_file(&fd_num)?;
+                hexdump::hexdump(&file);
+            }
+        }
+        "exec" => {
+            if args.len() >= 2 {
+                exec::exec_elf(args[1], &args[2..])?;
+            }
+        }
+        "window" => {
+            let window_title = format!("window {}", random::xorshift64_seed_is_apic_timer());
+            simple_window_manager::create_window(window_title, 200, 50, 300, 200)?;
+        }
+        "taskbar" => {
+            simple_window_manager::create_taskbar()?;
+        }
+        "" => (),
+        cmd => error!("Command {:?} was not found", cmd),
+    }
+
+    Ok(())
 }

@@ -26,21 +26,18 @@ mod util;
 #[macro_use]
 extern crate alloc;
 
-use alloc::{string::String, vec::Vec};
+use alloc::vec::Vec;
 use arch::*;
-use bus::pci;
 use common::boot_info::BootInfo;
 use device::{
     console,
     ps2_keyboard::{self, key_event::KeyState},
-    ps2_mouse,
-    serial::{self, ComPort},
+    ps2_mouse, uart,
 };
-use error::Result;
-use fs::{exec, file::bitmap::BitmapImage, vfs};
+use fs::{file::bitmap::BitmapImage, vfs};
 use graphics::{color::RgbColorCode, simple_window_manager};
 use log::error;
-use util::{ascii::AsciiCode, hexdump, logger, random};
+use util::{ascii::AsciiCode, logger};
 
 #[no_mangle]
 #[start]
@@ -53,8 +50,8 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
     apic::timer::init();
     apic::timer::start();
 
-    // initialize serial
-    serial::init(ComPort::Com1).unwrap();
+    // initialize uart driver
+    device::uart::probe_and_attach().unwrap();
 
     // initialize logger
     logger::init();
@@ -108,67 +105,20 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
 
         if splited.len() == 0 || splited[0] == "" {
             error!("Invalid init app exec args: {:?}", args);
-        } else {
-            if let Err(err) = fs::exec::exec_elf(splited[0], &splited[1..]) {
-                error!("{:?}", err);
-            }
+        } else if let Err(err) = fs::exec::exec_elf(splited[0], &splited[1..]) {
+            error!("{:?}", err);
         }
     }
 
     // tasks
-    task::spawn(poll_serial()).unwrap();
+    task::spawn(poll_devices()).unwrap();
     task::spawn(poll_ps2_keyboard()).unwrap();
     task::spawn(poll_ps2_mouse()).unwrap();
-    task::spawn(poll_devices()).unwrap();
     task::run().unwrap();
 
     // unreachable?
     loop {
         arch::hlt();
-    }
-}
-
-async fn poll_serial() {
-    loop {
-        let ascii_code = match serial::receive() {
-            Ok(Some(data)) => match data.try_into() {
-                Ok(c) => c,
-                Err(_) => {
-                    task::exec_yield().await;
-                    continue;
-                }
-            },
-            _ => {
-                task::exec_yield().await;
-                continue;
-            }
-        };
-
-        match ascii_code {
-            AsciiCode::CarriageReturn => {
-                println!();
-            }
-            code => {
-                print!("{}", code as u8 as char);
-            }
-        }
-
-        let cmd = match console::input(ascii_code) {
-            Ok(Some(s)) => s,
-            _ => {
-                task::exec_yield().await;
-                continue;
-            }
-        };
-
-        if let Err(err) = exec_cmd(cmd).await {
-            error!("{:?}", err);
-        }
-
-        let cwd_path = vfs::cwd_path().unwrap_or(String::from("<UNKNOWN>"));
-        print!("\n[{}]$ ", cwd_path);
-
-        task::exec_yield().await;
     }
 }
 
@@ -212,13 +162,11 @@ async fn poll_ps2_keyboard() {
             }
         };
 
-        if let Err(err) = exec_cmd(cmd).await {
+        if let Err(err) = console::exec_cmd(cmd) {
             error!("{:?}", err);
         }
 
-        let cwd_path = vfs::cwd_path().unwrap_or(String::from("<UNKNOWN>"));
-        print!("\n[{}]$ ", cwd_path);
-
+        console::print_prompt();
         task::exec_yield().await;
     }
 }
@@ -267,57 +215,10 @@ async fn poll_ps2_mouse() {
     }
 }
 
-async fn exec_cmd(cmd: String) -> Result<()> {
-    let args: Vec<&str> = cmd.trim().split(" ").collect();
-
-    match args[0] {
-        "info" => env::print_info(),
-        "lspci" => pci::lspci()?,
-        "free" => mem::free(),
-        "exit" => qemu::exit(qemu::EXIT_SUCCESS),
-        "break" => arch::int3(),
-        "cd" => {
-            if args.len() == 2 {
-                vfs::chdir(args[1])?;
-            }
-        }
-        "ls" => {
-            let file_names = vfs::cwd_file_names()?;
-            for n in file_names {
-                print!("{} ", n);
-            }
-            println!();
-        }
-        "hexdump" => {
-            if args.len() >= 2 {
-                let fd_num = vfs::open_file(args[1])?;
-                let file = vfs::read_file(&fd_num)?;
-                vfs::close_file(&fd_num)?;
-                hexdump::hexdump(&file);
-            }
-        }
-        "exec" => {
-            if args.len() >= 2 {
-                exec::exec_elf(args[1], &args[2..])?;
-            }
-        }
-        "window" => {
-            let window_title = format!("window {}", random::xorshift64_seed_is_apic_timer());
-            simple_window_manager::create_window(window_title, 200, 50, 300, 200)?;
-        }
-        "taskbar" => {
-            simple_window_manager::create_taskbar()?;
-        }
-        "" => (),
-        cmd => error!("Command {:?} was not found", cmd),
-    }
-
-    Ok(())
-}
-
 async fn poll_devices() {
     loop {
         let _ = device::virtio::net::poll_normal();
+        let _ = device::uart::poll_normal();
         task::exec_yield().await;
     }
 }

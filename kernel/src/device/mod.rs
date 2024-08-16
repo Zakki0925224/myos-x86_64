@@ -4,7 +4,7 @@ use log::{error, info};
 pub mod console;
 pub mod ps2_keyboard;
 pub mod ps2_mouse;
-pub mod serial;
+pub mod uart;
 pub mod usb;
 pub mod virtio;
 
