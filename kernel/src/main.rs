@@ -29,7 +29,7 @@ extern crate alloc;
 use alloc::vec::Vec;
 use arch::*;
 use common::boot_info::BootInfo;
-use device::{ps2_mouse, uart};
+use device::uart;
 use fs::{file::bitmap::BitmapImage, vfs};
 use graphics::{color::RgbColorCode, simple_window_manager};
 use log::error;
@@ -140,7 +140,7 @@ async fn poll_ps2_mouse() {
     }
 
     loop {
-        let mouse_event = match ps2_mouse::get_event() {
+        let mouse_event = match device::ps2_mouse::poll_normal() {
             Ok(Some(e)) => e,
             _ => {
                 task::exec_yield().await;

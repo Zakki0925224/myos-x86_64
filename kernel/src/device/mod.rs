@@ -44,9 +44,10 @@ pub fn init() {
         error!("{}: Failed to probe or attach device: {:?}", name, err);
     }
 
-    // initialize ps/2 mouse
-    ps2_mouse::init();
-    info!("ps2 mouse: Initialized");
+    if let Err(err) = ps2_mouse::probe_and_attach() {
+        let name = ps2_mouse::get_device_driver_info().unwrap().name;
+        error!("{}: Failed to probe or attach device: {:?}", name, err);
+    }
 
     // clear console input
     if console::clear_input_buf().is_err() {

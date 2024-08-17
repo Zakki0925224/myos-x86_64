@@ -4,7 +4,7 @@ use crate::{
         self,
         register::{control::Cr2, segment::Cs, Register},
     },
-    device::{self, *},
+    device,
     error::{Error, Result},
     graphics::*,
     mem::paging,
@@ -116,11 +116,10 @@ const _VEC_VIRT_EX: usize = 0x14;
 const _VEC_CTRL_PROTECTION_EX: usize = 0x15;
 pub const VEC_LOCAL_APIC_TIMER_INT: usize = 0x41;
 
-const END_OF_INT_REG_ADDR: VirtualAddress = VirtualAddress::new(0xfee000b0);
+pub const VEC_PS2_KBD: usize = 0x21; // ps/2 keyboard
+pub const VEC_PS2_MOUSE: usize = 0x2c; // ps/2 mouse
 
-// pic
-const VEC_PIC_IRQ1: usize = 0x21; // ps/2 keyboard
-const VEC_PIC_IRQ12: usize = 0x2c; // ps/2 mouse
+const END_OF_INT_REG_ADDR: VirtualAddress = VirtualAddress::new(0xfee000b0);
 
 const MASTER_PIC_ADDR: IoPortAddress = IoPortAddress::new(0x20);
 const SLAVE_PIC_ADDR: IoPortAddress = IoPortAddress::new(0xa0);
@@ -292,11 +291,6 @@ extern "x86-interrupt" fn local_apic_timer_handler() {
     });
 }
 
-extern "x86-interrupt" fn ps2_mouse_handler() {
-    let _ = ps2_mouse::receive();
-    pic_notify_end_of_int();
-}
-
 pub fn init_pic() {
     // disallow all interrupts
     MASTER_PIC_ADDR.offset(1).out8(0xff);
@@ -358,14 +352,14 @@ pub fn init_idt() {
     )
     .unwrap();
     idt.set_handler(
-        VEC_PIC_IRQ1,
+        VEC_PS2_KBD,
         InterruptHandler::Normal(device::ps2_keyboard::poll_int_ps2_kbd_driver),
         GateType::Interrupt,
     )
     .unwrap();
     idt.set_handler(
-        VEC_PIC_IRQ12,
-        InterruptHandler::Normal(ps2_mouse_handler),
+        VEC_PS2_MOUSE,
+        InterruptHandler::Normal(device::ps2_mouse::poll_int_ps2_mouse_driver),
         GateType::Interrupt,
     )
     .unwrap();

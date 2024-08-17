@@ -9,7 +9,8 @@ use crate::{
         key_map::ANSI_US_104_KEY_MAP,
     },
     error::{Error, Result},
-    idt, print, println,
+    idt::{self, GateType, InterruptHandler},
+    print, println,
     util::{ascii::AsciiCode, fifo::Fifo, mutex::Mutex},
 };
 
