@@ -10,8 +10,8 @@ pub mod virtio;
 
 #[derive(Debug, Clone)]
 pub struct DeviceDriverInfo {
-    name: &'static str,
-    attached: bool,
+    pub name: &'static str,
+    pub attached: bool,
 }
 
 impl DeviceDriverInfo {
@@ -24,21 +24,25 @@ impl DeviceDriverInfo {
 }
 
 trait DeviceDriverFunction {
+    type PollNormalOutput;
+    type PollInterruptOutput;
+
     fn get_device_driver_info(&self) -> Result<DeviceDriverInfo>;
     // check and find device
     fn probe(&mut self) -> Result<()>;
     // initialize device
     fn attach(&mut self) -> Result<()>;
     // normal polling
-    fn poll_normal(&mut self) -> Result<()>;
+    fn poll_normal(&mut self) -> Result<Self::PollNormalOutput>;
     // interrupt polling
-    fn poll_int(&mut self) -> Result<()>;
+    fn poll_int(&mut self) -> Result<Self::PollInterruptOutput>;
 }
 
 pub fn init() {
-    // initialize ps/2 keyboard
-    ps2_keyboard::init();
-    info!("ps2 kbd: Initialized");
+    if let Err(err) = ps2_keyboard::probe_and_attach() {
+        let name = ps2_keyboard::get_device_driver_info().unwrap().name;
+        error!("{}: Failed to probe or attach device: {:?}", name, err);
+    }
 
     // initialize ps/2 mouse
     ps2_mouse::init();
@@ -50,10 +54,7 @@ pub fn init() {
     }
 
     if let Err(err) = virtio::net::probe_and_attach() {
-        error!("vtnet: Failed to probe and attach device: {:?}", err);
+        let name = virtio::net::get_device_driver_info().unwrap().name;
+        error!("{}: Failed to probe or attach device: {:?}", name, err);
     }
-    info!(
-        "vtnet: Attached: {:?}",
-        virtio::net::get_device_driver_info()
-    );
 }

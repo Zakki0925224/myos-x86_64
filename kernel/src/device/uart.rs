@@ -1,4 +1,4 @@
-use log::error;
+use log::{error, info};
 
 use crate::{
     arch::addr::IoPortAddress,
@@ -79,6 +79,9 @@ impl UartDriver {
 }
 
 impl DeviceDriverFunction for UartDriver {
+    type PollNormalOutput = Option<u8>;
+    type PollInterruptOutput = ();
+
     fn get_device_driver_info(&self) -> Result<DeviceDriverInfo> {
         Ok(self.device_driver_info.clone())
     }
@@ -108,39 +111,20 @@ impl DeviceDriverFunction for UartDriver {
         io_port_addr.offset(4).out8(0x0f);
 
         self.io_port_addr = Some(io_port_addr);
+        self.device_driver_info.attached = true;
         Ok(())
     }
 
-    fn poll_normal(&mut self) -> Result<()> {
-        let received_data = match self.receive_data() {
-            Some(data) => data,
-            None => return Ok(()),
-        };
-        let ascii_code = received_data.try_into()?;
-
-        match ascii_code {
-            AsciiCode::CarriageReturn => {
-                println!();
-            }
-            code => {
-                print!("{}", code as u8 as char);
-            }
+    fn poll_normal(&mut self) -> Result<Self::PollNormalOutput> {
+        if !self.device_driver_info.attached {
+            return Err(Error::Failed("Device driver is not attached"));
         }
 
-        let cmd = match console::input(ascii_code)? {
-            Some(s) => s,
-            None => return Ok(()),
-        };
-        if let Err(err) = console::exec_cmd(cmd) {
-            error!("{:?}", err);
-        }
-        console::print_prompt();
-
-        Ok(())
+        Ok(self.receive_data())
     }
 
-    fn poll_int(&mut self) -> Result<()> {
-        todo!()
+    fn poll_int(&mut self) -> Result<Self::PollInterruptOutput> {
+        unimplemented!()
     }
 }
 
@@ -153,12 +137,39 @@ pub fn probe_and_attach() -> Result<()> {
     let mut driver = unsafe { UART_DRIVER.try_lock() }?;
     driver.probe()?;
     driver.attach()?;
+    let info = driver.get_device_driver_info()?;
+    info!("{}: Attached!", info.name);
+
     Ok(())
 }
 
 pub fn poll_normal() -> Result<()> {
     let mut driver = unsafe { UART_DRIVER.try_lock() }?;
-    driver.poll_normal()
+    let received_data = match driver.poll_normal()? {
+        Some(data) => data,
+        None => return Ok(()),
+    };
+    let ascii_code = received_data.try_into()?;
+
+    match ascii_code {
+        AsciiCode::CarriageReturn => {
+            println!();
+        }
+        code => {
+            print!("{}", code as u8 as char);
+        }
+    }
+
+    let cmd = match console::input(ascii_code)? {
+        Some(s) => s,
+        None => return Ok(()),
+    };
+    if let Err(err) = console::exec_cmd(cmd) {
+        error!("{:?}", err);
+    }
+    console::print_prompt();
+
+    Ok(())
 }
 
 pub fn send_data(data: u8) {

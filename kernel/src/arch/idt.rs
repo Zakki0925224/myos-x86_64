@@ -4,7 +4,7 @@ use crate::{
         self,
         register::{control::Cr2, segment::Cs, Register},
     },
-    device::*,
+    device::{self, *},
     error::{Error, Result},
     graphics::*,
     mem::paging,
@@ -292,11 +292,6 @@ extern "x86-interrupt" fn local_apic_timer_handler() {
     });
 }
 
-extern "x86-interrupt" fn ps2_keyboard_handler() {
-    let _ = ps2_keyboard::receive();
-    pic_notify_end_of_int();
-}
-
 extern "x86-interrupt" fn ps2_mouse_handler() {
     let _ = ps2_mouse::receive();
     pic_notify_end_of_int();
@@ -364,7 +359,7 @@ pub fn init_idt() {
     .unwrap();
     idt.set_handler(
         VEC_PIC_IRQ1,
-        InterruptHandler::Normal(ps2_keyboard_handler),
+        InterruptHandler::Normal(device::ps2_keyboard::poll_int_ps2_kbd_driver),
         GateType::Interrupt,
     )
     .unwrap();

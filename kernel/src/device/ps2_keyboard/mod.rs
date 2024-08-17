@@ -1,13 +1,19 @@
+use alloc::string::String;
+use log::{error, info};
+
 use self::{key_event::KeyEvent, key_map::KeyMap};
 use crate::{
-    arch::addr::IoPortAddress,
+    arch::{self, addr::IoPortAddress},
     device::ps2_keyboard::{
         key_event::{KeyState, ModifierKeysState},
         key_map::ANSI_US_104_KEY_MAP,
     },
-    error::Result,
-    util::{fifo::Fifo, mutex::Mutex},
+    error::{Error, Result},
+    idt, print, println,
+    util::{ascii::AsciiCode, fifo::Fifo, mutex::Mutex},
 };
+
+use super::{console, DeviceDriverFunction, DeviceDriverInfo};
 
 pub mod key_event;
 mod key_map;
@@ -16,9 +22,11 @@ mod scan_code;
 const PS2_DATA_REG_ADDR: IoPortAddress = IoPortAddress::new(0x60);
 const PS2_CMD_AND_STATE_REG_ADDR: IoPortAddress = IoPortAddress::new(0x64);
 
-static mut KEYBOARD: Mutex<Keyboard> = Mutex::new(Keyboard::new(ANSI_US_104_KEY_MAP));
+static mut PS2_KBD_DRIVER: Mutex<Ps2KeyboardDriver> =
+    Mutex::new(Ps2KeyboardDriver::new(ANSI_US_104_KEY_MAP));
 
-struct Keyboard {
+struct Ps2KeyboardDriver {
+    device_driver_info: DeviceDriverInfo,
     key_map: KeyMap,
     mod_keys_state: ModifierKeysState,
     data_buf: Fifo<u8, 128>,
@@ -30,9 +38,10 @@ struct Keyboard {
     data_5: Option<u8>,
 }
 
-impl Keyboard {
-    pub const fn new(key_map: KeyMap) -> Self {
+impl Ps2KeyboardDriver {
+    const fn new(key_map: KeyMap) -> Self {
         Self {
+            device_driver_info: DeviceDriverInfo::new("ps2-kbd"),
             key_map,
             mod_keys_state: ModifierKeysState {
                 shift: false,
@@ -50,7 +59,7 @@ impl Keyboard {
         }
     }
 
-    pub fn input(&mut self, data: u8) -> Result<()> {
+    fn input(&mut self, data: u8) -> Result<()> {
         if self.data_buf.enqueue(data).is_err() {
             self.data_buf.reset_ptr();
             self.data_buf.enqueue(data)?;
@@ -61,7 +70,7 @@ impl Keyboard {
         Ok(())
     }
 
-    pub fn get_event(&mut self) -> Result<Option<KeyEvent>> {
+    fn get_event(&mut self) -> Result<Option<KeyEvent>> {
         let data = self.data_buf.dequeue()?;
 
         if self.data_0.is_none() {
@@ -147,29 +156,131 @@ impl Keyboard {
         self.data_4 = None;
         self.data_5 = None;
     }
-}
 
-pub fn init() {
-    PS2_CMD_AND_STATE_REG_ADDR.out8(0x60); // write configuration byte
-    wait_ready();
-    PS2_DATA_REG_ADDR.out8(0x47); // enable interrupt
-    wait_ready();
-
-    PS2_CMD_AND_STATE_REG_ADDR.out8(0x20); // read configuration byte
-    wait_ready();
-}
-
-pub fn receive() -> Result<()> {
-    let data = PS2_DATA_REG_ADDR.in8();
-    unsafe { KEYBOARD.try_lock() }?.input(data)
-}
-
-pub fn get_event() -> Result<Option<KeyEvent>> {
-    unsafe { KEYBOARD.try_lock() }?.get_event()
-}
-
-fn wait_ready() {
-    while PS2_CMD_AND_STATE_REG_ADDR.in8() & 0x2 != 0 {
-        continue;
+    fn wait_ready(&self) {
+        while PS2_CMD_AND_STATE_REG_ADDR.in8() & 0x2 != 0 {
+            continue;
+        }
     }
+}
+
+impl DeviceDriverFunction for Ps2KeyboardDriver {
+    type PollNormalOutput = Option<KeyEvent>;
+    type PollInterruptOutput = ();
+
+    fn get_device_driver_info(&self) -> Result<DeviceDriverInfo> {
+        Ok(self.device_driver_info.clone())
+    }
+
+    fn probe(&mut self) -> Result<()> {
+        Ok(())
+    }
+
+    fn attach(&mut self) -> Result<()> {
+        PS2_CMD_AND_STATE_REG_ADDR.out8(0x60); // write configuration byte
+        self.wait_ready();
+        PS2_DATA_REG_ADDR.out8(0x47); // enable interrupt
+        self.wait_ready();
+
+        PS2_CMD_AND_STATE_REG_ADDR.out8(0x20); // read configuration byte
+        self.wait_ready();
+
+        self.device_driver_info.attached = true;
+        Ok(())
+    }
+
+    fn poll_normal(&mut self) -> Result<Self::PollNormalOutput> {
+        if !self.device_driver_info.attached {
+            return Err(Error::Failed("Device driver is not attached"));
+        }
+
+        self.get_event()
+    }
+
+    fn poll_int(&mut self) -> Result<Self::PollInterruptOutput> {
+        if !self.device_driver_info.attached {
+            return Err(Error::Failed("Device driver is not attached"));
+        }
+
+        let data = PS2_DATA_REG_ADDR.in8();
+        self.input(data)?;
+
+        Ok(())
+    }
+}
+
+pub fn get_device_driver_info() -> Result<DeviceDriverInfo> {
+    let driver = unsafe { PS2_KBD_DRIVER.try_lock() }?;
+    driver.get_device_driver_info()
+}
+
+pub fn probe_and_attach() -> Result<()> {
+    arch::cli();
+    {
+        let mut driver = unsafe { PS2_KBD_DRIVER.try_lock() }?;
+        driver.probe()?;
+        driver.attach()?;
+        info!("{}: Attached!", driver.get_device_driver_info()?.name);
+    }
+    arch::sti();
+
+    Ok(())
+}
+
+pub fn poll_normal(is_prompt_mode: bool) -> Result<Option<String>> {
+    let key_event;
+
+    arch::cli();
+    {
+        let mut driver = unsafe { PS2_KBD_DRIVER.try_lock() }?;
+        key_event = driver.poll_normal()?;
+    }
+    arch::sti();
+
+    let key_event = match key_event {
+        Some(e) => e,
+        None => return Ok(None),
+    };
+
+    if key_event.state == KeyState::Released {
+        return Ok(None);
+    }
+
+    let ascii_code = match key_event.ascii {
+        Some(c) => c,
+        None => return Ok(None),
+    };
+
+    match ascii_code {
+        AsciiCode::CarriageReturn => {
+            println!();
+        }
+        code => {
+            print!("{}", code as u8 as char);
+        }
+    }
+
+    let cmd = console::input(ascii_code)?;
+    if !is_prompt_mode {
+        return Ok(cmd);
+    }
+
+    let cmd = match cmd {
+        Some(s) => s,
+        None => return Ok(None),
+    };
+
+    if let Err(err) = console::exec_cmd(cmd) {
+        error!("{:?}", err);
+    }
+    console::print_prompt();
+
+    Ok(None)
+}
+
+pub extern "x86-interrupt" fn poll_int_ps2_kbd_driver() {
+    if let Ok(mut driver) = unsafe { PS2_KBD_DRIVER.try_lock() } {
+        let _ = driver.poll_int();
+    }
+    idt::pic_notify_end_of_int();
 }

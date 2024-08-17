@@ -4,15 +4,13 @@ use crate::{
         gdt::*,
         register::{model_specific::*, Register},
     },
-    device::ps2_keyboard::{self, key_event::KeyState},
-    env,
+    device, env,
     error::*,
     fs::vfs::{self, file_desc::FileDescriptorNumber},
     mem::{bitmap, paging::PAGE_SIZE},
-    print, println,
-    util::{self, ascii::AsciiCode},
+    print, util,
 };
-use alloc::{ffi::CString, string::*, vec::Vec};
+use alloc::{ffi::CString, string::*};
 use common::libm::Utsname;
 use core::{arch::asm, slice};
 use log::*;
@@ -155,44 +153,20 @@ fn sys_read(fd: FileDescriptorNumber, buf_addr: VirtualAddress, buf_len: usize) 
         }
         FileDescriptorNumber::STDIN => {
             // wait input enter
-            let mut input_buf = Vec::new();
-            loop {
+            // TODO: not occured ps2-kbd interrupt
+            let mut s = None;
+            while s.is_none() {
                 super::hlt();
-
-                if input_buf.len() >= buf_len - 1 {
-                    break;
-                }
-
-                let key_event = match ps2_keyboard::get_event() {
-                    Ok(Some(e)) => e,
-                    _ => continue,
-                };
-
-                if key_event.state == KeyState::Released {
-                    continue;
-                }
-
-                let ascii_code = match key_event.ascii {
-                    Some(c) => c,
-                    None => continue,
-                };
-
-                let c = ascii_code as u8;
-                input_buf.push(c);
-                match ascii_code {
-                    AsciiCode::CarriageReturn | AsciiCode::NewLine => {
-                        println!();
-                        break;
-                    }
-                    _ => {
-                        print!("{}", c as char);
+                match device::ps2_keyboard::poll_normal(false) {
+                    Ok(res) => s = res,
+                    Err(err) => {
+                        error!("syscall: read: {:?}", err);
+                        continue;
                     }
                 }
             }
 
-            let c_s = CString::new(String::from_utf8_lossy(&input_buf).to_string())
-                .unwrap()
-                .into_bytes_with_nul();
+            let c_s = CString::new(s.unwrap()).unwrap().into_bytes_with_nul();
             buf_addr.copy_from_nonoverlapping(c_s.as_ptr(), buf_len);
         }
         fd => {

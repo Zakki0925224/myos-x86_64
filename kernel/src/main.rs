@@ -29,15 +29,11 @@ extern crate alloc;
 use alloc::vec::Vec;
 use arch::*;
 use common::boot_info::BootInfo;
-use device::{
-    console,
-    ps2_keyboard::{self, key_event::KeyState},
-    ps2_mouse, uart,
-};
+use device::{ps2_mouse, uart};
 use fs::{file::bitmap::BitmapImage, vfs};
 use graphics::{color::RgbColorCode, simple_window_manager};
 use log::error;
-use util::{ascii::AsciiCode, logger};
+use util::logger;
 
 #[no_mangle]
 #[start]
@@ -50,11 +46,11 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
     apic::timer::init();
     apic::timer::start();
 
-    // initialize uart driver
-    device::uart::probe_and_attach().unwrap();
-
     // initialize logger
     logger::init();
+
+    // attach uart driver
+    device::uart::probe_and_attach().unwrap();
 
     // initialize frame buffer, console
     graphics::init(
@@ -112,62 +108,12 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
 
     // tasks
     task::spawn(poll_devices()).unwrap();
-    task::spawn(poll_ps2_keyboard()).unwrap();
     task::spawn(poll_ps2_mouse()).unwrap();
     task::run().unwrap();
 
     // unreachable?
     loop {
         arch::hlt();
-    }
-}
-
-async fn poll_ps2_keyboard() {
-    loop {
-        let key_evnet = match ps2_keyboard::get_event() {
-            Ok(Some(e)) => e,
-            _ => {
-                task::exec_yield().await;
-                continue;
-            }
-        };
-
-        if key_evnet.state == KeyState::Released {
-            task::exec_yield().await;
-            continue;
-        }
-
-        let ascii_code = match key_evnet.ascii {
-            Some(c) => c,
-            None => {
-                task::exec_yield().await;
-                continue;
-            }
-        };
-
-        match ascii_code {
-            AsciiCode::CarriageReturn => {
-                println!();
-            }
-            code => {
-                print!("{}", code as u8 as char);
-            }
-        }
-
-        let cmd = match console::input(ascii_code) {
-            Ok(Some(s)) => s,
-            _ => {
-                task::exec_yield().await;
-                continue;
-            }
-        };
-
-        if let Err(err) = console::exec_cmd(cmd) {
-            error!("{:?}", err);
-        }
-
-        console::print_prompt();
-        task::exec_yield().await;
     }
 }
 
@@ -219,6 +165,7 @@ async fn poll_devices() {
     loop {
         let _ = device::virtio::net::poll_normal();
         let _ = device::uart::poll_normal();
+        let _ = device::ps2_keyboard::poll_normal(true);
         task::exec_yield().await;
     }
 }

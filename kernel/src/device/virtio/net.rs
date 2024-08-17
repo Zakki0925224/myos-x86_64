@@ -160,6 +160,9 @@ impl VirtioNetDriver {
 }
 
 impl DeviceDriverFunction for VirtioNetDriver {
+    type PollNormalOutput = ();
+    type PollInterruptOutput = ();
+
     fn get_device_driver_info(&self) -> Result<DeviceDriverInfo> {
         Ok(self.device_driver_info.clone())
     }
@@ -266,7 +269,7 @@ impl DeviceDriverFunction for VirtioNetDriver {
         Ok(())
     }
 
-    fn poll_normal(&mut self) -> Result<()> {
+    fn poll_normal(&mut self) -> Result<Self::PollNormalOutput> {
         if !self.device_driver_info.attached {
             return Err(Error::Failed("Device driver is not attached"));
         }
@@ -289,8 +292,8 @@ impl DeviceDriverFunction for VirtioNetDriver {
         Ok(())
     }
 
-    fn poll_int(&mut self) -> Result<()> {
-        unimplemented!();
+    fn poll_int(&mut self) -> Result<Self::PollInterruptOutput> {
+        unimplemented!()
     }
 }
 
@@ -300,15 +303,27 @@ pub fn get_device_driver_info() -> Result<DeviceDriverInfo> {
 }
 
 pub fn probe_and_attach() -> Result<()> {
-    let mut driver = unsafe { VIRTIO_NET_DRIVER.try_lock() }?;
-    driver.probe()?;
-    driver.attach()?;
+    arch::cli();
+    {
+        let mut driver = unsafe { VIRTIO_NET_DRIVER.try_lock() }?;
+        driver.probe()?;
+        driver.attach()?;
+        info!("{}: Attached!", driver.get_device_driver_info()?.name);
+    }
+    arch::sti();
+
     Ok(())
 }
 
 pub fn poll_normal() -> Result<()> {
-    let mut driver = unsafe { VIRTIO_NET_DRIVER.try_lock() }?;
-    driver.poll_normal()
+    arch::cli();
+    {
+        let mut driver = unsafe { VIRTIO_NET_DRIVER.try_lock() }?;
+        driver.poll_normal()?
+    }
+    arch::sti();
+
+    Ok(())
 }
 
 // extern "x86-interrupt" fn poll_int_vtnet_driver() {
