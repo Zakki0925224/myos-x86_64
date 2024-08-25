@@ -6,30 +6,29 @@ use crate::{
     },
     error::Result,
     mem::bitmap,
-    util::mutex::*,
 };
 use alloc::string::String;
 use log::info;
 
 const PAGE_TABLE_ENTRY_LEN: usize = 512;
 pub const PAGE_SIZE: usize = 4096;
-static mut PAGE_MAN: Mutex<PageManager> = Mutex::new(PageManager::new());
+static mut PAGE_MAN: PageManager = PageManager::new();
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd)]
 #[repr(u8)]
 pub enum ReadWrite {
     Read = 0,
     Write = 1,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd)]
 #[repr(u8)]
 pub enum EntryMode {
     Supervisor = 0,
     User = 1,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum PageWriteThroughLevel {
     WriteBack = 0,
@@ -113,17 +112,15 @@ impl PageTableEntry {
     }
 
     pub fn page_size(&self) -> bool {
-        let value = (self.0 & 0x80) != 0;
-        value
+        (self.0 & 0x80) != 0
     }
 
     pub fn set_addr(&mut self, addr: u64) {
-        assert!((addr & !0xf_ffff_ffff_f000) == 0);
-        self.0 = self.0 | addr;
+        self.0 = (self.0 & 0xfff) | (addr & !0xfff);
     }
 
     pub fn addr(&self) -> u64 {
-        self.0 & 0xf_ffff_ffff_f000
+        self.0 & !0xfff
     }
 
     pub fn exec_disable(&self) -> bool {
@@ -363,7 +360,10 @@ impl PageManager {
         Ok(())
     }
 
-    pub unsafe fn page_table_entry(&self, virt_addr: VirtualAddress) -> Result<&PageTableEntry> {
+    pub unsafe fn page_table_entry(
+        &self,
+        virt_addr: VirtualAddress,
+    ) -> Result<&PageTableEntry> {
         if virt_addr.get() % PAGE_SIZE as u64 != 0 {
             return Err(
                 PageManagerError::VirtualAddressNotAlignedByPageSizeError(virt_addr).into(),
@@ -443,9 +443,15 @@ impl PageManager {
             let mem_info = bitmap::alloc_mem_frame(1)?;
             self.mem_clear(&mem_info)?;
             let virt_addr = self.calc_virt_addr(mem_info.frame_start_phys_addr)?;
-            let mut new_entry = PageTableEntry::default();
-            new_entry.set_entry(virt_addr.get(), rw, mode, write_through_level);
-            *entry = new_entry;
+            entry.set_entry(virt_addr.get(), rw, mode, write_through_level);
+        }
+
+        if entry.rw() < rw {
+            entry.set_rw(rw);
+        }
+
+        if entry.us() < mode {
+            entry.set_us(mode);
         }
 
         let pml3_table = entry.page_table().unwrap();
@@ -455,9 +461,15 @@ impl PageManager {
             let mem_info = bitmap::alloc_mem_frame(1)?;
             self.mem_clear(&mem_info)?;
             let virt_addr = self.calc_virt_addr(mem_info.frame_start_phys_addr)?;
-            let mut new_entry = PageTableEntry::default();
-            new_entry.set_entry(virt_addr.get(), rw, mode, write_through_level);
-            *entry = new_entry;
+            entry.set_entry(virt_addr.get(), rw, mode, write_through_level);
+        }
+
+        if entry.rw() < rw {
+            entry.set_rw(rw);
+        }
+
+        if entry.us() < mode {
+            entry.set_us(mode);
         }
 
         let pml2_table = entry.page_table().unwrap();
@@ -467,18 +479,24 @@ impl PageManager {
             let mem_info = bitmap::alloc_mem_frame(1)?;
             self.mem_clear(&mem_info)?;
             let virt_addr = self.calc_virt_addr(mem_info.frame_start_phys_addr)?;
-            let mut new_entry = PageTableEntry::default();
-            new_entry.set_entry(virt_addr.get(), rw, mode, write_through_level);
-            *entry = new_entry;
+            entry.set_entry(virt_addr.get(), rw, mode, write_through_level);
+        }
+
+        if entry.rw() < rw {
+            entry.set_rw(rw);
+        }
+
+        if entry.us() < mode {
+            entry.set_us(mode);
         }
 
         let pml1_table = entry.page_table().unwrap();
         let entry = &mut pml1_table.entries[pml1e_index];
-
         entry.set_entry(phys_addr.get(), rw, mode, write_through_level);
-        let mut new_entry = PageTableEntry::default();
-        new_entry.set_entry(phys_addr.get(), rw, mode, write_through_level);
-        *entry = new_entry;
+        assert_eq!(entry.addr(), phys_addr.get());
+        assert_eq!(entry.rw(), rw);
+        assert_eq!(entry.us(), mode);
+        assert_eq!(entry.pwt(), write_through_level);
 
         Ok(())
     }
@@ -499,11 +517,11 @@ impl PageManager {
 }
 
 pub fn calc_virt_addr(phys_addr: PhysicalAddress) -> Result<VirtualAddress> {
-    unsafe { PAGE_MAN.try_lock()?.calc_virt_addr(phys_addr) }
+    unsafe { PAGE_MAN.calc_virt_addr(phys_addr) }
 }
 
 pub fn calc_phys_addr(virt_addr: VirtualAddress) -> Result<PhysicalAddress> {
-    unsafe { PAGE_MAN.try_lock()?.calc_phys_addr(virt_addr) }
+    unsafe { PAGE_MAN.calc_phys_addr(virt_addr) }
 }
 
 pub fn create_new_page_table(
@@ -514,16 +532,7 @@ pub fn create_new_page_table(
     mode: EntryMode,
     write_through_level: PageWriteThroughLevel,
 ) -> Result<()> {
-    unsafe {
-        PAGE_MAN.try_lock()?.create_new_page_table(
-            start,
-            end,
-            phys_addr,
-            rw,
-            mode,
-            write_through_level,
-        )?
-    }
+    unsafe { PAGE_MAN.create_new_page_table(start, end, phys_addr, rw, mode, write_through_level)? }
     info!(
         "paging: Created new page table (virt 0x{:x}-0x{:x} -> phys 0x{:x}-0x{:x})",
         start.get(),
@@ -542,50 +551,19 @@ pub fn update_mapping(
     mode: EntryMode,
     write_through_level: PageWriteThroughLevel,
 ) -> Result<()> {
-    unsafe {
-        PAGE_MAN
-            .try_lock()?
-            .update_mapping(start, end, phys_addr, rw, mode, write_through_level)?
-    }
-    info!(
-        "paging: Updated mapping (virt 0x{:x}-0x{:x} -> phys 0x{:x}-0x{:x})",
-        start.get(),
-        end.get(),
-        phys_addr.get(),
-        phys_addr.offset((end.get() - start.get()) as usize).get()
-    );
+    unsafe { PAGE_MAN.update_mapping(start, end, phys_addr, rw, mode, write_through_level)? }
+    // info!(
+    //     "paging: Updated mapping (virt 0x{:x}-0x{:x} -> phys 0x{:x}-0x{:x})",
+    //     start.get(),
+    //     end.get(),
+    //     phys_addr.get(),
+    //     phys_addr.offset((end.get() - start.get()) as usize).get()
+    // );
     Ok(())
 }
 
-pub fn set_page_permissions(
-    virt_addr: VirtualAddress,
-    rw: ReadWrite,
-    mode: EntryMode,
-) -> Result<()> {
-    unsafe {
-        let page_man = PAGE_MAN.try_lock()?;
-        let entry = page_man.page_table_entry(virt_addr)?;
-        page_man.update_mapping(
-            virt_addr,
-            virt_addr,
-            entry.addr().into(),
-            rw,
-            mode,
-            entry.pwt(),
-        )
-    }
-}
-
-pub fn get_page_permissions(virt_addr: VirtualAddress) -> Result<(ReadWrite, EntryMode)> {
-    unsafe {
-        let page_man = PAGE_MAN.try_lock()?;
-        let entry = page_man.page_table_entry(virt_addr)?;
-        Ok((entry.rw(), entry.us()))
-    }
-}
-
 pub fn read_page_table_entry(virt_addr: VirtualAddress) -> Result<PageTableEntry> {
-    Ok(unsafe { PAGE_MAN.try_lock()?.page_table_entry(virt_addr)?.clone() })
+    Ok(unsafe { PAGE_MAN.page_table_entry(virt_addr)?.clone() })
 }
 
 #[test_case]
@@ -594,4 +572,54 @@ fn test_map_identity() {
     assert_eq!(calc_phys_addr(0xabcd000.into()).unwrap().get(), 0xabcd000);
     assert_eq!(calc_virt_addr(0xabcd123.into()).unwrap().get(), 0xabcd123);
     assert_eq!(calc_virt_addr(0xdeadbeaf.into()).unwrap().get(), 0xdeadbeaf);
+}
+
+#[test_case]
+fn test_page_permissions() {
+    let virt_addr = VirtualAddress::new(0x1000000);
+    let phys_addr = PhysicalAddress::new(0x2000000);
+
+    assert!(update_mapping(
+        virt_addr,
+        virt_addr.offset(PAGE_SIZE),
+        phys_addr,
+        ReadWrite::Write,
+        EntryMode::Supervisor,
+        PageWriteThroughLevel::WriteBack
+    )
+    .is_ok());
+
+    let (rw, mode) = get_page_permissions(virt_addr).unwrap();
+    assert_eq!(rw, ReadWrite::Write);
+    assert_eq!(mode, EntryMode::Supervisor);
+
+    assert!(set_page_permissions(virt_addr, ReadWrite::Read, EntryMode::User).is_ok());
+
+    let (rw, mode) = get_page_permissions(virt_addr).unwrap();
+    assert_eq!(rw, ReadWrite::Read);
+    assert_eq!(mode, EntryMode::User);
+}
+
+#[test_case]
+fn test_page_table_entry() {
+    let virt_addr = VirtualAddress::new(0x3000000);
+    let phys_addr = PhysicalAddress::new(0x4000000);
+
+    assert!(update_mapping(
+        virt_addr,
+        virt_addr.offset(PAGE_SIZE),
+        phys_addr,
+        ReadWrite::Write,
+        EntryMode::User,
+        PageWriteThroughLevel::WriteThrough
+    )
+    .is_ok());
+
+    let entry = read_page_table_entry(virt_addr).unwrap();
+
+    assert!(entry.p());
+    assert_eq!(entry.rw(), ReadWrite::Write);
+    assert_eq!(entry.us(), EntryMode::User);
+    assert_eq!(entry.pwt(), PageWriteThroughLevel::WriteThrough);
+    assert_eq!(entry.addr(), phys_addr.get());
 }

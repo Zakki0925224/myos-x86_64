@@ -3,7 +3,7 @@ use crate::{
     arch::task,
     error::{Error, Result},
     mem::{
-        bitmap,
+        bitmap::{self, MemoryFrameInfo},
         paging::{self, EntryMode, PageWriteThroughLevel, ReadWrite, PAGE_SIZE},
     },
 };
@@ -33,7 +33,7 @@ pub fn exec_elf(elf_path: &str, args: &[&str]) -> Result<()> {
         return Err(Error::Failed("Unsupported ISA"));
     }
 
-    let mut allocated_mem_frames = Vec::new();
+    let mut allocated_mem_frames: Vec<MemoryFrameInfo> = Vec::new();
     let mut entry: Option<extern "sysv64" fn()> = None;
 
     for program_header in elf64.program_headers() {
@@ -42,22 +42,24 @@ pub fn exec_elf(elf_path: &str, args: &[&str]) -> Result<()> {
         }
 
         let p_virt_addr = program_header.virt_addr;
-        let p_offset = program_header.offset;
-        let program_data = match elf64.data_by_program_header(program_header) {
-            Some(data) => data,
-            None => continue,
-        };
+        let p_memsz = program_header.mem_size;
+        let p_filesz = program_header.file_size;
 
-        let user_mem_frame_info =
-            bitmap::alloc_mem_frame(((p_offset as usize + program_data.len()) / PAGE_SIZE).max(1))?;
+        let pages_needed = ((p_virt_addr % PAGE_SIZE as u64 + p_memsz + PAGE_SIZE as u64 - 1)
+            / PAGE_SIZE as u64) as usize;
+        let user_mem_frame_info = bitmap::alloc_mem_frame(pages_needed)?;
+        bitmap::mem_clear(&user_mem_frame_info)?;
         let user_mem_frame_start_virt_addr = user_mem_frame_info.frame_start_virt_addr()?;
 
-        // copy data
-        user_mem_frame_start_virt_addr
-            .offset(p_offset as usize)
-            .copy_from_nonoverlapping(program_data.as_ptr(), program_data.len());
+        // // copy data from file
+        let program_data = elf64.data_by_program_header(program_header);
+        if let Some(data) = program_data {
+            user_mem_frame_start_virt_addr
+            .offset((p_virt_addr % PAGE_SIZE as u64) as usize)
+            .copy_from_nonoverlapping(data.as_ptr(), p_filesz as usize);
+        }
 
-        // update page mapping
+        // Update page mapping
         let start_virt_addr = (p_virt_addr / PAGE_SIZE as u64 * PAGE_SIZE as u64).into();
         paging::update_mapping(
             start_virt_addr,
@@ -69,9 +71,7 @@ pub fn exec_elf(elf_path: &str, args: &[&str]) -> Result<()> {
         )?;
         allocated_mem_frames.push(user_mem_frame_info);
 
-        if header.entry_point >= p_virt_addr
-            && header.entry_point < p_virt_addr + program_data.len() as u64
-        {
+        if header.entry_point >= p_virt_addr && header.entry_point < p_virt_addr + p_memsz {
             entry = Some(unsafe { mem::transmute(header.entry_point as *const ()) });
         }
     }

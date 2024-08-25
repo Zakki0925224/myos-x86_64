@@ -4,7 +4,7 @@ use crate::{
     mem::{
         self,
         bitmap::{self, MemoryFrameInfo},
-        paging::PAGE_SIZE,
+        paging::{self, PAGE_SIZE},
     },
     println,
     util::mutex::Mutex,
@@ -179,7 +179,7 @@ impl Task {
             ContextMode::User => stack_mem_frame_info.set_permissions_to_user()?,
         }
 
-        let rsp = stack_mem_frame_info.frame_start_virt_addr()?.get() + stack_size as u64;
+        let rsp = stack_mem_frame_info.frame_start_virt_addr()?.get() + stack_size as u64 - 1;
         let rip = match entry {
             Some(f) => f as u64,
             None => 0,

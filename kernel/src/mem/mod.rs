@@ -24,7 +24,7 @@ pub fn init(mem_map: &[MemoryDescriptor]) {
         end.into(),
         start.into(),
         ReadWrite::Write,
-        EntryMode::User, // TODO
+        EntryMode::Supervisor,
         PageWriteThroughLevel::WriteBack,
     ) {
         error!("paging: Failed to create new page table: {:?}", err);

@@ -111,6 +111,7 @@ extern "sysv64" fn switch_context(next_ctx: &Context, current_ctx: &Context) {
     }
 }
 
+#[derive(PartialEq, Eq)]
 pub enum ContextMode {
     Kernel,
     User,
