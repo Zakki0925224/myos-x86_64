@@ -8,27 +8,12 @@ void _start()
         sys_exit(1);
     }
 
-    void *buf = malloc(4096);
-    if (buf == NULL)
+    stat *f_stat = (stat *)malloc(sizeof(stat));
+    if (sys_stat(fd, f_stat) == -1)
     {
-        sys_exit(2);
+        sys_exit(1);
     }
-
-    if (sys_read(fd, buf, 4096) == -1)
-    {
-        sys_exit(3);
-    }
-
-    char *str_buf = (char *)buf;
-    if (str_buf[0] != 'h' && str_buf[1] != 'e' && str_buf[2] != 'l' && str_buf[3] != 'l' && str_buf[4] != 'o')
-    {
-        sys_exit(4);
-    }
-
-    if (sys_close(fd) == -1)
-    {
-        sys_exit(4);
-    }
+    printf("file size: %d bytes\n", f_stat->size);
 
     sys_exit(0);
 }

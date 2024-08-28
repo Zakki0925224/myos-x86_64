@@ -11,7 +11,7 @@ use crate::{
     print, util,
 };
 use alloc::{ffi::CString, string::*};
-use common::libm::Utsname;
+use common::libm::{Stat, Utsname};
 use core::{arch::asm, slice};
 use log::*;
 
@@ -137,6 +137,21 @@ extern "sysv64" fn syscall_handler(
             sys_break();
             unreachable!();
         }
+        // stat syscall
+        8 => {
+            let fd = match FileDescriptorNumber::new_val(arg1 as i64) {
+                Ok(fd) => fd,
+                Err(err) => {
+                    error!("syscall: read: {:?}", err);
+                    return -1;
+                }
+            };
+
+            if let Err(err) = sys_stat(fd, arg2.into()) {
+                error!("syscall: stat: {:?}", err);
+                return -1;
+            }
+        }
         num => {
             error!("syscall: Syscall number 0x{:x} is not defined", num);
             return -1;
@@ -245,6 +260,19 @@ fn sys_uname(buf_addr: VirtualAddress) -> Result<()> {
 fn sys_break() {
     task::debug_user_task();
     super::int3();
+}
+
+fn sys_stat(fd: FileDescriptorNumber, buf_addr: VirtualAddress) -> Result<()> {
+    let size = match fd {
+        FileDescriptorNumber::STDIN
+        | FileDescriptorNumber::STDOUT
+        | FileDescriptorNumber::STDERR => 0,
+        fd => vfs::read_file(&fd)?.len() as u64, // FIXME
+    };
+
+    let stat = Stat { size };
+    buf_addr.copy_from_nonoverlapping(&stat as *const Stat, 1);
+    Ok(())
 }
 
 pub fn enable() {

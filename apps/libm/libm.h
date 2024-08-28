@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include "utsname.h"
+#include "stat.h"
 
 // syscalls.c
 // syscall numbers
@@ -12,6 +13,7 @@
 #define SN_SBRK 5
 #define SN_UNAME 6
 #define SN_BREAK 7
+#define SN_STAT 8
 
 // defined file descriptor numbers
 #define FDN_STDIN 0
@@ -26,6 +28,7 @@ extern void sys_exit(uint64_t status);
 extern void *sys_sbrk(uint64_t len);
 extern int64_t sys_uname(utsname *buf);
 extern void sys_break(void);
+extern int64_t sys_stat(int64_t fd, stat *buf);
 
 // string.h
 extern int strcmp(const char *s1, const char *s2);
