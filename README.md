@@ -15,16 +15,22 @@ This is a replacement project for the previous **[myos](https://github.com/Zakki
 -   [x] My own UEFI boot loader by using [uefi-rs](https://github.com/rust-osdev/uefi-rs)
 -   [x] x86_64 kernel
 -   [x] PIC (Intel 8259A)
+-   [x] Paging
+-   Bus support
+    -   [x] PCI
+    -   [x] USB
 -   Device support
-    -   [x] PS/2 Keyboard, Mouse
+    -   [x] PS/2 Keyboard and Mouse
     -   [x] Serial connection (UART 16650A)
-    -   [x] PCI devices
-    -   [ ] USB devices (xHC) (WIP)
+    -   [ ] xHCI (WIP)
+    -   [ ] VirtIO (WIP)
+        -   [ ] virtio-net (WIP)
 -   [x] GUI support by using UEFI GOP
--   [x] Kernel console (input from PS/2 Keyboard)
--   [x] Initramfs (but here we call FAT32 formatted image initramfs)
+-   [x] Kernel console
+-   [x] Initramfs (FAT32 formatted image)
 -   [ ] Own virtual file system (WIP)
--   [x] Userland applications (Standard C library for myos is [here](/apps/libm/))
+-   [x] Userland applications (Standard C library for myos available [here](/apps/libm/))
+-   [x] Async runtime
 
 ## Third party
 

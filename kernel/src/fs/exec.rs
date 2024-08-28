@@ -51,15 +51,15 @@ pub fn exec_elf(elf_path: &str, args: &[&str]) -> Result<()> {
         bitmap::mem_clear(&user_mem_frame_info)?;
         let user_mem_frame_start_virt_addr = user_mem_frame_info.frame_start_virt_addr()?;
 
-        // // copy data from file
+        // copy data from file
         let program_data = elf64.data_by_program_header(program_header);
         if let Some(data) = program_data {
             user_mem_frame_start_virt_addr
-            .offset((p_virt_addr % PAGE_SIZE as u64) as usize)
-            .copy_from_nonoverlapping(data.as_ptr(), p_filesz as usize);
+                .offset((p_virt_addr % PAGE_SIZE as u64) as usize)
+                .copy_from_nonoverlapping(data.as_ptr(), p_filesz as usize);
         }
 
-        // Update page mapping
+        // update page mapping
         let start_virt_addr = (p_virt_addr / PAGE_SIZE as u64 * PAGE_SIZE as u64).into();
         paging::update_mapping(
             start_virt_addr,
