@@ -6,24 +6,6 @@ use crate::{
 };
 use alloc::string::String;
 
-// nord colors: https://www.nordtheme.com/
-const PN_COLOR_1: RgbColorCode = RgbColorCode::new(0x2e, 0x34, 0x40);
-const PN_COLOR_2: RgbColorCode = RgbColorCode::new(0x3b, 0x42, 0x52);
-const PN_COLOR_3: RgbColorCode = RgbColorCode::new(0x43, 0x4c, 0x5e);
-const PN_COLOR_4: RgbColorCode = RgbColorCode::new(0x4c, 0x56, 0x6a);
-const SS_COLOR_1: RgbColorCode = RgbColorCode::new(0xd8, 0xde, 0xe9);
-const SS_COLOR_2: RgbColorCode = RgbColorCode::new(0xe5, 0xe9, 0xf0);
-const SS_COLOR_3: RgbColorCode = RgbColorCode::new(0xec, 0xef, 0xf4);
-const FR_COLOR_1: RgbColorCode = RgbColorCode::new(0x8f, 0xbc, 0xbb);
-const FR_COLOR_2: RgbColorCode = RgbColorCode::new(0x88, 0xc0, 0xd0);
-const FR_COLOR_3: RgbColorCode = RgbColorCode::new(0x81, 0xa1, 0xc1);
-const FR_COLOR_4: RgbColorCode = RgbColorCode::new(0x5e, 0x81, 0xac);
-const AU_COLOR_1: RgbColorCode = RgbColorCode::new(0xbf, 0x61, 0x6a); // red
-const AU_COLOR_2: RgbColorCode = RgbColorCode::new(0xd0, 0x87, 0x70); // orange
-const AU_COLOR_3: RgbColorCode = RgbColorCode::new(0xeb, 0xcb, 0x8b); // yellow
-const AU_COLOR_4: RgbColorCode = RgbColorCode::new(0xa3, 0xbe, 0x8c); // green
-const AU_COLOR_5: RgbColorCode = RgbColorCode::new(0xb4, 0x8e, 0xad); // purple
-
 pub struct Image {
     pub layer_id: LayerId,
 }

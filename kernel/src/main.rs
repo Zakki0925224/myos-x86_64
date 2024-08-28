@@ -31,7 +31,7 @@ use arch::*;
 use common::boot_info::BootInfo;
 use device::uart;
 use fs::{file::bitmap::BitmapImage, vfs};
-use graphics::{color::RgbColorCode, simple_window_manager};
+use graphics::{color::*, simple_window_manager};
 use log::error;
 use util::logger;
 
@@ -53,11 +53,7 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
     device::uart::probe_and_attach().unwrap();
 
     // initialize frame buffer, console
-    graphics::init(
-        &boot_info.graphic_info,
-        (3, 26, 0).into(),
-        (18, 202, 99).into(),
-    );
+    graphics::init(&boot_info.graphic_info, PN_COLOR_1, SS_COLOR_1);
 
     // initialize memory management
     mem::init(boot_info.mem_map);

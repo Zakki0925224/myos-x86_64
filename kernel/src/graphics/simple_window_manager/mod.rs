@@ -153,7 +153,7 @@ impl SimpleWindowManager {
                 .collect::<Vec<&str>>()
         );
         multi_layer::draw_layer(&taskbar.layer_id, |l| {
-            l.draw_string(0, 0, &s, COLOR_WHITE)?;
+            l.draw_string(0, 0, &s, SS_COLOR_1)?;
             Ok(())
         })?;
 

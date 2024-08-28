@@ -18,6 +18,7 @@ use config::BootConfig;
 use core::{mem, slice::from_raw_parts_mut};
 use log::info;
 use uefi::{
+    mem::memory_map::MemoryMap,
     prelude::*,
     proto::{
         console::gop::{GraphicsOutput, PixelFormat},
@@ -29,8 +30,8 @@ use uefi::{
 
 #[entry]
 // TODO: Panic occurs when running on VirtualBox and actual device
-fn efi_main(handle: Handle, mut st: SystemTable<Boot>) -> Status {
-    uefi::helpers::init(&mut st).unwrap();
+fn efi_main(handle: Handle, st: SystemTable<Boot>) -> Status {
+    uefi::helpers::init().unwrap();
     let bs = st.boot_services();
 
     info!("Running bootloader...");
@@ -53,7 +54,7 @@ fn efi_main(handle: Handle, mut st: SystemTable<Boot>) -> Status {
     info!("Exit boot services");
     let mut mem_map = Vec::with_capacity(128);
 
-    let (_, map) = st.exit_boot_services(MemoryType::RUNTIME_SERVICES_DATA);
+    let (_, map) = unsafe { st.exit_boot_services(MemoryType::RUNTIME_SERVICES_DATA) };
 
     for desc in map.entries() {
         let ty = convert_mem_type(desc.ty);

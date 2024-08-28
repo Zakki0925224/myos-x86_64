@@ -66,21 +66,22 @@ impl FrameBufferConsole {
 
         self.fill(self.back_color)?;
 
-        self.draw_rect(0, 0, 20, 20, COLOR_WHITE)?;
-        self.draw_rect(20, 0, 20, 20, COLOR_OLIVE)?;
-        self.draw_rect(40, 0, 20, 20, COLOR_YELLOW)?;
-        self.draw_rect(60, 0, 20, 20, COLOR_FUCHSIA)?;
-        self.draw_rect(80, 0, 20, 20, COLOR_SILVER)?;
-        self.draw_rect(100, 0, 20, 20, COLOR_CYAN)?;
-        self.draw_rect(120, 0, 20, 20, COLOR_GREEN)?;
-        self.draw_rect(140, 0, 20, 20, COLOR_RED)?;
-        self.draw_rect(160, 0, 20, 20, COLOR_GRAY)?;
-        self.draw_rect(180, 0, 20, 20, COLOR_BLUE)?;
-        self.draw_rect(200, 0, 20, 20, COLOR_PURPLE)?;
-        self.draw_rect(220, 0, 20, 20, COLOR_BLACK)?;
-        self.draw_rect(240, 0, 20, 20, COLOR_NAVY)?;
-        self.draw_rect(260, 0, 20, 20, COLOR_TEAL)?;
-        self.draw_rect(280, 0, 20, 20, COLOR_MAROON)?;
+        self.draw_rect(0, 0, 20, 20, PN_COLOR_1)?;
+        self.draw_rect(20, 0, 20, 20, PN_COLOR_2)?;
+        self.draw_rect(40, 0, 20, 20, PN_COLOR_3)?;
+        self.draw_rect(60, 0, 20, 20, PN_COLOR_4)?;
+        self.draw_rect(80, 0, 20, 20, SS_COLOR_1)?;
+        self.draw_rect(100, 0, 20, 20, SS_COLOR_2)?;
+        self.draw_rect(120, 0, 20, 20, SS_COLOR_3)?;
+        self.draw_rect(140, 0, 20, 20, FR_COLOR_1)?;
+        self.draw_rect(160, 0, 20, 20, FR_COLOR_2)?;
+        self.draw_rect(180, 0, 20, 20, FR_COLOR_3)?;
+        self.draw_rect(200, 0, 20, 20, FR_COLOR_4)?;
+        self.draw_rect(220, 0, 20, 20, AU_COLOR_1)?;
+        self.draw_rect(240, 0, 20, 20, AU_COLOR_2)?;
+        self.draw_rect(260, 0, 20, 20, AU_COLOR_3)?;
+        self.draw_rect(280, 0, 20, 20, AU_COLOR_4)?;
+        self.draw_rect(300, 0, 20, 20, AU_COLOR_5)?;
 
         Ok(())
     }
