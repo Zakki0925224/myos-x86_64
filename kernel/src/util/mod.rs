@@ -5,3 +5,4 @@ pub mod hexdump;
 pub mod logger;
 pub mod mutex;
 pub mod random;
+pub mod lifo;

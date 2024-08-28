@@ -105,6 +105,7 @@ impl FrameBufferConsole {
         match c {
             '\n' => return self.new_line(),
             '\t' => return self.tab(),
+            '\x08' | '\x7f' => return self.backspace(),
             _ => (),
         }
 
@@ -140,6 +141,19 @@ impl FrameBufferConsole {
             self.scroll()?;
             self.cursor_x = 0;
             self.cursor_y = self.char_max_y_len;
+        }
+
+        Ok(())
+    }
+
+    fn dec_cursor(&mut self) -> Result<()> {
+        if self.cursor_x == 0 {
+            if self.cursor_y > 0 {
+                self.cursor_x = self.char_max_x_len;
+                self.cursor_y -= 1;
+            }
+        } else {
+            self.cursor_x -= 1;
         }
 
         Ok(())
@@ -219,6 +233,19 @@ impl FrameBufferConsole {
         } else {
             frame_buf::draw_font(x, y, c, color_code)?;
         }
+
+        Ok(())
+    }
+
+    fn backspace(&mut self) -> Result<()> {
+        self.dec_cursor()?;
+        self.draw_rect(
+            self.cursor_x * FONT.get_width(),
+            self.cursor_y * FONT.get_height(),
+            FONT.get_width(),
+            FONT.get_height(),
+            self.back_color,
+        )?;
 
         Ok(())
     }

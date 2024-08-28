@@ -6,7 +6,7 @@ use crate::{
     fs::{exec, vfs},
     graphics::{color::*, frame_buf_console, simple_window_manager},
     mem, qemu, uart,
-    util::{ascii::AsciiCode, fifo::Fifo, hexdump, mutex::Mutex, random},
+    util::{ascii::AsciiCode, hexdump, lifo::Lifo, mutex::Mutex, random},
 };
 use alloc::{
     boxed::Box,
@@ -23,7 +23,7 @@ const IO_BUF_DEFAULT_VALUE: ConsoleCharacter = ConsoleCharacter {
     ascii_code: AsciiCode::Null,
 };
 
-type IoBufferType = Fifo<ConsoleCharacter, IO_BUF_LEN>;
+type IoBufferType = Lifo<ConsoleCharacter, IO_BUF_LEN>;
 
 // kernel console
 static mut CONSOLE: Mutex<Console> = Mutex::new(Console::new(true));
@@ -63,12 +63,22 @@ pub struct Console {
 impl Console {
     pub const fn new(use_serial_port: bool) -> Self {
         Self {
-            input_buf: Fifo::new(IO_BUF_DEFAULT_VALUE),
-            output_buf: Fifo::new(IO_BUF_DEFAULT_VALUE),
-            err_output_buf: Fifo::new(IO_BUF_DEFAULT_VALUE),
+            input_buf: Lifo::new(IO_BUF_DEFAULT_VALUE),
+            output_buf: Lifo::new(IO_BUF_DEFAULT_VALUE),
+            err_output_buf: Lifo::new(IO_BUF_DEFAULT_VALUE),
             buf_default_value: IO_BUF_DEFAULT_VALUE,
             use_serial_port,
         }
+    }
+
+    pub fn is_full(&self, buf_type: BufferType) -> bool {
+        let buf = match buf_type {
+            BufferType::Input => &self.input_buf,
+            BufferType::Output => &self.output_buf,
+            BufferType::ErrorOutput => &self.err_output_buf,
+        };
+
+        buf.is_full()
     }
 
     pub fn reset_buf(&mut self, buf_type: BufferType) {
@@ -78,7 +88,7 @@ impl Console {
             BufferType::ErrorOutput => &mut self.err_output_buf,
         };
 
-        buf.reset_ptr();
+        buf.reset();
     }
 
     pub fn set_back_color(&mut self, back_color: RgbColorCode) {
@@ -103,37 +113,37 @@ impl Console {
         let mut value = self.buf_default_value;
         value.ascii_code = ascii_code;
 
-        match buf.enqueue(value) {
-            Ok(_) => (),
-            Err(err) => {
-                return Err(ConsoleError::IoBufferError {
+        match ascii_code {
+            AsciiCode::Backspace | AsciiCode::Delete => {
+                buf.pop()?;
+            }
+            _ => {
+                buf.push(value).map_err(|err| ConsoleError::IoBufferError {
                     buf_type,
                     err: Box::new(err),
-                }
-                .into())
+                })?;
             }
-        };
+        }
 
         if (buf_type == BufferType::Output || buf_type == BufferType::ErrorOutput)
             && self.use_serial_port
         {
-            uart::send_data(value.ascii_code as u8);
+            let data = match ascii_code {
+                AsciiCode::Backspace | AsciiCode::Delete => AsciiCode::Backspace as u8,
+                _ => ascii_code as u8,
+            };
+
+            // backspace
+            if data == 0x08 {
+                uart::send_data(data);
+                uart::send_data(b' ');
+                uart::send_data(data);
+            } else {
+                uart::send_data(data);
+            }
         }
 
         Ok(())
-    }
-
-    pub fn read(&mut self, buf_type: BufferType) -> Option<ConsoleCharacter> {
-        let buf = match buf_type {
-            BufferType::Input => &mut self.input_buf,
-            BufferType::Output => &mut self.output_buf,
-            BufferType::ErrorOutput => &mut self.err_output_buf,
-        };
-
-        match buf.dequeue() {
-            Ok(value) => Some(value),
-            Err(_) => None,
-        }
     }
 
     pub fn get_str(&mut self, buf_type: BufferType) -> String {
@@ -146,7 +156,7 @@ impl Console {
         let mut s = String::new();
 
         loop {
-            let ascii_code = match buf.dequeue() {
+            let ascii_code = match buf.pop() {
                 Ok(value) => value.ascii_code,
                 Err(_) => break,
             };
@@ -154,7 +164,7 @@ impl Console {
             s.push(ascii_code as u8 as char);
         }
 
-        s
+        s.chars().rev().collect()
     }
 }
 
@@ -167,10 +177,11 @@ impl fmt::Write for Console {
                 Err(_) => continue,
             };
 
-            if self.write(ascii_code, buf_type).is_err() {
+            if self.is_full(buf_type) {
                 self.reset_buf(buf_type);
-                self.write(ascii_code, buf_type).unwrap();
             }
+
+            let _ = self.write(ascii_code, buf_type);
         }
 
         Ok(())
@@ -180,7 +191,7 @@ impl fmt::Write for Console {
 #[doc(hidden)]
 pub fn _print(args: fmt::Arguments) {
     if let Ok(mut console) = unsafe { CONSOLE.try_lock() } {
-        console.write_fmt(args).unwrap();
+        let _ = console.write_fmt(args);
     }
 
     let _ = frame_buf_console::write_fmt(args);
@@ -207,10 +218,11 @@ pub fn input(ascii_code: AsciiCode) -> Result<Option<String>> {
     let mut input_str = None;
     let mut console = unsafe { CONSOLE.try_lock() }?;
 
-    if let Err(_) = console.write(ascii_code, BufferType::Input) {
+    if console.is_full(BufferType::Input) {
         console.reset_buf(BufferType::Input);
-        console.write(ascii_code, BufferType::Input).unwrap();
     }
+
+    console.write(ascii_code, BufferType::Input)?;
 
     if ascii_code == AsciiCode::CarriageReturn || ascii_code == AsciiCode::NewLine {
         input_str = Some(console.get_str(BufferType::Input));

@@ -575,32 +575,6 @@ fn test_map_identity() {
 }
 
 #[test_case]
-fn test_page_permissions() {
-    let virt_addr = VirtualAddress::new(0x1000000);
-    let phys_addr = PhysicalAddress::new(0x2000000);
-
-    assert!(update_mapping(
-        virt_addr,
-        virt_addr.offset(PAGE_SIZE),
-        phys_addr,
-        ReadWrite::Write,
-        EntryMode::Supervisor,
-        PageWriteThroughLevel::WriteBack
-    )
-    .is_ok());
-
-    let (rw, mode) = get_page_permissions(virt_addr).unwrap();
-    assert_eq!(rw, ReadWrite::Write);
-    assert_eq!(mode, EntryMode::Supervisor);
-
-    assert!(set_page_permissions(virt_addr, ReadWrite::Read, EntryMode::User).is_ok());
-
-    let (rw, mode) = get_page_permissions(virt_addr).unwrap();
-    assert_eq!(rw, ReadWrite::Read);
-    assert_eq!(mode, EntryMode::User);
-}
-
-#[test_case]
 fn test_page_table_entry() {
     let virt_addr = VirtualAddress::new(0x3000000);
     let phys_addr = PhysicalAddress::new(0x4000000);

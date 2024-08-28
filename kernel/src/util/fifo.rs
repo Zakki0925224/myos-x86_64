@@ -30,6 +30,12 @@ impl<T: Sized + Copy, const SIZE: usize> Fifo<T, SIZE> {
         self.write_ptr.load(Ordering::Relaxed)
     }
 
+    pub fn is_full(&self) -> bool {
+        let read_ptr = self.read_ptr.load(Ordering::Relaxed);
+        let write_ptr = self.write_ptr.load(Ordering::Relaxed);
+        (write_ptr + 1) % self.size == read_ptr
+    }
+
     pub fn reset_ptr(&self) {
         self.read_ptr.store(0, Ordering::Relaxed);
         self.write_ptr.store(0, Ordering::Relaxed);

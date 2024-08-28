@@ -13,7 +13,7 @@ use crate::{
         multi_layer::LayerError, simple_window_manager::SimpleWindowManagerError,
     },
     mem::{bitmap::BitmapMemoryManagerError, paging::PageManagerError},
-    util::{ascii::AsciiCodeError, fifo::FifoError, mutex::MutexError},
+    util::{ascii::AsciiCodeError, fifo::FifoError, lifo::LifoError, mutex::MutexError},
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -33,6 +33,7 @@ pub enum Error {
     XhcDriverError(XhcDriverError),
     RingBufferError(RingBufferError),
     FifoError(FifoError),
+    LifoError(LifoError),
     IndexOutOfBoundsError(usize),
     VirtualFileSystemError(VirtualFileSystemError),
     Elf64Error(Elf64Error),
@@ -127,6 +128,12 @@ impl From<RingBufferError> for Error {
 impl From<FifoError> for Error {
     fn from(err: FifoError) -> Self {
         Self::FifoError(err)
+    }
+}
+
+impl From<LifoError> for Error {
+    fn from(err: LifoError) -> Self {
+        Self::LifoError(err)
     }
 }
 
