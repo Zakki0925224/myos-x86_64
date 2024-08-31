@@ -1,5 +1,5 @@
 use crate::error::Result;
-use log::{error, info};
+use log::error;
 
 pub mod console;
 pub mod ps2_keyboard;

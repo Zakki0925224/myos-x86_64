@@ -1,6 +1,5 @@
-use crate::util::ascii::AsciiCode;
-
 use super::scan_code::*;
+use crate::util::ascii::AsciiCode;
 
 pub type KeyMapArray<const LEN: usize> = [ScanCode; LEN];
 

@@ -1,6 +1,5 @@
 use alloc::string::String;
-use log::{error, info};
-
+use log::info;
 use self::{key_event::KeyEvent, key_map::KeyMap};
 use crate::{
     arch::{self, addr::IoPortAddress},
@@ -9,11 +8,9 @@ use crate::{
         key_map::ANSI_US_104_KEY_MAP,
     },
     error::{Error, Result},
-    idt::{self, GateType, InterruptHandler},
-    print, println,
+    idt, print, println,
     util::{ascii::AsciiCode, fifo::Fifo, mutex::Mutex},
 };
-
 use super::{console, DeviceDriverFunction, DeviceDriverInfo};
 
 pub mod key_event;
@@ -228,7 +225,7 @@ pub fn probe_and_attach() -> Result<()> {
     Ok(())
 }
 
-pub fn poll_normal(is_prompt_mode: bool) -> Result<Option<String>> {
+pub fn poll_normal() -> Result<Option<String>> {
     let key_event;
 
     arch::cli();
@@ -261,22 +258,7 @@ pub fn poll_normal(is_prompt_mode: bool) -> Result<Option<String>> {
         }
     }
 
-    let cmd = console::input(ascii_code)?;
-    if !is_prompt_mode {
-        return Ok(cmd);
-    }
-
-    let cmd = match cmd {
-        Some(s) => s,
-        None => return Ok(None),
-    };
-
-    if let Err(err) = console::exec_cmd(cmd) {
-        error!("{:?}", err);
-    }
-    console::print_prompt();
-
-    Ok(None)
+    console::input(ascii_code)
 }
 
 pub extern "x86-interrupt" fn poll_int_ps2_kbd_driver() {

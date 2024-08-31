@@ -103,7 +103,40 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
     }
 
     // tasks
-    task::spawn(poll_devices()).unwrap();
+    let task_poll_virtio_net = async {
+        loop {
+            let _ = device::virtio::net::poll_normal();
+            task::exec_yield().await;
+        }
+    };
+
+    let task_poll_uart = async {
+        loop {
+            if let Ok(Some(s)) = device::uart::poll_normal() {
+                if let Err(err) = device::console::exec_cmd(s) {
+                    error!("{:?}", err);
+                }
+                device::console::print_prompt();
+            }
+            task::exec_yield().await;
+        }
+    };
+
+    let task_poll_ps2_keyboard = async {
+        loop {
+            if let Ok(Some(s)) = device::ps2_keyboard::poll_normal() {
+                if let Err(err) = device::console::exec_cmd(s) {
+                    error!("{:?}", err);
+                }
+                device::console::print_prompt();
+            }
+            task::exec_yield().await;
+        }
+    };
+
+    task::spawn(task_poll_virtio_net).unwrap();
+    task::spawn(task_poll_uart).unwrap();
+    task::spawn(task_poll_ps2_keyboard).unwrap();
     task::spawn(poll_ps2_mouse()).unwrap();
     task::run().unwrap();
 
@@ -153,15 +186,6 @@ async fn poll_ps2_mouse() {
         if is_created_mouse_pointer_layer {
             let _ = simple_window_manager::mouse_pointer_event(mouse_event);
         }
-        task::exec_yield().await;
-    }
-}
-
-async fn poll_devices() {
-    loop {
-        let _ = device::virtio::net::poll_normal();
-        let _ = device::uart::poll_normal();
-        let _ = device::ps2_keyboard::poll_normal(true);
         task::exec_yield().await;
     }
 }

@@ -1,6 +1,5 @@
-use crate::arch::addr::*;
-
 use super::context::input::InputContext;
+use crate::arch::addr::*;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ConfigState {

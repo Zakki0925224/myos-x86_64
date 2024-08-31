@@ -4,7 +4,7 @@ use crate::{
     mem::{
         self,
         bitmap::{self, MemoryFrameInfo},
-        paging::{self, PAGE_SIZE},
+        paging::PAGE_SIZE,
     },
     println,
     util::mutex::Mutex,

@@ -1,6 +1,5 @@
-use alloc::string::String;
-
 use super::FatType;
+use alloc::string::String;
 
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]

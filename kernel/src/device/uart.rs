@@ -1,13 +1,12 @@
-use log::{error, info};
-
+use super::{console, DeviceDriverFunction, DeviceDriverInfo};
 use crate::{
     arch::addr::IoPortAddress,
     error::{Error, Result},
     print, println,
     util::{ascii::AsciiCode, mutex::Mutex},
 };
-
-use super::{console, DeviceDriverFunction, DeviceDriverInfo};
+use alloc::string::String;
+use log::info;
 
 static mut UART_DRIVER: Mutex<UartDriver> = Mutex::new(UartDriver::new());
 
@@ -143,11 +142,11 @@ pub fn probe_and_attach() -> Result<()> {
     Ok(())
 }
 
-pub fn poll_normal() -> Result<()> {
+pub fn poll_normal() -> Result<Option<String>> {
     let mut driver = unsafe { UART_DRIVER.try_lock() }?;
     let received_data = match driver.poll_normal()? {
         Some(data) => data,
-        None => return Ok(()),
+        None => return Ok(None),
     };
     let ascii_code = received_data.try_into()?;
 
@@ -160,16 +159,7 @@ pub fn poll_normal() -> Result<()> {
         }
     }
 
-    let cmd = match console::input(ascii_code)? {
-        Some(s) => s,
-        None => return Ok(()),
-    };
-    if let Err(err) = console::exec_cmd(cmd) {
-        error!("{:?}", err);
-    }
-    console::print_prompt();
-
-    Ok(())
+    console::input(ascii_code)
 }
 
 pub fn send_data(data: u8) {

@@ -4,7 +4,6 @@ use crate::{
     error::{Error, Result},
     util::mutex::Mutex,
 };
-use alloc::vec::Vec;
 use common::mem_desc::*;
 
 static mut BITMAP_MEM_MAN: Mutex<Option<BitmapMemoryManager>> = Mutex::new(None);
@@ -19,23 +18,43 @@ pub struct MemoryFrameInfo {
 
 impl MemoryFrameInfo {
     pub fn set_permissions_to_supervisor(&self) -> Result<()> {
-        self.set_permissions(ReadWrite::Write, EntryMode::Supervisor, PageWriteThroughLevel::WriteBack)
+        self.set_permissions(
+            ReadWrite::Write,
+            EntryMode::Supervisor,
+            PageWriteThroughLevel::WriteBack,
+        )
     }
 
     pub fn set_permissions_to_user(&self) -> Result<()> {
-        self.set_permissions(ReadWrite::Write, EntryMode::User, PageWriteThroughLevel::WriteBack)
+        self.set_permissions(
+            ReadWrite::Write,
+            EntryMode::User,
+            PageWriteThroughLevel::WriteBack,
+        )
     }
 
     pub fn frame_start_virt_addr(&self) -> Result<VirtualAddress> {
         self.frame_start_phys_addr.get_virt_addr()
     }
 
-    pub fn set_permissions(&self, rw: ReadWrite, mode: EntryMode, write_through_level: PageWriteThroughLevel) -> Result<()> {
+    pub fn set_permissions(
+        &self,
+        rw: ReadWrite,
+        mode: EntryMode,
+        write_through_level: PageWriteThroughLevel,
+    ) -> Result<()> {
         let page_len = self.frame_size / PAGE_SIZE;
         let mut start_virt_addr = self.frame_start_virt_addr()?;
 
         for _ in 0..page_len {
-            paging::update_mapping(start_virt_addr, start_virt_addr.offset(PAGE_SIZE), start_virt_addr.get_phys_addr()?, rw, mode, write_through_level)?;
+            paging::update_mapping(
+                start_virt_addr,
+                start_virt_addr.offset(PAGE_SIZE),
+                start_virt_addr.get_phys_addr()?,
+                rw,
+                mode,
+                write_through_level,
+            )?;
             start_virt_addr = start_virt_addr.offset(PAGE_SIZE);
         }
 

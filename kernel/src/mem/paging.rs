@@ -360,10 +360,7 @@ impl PageManager {
         Ok(())
     }
 
-    pub unsafe fn page_table_entry(
-        &self,
-        virt_addr: VirtualAddress,
-    ) -> Result<&PageTableEntry> {
+    pub unsafe fn page_table_entry(&self, virt_addr: VirtualAddress) -> Result<&PageTableEntry> {
         if virt_addr.get() % PAGE_SIZE as u64 != 0 {
             return Err(
                 PageManagerError::VirtualAddressNotAlignedByPageSizeError(virt_addr).into(),

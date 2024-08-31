@@ -1,10 +1,9 @@
-use common::kernel_config::KernelConfig;
-use log::{error, info};
-
 use crate::{
     arch::addr::VirtualAddress,
     fs::{fat::FatVolume, initramfs::Initramfs, vfs::FileSystem},
 };
+use common::kernel_config::KernelConfig;
+use log::{error, info};
 
 pub mod exec;
 pub mod fat;

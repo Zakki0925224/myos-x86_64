@@ -1,6 +1,5 @@
-use crate::error::{Error, Result};
-
 use super::FileId;
+use crate::error::{Error, Result};
 use core::sync::atomic::{AtomicU64, Ordering};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

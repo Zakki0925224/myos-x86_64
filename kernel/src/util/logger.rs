@@ -1,10 +1,9 @@
-use log::{Level, LevelFilter, Record};
-
 use crate::{
     arch,
     graphics::{color::*, frame_buf_console},
     print,
 };
+use log::{Level, LevelFilter, Record};
 
 const LOG_COLOR_ERROR: RgbColorCode = AU_COLOR_1;
 const LOG_COLOR_WARN: RgbColorCode = AU_COLOR_2;

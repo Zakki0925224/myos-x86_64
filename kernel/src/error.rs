@@ -1,5 +1,3 @@
-use common::elf::Elf64Error;
-
 use crate::{
     bus::usb::{
         device::UsbDeviceError,
@@ -15,6 +13,7 @@ use crate::{
     mem::{bitmap::BitmapMemoryManagerError, paging::PageManagerError},
     util::{ascii::AsciiCodeError, fifo::FifoError, lifo::LifoError, mutex::MutexError},
 };
+use common::elf::Elf64Error;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Error {

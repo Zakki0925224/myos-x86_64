@@ -1,6 +1,5 @@
 use super::{bitmap, paging::PAGE_SIZE};
 use crate::{error::Result, util::mutex::MutexError};
-use alloc::{string::String, vec::Vec};
 use core::alloc::Layout;
 use linked_list_allocator::LockedHeap;
 
