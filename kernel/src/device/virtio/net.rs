@@ -280,11 +280,13 @@ impl DeviceDriverFunction for VirtioNetDriver {
             }
             Some(InterruptType::Queue) => {
                 // TODO
-                arch::cli();
-                let rx_queue = self.rx_queue()?;
-                let data = rx_queue.read_data()?;
-                info!("data: {:?}", data);
-                arch::sti();
+                arch::disabled_int(|| {
+                    let rx_queue = self.rx_queue()?;
+                    let data = rx_queue.read_data()?;
+                    info!("data: {:?}", data);
+
+                    Result::Ok(())
+                })?;
             }
             None => (),
         }
@@ -303,27 +305,21 @@ pub fn get_device_driver_info() -> Result<DeviceDriverInfo> {
 }
 
 pub fn probe_and_attach() -> Result<()> {
-    arch::cli();
-    {
+    arch::disabled_int(|| {
         let mut driver = unsafe { VIRTIO_NET_DRIVER.try_lock() }?;
         driver.probe()?;
         driver.attach()?;
         info!("{}: Attached!", driver.get_device_driver_info()?.name);
-    }
-    arch::sti();
-
-    Ok(())
+        Result::Ok(())
+    })
 }
 
 pub fn poll_normal() -> Result<()> {
-    arch::cli();
-    {
+    arch::disabled_int(|| {
         let mut driver = unsafe { VIRTIO_NET_DRIVER.try_lock() }?;
-        driver.poll_normal()?
-    }
-    arch::sti();
-
-    Ok(())
+        driver.poll_normal()?;
+        Result::Ok(())
+    })
 }
 
 // extern "x86-interrupt" fn poll_int_vtnet_driver() {

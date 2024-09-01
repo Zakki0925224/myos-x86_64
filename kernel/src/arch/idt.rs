@@ -237,10 +237,7 @@ impl InterruptDescriptorTable {
         let limit = (size_of::<GateDescriptor>() * IDT_LEN - 1) as u16;
         let base = self.entries.as_ptr() as u64;
         let args = arch::DescriptorTableArgs { limit, base };
-        arch::lidt(&args);
-
-        //info!("idt: Loaded IDT: {:?}", args);
-        arch::sti();
+        arch::disabled_int(|| arch::lidt(&args));
     }
 }
 
@@ -282,13 +279,13 @@ extern "x86-interrupt" fn double_fault_handler() {
 }
 
 extern "x86-interrupt" fn local_apic_timer_handler() {
-    arch::disabled_int_func(|| {
+    arch::disabled_int(|| {
         arch::apic::timer::tick();
         let _ = multi_layer::draw_to_frame_buf();
         let _ = frame_buf::apply_shadow_buf();
 
         notify_end_of_int();
-    });
+    })
 }
 
 pub fn init_pic() {

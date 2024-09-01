@@ -1,6 +1,5 @@
-use alloc::string::String;
-use log::info;
 use self::{key_event::KeyEvent, key_map::KeyMap};
+use super::{console, DeviceDriverFunction, DeviceDriverInfo};
 use crate::{
     arch::{self, addr::IoPortAddress},
     device::ps2_keyboard::{
@@ -11,7 +10,8 @@ use crate::{
     idt, print, println,
     util::{ascii::AsciiCode, fifo::Fifo, mutex::Mutex},
 };
-use super::{console, DeviceDriverFunction, DeviceDriverInfo};
+use alloc::string::String;
+use log::info;
 
 pub mod key_event;
 mod key_map;
@@ -213,28 +213,20 @@ pub fn get_device_driver_info() -> Result<DeviceDriverInfo> {
 }
 
 pub fn probe_and_attach() -> Result<()> {
-    arch::cli();
-    {
+    arch::disabled_int(|| {
         let mut driver = unsafe { PS2_KBD_DRIVER.try_lock() }?;
         driver.probe()?;
         driver.attach()?;
         info!("{}: Attached!", driver.get_device_driver_info()?.name);
-    }
-    arch::sti();
-
-    Ok(())
+        Result::Ok(())
+    })
 }
 
 pub fn poll_normal() -> Result<Option<String>> {
-    let key_event;
-
-    arch::cli();
-    {
+    let key_event = arch::disabled_int(|| {
         let mut driver = unsafe { PS2_KBD_DRIVER.try_lock() }?;
-        key_event = driver.poll_normal()?;
-    }
-    arch::sti();
-
+        driver.poll_normal()
+    })?;
     let key_event = match key_event {
         Some(e) => e,
         None => return Ok(None),

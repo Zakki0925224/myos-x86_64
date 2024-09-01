@@ -37,97 +37,36 @@ impl UsbDriver {
     }
 
     pub fn init(&mut self) -> Result<()> {
-        let mut result = Ok(());
         self.devices = Vec::new();
 
-        arch::disabled_int_func(|| {
-            if let Err(err) = xhc::init() {
-                result = Err(err);
-                return;
-            }
+        arch::disabled_int(|| {
+            xhc::init()?;
+            xhc::start()?;
+            Result::Ok(())
+        })?;
 
-            if let Err(err) = xhc::start() {
-                result = Err(err);
-                return;
-            }
-        });
-
-        if result.is_err() {
-            return result;
-        }
-
-        let mut port_ids = Vec::new();
-
-        arch::disabled_int_func(|| {
-            result = match xhc::scan_ports() {
-                Ok(ids) => {
-                    port_ids = ids;
-                    Ok(())
-                }
-                Err(err) => Err(err),
-            }
-        });
-
-        if result.is_err() {
-            return result;
-        }
+        let port_ids = arch::disabled_int(|| xhc::scan_ports())?;
 
         for port_id in port_ids {
-            arch::disabled_int_func(|| {
-                result = xhc::reset_port(port_id);
-            });
-
-            if result.is_err() {
-                return result;
-            }
-
-            arch::disabled_int_func(|| {
-                result = match xhc::alloc_address_to_device(port_id) {
-                    Ok(device) => {
-                        self.devices.push(device);
-                        Ok(())
-                    }
-                    Err(err) => Err(err),
-                }
-            });
-
-            if result.is_err() {
-                return result;
-            }
+            arch::disabled_int(|| xhc::reset_port(port_id))?;
+            let device = arch::disabled_int(|| xhc::alloc_address_to_device(port_id))?;
+            self.devices.push(device);
         }
 
         for device in self.devices.iter_mut() {
             let slot_id = device.slot_id();
-
-            arch::disabled_int_func(|| {
-                if let Err(err) = device.init() {
-                    result = Err(UsbDriverError::UsbDeviceError {
-                        slot_id,
-                        err: Box::new(err),
-                    }
-                    .into());
-                }
-            });
-
-            if result.is_err() {
-                return result;
-            }
+            arch::disabled_int(|| device.init()).map_err(|err| UsbDriverError::UsbDeviceError {
+                slot_id,
+                err: Box::new(err),
+            })?;
 
             device.read_dev_desc();
 
-            arch::disabled_int_func(|| {
-                if let Err(err) = device.request_to_get_desc(DescriptorType::Configration, 0) {
-                    result = Err(UsbDriverError::UsbDeviceError {
-                        slot_id,
-                        err: Box::new(err),
-                    }
-                    .into());
-                }
-            });
-
-            if result.is_err() {
-                return result;
-            }
+            arch::disabled_int(|| device.request_to_get_desc(DescriptorType::Configration, 0))
+                .map_err(|err| UsbDriverError::UsbDeviceError {
+                    slot_id,
+                    err: Box::new(err),
+                })?;
 
             device.read_conf_descs();
 
@@ -151,80 +90,46 @@ impl UsbDriver {
                 _ => unreachable!(),
             };
 
-            arch::disabled_int_func(|| {
-                if let Err(err) = device.configure_endpoint(EndpointType::InterruptIn) {
-                    result = Err(UsbDriverError::UsbDeviceError {
-                        slot_id,
-                        err: Box::new(err),
-                    }
-                    .into());
+            arch::disabled_int(|| device.configure_endpoint(EndpointType::InterruptIn)).map_err(
+                |err| UsbDriverError::UsbDeviceError {
+                    slot_id,
+                    err: Box::new(err),
+                },
+            )?;
+
+            arch::disabled_int(|| device.request_to_set_conf(conf_desc.conf_value)).map_err(
+                |err| UsbDriverError::UsbDeviceError {
+                    slot_id,
+                    err: Box::new(err),
+                },
+            )?;
+
+            arch::disabled_int(|| device.request_to_set_interface(boot_interface)).map_err(
+                |err| UsbDriverError::UsbDeviceError {
+                    slot_id,
+                    err: Box::new(err),
+                },
+            )?;
+
+            arch::disabled_int(|| device.request_to_set_protocol(boot_interface, 0)).map_err(
+                |err| UsbDriverError::UsbDeviceError {
+                    slot_id,
+                    err: Box::new(err),
+                },
+            )?;
+
+            arch::disabled_int(|| device.configure_endpoint_transfer_ring()).map_err(|err| {
+                UsbDriverError::UsbDeviceError {
+                    slot_id,
+                    err: Box::new(err),
                 }
-            });
-
-            if result.is_err() {
-                return result;
-            }
-
-            arch::disabled_int_func(|| {
-                if let Err(err) = device.request_to_set_conf(conf_desc.conf_value) {
-                    result = Err(UsbDriverError::UsbDeviceError {
-                        slot_id,
-                        err: Box::new(err),
-                    }
-                    .into());
-                }
-            });
-
-            if result.is_err() {
-                return result;
-            }
-
-            arch::disabled_int_func(|| {
-                if let Err(err) = device.request_to_set_interface(boot_interface) {
-                    result = Err(UsbDriverError::UsbDeviceError {
-                        slot_id,
-                        err: Box::new(err),
-                    }
-                    .into());
-                }
-            });
-
-            if result.is_err() {
-                return result;
-            }
-
-            arch::disabled_int_func(|| {
-                if let Err(err) = device.request_to_set_protocol(boot_interface, 0) {
-                    result = Err(UsbDriverError::UsbDeviceError {
-                        slot_id,
-                        err: Box::new(err),
-                    }
-                    .into());
-                }
-            });
-
-            if result.is_err() {
-                return result;
-            }
-            arch::disabled_int_func(|| {
-                if let Err(err) = device.configure_endpoint_transfer_ring() {
-                    result = Err(UsbDriverError::UsbDeviceError {
-                        slot_id,
-                        err: Box::new(err),
-                    }
-                    .into());
-                }
-            });
-
-            if result.is_err() {
-                return result;
-            }
+            })?;
 
             device.is_configured = true;
             info!("usb: Configured device (slot id: {})", slot_id);
         }
 
-        return result;
+        Ok(())
     }
 
     pub fn find_device_by_slot_id(&self, slot_id: usize) -> Option<UsbDevice> {

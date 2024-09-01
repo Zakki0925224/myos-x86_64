@@ -170,28 +170,20 @@ pub fn get_device_driver_info() -> Result<DeviceDriverInfo> {
 }
 
 pub fn probe_and_attach() -> Result<()> {
-    arch::cli();
-    {
+    arch::disabled_int(|| {
         let mut driver = unsafe { PS2_MOUSE_DRIVER.try_lock() }?;
         driver.probe()?;
         driver.attach()?;
         info!("{}: Attached!", driver.get_device_driver_info()?.name);
-    }
-    arch::sti();
-
-    Ok(())
+        Result::Ok(())
+    })
 }
 
 pub fn poll_normal() -> Result<Option<MouseEvent>> {
-    let mouse_event;
-
-    arch::cli();
-    {
+    let mouse_event = arch::disabled_int(|| {
         let mut driver = unsafe { PS2_MOUSE_DRIVER.try_lock() }?;
-        mouse_event = driver.poll_normal()?;
-    }
-    arch::sti();
-
+        driver.poll_normal()
+    })?;
     Ok(mouse_event)
 }
 

@@ -1,2 +1,2 @@
-#virtio_*
+virtio_*
 #pci_route_irq
