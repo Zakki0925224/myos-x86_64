@@ -29,7 +29,6 @@ use uefi::{
 };
 
 #[entry]
-// TODO: Panic occurs when running on VirtualBox and actual device
 fn efi_main(handle: Handle, st: SystemTable<Boot>) -> Status {
     uefi::helpers::init().unwrap();
     let bs = st.boot_services();
@@ -54,6 +53,7 @@ fn efi_main(handle: Handle, st: SystemTable<Boot>) -> Status {
     info!("Exit boot services");
     let mut mem_map = Vec::with_capacity(128);
 
+    // TODO: loop infinity on VirtualBox and actual device
     let (_, map) = unsafe { st.exit_boot_services(MemoryType::RUNTIME_SERVICES_DATA) };
 
     for desc in map.entries() {

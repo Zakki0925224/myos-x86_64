@@ -168,18 +168,20 @@ fn sys_read(fd: FileDescriptorNumber, buf_addr: VirtualAddress, buf_len: usize) 
         }
         FileDescriptorNumber::STDIN => {
             // wait input enter
-            // TODO: not occured ps2-kbd interrupt
-            let mut input_s = None;
-            while input_s.is_none() {
-                if let Ok(s) = device::ps2_keyboard::poll_normal() {
+            let input_s;
+            loop {
+                if let Ok(Some(s)) = device::ps2_keyboard::poll_normal() {
                     input_s = s;
+                    break;
                 }
-                if let Ok(s) = device::uart::poll_normal() {
+
+                if let Ok(Some(s)) = device::uart::poll_normal() {
                     input_s = s;
+                    break;
                 }
             }
 
-            let c_s = CString::new(input_s.unwrap()).unwrap().into_bytes_with_nul();
+            let c_s = CString::new(input_s).unwrap().into_bytes_with_nul();
             buf_addr.copy_from_nonoverlapping(c_s.as_ptr(), buf_len);
         }
         fd => {
