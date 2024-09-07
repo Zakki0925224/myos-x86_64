@@ -7,5 +7,6 @@ pub struct BootInfo<'a> {
     pub graphic_info: GraphicInfo,
     pub initramfs_start_virt_addr: u64,
     pub initramfs_page_cnt: usize,
+    pub rsdp_virt_addr: Option<u64>,
     pub kernel_config: KernelConfig<'a>,
 }

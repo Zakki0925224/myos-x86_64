@@ -1,4 +1,5 @@
 use crate::{
+    acpi::AcpiError,
     bus::usb::{
         device::UsbDeviceError,
         xhc::{ring_buffer::RingBufferError, XhcDriverError},
@@ -37,7 +38,7 @@ pub enum Error {
     VirtualFileSystemError(VirtualFileSystemError),
     Elf64Error(Elf64Error),
     SimpleWindowManagerError(SimpleWindowManagerError),
-    //DeviceManagerError(DeviceManagerError),
+    AcpiError(AcpiError),
 }
 
 impl From<&'static str> for Error {
@@ -151,6 +152,12 @@ impl From<Elf64Error> for Error {
 impl From<SimpleWindowManagerError> for Error {
     fn from(err: SimpleWindowManagerError) -> Self {
         Self::SimpleWindowManagerError(err)
+    }
+}
+
+impl From<AcpiError> for Error {
+    fn from(err: AcpiError) -> Self {
+        Self::AcpiError(err)
     }
 }
 

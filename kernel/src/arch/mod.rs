@@ -4,6 +4,7 @@ use register::{
     Register,
 };
 
+pub mod acpi;
 pub mod addr;
 pub mod apic;
 pub mod context;

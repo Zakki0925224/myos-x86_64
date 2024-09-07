@@ -73,6 +73,11 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
     // enable syscall
     syscall::enable();
 
+    // initialize ACPI
+    if let Some(rsdp_virt_addr) = boot_info.rsdp_virt_addr {
+        acpi::init(rsdp_virt_addr.into()).unwrap();
+    }
+
     // initialize pci, usb
     bus::init();
 

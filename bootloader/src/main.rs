@@ -24,7 +24,7 @@ use uefi::{
         console::gop::{GraphicsOutput, PixelFormat},
         media::{file::*, fs::SimpleFileSystem},
     },
-    table::boot::*,
+    table::{boot::*, cfg::ACPI2_GUID},
     CStr16,
 };
 
@@ -48,6 +48,9 @@ fn efi_main(handle: Handle, st: SystemTable<Boot>) -> Status {
 
     // load initramfs
     let (initramfs_start_virt_addr, initramfs_page_cnt) = load_initramfs(bs, config.initramfs_path);
+
+    // get RSDP address
+    let rsdp_virt_addr = rsdp_addr(&st);
 
     // exit boot service and get memory map
     info!("Exit boot services");
@@ -75,19 +78,25 @@ fn efi_main(handle: Handle, st: SystemTable<Boot>) -> Status {
     // set kernel config
     let mut kernel_config = KernelConfig::default();
     kernel_config.init_cwd_path = "/mnt/initramfs";
-    //kernel_config.init_app_exec_args = Some("/mnt/initramfs/apps/uname/uname.elf -a");
+    kernel_config.init_app_exec_args = Some("/mnt/initramfs/apps/sh/sh.elf");
 
     let bi = BootInfo {
         mem_map: &mem_map,
         graphic_info,
         initramfs_start_virt_addr,
         initramfs_page_cnt,
+        rsdp_virt_addr,
         kernel_config,
     };
 
     jump_to_entry(kernel_entry_point_addr, &bi);
 
     Status::SUCCESS
+}
+
+fn rsdp_addr(st: &SystemTable<Boot>) -> Option<u64> {
+    let acpi2_entry = st.config_table().iter().find(|e| e.guid == ACPI2_GUID);
+    acpi2_entry.map(|e| e.address as u64)
 }
 
 fn read_file(bs: &BootServices, path: &str) -> RegularFile {

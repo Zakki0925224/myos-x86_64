@@ -26,7 +26,14 @@ void exec_cmd(const char *cmd)
         return;
     }
 
-    printf("sh: %s: command not found\n", cmd);
+    if (strcmp(cmd, "exit") == 0)
+    {
+        sys_exit(0);
+    }
+    else
+    {
+        printf("sh: %s: command not found\n", cmd);
+    }
 }
 
 void _start()
