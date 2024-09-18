@@ -42,18 +42,11 @@ pub extern "sysv64" fn kernel_entry(boot_info: &BootInfo) -> ! {
 }
 
 pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
-    // initialize and start local APIC timer
-    apic::timer::init();
-    apic::timer::start();
-
     // initialize logger
     logger::init();
 
     // attach uart driver
     device::uart::probe_and_attach().unwrap();
-
-    // initialize frame buffer, console
-    graphics::init(&boot_info.graphic_info, PN_COLOR_1, SS_COLOR_1);
 
     // initialize memory management
     mem::init(boot_info.mem_map);
@@ -64,6 +57,18 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
     idt::init_pic();
     idt::init_idt();
 
+    // initialize ACPI
+    if let Some(rsdp_virt_addr) = boot_info.rsdp_virt_addr {
+        acpi::init(rsdp_virt_addr.into()).unwrap();
+    }
+
+    // initialize and start local APIC timer
+    apic::timer::init().unwrap();
+    apic::timer::start();
+
+    // initialize frame buffer, console
+    graphics::init(&boot_info.graphic_info, PN_COLOR_1, SS_COLOR_1);
+
     // initialize graphics shadow buffer and layer manager
     graphics::enable_shadow_buf();
     graphics::init_layer_man(&boot_info.graphic_info, RgbColorCode::default());
@@ -72,11 +77,6 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
 
     // enable syscall
     syscall::enable();
-
-    // initialize ACPI
-    if let Some(rsdp_virt_addr) = boot_info.rsdp_virt_addr {
-        acpi::init(rsdp_virt_addr.into()).unwrap();
-    }
 
     // initialize pci, usb
     bus::init();

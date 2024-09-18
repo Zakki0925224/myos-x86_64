@@ -41,11 +41,13 @@ impl log::Log for SimpleLogger {
 
         let _ = frame_buf_console::set_fore_color(fore_color);
 
-        let local_apic_timer_tick = arch::apic::timer::get_current_tick();
+        let tick = arch::apic::timer::get_current_tick();
+        let ms = arch::apic::timer::tick_to_ms(tick);
 
         print!(
-            "[T:0x{:08x}][{}{}]: ",
-            local_apic_timer_tick,
+            "[{:06}.{:03}][{}{}]: ",
+            ms / 1000,
+            ms % 1000,
             if record.level() == Level::Error || record.level() == Level::Debug {
                 ""
             } else {

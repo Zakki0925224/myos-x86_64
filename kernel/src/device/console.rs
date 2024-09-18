@@ -277,6 +277,25 @@ pub fn exec_cmd(cmd: String) -> Result<()> {
         "taskbar" => {
             simple_window_manager::create_taskbar()?;
         }
+        "uptime" => {
+            const MS_IN_A_DAY: usize = 24 * 60 * 60 * 1000;
+            const MS_IN_AN_HOUR: usize = 60 * 60 * 1000;
+            const MS_IN_A_MINUTE: usize = 60 * 1000;
+            const MS_IN_A_SECOND: usize = 1000;
+
+            let tick = arch::apic::timer::get_current_tick();
+            let ms = arch::apic::timer::tick_to_ms(tick);
+            let days = ms / MS_IN_A_DAY;
+            let hours = (ms % MS_IN_A_DAY) / MS_IN_AN_HOUR;
+            let minutes = (ms % MS_IN_AN_HOUR) / MS_IN_A_MINUTE;
+            let seconds = (ms % MS_IN_A_MINUTE) / MS_IN_A_SECOND;
+            let milliseconds = ms % MS_IN_A_SECOND;
+            println!("{} ms", ms);
+            println!(
+                "{} days {} hours {} minutes {} seconds {} milliseconds",
+                days, hours, minutes, seconds, milliseconds
+            );
+        }
         "" => (),
         cmd => error!("Command {:?} was not found", cmd),
     }

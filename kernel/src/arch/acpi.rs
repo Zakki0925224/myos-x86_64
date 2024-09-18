@@ -1,18 +1,15 @@
+use super::addr::{IoPortAddress, VirtualAddress};
+use crate::error::Result;
+use alloc::vec::Vec;
 use core::{mem::size_of, ptr::read_unaligned, slice};
-
-use crate::{
-    error::Result,
-    mem::paging::{self, EntryMode, PageWriteThroughLevel, ReadWrite, PAGE_SIZE},
-    println,
-};
-
-use super::addr::VirtualAddress;
 
 static mut ACPI: Acpi = Acpi::new();
 
 const RSDP_SIGNATURE: [u8; 8] = *b"RSD PTR ";
 const XSDT_SIGNATURE: [u8; 4] = *b"XSDT";
 const FADT_SIGNATURE: [u8; 4] = *b"FACP";
+
+const PM_TIMER_FREQ: u32 = 3579545;
 
 #[derive(Debug)]
 #[repr(C, packed)]
@@ -81,11 +78,11 @@ impl DescriptionHeader {
 #[repr(C, packed)]
 struct FixedAcpiDescriptionTable {
     header: DescriptionHeader,
-    reserved0: [u8; 36],
+    reserved0: [u8; 40],
     pm_timer_block: u32,
     reserved1: [u8; 32],
     flags: u32,
-    reserved2: [u8; 148],
+    reserved2: [u8; 160],
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -93,6 +90,7 @@ pub enum AcpiError {
     InvalidSignatureError,
     InvalidRevisionError(u8),
     InvalidChecksumError,
+    FixedAcpiDescriptionTableWasNotFound,
     NotInitialized,
 }
 
@@ -134,7 +132,7 @@ impl Acpi {
     }
 
     // XSDT header, entries
-    fn xsdt(&self) -> Result<(&DescriptionHeader, &[u64])> {
+    fn xsdt(&self) -> Result<(&DescriptionHeader, Vec<u64>)> {
         let rsdp = self.rsdp()?;
         let xsdt_virt_addr: VirtualAddress = rsdp.xsdt_addr.into();
         let xsdt = unsafe { &*(xsdt_virt_addr.as_ptr() as *const DescriptionHeader) };
@@ -147,40 +145,30 @@ impl Acpi {
             return Err(AcpiError::InvalidChecksumError.into());
         }
 
-        let entries = unsafe {
+        // 4 bytes align
+        let u32_entries: &[u32] = unsafe {
             slice::from_raw_parts(
                 xsdt_virt_addr
-                    .offset(size_of::<DescriptionHeader>() + 4)
+                    .offset(size_of::<DescriptionHeader>())
                     .as_ptr(),
-                xsdt.entries_count(),
+                xsdt.entries_count() * 2,
             )
         };
+
+        let entries = u32_entries
+            .chunks(2)
+            .map(|c| (c[1] as u64) << 32 | (c[0] as u64))
+            .collect();
 
         Ok((xsdt, entries))
     }
 
-    // TODO: #GP fault
     fn fadt(&self) -> Result<Option<&FixedAcpiDescriptionTable>> {
         let (_, xsdt_entries) = self.xsdt()?;
         let mut fadt = None;
 
-        println!("{:?}", xsdt_entries);
         for entry_addr in xsdt_entries {
-            let entry_addr: VirtualAddress = (*entry_addr).into();
-
-            if entry_addr.get() == 0 {
-                continue;
-            }
-
-            paging::update_mapping(
-                entry_addr,
-                entry_addr.offset(PAGE_SIZE),
-                entry_addr.get().into(),
-                ReadWrite::Read,
-                EntryMode::Supervisor,
-                PageWriteThroughLevel::WriteThrough,
-            )?;
-
+            let entry_addr: VirtualAddress = entry_addr.into();
             let entry = unsafe { &*(entry_addr.as_ptr() as *const FixedAcpiDescriptionTable) };
             if entry.header.is_valid(FADT_SIGNATURE) {
                 fadt = Some(entry);
@@ -190,12 +178,39 @@ impl Acpi {
 
         Ok(fadt)
     }
+
+    // addr, bit width == 32
+    fn pm_timer_io_addr(&self) -> Result<(IoPortAddress, bool)> {
+        let fadt = self
+            .fadt()?
+            .ok_or(AcpiError::FixedAcpiDescriptionTableWasNotFound)?;
+        Ok((fadt.pm_timer_block.into(), ((fadt.flags >> 8) & 1) != 0))
+    }
+
+    fn pm_timer_wait_ms(&self, ms: u32) -> Result<()> {
+        let (io_addr, is_bit_width_32) = self.pm_timer_io_addr()?;
+        let start = io_addr.in32();
+        let mut end = start + (PM_TIMER_FREQ * ms / 1000);
+
+        if !is_bit_width_32 {
+            end &= 0x00ff_ffff;
+        }
+
+        if end < start {
+            while io_addr.in32() >= start {}
+        }
+
+        while io_addr.in32() < end {}
+        Ok(())
+    }
 }
 
 pub fn init(rsdp_virt_addr: VirtualAddress) -> Result<()> {
     unsafe { ACPI.init(rsdp_virt_addr) }?;
-    let fadt = unsafe { ACPI.fadt() }?.ok_or(AcpiError::NotInitialized)?;
-    println!("{:?}", fadt);
 
     Ok(())
+}
+
+pub fn pm_timer_wait_ms(ms: u32) -> Result<()> {
+    unsafe { ACPI.pm_timer_wait_ms(ms) }
 }
