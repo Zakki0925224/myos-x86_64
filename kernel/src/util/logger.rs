@@ -41,9 +41,7 @@ impl log::Log for SimpleLogger {
 
         let _ = frame_buf_console::set_fore_color(fore_color);
 
-        let tick = arch::apic::timer::get_current_tick();
-        let ms = arch::apic::timer::tick_to_ms(tick);
-
+        let ms = arch::apic::timer::get_current_ms().unwrap_or(0);
         print!(
             "[{:06}.{:03}][{}{}]: ",
             ms / 1000,

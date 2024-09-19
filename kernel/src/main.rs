@@ -95,18 +95,6 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
 
     env::print_info();
 
-    // execute init app
-    let init_app_exec_args = boot_info.kernel_config.init_app_exec_args;
-    if let Some(args) = init_app_exec_args {
-        let splited: Vec<&str> = args.split(" ").collect();
-
-        if splited.len() == 0 || splited[0] == "" {
-            error!("Invalid init app exec args: {:?}", args);
-        } else if let Err(err) = fs::exec::exec_elf(splited[0], &splited[1..]) {
-            error!("{:?}", err);
-        }
-    }
-
     // tasks
     let task_poll_virtio_net = async {
         loop {
@@ -143,9 +131,20 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
     task::spawn(task_poll_uart).unwrap();
     task::spawn(task_poll_ps2_keyboard).unwrap();
     task::spawn(poll_ps2_mouse()).unwrap();
-    task::run().unwrap();
+    task::ready().unwrap();
 
-    // unreachable?
+    // execute init app
+    let init_app_exec_args = boot_info.kernel_config.init_app_exec_args;
+    if let Some(args) = init_app_exec_args {
+        let splited: Vec<&str> = args.split(" ").collect();
+
+        if splited.len() == 0 || splited[0] == "" {
+            error!("Invalid init app exec args: {:?}", args);
+        } else if let Err(err) = fs::exec::exec_elf(splited[0], &splited[1..]) {
+            error!("{:?}", err);
+        }
+    }
+
     loop {
         arch::hlt();
     }

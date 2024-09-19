@@ -81,9 +81,7 @@ pub fn get_current_tick() -> usize {
     unsafe { LOCAL_APIC_TIMER.get_current_tick() }
 }
 
-pub fn tick_to_ms(tick: usize) -> usize {
-    match unsafe { LOCAL_APIC_TIMER.freq } {
-        Some(freq) => tick / freq,
-        None => 0,
-    }
+pub fn get_current_ms() -> Option<usize> {
+    let freq = unsafe { LOCAL_APIC_TIMER.freq }?;
+    Some(get_current_tick() / freq)
 }

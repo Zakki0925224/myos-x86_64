@@ -1,4 +1,4 @@
-use super::addr::*;
+use super::{addr::*, task};
 use crate::{
     arch::{
         self,
@@ -283,6 +283,15 @@ extern "x86-interrupt" fn local_apic_timer_handler() {
         arch::apic::timer::tick();
         let _ = multi_layer::draw_to_frame_buf();
         let _ = frame_buf::apply_shadow_buf();
+
+        match arch::apic::timer::get_current_ms() {
+            Some(ms) if ms % 10 == 0 => {
+                if let Err(err) = task::poll() {
+                    error!("task poll error: {:?}", err);
+                }
+            }
+            _ => (),
+        }
 
         notify_end_of_int();
     })

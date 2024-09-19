@@ -25,7 +25,6 @@ static mut KERNEL_TASK: Mutex<Option<Task>> = Mutex::new(None);
 static mut USER_TASK: Mutex<Option<Task>> = Mutex::new(None);
 static mut USER_EXIT_STATUS: Option<u64> = None;
 
-// preemptive multitask
 #[derive(Default)]
 struct Yield {
     polled: AtomicBool,
@@ -43,16 +42,16 @@ impl Future for Yield {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct TaskId(usize);
 
 impl TaskId {
-    pub fn new() -> Self {
+    fn new() -> Self {
         static NEXT_ID: AtomicUsize = AtomicUsize::new(0);
         Self(NEXT_ID.fetch_add(1, Ordering::Relaxed))
     }
 
-    pub fn get(&self) -> usize {
+    fn get(&self) -> usize {
         self.0
     }
 }
@@ -63,7 +62,7 @@ struct ExecutorTask {
 }
 
 impl ExecutorTask {
-    pub fn new(future: impl Future<Output = ()> + 'static) -> Self {
+    fn new(future: impl Future<Output = ()> + 'static) -> Self {
         Self {
             id: TaskId::new(),
             future: Box::pin(future),
@@ -76,37 +75,39 @@ impl ExecutorTask {
 }
 
 struct Executor {
-    task_queue: Option<VecDeque<ExecutorTask>>,
+    task_queue: VecDeque<ExecutorTask>,
+    is_ready: bool,
 }
 
 impl Executor {
-    pub const fn new() -> Self {
-        // if use VecDeque::new(), occures unsafe precondition violated when push data
-        // -> this is a bug for my own allocator
-        //task_queue: VecDeque::with_capacity(16),
-        Self { task_queue: None }
+    const fn new() -> Self {
+        Self {
+            task_queue: VecDeque::new(),
+            is_ready: false,
+        }
     }
 
-    pub fn run(&mut self) {
-        while let Some(mut task) = self.task_queue().pop_front() {
+    fn poll(&mut self) {
+        if !self.is_ready {
+            return;
+        }
+
+        if let Some(mut task) = self.task_queue.pop_front() {
             let waker = dummy_waker();
             let mut context = ExecutorContext::from_waker(&waker);
             match task.poll(&mut context) {
                 Poll::Ready(()) => info!("task: Done (id: {})", task.id.get()),
-                Poll::Pending => self.task_queue().push_back(task),
+                Poll::Pending => self.task_queue.push_back(task),
             }
         }
     }
 
-    pub fn spawn(&mut self, task: ExecutorTask) {
-        self.task_queue().push_back(task);
+    fn ready(&mut self) {
+        self.is_ready = true;
     }
 
-    fn task_queue(&mut self) -> &mut VecDeque<ExecutorTask> {
-        if self.task_queue.is_none() {
-            self.task_queue = Some(VecDeque::new());
-        }
-        self.task_queue.as_mut().unwrap()
+    fn spawn(&mut self, task: ExecutorTask) {
+        self.task_queue.push_back(task);
     }
 }
 
@@ -127,19 +128,23 @@ pub async fn exec_yield() {
     Yield::default().await
 }
 
+pub fn poll() -> Result<()> {
+    unsafe { TASK_EXECUTOR.try_lock() }?.poll();
+    Ok(())
+}
+
+pub fn ready() -> Result<()> {
+    unsafe { TASK_EXECUTOR.try_lock() }?.ready();
+    Ok(())
+}
+
 pub fn spawn(future: impl Future<Output = ()> + 'static) -> Result<()> {
     let task = ExecutorTask::new(future);
     unsafe { TASK_EXECUTOR.try_lock() }?.spawn(task);
     Ok(())
 }
 
-pub fn run() -> Result<()> {
-    unsafe { TASK_EXECUTOR.try_lock() }?.run();
-    Ok(())
-}
-
-// non-preemptive multitask
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Task {
     id: TaskId,
     stack_mem_frame_info: MemoryFrameInfo,
@@ -165,7 +170,7 @@ impl Drop for Task {
 }
 
 impl Task {
-    pub fn new(
+    fn new(
         stack_size: usize,
         entry: Option<extern "sysv64" fn()>,
         arg0: u64,
@@ -197,7 +202,7 @@ impl Task {
         })
     }
 
-    pub fn switch_to(&self, next_task: &Task) {
+    fn switch_to(&self, next_task: &Task) {
         info!(
             "task: Switch context tid: {} to {}",
             self.id.get(),

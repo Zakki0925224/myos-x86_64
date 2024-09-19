@@ -283,8 +283,7 @@ pub fn exec_cmd(cmd: String) -> Result<()> {
             const MS_IN_A_MINUTE: usize = 60 * 1000;
             const MS_IN_A_SECOND: usize = 1000;
 
-            let tick = arch::apic::timer::get_current_tick();
-            let ms = arch::apic::timer::tick_to_ms(tick);
+            let ms = arch::apic::timer::get_current_ms().unwrap_or(0);
             let days = ms / MS_IN_A_DAY;
             let hours = (ms % MS_IN_A_DAY) / MS_IN_AN_HOUR;
             let minutes = (ms % MS_IN_AN_HOUR) / MS_IN_A_MINUTE;
