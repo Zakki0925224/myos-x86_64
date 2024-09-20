@@ -14,6 +14,7 @@
 #define SN_UNAME 6
 #define SN_BREAK 7
 #define SN_STAT 8
+#define SN_UPTIME 9
 
 // defined file descriptor numbers
 #define FDN_STDIN 0
@@ -27,8 +28,9 @@ extern int64_t sys_close(int64_t fd);
 extern void sys_exit(uint64_t status);
 extern void *sys_sbrk(uint64_t len);
 extern int64_t sys_uname(utsname *buf);
-extern void sys_break(void);
+extern void sys_break();
 extern int64_t sys_stat(int64_t fd, stat *buf);
+extern uint64_t sys_uptime();
 
 // string.h
 extern int strcmp(const char *s1, const char *s2);

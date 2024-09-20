@@ -16,7 +16,7 @@ use common::libm::{Stat, Utsname};
 use core::{arch::asm, slice};
 use log::*;
 
-use super::addr::VirtualAddress;
+use super::{addr::VirtualAddress, apic};
 
 #[naked]
 extern "sysv64" fn asm_syscall_handler() {
@@ -155,6 +155,11 @@ extern "sysv64" fn syscall_handler(
                 return -1;
             }
         }
+        // uptime syscall
+        9 => {
+            let uptime = sys_uptime();
+            return uptime as i64;
+        }
         num => {
             error!("syscall: Syscall number 0x{:x} is not defined", num);
             return -1;
@@ -278,6 +283,10 @@ fn sys_stat(fd: FileDescriptorNumber, buf_addr: VirtualAddress) -> Result<()> {
     let stat = Stat { size };
     buf_addr.copy_from_nonoverlapping(&stat as *const Stat, 1);
     Ok(())
+}
+
+fn sys_uptime() -> u64 {
+    apic::timer::get_current_ms().unwrap_or(0) as u64
 }
 
 pub fn enable() {

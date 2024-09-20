@@ -55,7 +55,7 @@ int64_t sys_uname(utsname *buf)
     return syscall(SN_UNAME, (uint64_t)buf, 0, 0, 0, 0);
 }
 
-void sys_break(void)
+void sys_break()
 {
     syscall(SN_BREAK, 0, 0, 0, 0, 0);
 }
@@ -63,4 +63,9 @@ void sys_break(void)
 int64_t sys_stat(int64_t fd, stat *buf)
 {
     return syscall(SN_STAT, (uint64_t)fd, (uint64_t)buf, 0, 0, 0);
+}
+
+uint64_t sys_uptime()
+{
+    return (uint64_t)syscall(SN_UPTIME, 0, 0, 0, 0, 0);
 }
