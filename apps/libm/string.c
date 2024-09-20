@@ -19,3 +19,29 @@ int strlen(const char *str)
     }
     return res;
 }
+
+int split(char *str, const char regex, char **buf, size_t buflen)
+{
+    int s_len = strlen(str);
+    int len = 1;
+    int i;
+
+    buf[0] = str;
+
+    for (i = 1; i < s_len; i++)
+    {
+        if (str[i] == regex)
+        {
+            str[i] = '\0';
+            buf[len] = &str[i + 1];
+            len++;
+
+            if ((int)buflen <= len)
+            {
+                break;
+            }
+        }
+    }
+
+    return len;
+}

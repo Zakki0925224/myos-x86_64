@@ -7,6 +7,7 @@
 #define MS_IN_A_SECOND 1000
 
 static char buf[BUF_LEN] = {0};
+static char *splitted_buf[BUF_LEN];
 
 void replace_char(char *src, const char target, const char replace)
 {
@@ -26,20 +27,27 @@ void replace_char(char *src, const char target, const char replace)
 
 void exec_cmd(const char *cmd)
 {
-    if (strlen(cmd) == 0)
+    int cmdargs_len = split(cmd, ' ', splitted_buf, BUF_LEN);
+
+    if (cmdargs_len < 1)
     {
         return;
     }
 
-    if (strcmp(cmd, "exit") == 0)
+    if (strlen(splitted_buf[0]) == 0)
+    {
+        return;
+    }
+
+    if (strcmp(splitted_buf[0], "exit") == 0)
     {
         sys_exit(0);
     }
-    else if (strcmp(cmd, "break") == 0)
+    else if (strcmp(splitted_buf[0], "break") == 0)
     {
         sys_break();
     }
-    else if (strcmp(cmd, "uptime") == 0)
+    else if (strcmp(splitted_buf[0], "uptime") == 0)
     {
         uint64_t uptime_ms = sys_uptime();
         uint64_t days = uptime_ms / MS_IN_A_DAY;
@@ -50,6 +58,13 @@ void exec_cmd(const char *cmd)
 
         printf("%d ms\n", uptime_ms);
         printf("%d days %d hours %d minutes %d seconds %d milliseconds\n", days, hours, minutes, seconds, milliseconds);
+    }
+    else if (strcmp(splitted_buf[0], "test") == 0)
+    {
+        for (int i = 1; i < cmdargs_len; i++)
+        {
+            printf("arg[%d]: %s\n", i, splitted_buf[i]);
+        }
     }
     else
     {

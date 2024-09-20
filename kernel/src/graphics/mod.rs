@@ -42,7 +42,7 @@ pub fn init_layer_man(graphic_info: &GraphicInfo, transparent_color: RgbColorCod
     info!("graphics: Initialized layer manager");
 
     let (res_x, res_y) = graphic_info.resolution;
-    let console_layer = match multi_layer::create_layer(0, 0, res_x, res_y * 3 / 4) {
+    let console_layer = match multi_layer::create_layer(0, 0, res_x, res_y) {
         Ok(l) => l,
         Err(err) => {
             error!("graphics: Failed to create the layer: {:?}", err);

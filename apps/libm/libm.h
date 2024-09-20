@@ -35,6 +35,7 @@ extern uint64_t sys_uptime();
 // string.h
 extern int strcmp(const char *s1, const char *s2);
 extern int strlen(const char *str);
+extern int split(char *str, const char regex, char **buf, size_t buflen);
 
 // printf.c
 extern int printf(const char *fmt, ...);
