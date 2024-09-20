@@ -105,24 +105,14 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
 
     let task_poll_uart = async {
         loop {
-            if let Ok(Some(s)) = device::uart::poll_normal() {
-                if let Err(err) = device::console::exec_cmd(s) {
-                    error!("{:?}", err);
-                }
-                device::console::print_prompt();
-            }
+            let _ = device::uart::poll_normal();
             task::exec_yield().await;
         }
     };
 
     let task_poll_ps2_keyboard = async {
         loop {
-            if let Ok(Some(s)) = device::ps2_keyboard::poll_normal() {
-                if let Err(err) = device::console::exec_cmd(s) {
-                    error!("{:?}", err);
-                }
-                device::console::print_prompt();
-            }
+            let _ = device::ps2_keyboard::poll_normal();
             task::exec_yield().await;
         }
     };
@@ -135,18 +125,18 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
 
     // execute init app
     let init_app_exec_args = boot_info.kernel_config.init_app_exec_args;
-    if let Some(args) = init_app_exec_args {
-        let splited: Vec<&str> = args.split(" ").collect();
-
-        if splited.len() == 0 || splited[0] == "" {
-            error!("Invalid init app exec args: {:?}", args);
-        } else if let Err(err) = fs::exec::exec_elf(splited[0], &splited[1..]) {
-            error!("{:?}", err);
-        }
-    }
-
     loop {
-        arch::hlt();
+        if let Some(args) = init_app_exec_args {
+            let splited: Vec<&str> = args.split(" ").collect();
+
+            if splited.len() == 0 || splited[0] == "" {
+                error!("Invalid init app exec args: {:?}", args);
+            } else if let Err(err) = fs::exec::exec_elf(splited[0], &splited[1..]) {
+                error!("{:?}", err);
+            }
+        } else {
+            arch::hlt();
+        }
     }
 }
 

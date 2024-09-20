@@ -1,20 +1,11 @@
 use crate::{
-    arch,
-    bus::pci,
-    env,
     error::{Error, Result},
-    fs::{exec, vfs},
-    graphics::{color::*, frame_buf_console, simple_window_manager},
-    mem, qemu, uart,
-    util::{ascii::AsciiCode, hexdump, lifo::Lifo, mutex::Mutex, random},
+    graphics::{color::*, frame_buf_console},
+    uart,
+    util::{ascii::AsciiCode, lifo::Lifo, mutex::Mutex},
 };
-use alloc::{
-    boxed::Box,
-    string::{String, ToString},
-    vec::Vec,
-};
+use alloc::{boxed::Box, string::String};
 use core::fmt::{self, Write};
-use log::error;
 
 const IO_BUF_LEN: usize = 512;
 const IO_BUF_DEFAULT_VALUE: ConsoleCharacter = ConsoleCharacter {
@@ -58,6 +49,7 @@ pub struct Console {
     err_output_buf: IoBufferType,
     buf_default_value: ConsoleCharacter,
     use_serial_port: bool,
+    is_ready_get_line: bool,
 }
 
 impl Console {
@@ -68,6 +60,7 @@ impl Console {
             err_output_buf: Lifo::new(IO_BUF_DEFAULT_VALUE),
             buf_default_value: IO_BUF_DEFAULT_VALUE,
             use_serial_port,
+            is_ready_get_line: false,
         }
     }
 
@@ -146,7 +139,7 @@ impl Console {
         Ok(())
     }
 
-    pub fn get_str(&mut self, buf_type: BufferType) -> String {
+    pub fn get_line(&mut self, buf_type: BufferType) -> String {
         let buf = match buf_type {
             BufferType::Input => &mut self.input_buf,
             BufferType::Output => &mut self.output_buf,
@@ -214,8 +207,7 @@ pub fn clear_input_buf() -> Result<()> {
     Ok(())
 }
 
-pub fn input(ascii_code: AsciiCode) -> Result<Option<String>> {
-    let mut input_str = None;
+pub fn input(ascii_code: AsciiCode) -> Result<()> {
     let mut console = unsafe { CONSOLE.try_lock() }?;
 
     if console.is_full(BufferType::Input) {
@@ -225,79 +217,94 @@ pub fn input(ascii_code: AsciiCode) -> Result<Option<String>> {
     console.write(ascii_code, BufferType::Input)?;
 
     if ascii_code == AsciiCode::CarriageReturn || ascii_code == AsciiCode::NewLine {
-        input_str = Some(console.get_str(BufferType::Input));
-    }
-
-    Ok(input_str)
-}
-
-pub fn print_prompt() {
-    let cwd_path = vfs::cwd_path().unwrap_or("<UNKNOWN>".to_string());
-    print!("\n[{}]$ ", cwd_path);
-}
-
-pub fn exec_cmd(cmd: String) -> Result<()> {
-    let args: Vec<&str> = cmd.trim().split(" ").collect();
-
-    match args[0] {
-        "info" => env::print_info(),
-        "lspci" => pci::lspci()?,
-        "free" => mem::free(),
-        "exit" => qemu::exit(qemu::EXIT_SUCCESS),
-        "break" => arch::int3(),
-        "cd" => {
-            if args.len() == 2 {
-                vfs::chdir(args[1])?;
-            }
-        }
-        "ls" => {
-            let file_names = vfs::cwd_file_names()?;
-            for n in file_names {
-                print!("{} ", n);
-            }
-            println!();
-        }
-        "hexdump" => {
-            if args.len() >= 2 {
-                let fd_num = vfs::open_file(args[1])?;
-                let file = vfs::read_file(&fd_num)?;
-                vfs::close_file(&fd_num)?;
-                hexdump::hexdump(&file);
-            }
-        }
-        "exec" => {
-            if args.len() >= 2 {
-                exec::exec_elf(args[1], &args[2..])?;
-            }
-        }
-        "window" => {
-            let window_title = format!("window {}", random::xorshift64_seed_is_apic_timer());
-            simple_window_manager::create_window(window_title, 200, 50, 300, 200)?;
-        }
-        "taskbar" => {
-            simple_window_manager::create_taskbar()?;
-        }
-        "uptime" => {
-            const MS_IN_A_DAY: usize = 24 * 60 * 60 * 1000;
-            const MS_IN_AN_HOUR: usize = 60 * 60 * 1000;
-            const MS_IN_A_MINUTE: usize = 60 * 1000;
-            const MS_IN_A_SECOND: usize = 1000;
-
-            let ms = arch::apic::timer::get_current_ms().unwrap_or(0);
-            let days = ms / MS_IN_A_DAY;
-            let hours = (ms % MS_IN_A_DAY) / MS_IN_AN_HOUR;
-            let minutes = (ms % MS_IN_AN_HOUR) / MS_IN_A_MINUTE;
-            let seconds = (ms % MS_IN_A_MINUTE) / MS_IN_A_SECOND;
-            let milliseconds = ms % MS_IN_A_SECOND;
-            println!("{} ms", ms);
-            println!(
-                "{} days {} hours {} minutes {} seconds {} milliseconds",
-                days, hours, minutes, seconds, milliseconds
-            );
-        }
-        "" => (),
-        cmd => error!("Command {:?} was not found", cmd),
+        console.is_ready_get_line = true;
     }
 
     Ok(())
 }
+
+pub fn is_ready_get_line() -> bool {
+    unsafe { CONSOLE.get_force_mut() }.is_ready_get_line
+}
+
+pub fn get_line() -> Result<Option<String>> {
+    let mut console = unsafe { CONSOLE.try_lock() }?;
+
+    if console.is_ready_get_line {
+        console.is_ready_get_line = false;
+        Ok(Some(console.get_line(BufferType::Input)))
+    } else {
+        Ok(None)
+    }
+}
+
+// pub fn print_prompt() {
+//     let cwd_path = vfs::cwd_path().unwrap_or("<UNKNOWN>".to_string());
+//     print!("\n[{}]$ ", cwd_path);
+// }
+
+// pub fn exec_cmd(cmd: String) -> Result<()> {
+//     let args: Vec<&str> = cmd.trim().split(" ").collect();
+
+//     match args[0] {
+//         "info" => env::print_info(),
+//         "lspci" => pci::lspci()?,
+//         "free" => mem::free(),
+//         "exit" => qemu::exit(qemu::EXIT_SUCCESS),
+//         "break" => arch::int3(),
+//         "cd" => {
+//             if args.len() == 2 {
+//                 vfs::chdir(args[1])?;
+//             }
+//         }
+//         "ls" => {
+//             let file_names = vfs::cwd_file_names()?;
+//             for n in file_names {
+//                 print!("{} ", n);
+//             }
+//             println!();
+//         }
+//         "hexdump" => {
+//             if args.len() >= 2 {
+//                 let fd_num = vfs::open_file(args[1])?;
+//                 let file = vfs::read_file(&fd_num)?;
+//                 vfs::close_file(&fd_num)?;
+//                 hexdump::hexdump(&file);
+//             }
+//         }
+//         "exec" => {
+//             if args.len() >= 2 {
+//                 exec::exec_elf(args[1], &args[2..])?;
+//             }
+//         }
+//         "window" => {
+//             let window_title = format!("window {}", random::xorshift64_seed_is_apic_timer());
+//             simple_window_manager::create_window(window_title, 200, 50, 300, 200)?;
+//         }
+//         "taskbar" => {
+//             simple_window_manager::create_taskbar()?;
+//         }
+//         "uptime" => {
+//             const MS_IN_A_DAY: usize = 24 * 60 * 60 * 1000;
+//             const MS_IN_AN_HOUR: usize = 60 * 60 * 1000;
+//             const MS_IN_A_MINUTE: usize = 60 * 1000;
+//             const MS_IN_A_SECOND: usize = 1000;
+
+//             let ms = arch::apic::timer::get_current_ms().unwrap_or(0);
+//             let days = ms / MS_IN_A_DAY;
+//             let hours = (ms % MS_IN_A_DAY) / MS_IN_AN_HOUR;
+//             let minutes = (ms % MS_IN_AN_HOUR) / MS_IN_A_MINUTE;
+//             let seconds = (ms % MS_IN_A_MINUTE) / MS_IN_A_SECOND;
+//             let milliseconds = ms % MS_IN_A_SECOND;
+//             println!("{} ms", ms);
+//             println!(
+//                 "{} days {} hours {} minutes {} seconds {} milliseconds",
+//                 days, hours, minutes, seconds, milliseconds
+//             );
+//         }
+//         "" => (),
+//         cmd => error!("Command {:?} was not found", cmd),
+//     }
+
+//     Ok(())
+// }

@@ -10,7 +10,6 @@ use crate::{
     idt, print, println,
     util::{ascii::AsciiCode, fifo::Fifo, mutex::Mutex},
 };
-use alloc::string::String;
 use log::info;
 
 pub mod key_event;
@@ -222,23 +221,23 @@ pub fn probe_and_attach() -> Result<()> {
     })
 }
 
-pub fn poll_normal() -> Result<Option<String>> {
+pub fn poll_normal() -> Result<()> {
     let key_event = arch::disabled_int(|| {
         let mut driver = unsafe { PS2_KBD_DRIVER.try_lock() }?;
         driver.poll_normal()
     })?;
     let key_event = match key_event {
         Some(e) => e,
-        None => return Ok(None),
+        None => return Ok(()),
     };
 
     if key_event.state == KeyState::Released {
-        return Ok(None);
+        return Ok(());
     }
 
     let ascii_code = match key_event.ascii {
         Some(c) => c,
-        None => return Ok(None),
+        None => return Ok(()),
     };
 
     match ascii_code {

@@ -1,10 +1,11 @@
-use super::{addr::VirtualAddress, task};
 use crate::{
     arch::{
         gdt::*,
         register::{model_specific::*, Register},
+        task,
     },
-    device, env,
+    device::console,
+    env,
     error::*,
     fs::vfs::{self, file_desc::FileDescriptorNumber},
     mem::{bitmap, paging::PAGE_SIZE},
@@ -14,6 +15,8 @@ use alloc::{ffi::CString, string::*};
 use common::libm::{Stat, Utsname};
 use core::{arch::asm, slice};
 use log::*;
+
+use super::addr::VirtualAddress;
 
 #[naked]
 extern "sysv64" fn asm_syscall_handler() {
@@ -167,21 +170,23 @@ fn sys_read(fd: FileDescriptorNumber, buf_addr: VirtualAddress, buf_len: usize) 
             return Err(Error::Failed("fd is not defined"));
         }
         FileDescriptorNumber::STDIN => {
-            // wait input enter
-            let input_s;
-            loop {
-                if let Ok(Some(s)) = device::ps2_keyboard::poll_normal() {
-                    input_s = s;
-                    break;
+            let mut input_s = None;
+            while input_s.is_none() {
+                if !console::is_ready_get_line() {
+                    super::hlt();
+                    continue;
                 }
 
-                if let Ok(Some(s)) = device::uart::poll_normal() {
-                    input_s = s;
-                    break;
-                }
+                super::disabled_int(|| {
+                    input_s = console::get_line()?;
+                    Result::Ok(())
+                })?;
+                break;
             }
 
-            let c_s = CString::new(input_s).unwrap().into_bytes_with_nul();
+            let c_s = CString::new(input_s.unwrap())
+                .unwrap()
+                .into_bytes_with_nul();
             buf_addr.copy_from_nonoverlapping(c_s.as_ptr(), buf_len);
         }
         fd => {

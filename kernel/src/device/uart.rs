@@ -5,7 +5,6 @@ use crate::{
     print, println,
     util::{ascii::AsciiCode, mutex::Mutex},
 };
-use alloc::string::String;
 use log::info;
 
 static mut UART_DRIVER: Mutex<UartDriver> = Mutex::new(UartDriver::new());
@@ -142,11 +141,11 @@ pub fn probe_and_attach() -> Result<()> {
     Ok(())
 }
 
-pub fn poll_normal() -> Result<Option<String>> {
+pub fn poll_normal() -> Result<()> {
     let mut driver = unsafe { UART_DRIVER.try_lock() }?;
     let received_data = match driver.poll_normal()? {
         Some(data) => data,
-        None => return Ok(None),
+        None => return Ok(()),
     };
     let ascii_code = received_data.try_into()?;
 

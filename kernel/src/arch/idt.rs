@@ -279,22 +279,19 @@ extern "x86-interrupt" fn double_fault_handler() {
 }
 
 extern "x86-interrupt" fn local_apic_timer_handler() {
-    arch::disabled_int(|| {
-        arch::apic::timer::tick();
-        let _ = multi_layer::draw_to_frame_buf();
-        let _ = frame_buf::apply_shadow_buf();
+    arch::apic::timer::tick();
 
-        match arch::apic::timer::get_current_ms() {
-            Some(ms) if ms % 10 == 0 => {
-                if let Err(err) = task::poll() {
-                    error!("task poll error: {:?}", err);
-                }
-            }
-            _ => (),
+    let _ = multi_layer::draw_to_frame_buf();
+    let _ = frame_buf::apply_shadow_buf();
+
+    let ms = arch::apic::timer::get_current_ms();
+    if let Some(ms) = ms {
+        if ms % 10 == 0 {
+            let _ = task::poll();
         }
+    }
 
-        notify_end_of_int();
-    })
+    notify_end_of_int();
 }
 
 pub fn init_pic() {
