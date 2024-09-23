@@ -1,5 +1,6 @@
 use super::vfs;
 use crate::{
+    addr::VirtualAddress,
     arch::task,
     error::{Error, Result},
     mem::{
@@ -33,7 +34,8 @@ pub fn exec_elf(elf_path: &str, args: &[&str]) -> Result<()> {
         return Err(Error::Failed("Unsupported ISA"));
     }
 
-    let mut allocated_mem_frames: Vec<MemoryFrameInfo> = Vec::new();
+    let mut allocated_mem_frame_and_start_virt_addrs: Vec<(MemoryFrameInfo, VirtualAddress)> =
+        Vec::new();
     let mut entry: Option<extern "sysv64" fn()> = None;
 
     for program_header in elf64.program_headers() {
@@ -67,9 +69,9 @@ pub fn exec_elf(elf_path: &str, args: &[&str]) -> Result<()> {
             user_mem_frame_info.frame_start_phys_addr,
             ReadWrite::Write,
             EntryMode::User,
-            PageWriteThroughLevel::WriteBack,
+            PageWriteThroughLevel::WriteThrough,
         )?;
-        allocated_mem_frames.push(user_mem_frame_info);
+        allocated_mem_frame_and_start_virt_addrs.push((user_mem_frame_info, start_virt_addr));
 
         if header.entry_point >= p_virt_addr && header.entry_point < p_virt_addr + p_memsz {
             entry = Some(unsafe { mem::transmute(header.entry_point as *const ()) });
@@ -83,15 +85,15 @@ pub fn exec_elf(elf_path: &str, args: &[&str]) -> Result<()> {
         return Err(Error::Failed("Entry point was not found"));
     }
 
-    for mem_frame in allocated_mem_frames {
+    for (mem_frame, start_virt_addr) in allocated_mem_frame_and_start_virt_addrs {
         // fix page mapping
         paging::update_mapping(
-            mem_frame.frame_start_phys_addr.get().into(),
-            (mem_frame.frame_start_phys_addr.get() + mem_frame.frame_size as u64).into(),
+            start_virt_addr,
+            start_virt_addr.offset(mem_frame.frame_size),
             mem_frame.frame_start_phys_addr,
             ReadWrite::Write,
             EntryMode::Supervisor,
-            PageWriteThroughLevel::WriteBack,
+            PageWriteThroughLevel::WriteThrough,
         )?;
         bitmap::dealloc_mem_frame(mem_frame)?;
     }

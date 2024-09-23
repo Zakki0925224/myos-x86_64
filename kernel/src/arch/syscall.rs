@@ -1,5 +1,7 @@
 use crate::{
     arch::{
+        addr::VirtualAddress,
+        apic,
         gdt::*,
         register::{model_specific::*, Register},
         task,
@@ -7,16 +9,17 @@ use crate::{
     device::console,
     env,
     error::*,
-    fs::vfs::{self, file_desc::FileDescriptorNumber},
+    fs::{
+        self,
+        vfs::{self, file_desc::FileDescriptorNumber},
+    },
     mem::{bitmap, paging::PAGE_SIZE},
     print, util,
 };
-use alloc::{ffi::CString, string::*};
+use alloc::{ffi::CString, string::*, vec::Vec};
 use common::libm::{Stat, Utsname};
 use core::{arch::asm, slice};
 use log::*;
-
-use super::{addr::VirtualAddress, apic};
 
 #[naked]
 extern "sysv64" fn asm_syscall_handler() {
@@ -160,6 +163,14 @@ extern "sysv64" fn syscall_handler(
             let uptime = sys_uptime();
             return uptime as i64;
         }
+        // exec syscall
+        10 => {
+            let args_ptr = arg1 as *const u8;
+            if let Err(err) = sys_exec(args_ptr) {
+                error!("syscall: exec: {:?}", err);
+                return -1;
+            }
+        }
         num => {
             error!("syscall: Syscall number 0x{:x} is not defined", num);
             return -1;
@@ -232,7 +243,7 @@ fn sys_close(fd: FileDescriptorNumber) -> Result<()> {
 }
 
 fn sys_exit(status: u64) {
-    task::return_to_kernel_task(status);
+    task::return_task(status);
 }
 
 fn sys_sbrk(len: usize) -> Result<VirtualAddress> {
@@ -287,6 +298,14 @@ fn sys_stat(fd: FileDescriptorNumber, buf_addr: VirtualAddress) -> Result<()> {
 
 fn sys_uptime() -> u64 {
     apic::timer::get_current_ms().unwrap_or(0) as u64
+}
+
+fn sys_exec(args_ptr: *const u8) -> Result<()> {
+    let args = unsafe { util::cstring::from_cstring_ptr(args_ptr) };
+    let args: Vec<&str> = args.split(' ').collect();
+    fs::exec::exec_elf(args[0], &args[1..])?;
+
+    Ok(())
 }
 
 pub fn enable() {

@@ -22,7 +22,7 @@ use log::info;
 static mut TASK_EXECUTOR: Mutex<Executor> = Mutex::new(Executor::new());
 
 static mut KERNEL_TASK: Mutex<Option<Task>> = Mutex::new(None);
-static mut USER_TASK: Mutex<Option<Task>> = Mutex::new(None);
+static mut USER_TASKS: Mutex<Vec<Task>> = Mutex::new(Vec::new());
 static mut USER_EXIT_STATUS: Option<u64> = None;
 
 #[derive(Default)]
@@ -219,12 +219,12 @@ pub fn exec_user_task(entry: extern "sysv64" fn(), file_name: &str, args: &[&str
         c_args.extend(CString::new(*arg).unwrap().into_bytes_with_nul());
     }
 
+    let mut c_args_offset = (args.len() + 2) * 8;
     let args_mem_frame_info =
-        bitmap::alloc_mem_frame(((c_args.len() + (args.len() + 2) * 8) / PAGE_SIZE).max(1))?;
+        bitmap::alloc_mem_frame(((c_args.len() + c_args_offset) / PAGE_SIZE).max(1))?;
     bitmap::mem_clear(&args_mem_frame_info)?;
     args_mem_frame_info.set_permissions_to_user()?;
     let args_mem_virt_addr = args_mem_frame_info.frame_start_virt_addr()?;
-    let mut c_args_offset = (args.len() + 2) * 8;
 
     args_mem_virt_addr
         .offset(c_args_offset)
@@ -248,24 +248,28 @@ pub fn exec_user_task(entry: extern "sysv64" fn(), file_name: &str, args: &[&str
         ContextMode::User,
     )?;
 
-    let mut kernel_task = unsafe { KERNEL_TASK.try_lock() }?;
-    let mut user_task = unsafe { USER_TASK.try_lock() }?;
+    let kernel_task = unsafe { KERNEL_TASK.get_force_mut() };
+    let user_tasks = unsafe { USER_TASKS.get_force_mut() };
 
     if kernel_task.is_none() {
         // stack is unused, because already allocated static area for kernel stack
         *kernel_task = Some(Task::new(0, None, 0, 0, ContextMode::Kernel)?);
     }
 
-    *user_task = Some(task);
-    kernel_task
-        .as_ref()
-        .unwrap()
-        .switch_to(user_task.as_ref().unwrap());
+    user_tasks.push(task);
+
+    let current_task = if user_tasks.len() == 1 {
+        kernel_task.as_ref().unwrap()
+    } else {
+        user_tasks.get(user_tasks.len() - 2).unwrap()
+    };
+
+    current_task.switch_to(user_tasks.last().unwrap());
 
     // returned
+    let _ = user_tasks.pop();
     args_mem_frame_info.set_permissions_to_supervisor()?;
     bitmap::dealloc_mem_frame(args_mem_frame_info)?;
-    *user_task = None;
 
     // get exit status
     let exit_status = unsafe {
@@ -281,34 +285,32 @@ pub fn exec_user_task(entry: extern "sysv64" fn(), file_name: &str, args: &[&str
 }
 
 pub fn push_allocated_mem_frame_info_for_user_task(mem_frame_info: MemoryFrameInfo) -> Result<()> {
-    let user_task = unsafe { USER_TASK.get_force_mut() };
-    user_task
-        .as_mut()
-        .unwrap()
-        .allocated_mem_frame_info
-        .push(mem_frame_info);
+    let user_task = unsafe { USER_TASKS.get_force_mut() }
+        .iter_mut()
+        .last()
+        .unwrap();
+    user_task.allocated_mem_frame_info.push(mem_frame_info);
 
     Ok(())
 }
 
-pub fn return_to_kernel_task(exit_status: u64) {
+pub fn return_task(exit_status: u64) {
     unsafe {
         USER_EXIT_STATUS = Some(exit_status);
     }
 
-    let kernel_task = unsafe { KERNEL_TASK.get_force_mut() };
-    let user_task = unsafe { USER_TASK.get_force_mut() };
-    user_task
-        .as_ref()
-        .unwrap()
-        .switch_to(kernel_task.as_ref().unwrap());
+    let current_task = unsafe { USER_TASKS.get_force_mut() }.pop().unwrap();
+    let before_task = unsafe { USER_TASKS.get_force_mut() }
+        .last()
+        .unwrap_or(unsafe { KERNEL_TASK.get_force_mut() }.as_ref().unwrap());
+    current_task.switch_to(before_task);
 
     unreachable!();
 }
 
 pub fn debug_user_task() {
     println!("===USER TASK INFO===");
-    let user_task = unsafe { USER_TASK.get_force_mut() };
+    let user_task = unsafe { USER_TASKS.get_force_mut() }.last();
     if let Some(t) = user_task {
         let ctx = &t.context;
         println!("task id: {}", t.id.get());

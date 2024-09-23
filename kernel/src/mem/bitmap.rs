@@ -21,7 +21,7 @@ impl MemoryFrameInfo {
         self.set_permissions(
             ReadWrite::Write,
             EntryMode::Supervisor,
-            PageWriteThroughLevel::WriteBack,
+            PageWriteThroughLevel::WriteThrough,
         )
     }
 
@@ -29,7 +29,7 @@ impl MemoryFrameInfo {
         self.set_permissions(
             ReadWrite::Write,
             EntryMode::User,
-            PageWriteThroughLevel::WriteBack,
+            PageWriteThroughLevel::WriteThrough,
         )
     }
 

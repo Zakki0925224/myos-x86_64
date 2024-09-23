@@ -355,6 +355,11 @@ impl PageManager {
                 mode,
                 write_through_level,
             )?;
+
+            let entry = self.page_table_entry((i as u64).into())?;
+            assert_eq!(entry.rw(), rw);
+            assert_eq!(entry.us(), mode);
+            assert_eq!(entry.pwt(), write_through_level);
         }
 
         Ok(())
@@ -490,10 +495,6 @@ impl PageManager {
         let pml1_table = entry.page_table().unwrap();
         let entry = &mut pml1_table.entries[pml1e_index];
         entry.set_entry(phys_addr.get(), rw, mode, write_through_level);
-        assert_eq!(entry.addr(), phys_addr.get());
-        assert_eq!(entry.rw(), rw);
-        assert_eq!(entry.us(), mode);
-        assert_eq!(entry.pwt(), write_through_level);
 
         Ok(())
     }
@@ -575,12 +576,13 @@ fn test_map_identity() {
 fn test_page_table_entry() {
     let virt_addr = VirtualAddress::new(0x3000000);
     let phys_addr = PhysicalAddress::new(0x4000000);
+    let size = PAGE_SIZE * 10;
 
     assert!(update_mapping(
         virt_addr,
-        virt_addr.offset(PAGE_SIZE),
+        virt_addr.offset(size),
         phys_addr,
-        ReadWrite::Write,
+        ReadWrite::Read,
         EntryMode::User,
         PageWriteThroughLevel::WriteThrough
     )
@@ -589,8 +591,26 @@ fn test_page_table_entry() {
     let entry = read_page_table_entry(virt_addr).unwrap();
 
     assert!(entry.p());
-    assert_eq!(entry.rw(), ReadWrite::Write);
+    assert_eq!(entry.rw(), ReadWrite::Read);
     assert_eq!(entry.us(), EntryMode::User);
     assert_eq!(entry.pwt(), PageWriteThroughLevel::WriteThrough);
     assert_eq!(entry.addr(), phys_addr.get());
+
+    assert!(update_mapping(
+        virt_addr,
+        virt_addr.offset(size),
+        virt_addr.get().into(),
+        ReadWrite::Write,
+        EntryMode::Supervisor,
+        PageWriteThroughLevel::WriteThrough
+    )
+    .is_ok());
+
+    let entry = read_page_table_entry(virt_addr).unwrap();
+
+    assert!(entry.p());
+    assert_eq!(entry.rw(), ReadWrite::Write);
+    assert_eq!(entry.us(), EntryMode::Supervisor);
+    assert_eq!(entry.pwt(), PageWriteThroughLevel::WriteThrough);
+    assert_eq!(entry.addr(), virt_addr.get());
 }

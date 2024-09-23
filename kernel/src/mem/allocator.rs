@@ -95,6 +95,8 @@ fn alloc_error_handler(layout: Layout) -> ! {
 
 #[test_case]
 fn test_alloc_string() {
+    use alloc::string::String;
+
     let s1 = String::from("Hello, World!");
     assert_eq!(s1, "Hello, World!");
     let s2 = String::from("hoge huga hogera piyo 012345!\"#$%&");
@@ -103,6 +105,8 @@ fn test_alloc_string() {
 
 #[test_case]
 fn test_alloc_long_string() {
+    use alloc::string::String;
+
     let len = 100000;
     let mut s = String::new();
     for _ in 0..len {
@@ -117,6 +121,8 @@ fn test_alloc_long_string() {
 
 #[test_case]
 fn test_alloc_vec() {
+    use alloc::vec::Vec;
+
     let mut v = Vec::new();
 
     for i in 0..1000 {

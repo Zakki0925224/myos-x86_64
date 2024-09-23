@@ -117,7 +117,7 @@ pub enum ContextMode {
     User,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 #[repr(C, align(16))]
 // 16 byte alignment for fxsave64 and fxstor64 instructions
 pub struct Context {

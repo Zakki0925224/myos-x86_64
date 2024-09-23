@@ -44,7 +44,16 @@ impl<T: Sized + Copy, const SIZE: usize> Lifo<T, SIZE> {
             return Err(LifoError::BufferIsFull.into());
         }
 
-        if self.top.compare_exchange(current_top, current_top + 1, Ordering::SeqCst, Ordering::SeqCst).is_err() {
+        if self
+            .top
+            .compare_exchange(
+                current_top,
+                current_top + 1,
+                Ordering::SeqCst,
+                Ordering::SeqCst,
+            )
+            .is_err()
+        {
             return Err(LifoError::BufferIsLocked.into());
         }
 
@@ -58,7 +67,16 @@ impl<T: Sized + Copy, const SIZE: usize> Lifo<T, SIZE> {
             return Err(LifoError::BufferIsEmpty.into());
         }
 
-        if self.top.compare_exchange(current_top, current_top - 1, Ordering::SeqCst, Ordering::SeqCst).is_err() {
+        if self
+            .top
+            .compare_exchange(
+                current_top,
+                current_top - 1,
+                Ordering::SeqCst,
+                Ordering::SeqCst,
+            )
+            .is_err()
+        {
             return Err(LifoError::BufferIsLocked.into());
         }
 

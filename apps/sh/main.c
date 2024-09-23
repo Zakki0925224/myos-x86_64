@@ -59,6 +59,20 @@ void exec_cmd(const char *cmd)
         printf("%d ms\n", uptime_ms);
         printf("%d days %d hours %d minutes %d seconds %d milliseconds\n", days, hours, minutes, seconds, milliseconds);
     }
+    else if (strcmp(splitted_buf[0], "exec") == 0)
+    {
+        if (cmdargs_len < 2)
+        {
+            printf("sh: exec: missing argument\n");
+            return;
+        }
+
+        if (sys_exec(splitted_buf[1]) == -1)
+        {
+            printf("sh: exec: failed to execute\n");
+            return;
+        }
+    }
     else if (strcmp(splitted_buf[0], "test") == 0)
     {
         for (int i = 1; i < cmdargs_len; i++)
