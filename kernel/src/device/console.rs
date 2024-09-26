@@ -2,15 +2,15 @@ use crate::{
     error::{Error, Result},
     graphics::{color::*, frame_buf_console},
     uart,
-    util::{ascii::AsciiCode, lifo::Lifo, mutex::Mutex},
+    util::{ascii::AsciiCode, lifo::Lifo, mutex::Mutex, theme::GLOBAL_THEME},
 };
 use alloc::{boxed::Box, string::String};
 use core::fmt::{self, Write};
 
 const IO_BUF_LEN: usize = 512;
 const IO_BUF_DEFAULT_VALUE: ConsoleCharacter = ConsoleCharacter {
-    back_color: COLOR_BLACK,
-    fore_color: COLOR_WHITE,
+    back_color: GLOBAL_THEME.io_buf_default_back_color,
+    fore_color: GLOBAL_THEME.io_buf_default_fore_color,
     ascii_code: AsciiCode::Null,
 };
 

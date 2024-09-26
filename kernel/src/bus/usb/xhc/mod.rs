@@ -260,7 +260,7 @@ impl XhcDriver {
                 ope_reg.device_context_base_addr_array_ptr =
                     self.device_context_arr_virt_addr.get_phys_addr()?.get();
                 self.write_ope_reg(ope_reg);
-                info!("xhc: Initialized device context");
+                info!("xhc: Device context initialized");
 
                 // register command ring
                 let pcs = true;
@@ -278,7 +278,7 @@ impl XhcDriver {
                 ope_reg.cmd_ring_ctrl = crcr;
                 self.write_ope_reg(ope_reg);
 
-                info!("xhc: Initialized command ring");
+                info!("xhc: Command ring initialized");
 
                 // register event ring (primary)
                 let primary_event_ring_seg_table_virt_addr =
@@ -310,7 +310,7 @@ impl XhcDriver {
                 );
                 self.write_intr_reg_sets(0, intr_reg_sets_0).unwrap();
 
-                info!("xhc: Initialized event ring");
+                info!("xhc: Event ring initialized");
 
                 // setting up msi
                 let vec_num = idt::set_handler_dyn_vec(
@@ -327,7 +327,7 @@ impl XhcDriver {
                 );
 
                 match d.set_msi_cap(msg_addr, msg_data) {
-                    Ok(_) => info!("xhc: Initialized MSI interrupt"),
+                    Ok(_) => info!("xhc: MSI interrupt initialized"),
                     Err(err) => warn!("xhc: {:?}", err),
                 }
 
@@ -343,7 +343,7 @@ impl XhcDriver {
                 self.write_ope_reg(ope_reg);
 
                 self.is_init = true;
-                info!("xhc: Initialized xHC driver");
+                info!("xhc: xHC driver initialized");
 
                 Ok(())
             },

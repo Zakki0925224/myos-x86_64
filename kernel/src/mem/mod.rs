@@ -13,7 +13,7 @@ pub fn init(mem_map: &[MemoryDescriptor]) {
     if let Err(err) = bitmap::init(mem_map) {
         panic!("mem: {:?}", err);
     }
-    info!("mem: Initialized bitmap memory manager");
+    info!("mem: Bitmap memory manager initialized");
 
     let (_, max) = bitmap::get_mem_size().unwrap();
     let start = PAGE_SIZE as u64;
@@ -33,7 +33,7 @@ pub fn init(mem_map: &[MemoryDescriptor]) {
     if let Err(err) = allocator::init_heap() {
         panic!("mem: {:?}", err);
     }
-    info!("mem: Initialized heap allocator");
+    info!("mem: Heap allocator initialized");
 }
 
 pub fn free() {

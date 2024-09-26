@@ -15,7 +15,7 @@ pub fn init(initramfs_virt_addr: VirtualAddress, kernel_config: &KernelConfig) {
     if let Err(err) = vfs::init() {
         error!("fs: Failed to initialized VFS: {:?}", err);
     }
-    info!("fs: Initialized VFS");
+    info!("fs: VFS initialized");
 
     let fat_volume = FatVolume::new(initramfs_virt_addr);
     let mut initramfs = Initramfs::new(2);
@@ -23,7 +23,7 @@ pub fn init(initramfs_virt_addr: VirtualAddress, kernel_config: &KernelConfig) {
     if let Err(err) = initramfs.init(fat_volume) {
         error!("fs: Failed to initialized initramfs: {:?}", err);
     }
-    info!("fs: Initialized initramfs");
+    info!("fs: Initramfs initialized");
 
     if let Err(err) = vfs::mount("/mnt/initramfs", FileSystem::Initramfs(initramfs)) {
         error!("fs: Failed to mount initramfs to VFS: {:?}", err);

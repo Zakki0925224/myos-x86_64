@@ -1,10 +1,12 @@
 use super::{
-    color::*,
     frame_buf,
     multi_layer::{self, LayerPositionInfo},
 };
 use crate::{
-    device::ps2_mouse::MouseEvent, error::Result, fs::file::bitmap::BitmapImage, util::mutex::Mutex,
+    device::ps2_mouse::MouseEvent,
+    error::Result,
+    fs::file::bitmap::BitmapImage,
+    util::{mutex::Mutex, theme::GLOBAL_THEME},
 };
 use alloc::{string::String, vec::Vec};
 use components::*;
@@ -153,7 +155,7 @@ impl SimpleWindowManager {
                 .collect::<Vec<&str>>()
         );
         multi_layer::draw_layer(&taskbar.layer_id, |l| {
-            l.draw_string(0, 0, &s, SS_COLOR_1)?;
+            l.draw_string(0, 0, &s, GLOBAL_THEME.wm_taskbar_color)?;
             Ok(())
         })?;
 

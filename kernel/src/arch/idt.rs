@@ -319,7 +319,7 @@ pub fn init_pic() {
     MASTER_PIC_ADDR.offset(1).out8(0xf9);
     SLAVE_PIC_ADDR.offset(1).out8(0xef);
 
-    info!("idt: Initialized PIC");
+    info!("idt: PIC initialized");
 }
 
 pub fn init_idt() {
@@ -368,7 +368,7 @@ pub fn init_idt() {
     .unwrap();
     idt.load();
 
-    info!("idt: Initialized IDT");
+    info!("idt: Initialized");
 }
 
 pub fn set_handler_dyn_vec(handler: InterruptHandler, gate_type: GateType) -> Result<u8> {

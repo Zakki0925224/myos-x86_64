@@ -2,6 +2,7 @@ use super::addr::{IoPortAddress, VirtualAddress};
 use crate::error::Result;
 use alloc::vec::Vec;
 use core::{mem::size_of, ptr::read_unaligned, slice};
+use log::info;
 
 static mut ACPI: Acpi = Acpi::new();
 
@@ -207,6 +208,7 @@ impl Acpi {
 
 pub fn init(rsdp_virt_addr: VirtualAddress) -> Result<()> {
     unsafe { ACPI.init(rsdp_virt_addr) }?;
+    info!("acpi: Initialized");
 
     Ok(())
 }

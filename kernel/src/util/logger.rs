@@ -1,15 +1,5 @@
-use crate::{
-    arch,
-    graphics::{color::*, frame_buf_console},
-    print,
-};
+use crate::{arch, graphics::frame_buf_console, print, util::theme::GLOBAL_THEME};
 use log::{Level, LevelFilter, Record};
-
-const LOG_COLOR_ERROR: RgbColorCode = AU_COLOR_1;
-const LOG_COLOR_WARN: RgbColorCode = AU_COLOR_2;
-const LOG_COLOR_INFO: RgbColorCode = AU_COLOR_4;
-const LOG_COLOR_DEBUG: RgbColorCode = AU_COLOR_3;
-const LOG_COLOR_TRACE: RgbColorCode = FR_COLOR_2;
 
 static LOGGER: SimpleLogger = SimpleLogger;
 
@@ -32,11 +22,11 @@ impl log::Log for SimpleLogger {
         }
 
         let fore_color = match record.level() {
-            Level::Error => LOG_COLOR_ERROR,
-            Level::Warn => LOG_COLOR_WARN,
-            Level::Info => LOG_COLOR_INFO,
-            Level::Debug => LOG_COLOR_DEBUG,
-            Level::Trace => LOG_COLOR_TRACE,
+            Level::Error => GLOBAL_THEME.log_color_error,
+            Level::Warn => GLOBAL_THEME.log_color_warn,
+            Level::Info => GLOBAL_THEME.log_color_info,
+            Level::Debug => GLOBAL_THEME.log_color_debug,
+            Level::Trace => GLOBAL_THEME.log_color_trace,
         };
 
         let _ = frame_buf_console::set_fore_color(fore_color);

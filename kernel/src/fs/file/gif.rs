@@ -1,4 +1,4 @@
-use crate::{error::Result, graphics::color::RgbColorCode, println};
+use crate::{error::Result, graphics::color::RgbColorCode};
 use alloc::vec::Vec;
 use core::mem::size_of;
 

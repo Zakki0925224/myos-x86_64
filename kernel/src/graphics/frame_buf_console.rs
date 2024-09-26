@@ -3,7 +3,11 @@ use super::{
     frame_buf,
     multi_layer::{self, LayerId, LayerPositionInfo},
 };
-use crate::{error::Result, graphics::color::*, util::mutex::Mutex};
+use crate::{
+    error::Result,
+    util::{mutex::Mutex, theme::GLOBAL_THEME},
+    RgbColorCode,
+};
 use core::fmt::{self, Write};
 
 static mut FRAME_BUF_CONSOLE: Mutex<Option<FrameBufferConsole>> = Mutex::new(None);
@@ -66,22 +70,9 @@ impl FrameBufferConsole {
 
         self.fill(self.back_color)?;
 
-        self.draw_rect(0, 0, 20, 20, PN_COLOR_1)?;
-        self.draw_rect(20, 0, 20, 20, PN_COLOR_2)?;
-        self.draw_rect(40, 0, 20, 20, PN_COLOR_3)?;
-        self.draw_rect(60, 0, 20, 20, PN_COLOR_4)?;
-        self.draw_rect(80, 0, 20, 20, SS_COLOR_1)?;
-        self.draw_rect(100, 0, 20, 20, SS_COLOR_2)?;
-        self.draw_rect(120, 0, 20, 20, SS_COLOR_3)?;
-        self.draw_rect(140, 0, 20, 20, FR_COLOR_1)?;
-        self.draw_rect(160, 0, 20, 20, FR_COLOR_2)?;
-        self.draw_rect(180, 0, 20, 20, FR_COLOR_3)?;
-        self.draw_rect(200, 0, 20, 20, FR_COLOR_4)?;
-        self.draw_rect(220, 0, 20, 20, AU_COLOR_1)?;
-        self.draw_rect(240, 0, 20, 20, AU_COLOR_2)?;
-        self.draw_rect(260, 0, 20, 20, AU_COLOR_3)?;
-        self.draw_rect(280, 0, 20, 20, AU_COLOR_4)?;
-        self.draw_rect(300, 0, 20, 20, AU_COLOR_5)?;
+        for (i, color_code) in GLOBAL_THEME.sample_rect_colors.iter().enumerate() {
+            self.draw_rect(i * 20, 0, 20, 20, *color_code)?;
+        }
 
         Ok(())
     }

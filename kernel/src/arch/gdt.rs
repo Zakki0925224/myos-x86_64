@@ -173,5 +173,6 @@ pub fn init() {
     assert_eq!(Ss::read().raw(), KERNEL_MODE_SS_VALUE);
     assert_eq!(Cs::read().raw(), KERNEL_MODE_CS_VALUE);
 
-    info!("gdt: Initialized GDT and TSS");
+    info!("gdt: Initialized");
+    info!("gdt: TSS initialized");
 }

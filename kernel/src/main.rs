@@ -18,7 +18,6 @@ mod error;
 mod fs;
 mod graphics;
 mod mem;
-mod net;
 mod panic;
 mod test;
 mod util;
@@ -33,7 +32,7 @@ use device::uart;
 use fs::{file::bitmap::BitmapImage, vfs};
 use graphics::{color::*, simple_window_manager};
 use log::error;
-use util::logger;
+use util::{logger, theme::GLOBAL_THEME};
 
 #[no_mangle]
 #[start]
@@ -67,11 +66,15 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
     apic::timer::start();
 
     // initialize frame buffer, console
-    graphics::init(&boot_info.graphic_info, PN_COLOR_1, SS_COLOR_1);
+    graphics::init(
+        &boot_info.graphic_info,
+        GLOBAL_THEME.back_color,
+        GLOBAL_THEME.fore_color,
+    );
 
     // initialize graphics shadow buffer and layer manager
     graphics::enable_shadow_buf();
-    graphics::init_layer_man(&boot_info.graphic_info, RgbColorCode::default());
+    graphics::init_layer_man(&boot_info.graphic_info, GLOBAL_THEME.transparent_color);
     // initialize simple window manager
     graphics::init_simple_wm();
 
@@ -125,18 +128,22 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
 
     // execute init app
     let init_app_exec_args = boot_info.kernel_config.init_app_exec_args;
-    loop {
-        if let Some(args) = init_app_exec_args {
-            let splited: Vec<&str> = args.split(" ").collect();
+    if let Some(args) = init_app_exec_args {
+        let splited: Vec<&str> = args.split(" ").collect();
 
+        loop {
             if splited.len() == 0 || splited[0] == "" {
                 error!("Invalid init app exec args: {:?}", args);
+                break;
             } else if let Err(err) = fs::exec::exec_elf(splited[0], &splited[1..]) {
                 error!("{:?}", err);
+                break;
             }
-        } else {
-            arch::hlt();
         }
+    }
+
+    loop {
+        arch::hlt();
     }
 }
 

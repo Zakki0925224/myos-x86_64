@@ -1,8 +1,8 @@
-use super::*;
 use crate::{
     error::{Error, Result},
     fs::file::bitmap::BitmapImage,
-    graphics::multi_layer::{self, LayerId},
+    graphics::multi_layer::{self, LayerId, LayerPositionInfo},
+    util::theme::GLOBAL_THEME,
 };
 use alloc::string::String;
 
@@ -81,14 +81,31 @@ impl Window {
             height,
         } = multi_layer::get_layer_pos_info(&self.layer_id)?;
         multi_layer::draw_layer(&self.layer_id, |l| {
-            l.fill(PN_COLOR_1)?;
-            l.draw_rect(0, 0, width, 1, PN_COLOR_4)?;
-            l.draw_rect(0, height - 1, width, 1, PN_COLOR_4)?;
-            l.draw_rect(0, 0, 1, height - 1, PN_COLOR_4)?;
-            l.draw_rect(width - 1, 0, 1, height, PN_COLOR_4)?;
-            l.draw_rect(1, 1, width - 2, 20, PN_COLOR_2)?; // titlebar
-            l.draw_rect(cb_x, cb_y, cb_w, cb_h, AU_COLOR_1)?; // close button
-            l.draw_string(5, 5, &self.title, SS_COLOR_1)?;
+            l.fill(GLOBAL_THEME.wm_window_back_color)?;
+            l.draw_rect(0, 0, width, 1, GLOBAL_THEME.wm_window_border_color)?;
+            l.draw_rect(0, height - 1, width, 1, GLOBAL_THEME.wm_window_border_color)?;
+            l.draw_rect(0, 0, 1, height - 1, GLOBAL_THEME.wm_window_border_color)?;
+            l.draw_rect(width - 1, 0, 1, height, GLOBAL_THEME.wm_window_border_color)?;
+            l.draw_rect(
+                1,
+                1,
+                width - 2,
+                20,
+                GLOBAL_THEME.wm_window_titlebar_back_color,
+            )?; // titlebar
+            l.draw_rect(
+                cb_x,
+                cb_y,
+                cb_w,
+                cb_h,
+                GLOBAL_THEME.wm_window_close_button_back_color,
+            )?; // close button
+            l.draw_string(
+                5,
+                5,
+                &self.title,
+                GLOBAL_THEME.wm_window_titlebar_fore_color,
+            )?;
             Ok(())
         })?;
         Ok(())
@@ -121,11 +138,11 @@ impl Panel {
             height,
         } = multi_layer::get_layer_pos_info(&self.layer_id)?;
         multi_layer::draw_layer(&self.layer_id, |l| {
-            l.fill(PN_COLOR_2)?;
-            l.draw_rect(0, 0, width, 1, PN_COLOR_3)?;
-            l.draw_rect(0, height - 1, width, 1, PN_COLOR_3)?;
-            l.draw_rect(0, 0, 1, height, PN_COLOR_3)?;
-            l.draw_rect(width - 1, 0, 1, height, PN_COLOR_3)?;
+            l.fill(GLOBAL_THEME.wm_panel_back_color)?;
+            l.draw_rect(0, 0, width, 1, GLOBAL_THEME.wm_panel_border_color)?;
+            l.draw_rect(0, height - 1, width, 1, GLOBAL_THEME.wm_panel_border_color)?;
+            l.draw_rect(0, 0, 1, height, GLOBAL_THEME.wm_panel_border_color)?;
+            l.draw_rect(width - 1, 0, 1, height, GLOBAL_THEME.wm_panel_border_color)?;
             Ok(())
         })?;
         Ok(())
