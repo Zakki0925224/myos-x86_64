@@ -7,7 +7,7 @@ use crate::{
     error::Result,
     mem::bitmap,
 };
-use alloc::string::String;
+use alloc::{string::String, vec::Vec};
 use log::info;
 
 const PAGE_TABLE_ENTRY_LEN: usize = 512;
@@ -156,6 +156,16 @@ impl PageTableEntry {
 #[repr(C, align(4096))]
 pub struct PageTable {
     pub entries: [PageTableEntry; PAGE_TABLE_ENTRY_LEN],
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct MappingInfo {
+    pub start: VirtualAddress,
+    pub end: VirtualAddress,
+    pub phys_addr: PhysicalAddress,
+    pub rw: ReadWrite,
+    pub us: EntryMode,
+    pub pwt: PageWriteThroughLevel,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -336,15 +346,20 @@ impl PageManager {
 
     pub unsafe fn update_mapping(
         &self,
-        start: VirtualAddress,
-        end: VirtualAddress,
-        phys_addr: PhysicalAddress,
-        rw: ReadWrite,
-        mode: EntryMode,
-        write_through_level: PageWriteThroughLevel,
-    ) -> Result<()> {
+        new_mapping_info: &MappingInfo,
+    ) -> Result<Vec<MappingInfo>> {
+        let mut old_mapping_info = Vec::new();
         let pml4_virt_addr = VirtualAddress::new(self.cr3().raw());
         let pml4_page_table = &mut *pml4_virt_addr.as_ptr_mut::<PageTable>();
+
+        let MappingInfo {
+            start,
+            end,
+            phys_addr,
+            rw,
+            pwt,
+            us,
+        } = *new_mapping_info;
 
         for i in (start.get() as usize..end.get() as usize).step_by(PAGE_SIZE) {
             self.set_map(
@@ -352,14 +367,14 @@ impl PageManager {
                 phys_addr.offset(i - start.get() as usize),
                 pml4_page_table,
                 rw,
-                mode,
-                write_through_level,
+                us,
+                pwt,
             )?;
 
             let entry = self.page_table_entry((i as u64).into())?;
             assert_eq!(entry.rw(), rw);
-            assert_eq!(entry.us(), mode);
-            assert_eq!(entry.pwt(), write_through_level);
+            assert_eq!(entry.us(), us);
+            assert_eq!(entry.pwt(), pwt);
         }
 
         Ok(())
@@ -541,15 +556,8 @@ pub fn create_new_page_table(
     Ok(())
 }
 
-pub fn update_mapping(
-    start: VirtualAddress,
-    end: VirtualAddress,
-    phys_addr: PhysicalAddress,
-    rw: ReadWrite,
-    mode: EntryMode,
-    write_through_level: PageWriteThroughLevel,
-) -> Result<()> {
-    unsafe { PAGE_MAN.update_mapping(start, end, phys_addr, rw, mode, write_through_level)? }
+pub fn update_mapping(mapping_info: &MappingInfo) -> Result<()> {
+    unsafe { PAGE_MAN.update_mapping(mapping_info)? }
     // info!(
     //     "paging: Updated mapping (virt 0x{:x}-0x{:x} -> phys 0x{:x}-0x{:x})",
     //     start.get(),
@@ -578,14 +586,14 @@ fn test_page_table_entry() {
     let phys_addr = PhysicalAddress::new(0x4000000);
     let size = PAGE_SIZE * 10;
 
-    assert!(update_mapping(
-        virt_addr,
-        virt_addr.offset(size),
+    assert!(update_mapping(&MappingInfo {
+        start: virt_addr,
+        end: virt_addr.offset(size),
         phys_addr,
-        ReadWrite::Read,
-        EntryMode::User,
-        PageWriteThroughLevel::WriteThrough
-    )
+        rw: ReadWrite::Read,
+        us: EntryMode::User,
+        pwt: PageWriteThroughLevel::WriteThrough,
+    })
     .is_ok());
 
     let entry = read_page_table_entry(virt_addr).unwrap();
@@ -596,14 +604,14 @@ fn test_page_table_entry() {
     assert_eq!(entry.pwt(), PageWriteThroughLevel::WriteThrough);
     assert_eq!(entry.addr(), phys_addr.get());
 
-    assert!(update_mapping(
-        virt_addr,
-        virt_addr.offset(size),
-        virt_addr.get().into(),
-        ReadWrite::Write,
-        EntryMode::Supervisor,
-        PageWriteThroughLevel::WriteThrough
-    )
+    assert!(update_mapping(&MappingInfo {
+        start: virt_addr,
+        end: virt_addr.offset(size),
+        phys_addr: virt_addr.get().into(),
+        rw: ReadWrite::Write,
+        us: EntryMode::Supervisor,
+        pwt: PageWriteThroughLevel::WriteThrough,
+    })
     .is_ok());
 
     let entry = read_page_table_entry(virt_addr).unwrap();

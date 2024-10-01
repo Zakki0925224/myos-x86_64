@@ -1,7 +1,7 @@
 use crate::{
     arch::{addr::*, register::msi::*},
     error::{Error, Result},
-    mem::paging::{self, EntryMode, PageWriteThroughLevel, ReadWrite, PAGE_SIZE},
+    mem::paging::{self, EntryMode, MappingInfo, PageWriteThroughLevel, ReadWrite, PAGE_SIZE},
 };
 use alloc::vec::Vec;
 use core::mem::transmute;
@@ -266,14 +266,14 @@ impl ConfigurationSpaceNonBridgeField {
 
                         let start = full_phys_addr.get().into();
                         // TODO: implement get bar size
-                        paging::update_mapping(
+                        paging::update_mapping(&MappingInfo {
                             start,
-                            (start.get() + (PAGE_SIZE * 3) as u64).into(),
-                            full_phys_addr,
-                            ReadWrite::Write,
-                            EntryMode::Supervisor,
-                            PageWriteThroughLevel::WriteThrough,
-                        )?;
+                            end: (start.get() + (PAGE_SIZE * 3) as u64).into(),
+                            phys_addr: full_phys_addr,
+                            rw: ReadWrite::Write,
+                            us: EntryMode::Supervisor,
+                            pwt: PageWriteThroughLevel::WriteThrough,
+                        })?;
 
                         let base_addr =
                             BaseAddress::MemoryAddress64BitSpace(full_phys_addr, is_pref);
@@ -286,14 +286,14 @@ impl ConfigurationSpaceNonBridgeField {
 
                         let start = phys_addr.get().into();
                         // TODO: implement get bar size
-                        paging::update_mapping(
+                        paging::update_mapping(&MappingInfo {
                             start,
-                            (start.get() + (PAGE_SIZE * 3) as u64).into(),
+                            end: (start.get() + (PAGE_SIZE * 3) as u64).into(),
                             phys_addr,
-                            ReadWrite::Write,
-                            EntryMode::Supervisor,
-                            PageWriteThroughLevel::WriteThrough,
-                        )?;
+                            rw: ReadWrite::Write,
+                            us: EntryMode::Supervisor,
+                            pwt: PageWriteThroughLevel::WriteThrough,
+                        })?;
                         result.push((i, base_addr));
                     }
                     _ => result.push((i, base_addr)),

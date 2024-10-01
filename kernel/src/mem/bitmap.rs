@@ -1,4 +1,4 @@
-use super::paging::{self, EntryMode, PageWriteThroughLevel, ReadWrite, PAGE_SIZE};
+use super::paging::{self, EntryMode, MappingInfo, PageWriteThroughLevel, ReadWrite, PAGE_SIZE};
 use crate::{
     arch::addr::*,
     error::{Error, Result},
@@ -40,22 +40,22 @@ impl MemoryFrameInfo {
     pub fn set_permissions(
         &self,
         rw: ReadWrite,
-        mode: EntryMode,
-        write_through_level: PageWriteThroughLevel,
+        us: EntryMode,
+        pwt: PageWriteThroughLevel,
     ) -> Result<()> {
         let page_len = self.frame_size / PAGE_SIZE;
-        let mut start_virt_addr = self.frame_start_virt_addr()?;
+        let mut start = self.frame_start_virt_addr()?;
 
         for _ in 0..page_len {
-            paging::update_mapping(
-                start_virt_addr,
-                start_virt_addr.offset(PAGE_SIZE),
-                start_virt_addr.get_phys_addr()?,
+            paging::update_mapping(&MappingInfo {
+                start,
+                end: start.offset(PAGE_SIZE),
+                phys_addr: start.get_phys_addr()?,
                 rw,
-                mode,
-                write_through_level,
-            )?;
-            start_virt_addr = start_virt_addr.offset(PAGE_SIZE);
+                us,
+                pwt,
+            })?;
+            start = start.offset(PAGE_SIZE);
         }
 
         Ok(())
