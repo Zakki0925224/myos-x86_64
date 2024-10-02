@@ -151,7 +151,6 @@ struct Task {
     args_mem_frame_info: Option<MemoryFrameInfo>,
     stack_mem_frame_info: MemoryFrameInfo,
     program_mem_info: Vec<(MemoryFrameInfo, MappingInfo)>,
-    program_mem_old_mapping_info: Option<Vec<MappingInfo>>,
     allocated_mem_frame_info: Vec<MemoryFrameInfo>,
 }
 
@@ -168,15 +167,21 @@ impl Drop for Task {
         bitmap::dealloc_mem_frame(self.stack_mem_frame_info).unwrap();
 
         for (mem_info, mapping_info) in self.program_mem_info.iter() {
+            let start = mapping_info.start;
             paging::update_mapping(&MappingInfo {
-                start: mapping_info.start,
+                start,
                 end: mapping_info.end,
-                phys_addr: mapping_info.start.get().into(),
+                phys_addr: start.get().into(),
                 rw: ReadWrite::Write,
                 us: EntryMode::Supervisor,
                 pwt: PageWriteThroughLevel::WriteThrough,
             })
             .unwrap();
+
+            assert_eq!(
+                paging::calc_virt_addr(start.get().into()).unwrap().get(),
+                start.get()
+            );
             bitmap::dealloc_mem_frame(*mem_info).unwrap();
         }
 
@@ -314,9 +319,37 @@ impl Task {
             args_mem_frame_info,
             stack_mem_frame_info,
             program_mem_info,
-            program_mem_old_mapping_info: None,
             allocated_mem_frame_info: Vec::new(),
         })
+    }
+
+    fn unmap_virt_addr(&self) -> Result<()> {
+        for (_, mapping_info) in self.program_mem_info.iter() {
+            let start = mapping_info.start;
+            paging::update_mapping(&MappingInfo {
+                start,
+                end: mapping_info.end,
+                phys_addr: start.get().into(),
+                rw: ReadWrite::Write,
+                us: EntryMode::Supervisor,
+                pwt: PageWriteThroughLevel::WriteThrough,
+            })?;
+
+            assert_eq!(
+                paging::calc_virt_addr(start.get().into()).unwrap().get(),
+                start.get()
+            );
+        }
+
+        Ok(())
+    }
+
+    fn remap_virt_addr(&self) -> Result<()> {
+        for (_, mapping_info) in self.program_mem_info.iter() {
+            paging::update_mapping(mapping_info)?;
+        }
+
+        Ok(())
     }
 
     fn switch_to(&self, next_task: &Task) {
@@ -325,18 +358,12 @@ impl Task {
             self.id.get(),
             next_task.id.get()
         );
+
         self.context.switch_to(&next_task.context);
     }
 }
 
 pub fn exec_user_task(elf64: Elf64, file_name: &str, args: &[&str]) -> Result<u64> {
-    let user_task = Task::new(
-        1024 * 1024,
-        Some(elf64),
-        Some(&[&[file_name], args].concat()),
-        ContextMode::User,
-    )?;
-
     let kernel_task = unsafe { KERNEL_TASK.get_force_mut() };
     let user_tasks = unsafe { USER_TASKS.get_force_mut() };
 
@@ -344,18 +371,45 @@ pub fn exec_user_task(elf64: Elf64, file_name: &str, args: &[&str]) -> Result<u6
         // stack is unused, because already allocated static area for kernel stack
         *kernel_task = Some(Task::new(0, None, None, ContextMode::Kernel)?);
     }
-    user_tasks.push(user_task);
 
-    let current_task = if user_tasks.len() == 1 {
-        kernel_task.as_ref().unwrap()
-    } else {
+    let is_user = !user_tasks.is_empty();
+    if is_user {
+        user_tasks.last().unwrap().unmap_virt_addr()?;
+    }
+
+    let user_task = Task::new(
+        1024 * 1024,
+        Some(elf64),
+        Some(&[&[file_name], args].concat()),
+        ContextMode::User,
+    );
+
+    let task = match user_task {
+        Ok(task) => task,
+        Err(e) => {
+            if is_user {
+                user_tasks.last().unwrap().remap_virt_addr()?;
+            }
+            return Err(e);
+        }
+    };
+
+    user_tasks.push(task);
+
+    let is_user = user_tasks.len() > 1;
+    let current_task = if is_user {
         user_tasks.get(user_tasks.len() - 2).unwrap()
+    } else {
+        kernel_task.as_ref().unwrap()
     };
 
     current_task.switch_to(user_tasks.last().unwrap());
 
     // returned
     drop(user_tasks.pop().unwrap());
+    if let Some(task) = user_tasks.last() {
+        task.remap_virt_addr()?;
+    }
 
     // get exit status
     let exit_status = unsafe {
