@@ -7,7 +7,7 @@ use crate::{
     error::Result,
     mem::bitmap,
 };
-use alloc::{string::String, vec::Vec};
+use alloc::string::String;
 use log::info;
 
 const PAGE_TABLE_ENTRY_LEN: usize = 512;
@@ -344,11 +344,7 @@ impl PageManager {
         Ok(())
     }
 
-    pub unsafe fn update_mapping(
-        &self,
-        new_mapping_info: &MappingInfo,
-    ) -> Result<Vec<MappingInfo>> {
-        let mut old_mapping_info = Vec::new();
+    pub unsafe fn update_mapping(&self, new_mapping_info: &MappingInfo) -> Result<()> {
         let pml4_virt_addr = VirtualAddress::new(self.cr3().raw());
         let pml4_page_table = &mut *pml4_virt_addr.as_ptr_mut::<PageTable>();
 
@@ -362,19 +358,16 @@ impl PageManager {
         } = *new_mapping_info;
 
         for i in (start.get() as usize..end.get() as usize).step_by(PAGE_SIZE) {
+            let virt_addr = (i as u64).into();
+
             self.set_map(
-                (i as u64).into(),
+                virt_addr,
                 phys_addr.offset(i - start.get() as usize),
                 pml4_page_table,
                 rw,
                 us,
                 pwt,
             )?;
-
-            let entry = self.page_table_entry((i as u64).into())?;
-            assert_eq!(entry.rw(), rw);
-            assert_eq!(entry.us(), us);
-            assert_eq!(entry.pwt(), pwt);
         }
 
         Ok(())
@@ -557,7 +550,7 @@ pub fn create_new_page_table(
 }
 
 pub fn update_mapping(mapping_info: &MappingInfo) -> Result<()> {
-    unsafe { PAGE_MAN.update_mapping(mapping_info)? }
+    unsafe { PAGE_MAN.update_mapping(mapping_info) }
     // info!(
     //     "paging: Updated mapping (virt 0x{:x}-0x{:x} -> phys 0x{:x}-0x{:x})",
     //     start.get(),
@@ -565,7 +558,6 @@ pub fn update_mapping(mapping_info: &MappingInfo) -> Result<()> {
     //     phys_addr.get(),
     //     phys_addr.offset((end.get() - start.get()) as usize).get()
     // );
-    Ok(())
 }
 
 pub fn read_page_table_entry(virt_addr: VirtualAddress) -> Result<PageTableEntry> {

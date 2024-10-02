@@ -1,21 +1,20 @@
 use crate::{
-    arch::context::{Context, ContextMode},
-    error::Result,
+    arch::context::*,
+    error::*,
     mem::{
-        self,
         bitmap::{self, MemoryFrameInfo},
-        paging::PAGE_SIZE,
+        paging::{self, *},
     },
     println,
     util::mutex::Mutex,
 };
 use alloc::{boxed::Box, collections::VecDeque, ffi::CString, vec::Vec};
-use common::elf::Elf64;
+use common::elf::{self, *};
 use core::{
     future::Future,
     pin::Pin,
     ptr::null,
-    sync::atomic::{AtomicBool, AtomicUsize, Ordering},
+    sync::atomic::*,
     task::{Context as ExecutorContext, Poll, RawWaker, RawWakerVTable, Waker},
 };
 use log::info;
@@ -148,22 +147,42 @@ pub fn spawn(future: impl Future<Output = ()> + 'static) -> Result<()> {
 #[derive(Debug, Clone)]
 struct Task {
     id: TaskId,
-    stack_mem_frame_info: MemoryFrameInfo,
-    stack_size: usize,
     context: Context,
+    args_mem_frame_info: Option<MemoryFrameInfo>,
+    stack_mem_frame_info: MemoryFrameInfo,
+    program_mem_info: Vec<(MemoryFrameInfo, MappingInfo)>,
+    program_mem_old_mapping_info: Option<Vec<MappingInfo>>,
     allocated_mem_frame_info: Vec<MemoryFrameInfo>,
 }
 
 impl Drop for Task {
     fn drop(&mut self) {
+        if let Some(args_mem_frame_info) = self.args_mem_frame_info {
+            args_mem_frame_info.set_permissions_to_supervisor().unwrap();
+            bitmap::dealloc_mem_frame(args_mem_frame_info).unwrap();
+        }
+
         self.stack_mem_frame_info
             .set_permissions_to_supervisor()
             .unwrap();
-        mem::bitmap::dealloc_mem_frame(self.stack_mem_frame_info).unwrap();
+        bitmap::dealloc_mem_frame(self.stack_mem_frame_info).unwrap();
 
-        for mem_frame_info in &self.allocated_mem_frame_info {
+        for (mem_info, mapping_info) in self.program_mem_info.iter() {
+            paging::update_mapping(&MappingInfo {
+                start: mapping_info.start,
+                end: mapping_info.end,
+                phys_addr: mapping_info.start.get().into(),
+                rw: ReadWrite::Write,
+                us: EntryMode::Supervisor,
+                pwt: PageWriteThroughLevel::WriteThrough,
+            })
+            .unwrap();
+            bitmap::dealloc_mem_frame(*mem_info).unwrap();
+        }
+
+        for mem_frame_info in self.allocated_mem_frame_info.iter() {
             mem_frame_info.set_permissions_to_supervisor().unwrap();
-            mem::bitmap::dealloc_mem_frame(*mem_frame_info).unwrap();
+            bitmap::dealloc_mem_frame(*mem_frame_info).unwrap();
         }
 
         info!("task: Dropped tid: {}", self.id.get());
@@ -172,33 +191,130 @@ impl Drop for Task {
 
 impl Task {
     fn new(
-        stack_size: usize,
-        entry: Option<extern "sysv64" fn()>,
-        arg0: u64,
-        arg1: u64,
+        stack_size: usize, // 4KiB align
+        elf64: Option<Elf64>,
+        args: Option<&[&str]>, // file name + args
         mode: ContextMode,
     ) -> Result<Self> {
-        let stack_mem_frame_info = mem::bitmap::alloc_mem_frame((stack_size / PAGE_SIZE).max(1))?;
+        // parse ELF
+        let mut entry = None;
+        let mut program_mem_info = Vec::new();
+        if let Some(elf64) = elf64 {
+            let header = elf64.header();
 
-        match mode {
-            ContextMode::Kernel => stack_mem_frame_info.set_permissions_to_supervisor()?,
-            ContextMode::User => stack_mem_frame_info.set_permissions_to_user()?,
+            if header.elf_type() != elf::Type::Executable {
+                return Err(Error::Failed("The file is not an executable file"));
+            }
+
+            if header.machine() != elf::Machine::X8664 {
+                return Err(Error::Failed("Unsupported ISA"));
+            }
+
+            for program_header in elf64.program_headers() {
+                if program_header.segment_type() != SegmentType::Load {
+                    continue;
+                }
+
+                let p_virt_addr = program_header.virt_addr;
+                let p_mem_size = program_header.mem_size;
+                let p_file_size = program_header.file_size;
+
+                let pages_needed =
+                    ((p_virt_addr % PAGE_SIZE as u64 + p_mem_size + PAGE_SIZE as u64 - 1)
+                        / PAGE_SIZE as u64) as usize;
+                let user_mem_frame_info = bitmap::alloc_mem_frame(pages_needed)?;
+                bitmap::mem_clear(&user_mem_frame_info)?;
+                let user_mem_frame_start_virt_addr = user_mem_frame_info.frame_start_virt_addr()?;
+
+                // copy data
+                let program_data = elf64.data_by_program_header(program_header);
+                if let Some(data) = program_data {
+                    user_mem_frame_start_virt_addr
+                        .offset(p_virt_addr as usize % PAGE_SIZE)
+                        .copy_from_nonoverlapping(data.as_ptr(), p_file_size as usize);
+                }
+
+                // update page mapping
+                let start_virt_addr = (p_virt_addr / PAGE_SIZE as u64 * PAGE_SIZE as u64).into();
+                let mapping_info = MappingInfo {
+                    start: start_virt_addr,
+                    end: start_virt_addr.offset(user_mem_frame_info.frame_size),
+                    phys_addr: user_mem_frame_info.frame_start_phys_addr,
+                    rw: ReadWrite::Write,
+                    us: EntryMode::User,
+                    pwt: PageWriteThroughLevel::WriteThrough,
+                };
+                paging::update_mapping(&mapping_info)?;
+                program_mem_info.push((user_mem_frame_info, mapping_info));
+
+                if header.entry_point >= p_virt_addr
+                    && header.entry_point < p_virt_addr + p_mem_size
+                {
+                    entry = Some(header.entry_point);
+                }
+            }
         }
 
-        let rsp = stack_mem_frame_info.frame_start_virt_addr()?.get() + stack_size as u64 - 1;
         let rip = match entry {
             Some(f) => f as u64,
             None => 0,
         };
 
+        // stack
+        let stack_mem_frame_info = bitmap::alloc_mem_frame((stack_size / PAGE_SIZE).max(1))?;
+        match mode {
+            ContextMode::Kernel => stack_mem_frame_info.set_permissions_to_supervisor()?,
+            ContextMode::User => stack_mem_frame_info.set_permissions_to_user()?,
+        }
+        let rsp = stack_mem_frame_info.frame_start_virt_addr()?.get() + stack_size as u64 - 1;
+
+        // args
+        let mut args_mem_frame_info = None;
+        let mut arg0 = 0; // args len
+        let mut arg1 = 0; // args virt addr
+        if let Some(args) = args {
+            let mut c_args = Vec::new();
+            for arg in args {
+                c_args.extend(CString::new(*arg).unwrap().into_bytes_with_nul());
+            }
+
+            let mut c_args_offset = (args.len() + 2) * 8;
+            let mem_frame_info =
+                bitmap::alloc_mem_frame(((c_args.len() + c_args_offset) / PAGE_SIZE).max(1))?;
+            bitmap::mem_clear(&mem_frame_info)?;
+            match mode {
+                ContextMode::Kernel => mem_frame_info.set_permissions_to_supervisor()?,
+                ContextMode::User => mem_frame_info.set_permissions_to_user()?,
+            }
+
+            let args_mem_virt_addr = mem_frame_info.frame_start_virt_addr()?;
+            args_mem_virt_addr
+                .offset(c_args_offset)
+                .copy_from_nonoverlapping(c_args.as_ptr(), c_args.len());
+
+            let mut c_args_ref = Vec::new();
+            for arg in args {
+                c_args_ref.push(args_mem_virt_addr.offset(c_args_offset).get());
+                c_args_offset += arg.len() + 1;
+            }
+            args_mem_virt_addr.copy_from_nonoverlapping(c_args_ref.as_ptr(), c_args_ref.len());
+
+            args_mem_frame_info = Some(mem_frame_info);
+            arg0 = args.len() as u64;
+            arg1 = args_mem_virt_addr.get();
+        }
+
+        // context
         let mut context = Context::new();
         context.init(rip, arg0, arg1, rsp, mode);
 
         Ok(Self {
             id: TaskId::new(),
-            stack_mem_frame_info,
-            stack_size,
             context,
+            args_mem_frame_info,
+            stack_mem_frame_info,
+            program_mem_info,
+            program_mem_old_mapping_info: None,
             allocated_mem_frame_info: Vec::new(),
         })
     }
@@ -213,80 +329,46 @@ impl Task {
     }
 }
 
-// pub fn exec_user_task(entry: extern "sysv64" fn(), file_name: &str, args: &[&str]) -> Result<u64> {
-//     // write args to memory
-//     let mut c_args = CString::new(file_name).unwrap().into_bytes_with_nul();
-//     for arg in args {
-//         c_args.extend(CString::new(*arg).unwrap().into_bytes_with_nul());
-//     }
+pub fn exec_user_task(elf64: Elf64, file_name: &str, args: &[&str]) -> Result<u64> {
+    let user_task = Task::new(
+        1024 * 1024,
+        Some(elf64),
+        Some(&[&[file_name], args].concat()),
+        ContextMode::User,
+    )?;
 
-//     let mut c_args_offset = (args.len() + 2) * 8;
-//     let args_mem_frame_info =
-//         bitmap::alloc_mem_frame(((c_args.len() + c_args_offset) / PAGE_SIZE).max(1))?;
-//     bitmap::mem_clear(&args_mem_frame_info)?;
-//     args_mem_frame_info.set_permissions_to_user()?;
-//     let args_mem_virt_addr = args_mem_frame_info.frame_start_virt_addr()?;
+    let kernel_task = unsafe { KERNEL_TASK.get_force_mut() };
+    let user_tasks = unsafe { USER_TASKS.get_force_mut() };
 
-//     args_mem_virt_addr
-//         .offset(c_args_offset)
-//         .copy_from_nonoverlapping(c_args.as_ptr(), c_args.len());
+    if kernel_task.is_none() {
+        // stack is unused, because already allocated static area for kernel stack
+        *kernel_task = Some(Task::new(0, None, None, ContextMode::Kernel)?);
+    }
+    user_tasks.push(user_task);
 
-//     let mut c_args_ref = Vec::new();
-//     c_args_ref.push(args_mem_virt_addr.offset(c_args_offset).get());
-//     c_args_offset += file_name.len() + 1;
-//     for arg in args {
-//         c_args_ref.push(args_mem_virt_addr.offset(c_args_offset).get());
-//         c_args_offset += arg.len() + 1;
-//     }
+    let current_task = if user_tasks.len() == 1 {
+        kernel_task.as_ref().unwrap()
+    } else {
+        user_tasks.get(user_tasks.len() - 2).unwrap()
+    };
 
-//     args_mem_virt_addr.copy_from_nonoverlapping(c_args_ref.as_ptr(), c_args_ref.len());
+    current_task.switch_to(user_tasks.last().unwrap());
 
-//     let task = Task::new(
-//         1024 * 1024,
-//         Some(entry),
-//         args.len() as u64 + 1,
-//         args_mem_virt_addr.get(),
-//         ContextMode::User,
-//     )?;
-//     debug_task(&task);
+    // returned
+    drop(user_tasks.pop().unwrap());
 
-//     let kernel_task = unsafe { KERNEL_TASK.get_force_mut() };
-//     let user_tasks = unsafe { USER_TASKS.get_force_mut() };
+    // get exit status
+    let exit_status = unsafe {
+        let status = match USER_EXIT_STATUS {
+            Some(s) => s,
+            None => panic!("task: User exit status was not found"),
+        };
+        USER_EXIT_STATUS = None;
+        status
+    };
 
-//     if kernel_task.is_none() {
-//         // stack is unused, because already allocated static area for kernel stack
-//         *kernel_task = Some(Task::new(0, None, 0, 0, ContextMode::Kernel)?);
-//     }
-
-//     user_tasks.push(task);
-
-//     let current_task = if user_tasks.len() == 1 {
-//         kernel_task.as_ref().unwrap()
-//     } else {
-//         user_tasks.get(user_tasks.len() - 2).unwrap()
-//     };
-
-//     current_task.switch_to(user_tasks.last().unwrap());
-
-//     // returned
-//     let _ = user_tasks.pop();
-//     args_mem_frame_info.set_permissions_to_supervisor()?;
-//     bitmap::dealloc_mem_frame(args_mem_frame_info)?;
-
-//     // get exit status
-//     let exit_status = unsafe {
-//         let status = match USER_EXIT_STATUS {
-//             Some(s) => s,
-//             None => panic!("task: User exit status was not found"),
-//         };
-//         USER_EXIT_STATUS = None;
-//         status
-//     };
-
-//     return Ok(exit_status);
-// }
-
-pub fn exec_user_task(elf64: Elf64, file_name: &str, args: &[&str]) -> Result<u64> {}
+    Ok(exit_status)
+}
 
 pub fn push_allocated_mem_frame_info_for_user_task(mem_frame_info: MemoryFrameInfo) -> Result<()> {
     let user_task = unsafe { USER_TASKS.get_force_mut() }
@@ -303,10 +385,16 @@ pub fn return_task(exit_status: u64) {
         USER_EXIT_STATUS = Some(exit_status);
     }
 
-    let current_task = unsafe { USER_TASKS.get_force_mut() }.pop().unwrap();
-    let before_task = unsafe { USER_TASKS.get_force_mut() }
-        .last()
-        .unwrap_or(unsafe { KERNEL_TASK.get_force_mut() }.as_ref().unwrap());
+    let user_tasks = unsafe { USER_TASKS.get_force_mut() };
+    let current_task = user_tasks.last().unwrap();
+
+    let before_task;
+    if let Some(before_task_i) = user_tasks.len().checked_sub(2) {
+        before_task = user_tasks.get(before_task_i).unwrap();
+    } else {
+        before_task = unsafe { KERNEL_TASK.get_force_mut() }.as_ref().unwrap();
+    }
+
     current_task.switch_to(before_task);
 
     unreachable!();
@@ -328,7 +416,7 @@ fn debug_task(task: &Task) {
     println!(
         "stack: (phys)0x{:x}, size: 0x{:x}bytes",
         task.stack_mem_frame_info.frame_start_phys_addr.get(),
-        task.stack_size
+        task.stack_mem_frame_info.frame_size,
     );
     println!("context:");
     println!(
