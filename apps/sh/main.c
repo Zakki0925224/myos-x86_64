@@ -32,6 +32,19 @@ void exec_cmd(const char *cmd)
     {
         sys_break();
     }
+    else if (strcmp(splitted_buf[0], "cd") == 0)
+    {
+        if (cmdargs_len < 2)
+        {
+            return;
+        }
+
+        if (sys_chdir(splitted_buf[1]) == -1)
+        {
+            printf("sh: cd: failed to change directory\n");
+            return;
+        }
+    }
     else if (strcmp(splitted_buf[0], "uptime") == 0)
     {
         uint64_t uptime_ms = sys_uptime();

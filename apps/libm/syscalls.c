@@ -79,3 +79,8 @@ int64_t sys_getcwd(char *buf, int buf_len)
 {
     return syscall(SN_GETCWD, (uint64_t)buf, (uint64_t)buf_len, 0, 0, 0);
 }
+
+int64_t sys_chdir(const char *path)
+{
+    return syscall(SN_CHDIR, (uint64_t)path, 0, 0, 0, 0);
+}

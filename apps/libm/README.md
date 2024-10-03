@@ -44,9 +44,17 @@ Get file information
 
 Get system uptime in milliseconds
 
+### exec
+
+Execute ELF file
+
 ### getcwd
 
 Get current working directory absolute path
+
+### chdir
+
+Change directory
 
 ## Syscall tables
 
@@ -62,4 +70,6 @@ Get current working directory absolute path
 | 7      | sys_break  | 0x7        | -                     | -                 | -           | -         | -         | void                                           |
 | 8      | sys_stat   | 0x8        | int64_t fd            | struct stat \*buf | -           | -         | -         | int64_t (success: 0, error: -1)                |
 | 9      | sys_uptime | 0x9        | -                     | -                 | -           | -         | -         | uint64_t                                       |
-| 10     | sys_getcwd | 0xa        | char \*buf            | int buf_len       | -           | -         | -         | int64_t (success: 0, error: -1)                |
+| 10     | sys_exec   | 0xa        | char \*args           | -                 | -           | -         | -         | int64_t (success: 0, error: -1)                |
+| 11     | sys_getcwd | 0xb        | char \*buf            | int buf_len       | -           | -         | -         | int64_t (success: 0, error: -1)                |
+| 12     | sys_chdir  | 0xc        | char \*path           | -                 | -           | -         | -         | int64_t (success: 0, error: -1)                |

@@ -17,6 +17,7 @@
 #define SN_UPTIME 9
 #define SN_EXEC 10
 #define SN_GETCWD 11
+#define SN_CHDIR 12
 
 // defined file descriptor numbers
 #define FDN_STDIN 0
@@ -35,6 +36,7 @@ extern int64_t sys_stat(int64_t fd, stat *buf);
 extern uint64_t sys_uptime();
 extern int64_t sys_exec(const char *args);
 extern int64_t sys_getcwd(char *buf, int buf_len);
+extern int64_t sys_chdir(const char *path);
 
 // string.h
 extern int strcmp(const char *s1, const char *s2);

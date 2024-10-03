@@ -171,12 +171,20 @@ extern "sysv64" fn syscall_handler(
                 return -1;
             }
         }
-        // getcwd
+        // getcwd syscall
         11 => {
             let buf_addr = arg1.into();
             let buf_len = arg2 as usize;
             if let Err(err) = sys_getcwd(buf_addr, buf_len) {
                 error!("syscall: getcwd: {:?}", err);
+                return -1;
+            }
+        }
+        // chdir syscall
+        12 => {
+            let path_ptr = arg1 as *const u8;
+            if let Err(err) = sys_chdir(path_ptr) {
+                error!("syscall: chdir: {:?}", err);
                 return -1;
             }
         }
@@ -327,6 +335,12 @@ fn sys_getcwd(buf_addr: VirtualAddress, buf_len: usize) -> Result<()> {
 
     buf_addr.copy_from_nonoverlapping(cwd_s.as_ptr(), cwd_s.len());
 
+    Ok(())
+}
+
+fn sys_chdir(path_ptr: *const u8) -> Result<()> {
+    let path = unsafe { util::cstring::from_cstring_ptr(path_ptr) };
+    vfs::chdir(&path)?;
     Ok(())
 }
 
