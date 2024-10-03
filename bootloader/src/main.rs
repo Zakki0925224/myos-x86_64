@@ -11,17 +11,16 @@ use common::{
     boot_info::BootInfo,
     elf::{Elf64, SegmentType},
     graphic_info::{self, GraphicInfo},
-    kernel_config::KernelConfig,
     mem_desc::{self, UEFI_PAGE_SIZE},
 };
-use config::BootConfig;
+use config::{BootConfig, KERNEL_CONFIG};
 use core::{mem, slice::from_raw_parts_mut};
 use log::info;
 use uefi::{
     mem::memory_map::MemoryMap,
     prelude::*,
     proto::{
-        console::gop::{GraphicsOutput, PixelFormat},
+        console::gop::*,
         media::{file::*, fs::SimpleFileSystem},
     },
     table::{boot::*, cfg::ACPI2_GUID},
@@ -75,18 +74,13 @@ fn efi_main(handle: Handle, st: SystemTable<Boot>) -> Status {
         });
     }
 
-    // set kernel config
-    let mut kernel_config = KernelConfig::default();
-    kernel_config.init_cwd_path = "/mnt/initramfs";
-    kernel_config.init_app_exec_args = Some("/mnt/initramfs/apps/sh/sh.elf");
-
     let bi = BootInfo {
         mem_map: &mem_map,
         graphic_info,
         initramfs_start_virt_addr,
         initramfs_page_cnt,
         rsdp_virt_addr,
-        kernel_config,
+        kernel_config: KERNEL_CONFIG,
     };
 
     jump_to_entry(kernel_entry_point_addr, &bi);

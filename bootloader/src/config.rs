@@ -1,3 +1,5 @@
+use common::kernel_config::KernelConfig;
+
 #[derive(Debug)]
 pub struct BootConfig<'a> {
     pub kernel_path: &'a str,
@@ -14,3 +16,8 @@ impl Default for BootConfig<'_> {
         }
     }
 }
+
+pub const KERNEL_CONFIG: KernelConfig = KernelConfig {
+    init_cwd_path: "/mnt/initramfs",
+    init_app_exec_args: Some("/mnt/initramfs/apps/sh.elf"),
+};

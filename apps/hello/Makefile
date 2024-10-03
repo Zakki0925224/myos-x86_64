@@ -1,6 +1,6 @@
 SRC_FILES := hello.c
 OBJ_FILES := $(SRC_FILES:.c=.o)
-OUT_FILE := hello.elf
+OUT_FILE := ../hello.elf
 
 CC := gcc
 CFLAGS := -O2 -Wall -g -m64 -nostdlib -fno-builtin -fno-stack-protector -mno-sse -mno-mmx -std=c11
