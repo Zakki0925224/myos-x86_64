@@ -45,3 +45,60 @@ int split(char *str, const char regex, char **buf, size_t buflen)
 
     return len;
 }
+
+char *concatenate(const char *strs[], int len, const char *delimiter)
+{
+    int total_len = 0;
+    int delimiter_len = strlen(delimiter);
+    int i, j, k = 0;
+
+    for (i = 0; i < len; i++)
+    {
+        total_len += strlen(strs[i]);
+        if (i < len - 1)
+        {
+            total_len += delimiter_len;
+        }
+    }
+
+    char *str = (char *)malloc(total_len + 1);
+    if (str == NULL)
+    {
+        return NULL;
+    }
+
+    for (i = 0; i < len; i++)
+    {
+        for (j = 0; j < strlen(strs[i]); j++)
+        {
+            str[k++] = strs[i][j];
+        }
+
+        if (i < len - 1)
+        {
+            for (j = 0; j < delimiter_len; j++)
+            {
+                str[k++] = delimiter[j];
+            }
+        }
+    }
+
+    str[k] = '\0';
+    return str;
+}
+
+void replace(char *src, const char target, const char replace)
+{
+    int i = 0;
+    int str_len = strlen(src);
+
+    while (i < str_len)
+    {
+        if (src[i] == target)
+        {
+            src[i] = replace;
+        }
+
+        i++;
+    }
+}

@@ -9,22 +9,6 @@
 static char buf[BUF_LEN] = {0};
 static char *splitted_buf[BUF_LEN];
 
-void replace_char(char *src, const char target, const char replace)
-{
-    int i = 0;
-    int str_len = strlen(src);
-
-    while (i < str_len)
-    {
-        if (src[i] == target)
-        {
-            src[i] = replace;
-        }
-
-        i++;
-    }
-}
-
 void exec_cmd(const char *cmd)
 {
     int cmdargs_len = split(cmd, ' ', splitted_buf, BUF_LEN);
@@ -67,7 +51,19 @@ void exec_cmd(const char *cmd)
             return;
         }
 
-        if (sys_exec(splitted_buf[1]) == -1)
+        char *args = splitted_buf[1];
+        if (cmdargs_len > 2)
+        {
+            args = concatenate(splitted_buf + 1, cmdargs_len - 1, " ");
+
+            if (args == NULL)
+            {
+                printf("sh: exec: failed to concatenate arguments\n");
+                return;
+            }
+        }
+
+        if (sys_exec(args) == -1)
         {
             printf("sh: exec: failed to execute\n");
             return;
@@ -97,8 +93,8 @@ void _start()
             sys_exit(1);
         }
 
-        replace_char(buf, '\n', '\0');
-        replace_char(buf, '\r', '\0');
+        replace(buf, '\n', '\0');
+        replace(buf, '\r', '\0');
         exec_cmd(buf);
     }
 
