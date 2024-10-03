@@ -171,6 +171,15 @@ extern "sysv64" fn syscall_handler(
                 return -1;
             }
         }
+        // getcwd
+        11 => {
+            let buf_addr = arg1.into();
+            let buf_len = arg2 as usize;
+            if let Err(err) = sys_getcwd(buf_addr, buf_len) {
+                error!("syscall: getcwd: {:?}", err);
+                return -1;
+            }
+        }
         num => {
             error!("syscall: Syscall number 0x{:x} is not defined", num);
             return -1;
@@ -304,6 +313,19 @@ fn sys_exec(args_ptr: *const u8) -> Result<()> {
     let args = unsafe { util::cstring::from_cstring_ptr(args_ptr) };
     let args: Vec<&str> = args.split(' ').collect();
     fs::exec::exec_elf(args[0], &args[1..])?;
+
+    Ok(())
+}
+
+fn sys_getcwd(buf_addr: VirtualAddress, buf_len: usize) -> Result<()> {
+    let cwd = vfs::cwd_path()?;
+    let cwd_s = CString::new(cwd.as_str()).unwrap().into_bytes_with_nul();
+
+    if buf_len < cwd_s.len() {
+        return Err(Error::Failed("Buffer is too small"));
+    }
+
+    buf_addr.copy_from_nonoverlapping(cwd_s.as_ptr(), cwd_s.len());
 
     Ok(())
 }

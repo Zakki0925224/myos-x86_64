@@ -8,6 +8,7 @@
 
 static char buf[BUF_LEN] = {0};
 static char *splitted_buf[BUF_LEN];
+static char cwd_path[BUF_LEN] = {0};
 
 void exec_cmd(const char *cmd)
 {
@@ -69,13 +70,6 @@ void exec_cmd(const char *cmd)
             return;
         }
     }
-    else if (strcmp(splitted_buf[0], "test") == 0)
-    {
-        for (int i = 1; i < cmdargs_len; i++)
-        {
-            printf("arg[%d]: %s\n", i, splitted_buf[i]);
-        }
-    }
     else
     {
         printf("sh: %s: command not found\n", cmd);
@@ -84,9 +78,13 @@ void exec_cmd(const char *cmd)
 
 void _start()
 {
+    int getcwd_ret;
+
     while (1)
     {
-        printf("\nsh$ ");
+        getcwd_ret = sys_getcwd(cwd_path, sizeof(cwd_path));
+        printf("\nsh[%s]$ ", getcwd_ret == -1 ? "UNKNOWN" : cwd_path);
+
         if (sys_read(0, buf, BUF_LEN) == -1)
         {
             printf("Failed to read stdin\n");

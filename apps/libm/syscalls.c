@@ -74,3 +74,8 @@ int64_t sys_exec(const char *args)
 {
     return syscall(SN_EXEC, (uint64_t)args, 0, 0, 0, 0);
 }
+
+int64_t sys_getcwd(char *buf, int buf_len)
+{
+    return syscall(SN_GETCWD, (uint64_t)buf, (uint64_t)buf_len, 0, 0, 0);
+}
