@@ -10,7 +10,7 @@ static char buf[BUF_LEN] = {0};
 static char *splitted_buf[BUF_LEN];
 static char cwd_path[BUF_LEN] = {0};
 
-void exec_cmd(const char *cmd)
+void exec_cmd(char *cmd)
 {
     int cmdargs_len = split(cmd, ' ', splitted_buf, BUF_LEN);
 
@@ -68,7 +68,7 @@ void exec_cmd(const char *cmd)
         char *args = splitted_buf[1];
         if (cmdargs_len > 2)
         {
-            args = concatenate(splitted_buf + 1, cmdargs_len - 1, " ");
+            args = concatenate((const char **)(splitted_buf + 1), cmdargs_len - 1, " ");
 
             if (args == NULL)
             {
@@ -96,7 +96,7 @@ void _start()
     while (1)
     {
         getcwd_ret = sys_getcwd(cwd_path, sizeof(cwd_path));
-        printf("\nsh[%s]$ ", getcwd_ret == -1 ? "UNKNOWN" : cwd_path);
+        printf("\n[%s]$ ", getcwd_ret == -1 ? "UNKNOWN" : cwd_path);
 
         if (sys_read(0, buf, BUF_LEN) == -1)
         {

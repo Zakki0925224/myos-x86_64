@@ -41,20 +41,16 @@ impl Ps2MouseDriver {
     }
 
     fn receive(&mut self, data: u8) -> Result<()> {
-        if self.data_buf.enqueue(data).is_err() {
-            self.data_buf.reset_ptr();
-            self.data_buf.enqueue(data)?;
-        }
-
-        Ok(())
+        self.data_buf.enqueue(data)
     }
 
     fn get_event(&mut self) -> Result<Option<MouseEvent>> {
-        fn is_valid_data_0(data: u8) -> bool {
-            data & 0x08 != 0
+        fn is_data0_valid(data_0: u8) -> bool {
+            data_0 & 0x08 != 0
         }
 
         let data = self.data_buf.dequeue()?;
+
         if data == 0xfa {
             self.data_0 = None;
             self.data_1 = None;
@@ -62,13 +58,21 @@ impl Ps2MouseDriver {
             return Ok(None);
         }
 
-        if self.data_0.is_none() && is_valid_data_0(data) {
+        if self.data_0.is_none() {
+            if !is_data0_valid(data) {
+                return Ok(None);
+            }
+
             self.data_0 = Some(data);
         } else if self.data_1.is_none() {
             self.data_1 = Some(data);
         } else if self.data_2.is_none() {
             self.data_2 = Some(data);
-        } else if is_valid_data_0(data) {
+        } else {
+            if !is_data0_valid(data) {
+                return Ok(None);
+            }
+
             self.data_0 = Some(data);
             self.data_1 = None;
             self.data_2 = None;
@@ -81,15 +85,23 @@ impl Ps2MouseDriver {
             let button_l = data_0 & 0x1 != 0;
             let x_of = data_0 & 0x40 != 0;
             let y_of = data_0 & 0x80 != 0;
+            let x_sign = data_0 & 0x10 != 0;
+            let y_sign = data_0 & 0x20 != 0;
 
             if x_of || y_of {
                 return Ok(None);
             }
 
-            let rel_x = -(data_1 as isize - (((data_0 as isize) << 4) & 0x100));
-            let rel_y = data_2 as isize - (((data_0 as isize) << 3) & 0x100);
+            let mut rel_x = data_1 as isize;
+            let mut rel_y = -(data_2 as isize);
 
-            //println!("{}:{}", rel_x, rel_y);
+            if x_sign {
+                rel_x |= !0xff;
+            }
+
+            if y_sign {
+                rel_y |= !0xff;
+            }
 
             let e = MouseEvent {
                 middle: button_m,
