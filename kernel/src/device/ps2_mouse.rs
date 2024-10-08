@@ -58,21 +58,13 @@ impl Ps2MouseDriver {
             return Ok(None);
         }
 
-        if self.data_0.is_none() {
-            if !is_data0_valid(data) {
-                return Ok(None);
-            }
-
+        if self.data_0.is_none() && is_data0_valid(data) {
             self.data_0 = Some(data);
         } else if self.data_1.is_none() {
             self.data_1 = Some(data);
         } else if self.data_2.is_none() {
             self.data_2 = Some(data);
-        } else {
-            if !is_data0_valid(data) {
-                return Ok(None);
-            }
-
+        } else if is_data0_valid(data) {
             self.data_0 = Some(data);
             self.data_1 = None;
             self.data_2 = None;
@@ -93,7 +85,7 @@ impl Ps2MouseDriver {
             }
 
             let mut rel_x = data_1 as isize;
-            let mut rel_y = -(data_2 as isize);
+            let mut rel_y = data_2 as isize;
 
             if x_sign {
                 rel_x |= !0xff;
@@ -102,6 +94,8 @@ impl Ps2MouseDriver {
             if y_sign {
                 rel_y |= !0xff;
             }
+
+            rel_y = -rel_y;
 
             let e = MouseEvent {
                 middle: button_m,
