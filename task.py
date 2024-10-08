@@ -245,7 +245,8 @@ def task_run():
     global is_kernel_test
 
     task_make_img()
-    cmd = qemu_cmd() if is_kernel_test else own_qemu_cmd()
+    # cmd = qemu_cmd() if is_kernel_test else own_qemu_cmd()
+    cmd = qemu_cmd()
 
     run_cmd(cmd, ignore_error=not is_kernel_test, check_qemu_exit_code=is_kernel_test)
 

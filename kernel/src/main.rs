@@ -31,7 +31,7 @@ use common::boot_info::BootInfo;
 use device::uart;
 use fs::{file::bitmap::BitmapImage, vfs};
 use graphics::{color::*, simple_window_manager};
-use log::error;
+use log::{error, warn};
 use util::{logger, theme::GLOBAL_THEME};
 
 #[no_mangle]
@@ -149,24 +149,35 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
 
 async fn poll_ps2_mouse() {
     let mut is_created_mouse_pointer_layer = false;
-    let mouse_pointer_bmp_fd = match vfs::open_file("/mnt/initramfs/sys/mouse_pointer.bmp") {
-        Ok(fd) => fd,
-        Err(_) => {
-            error!("Failed to open mouse pointer bitmap");
-            return;
+    let mouse_pointer_bmp_fd = loop {
+        match vfs::open_file("/mnt/initramfs/sys/mouse_pointer.bmp") {
+            Ok(fd) => break fd,
+            Err(e) => {
+                warn!("Failed to open mouse pointer bitmap, Retrying...: {:?}", e);
+                task::exec_yield().await;
+            }
         }
     };
-    let bmp_data = match vfs::read_file(&mouse_pointer_bmp_fd) {
-        Ok(data) => data,
-        Err(_) => {
-            error!("Failed to read mouse pointer bitmap");
-            return;
+
+    let bmp_data = loop {
+        match vfs::read_file(&mouse_pointer_bmp_fd) {
+            Ok(data) => break data,
+            Err(e) => {
+                warn!("Failed to read mouse pointer bitmap, Retrying...: {:?}", e);
+                task::exec_yield().await;
+            }
         }
     };
+
     let pointer_bmp = BitmapImage::new(&bmp_data);
-    if vfs::close_file(&mouse_pointer_bmp_fd).is_err() {
-        error!("Failed to close mouse pointer bitmap");
-        return;
+    loop {
+        match vfs::close_file(&mouse_pointer_bmp_fd) {
+            Ok(()) => break,
+            Err(e) => {
+                warn!("Failed to close mouse pointer bitmap, Retrying...: {:?}", e);
+                task::exec_yield().await;
+            }
+        }
     }
 
     loop {

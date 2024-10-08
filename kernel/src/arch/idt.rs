@@ -284,12 +284,7 @@ extern "x86-interrupt" fn local_apic_timer_handler() {
     let _ = multi_layer::draw_to_frame_buf();
     let _ = frame_buf::apply_shadow_buf();
 
-    let ms = arch::apic::timer::get_current_ms();
-    if let Some(ms) = ms {
-        if ms % 10 == 0 {
-            let _ = task::poll();
-        }
-    }
+    let _ = task::poll();
 
     notify_end_of_int();
 }

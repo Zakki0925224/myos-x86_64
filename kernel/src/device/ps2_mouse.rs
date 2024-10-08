@@ -17,8 +17,8 @@ pub struct MouseEvent {
     pub middle: bool,
     pub right: bool,
     pub left: bool,
-    pub rel_x: isize,
-    pub rel_y: isize,
+    pub rel_x: i16,
+    pub rel_y: i16,
 }
 
 struct Ps2MouseDriver {
@@ -84,8 +84,8 @@ impl Ps2MouseDriver {
                 return Ok(None);
             }
 
-            let mut rel_x = data_1 as isize;
-            let mut rel_y = data_2 as isize;
+            let mut rel_x = data_1 as i16;
+            let mut rel_y = data_2 as i16;
 
             if x_sign {
                 rel_x |= !0xff;
