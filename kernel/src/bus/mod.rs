@@ -4,8 +4,9 @@ pub mod pci;
 pub mod usb;
 
 pub fn init() {
+    info!("pci: Scanning all PCI devices...");
     pci::scan_devices().unwrap();
-    info!("pci: PCI device manager initialized");
+    info!("pci: All PCI devices registered");
 
     // initialize usb driver
     if let Err(err) = usb::init() {

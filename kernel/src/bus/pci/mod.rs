@@ -33,12 +33,9 @@ impl PciDeviceManager {
         for bus in 0..PCI_DEVICE_BUS_LEN {
             for device in 0..PCI_DEVICE_DEVICE_LEN {
                 for func in 0..PCI_DEVICE_FUNC_LEN {
-                    let pci_device = match PciDevice::new(bus, device, func) {
-                        Some(d) => d,
-                        None => continue,
-                    };
-
-                    devices.push(pci_device);
+                    if let Some(pci_device) = PciDevice::new(bus, device, func) {
+                        devices.push(pci_device);
+                    }
                 }
             }
         }

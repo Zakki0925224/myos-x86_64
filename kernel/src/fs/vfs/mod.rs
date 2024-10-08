@@ -553,7 +553,6 @@ pub fn open_file(path: &str) -> Result<FileDescriptorNumber> {
         .as_mut()
         .ok_or(VirtualFileSystemError::NotInitialized)?
         .open_file(path)?;
-    info!("vfs: Generated file descriptor: {}", fd_num.get());
     Ok(fd_num)
 }
 
@@ -562,7 +561,6 @@ pub fn close_file(fd_num: &FileDescriptorNumber) -> Result<()> {
         .as_mut()
         .ok_or(VirtualFileSystemError::NotInitialized)?
         .close_file(fd_num)?;
-    info!("vfs: Released file descriptor: {}", fd_num.get());
     Ok(())
 }
 
