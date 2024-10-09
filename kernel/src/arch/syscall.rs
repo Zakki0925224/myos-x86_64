@@ -13,6 +13,7 @@ use crate::{
         self,
         vfs::{self, file_desc::FileDescriptorNumber},
     },
+    graphics::{multi_layer::LayerId, simple_window_manager},
     mem::{bitmap, paging::PAGE_SIZE},
     print, util,
 };
@@ -188,6 +189,33 @@ extern "sysv64" fn syscall_handler(
                 return -1;
             }
         }
+        // create_window syscall
+        13 => {
+            let title_ptr = arg1 as *const u8;
+            let x_pos = arg2 as usize;
+            let y_pos = arg3 as usize;
+            let width = arg4 as usize;
+            let height = arg5 as usize;
+            if let Err(err) = sys_create_window(title_ptr, x_pos, y_pos, width, height) {
+                error!("syscall: create_window: {:?}", err);
+                return -1;
+            }
+        }
+        // destroy_window syscall
+        14 => {
+            let wd = match LayerId::new_val(arg1 as i64) {
+                Ok(wd) => wd,
+                Err(err) => {
+                    error!("syscall: destroy_window: {:?}", err);
+                    return -1;
+                }
+            };
+
+            if let Err(err) = sys_destroy_window(wd) {
+                error!("syscall: destroy_window: {:?}", err);
+                return -1;
+            }
+        }
         num => {
             error!("syscall: Syscall number 0x{:x} is not defined", num);
             return -1;
@@ -342,6 +370,21 @@ fn sys_chdir(path_ptr: *const u8) -> Result<()> {
     let path = unsafe { util::cstring::from_cstring_ptr(path_ptr) };
     vfs::chdir(&path)?;
     Ok(())
+}
+
+fn sys_create_window(
+    title_ptr: *const u8,
+    x_pos: usize,
+    y_pos: usize,
+    width: usize,
+    height: usize,
+) -> Result<LayerId> {
+    let title = unsafe { util::cstring::from_cstring_ptr(title_ptr) };
+    simple_window_manager::create_window(title, x_pos, y_pos, width, height)
+}
+
+fn sys_destroy_window(wd: LayerId) -> Result<()> {
+    simple_window_manager::destroy_window(&wd)
 }
 
 pub fn enable() {

@@ -84,3 +84,13 @@ int64_t sys_chdir(const char *path)
 {
     return syscall(SN_CHDIR, (uint64_t)path, 0, 0, 0, 0);
 }
+
+int64_t sys_create_window(const char *title, uint64_t x_pos, uint64_t y_pos, uint64_t width, uint64_t height)
+{
+    return syscall(SN_CREATE_WINDOW, (uint64_t)title, x_pos, y_pos, width, height);
+}
+
+int64_t sys_destroy_window(int64_t wd)
+{
+    return syscall(SN_DESTROY_WINDOW, (uint64_t)wd, 0, 0, 0, 0);
+}

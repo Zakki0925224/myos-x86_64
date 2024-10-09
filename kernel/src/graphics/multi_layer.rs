@@ -4,7 +4,11 @@ use super::{
     font::{FONT, TAB_DISP_STR},
     frame_buf,
 };
-use crate::{error::Result, fs::file::bitmap::BitmapImage, util::mutex::Mutex};
+use crate::{
+    error::{Error, Result},
+    fs::file::bitmap::BitmapImage,
+    util::mutex::Mutex,
+};
 use alloc::vec::Vec;
 use common::graphic_info::PixelFormat;
 use core::sync::atomic::{AtomicUsize, Ordering};
@@ -32,6 +36,14 @@ impl LayerId {
     pub fn new() -> Self {
         static NEXT_ID: AtomicUsize = AtomicUsize::new(0);
         Self(NEXT_ID.fetch_add(1, Ordering::Relaxed))
+    }
+
+    pub const fn new_val(value: i64) -> Result<Self> {
+        if value < 0 {
+            return Err(Error::Failed("Invalid layer id"));
+        }
+
+        Ok(Self(value as usize))
     }
 
     pub fn get(&self) -> usize {

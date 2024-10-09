@@ -1,6 +1,6 @@
 use super::{
     frame_buf,
-    multi_layer::{self, LayerPositionInfo},
+    multi_layer::{self, LayerId, LayerPositionInfo},
 };
 use crate::{
     device::ps2_mouse::MouseEvent,
@@ -33,7 +33,7 @@ struct SimpleWindowManager {
 }
 
 impl SimpleWindowManager {
-    pub fn new(res_x: usize, res_y: usize) -> Self {
+    fn new(res_x: usize, res_y: usize) -> Self {
         Self {
             windows: Vec::new(),
             taskbar: None,
@@ -43,13 +43,13 @@ impl SimpleWindowManager {
         }
     }
 
-    pub fn create_mouse_pointer(&mut self, pointer_bmp: &BitmapImage) -> Result<()> {
+    fn create_mouse_pointer(&mut self, pointer_bmp: &BitmapImage) -> Result<()> {
         self.mouse_pointer = Some(Image::create_and_push(pointer_bmp, 0, 0, true)?);
 
         Ok(())
     }
 
-    pub fn create_taskbar(&mut self) -> Result<()> {
+    fn create_taskbar(&mut self) -> Result<()> {
         let width = self.res_x;
         let height = 30;
         let panel = Panel::create_and_push(0, self.res_y - height, width, height)?;
@@ -59,7 +59,7 @@ impl SimpleWindowManager {
         Ok(())
     }
 
-    pub fn mouse_pointer_event(&mut self, mouse_event: MouseEvent) -> Result<()> {
+    fn mouse_pointer_event(&mut self, mouse_event: MouseEvent) -> Result<()> {
         let layer_id = &self
             .mouse_pointer
             .as_ref()
@@ -132,19 +132,28 @@ impl SimpleWindowManager {
         Ok(())
     }
 
-    pub fn create_window(
+    fn create_window(
         &mut self,
         title: String,
         x: usize,
         y: usize,
         width: usize,
         height: usize,
-    ) -> Result<()> {
+    ) -> Result<LayerId> {
         let window = Window::create_and_push(title, x, y, width, height)?;
         window.draw_fresh()?;
+        let layer_id = window.layer_id.clone();
         self.windows.push(window);
         let _ = self.update_taskbar();
 
+        Ok(layer_id)
+    }
+
+    fn destroy_window(&mut self, layer_id: &LayerId) -> Result<()> {
+        self.windows.retain(|w| w.layer_id.get() != layer_id.get());
+        multi_layer::remove_layer(&layer_id)?;
+
+        let _ = self.update_taskbar();
         Ok(())
     }
 
@@ -190,6 +199,13 @@ pub fn create_taskbar() -> Result<()> {
         .create_taskbar()
 }
 
+pub fn destroy_window(layer_id: &LayerId) -> Result<()> {
+    unsafe { SIMPLE_WM.try_lock() }?
+        .as_mut()
+        .ok_or(SimpleWindowManagerError::NotInitialized)?
+        .destroy_window(layer_id)
+}
+
 pub fn mouse_pointer_event(mouse_event: MouseEvent) -> Result<()> {
     unsafe { SIMPLE_WM.try_lock() }?
         .as_mut()
@@ -197,7 +213,13 @@ pub fn mouse_pointer_event(mouse_event: MouseEvent) -> Result<()> {
         .mouse_pointer_event(mouse_event)
 }
 
-pub fn create_window(title: String, x: usize, y: usize, width: usize, height: usize) -> Result<()> {
+pub fn create_window(
+    title: String,
+    x: usize,
+    y: usize,
+    width: usize,
+    height: usize,
+) -> Result<LayerId> {
     unsafe { SIMPLE_WM.try_lock() }?
         .as_mut()
         .ok_or(SimpleWindowManagerError::NotInitialized)?

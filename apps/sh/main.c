@@ -83,6 +83,17 @@ void exec_cmd(char *cmd)
             return;
         }
     }
+    else if (strcmp(splitted_buf[0], "window") == 0)
+    {
+        int64_t wd = sys_create_window("test window", 200, 50, 300, 200);
+        if (wd == -1)
+        {
+            printf("sh: window: failed to create window\n");
+            return;
+        }
+
+        printf("sh: window: wd: %d\n", wd);
+    }
     else
     {
         printf("sh: %s: command not found\n", cmd);
