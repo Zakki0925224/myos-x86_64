@@ -1,6 +1,6 @@
 use crate::RgbColorCode;
 
-pub const GLOBAL_THEME: Theme = DEFAULT_THEME;
+pub const GLOBAL_THEME: Theme = CLASSIC_THEME;
 
 #[allow(unused)]
 const COLOR_WHITE: RgbColorCode = RgbColorCode::new(255, 255, 255);
@@ -73,6 +73,10 @@ const AU_COLOR_4: RgbColorCode = RgbColorCode::new(0xa3, 0xbe, 0x8c); // green
 const AU_COLOR_5: RgbColorCode = RgbColorCode::new(0xb4, 0x8e, 0xad); // purple
 
 #[allow(unused)]
+const C_COLOR_1: RgbColorCode = RgbColorCode::new(0x3a, 0x6e, 0xa5);
+const C_COLOR_2: RgbColorCode = RgbColorCode::new(0xd4, 0xd0, 0xc8);
+
+#[allow(unused)]
 const DEFAULT_THEME: Theme = Theme {
     transparent_color: COLOR_BLACK,
     back_color: D_COLOR_1,
@@ -136,7 +140,33 @@ const NORD_THEME: Theme = Theme {
     wm_window_titlebar_fore_color: SS_COLOR_1,
     wm_window_close_button_back_color: AU_COLOR_1,
     io_buf_default_back_color: COLOR_BLACK,
-    io_buf_default_fore_color: COLOR_WHITE,
+    io_buf_default_fore_color: COLOR_BLACK,
+};
+
+#[allow(unused)]
+const CLASSIC_THEME: Theme = Theme {
+    transparent_color: COLOR_BLACK,
+    back_color: C_COLOR_1,
+    fore_color: COLOR_WHITE,
+    sample_rect_colors: [
+        C_COLOR_1, C_COLOR_1, C_COLOR_1, C_COLOR_1, C_COLOR_1, C_COLOR_1, C_COLOR_1, C_COLOR_1,
+        C_COLOR_1, C_COLOR_1, C_COLOR_1, C_COLOR_1, C_COLOR_1, C_COLOR_1, C_COLOR_1, C_COLOR_1,
+    ],
+    log_color_error: COLOR_WHITE,
+    log_color_warn: COLOR_WHITE,
+    log_color_info: COLOR_WHITE,
+    log_color_debug: COLOR_WHITE,
+    log_color_trace: COLOR_WHITE,
+    wm_taskbar_color: C_COLOR_2,
+    wm_panel_back_color: C_COLOR_2,
+    wm_panel_border_color: COLOR_WHITE,
+    wm_window_back_color: C_COLOR_2,
+    wm_window_border_color: COLOR_WHITE,
+    wm_window_titlebar_back_color: RgbColorCode::new(0x0d, 0x0d, 0xa1),
+    wm_window_titlebar_fore_color: COLOR_WHITE,
+    wm_window_close_button_back_color: COLOR_RED,
+    io_buf_default_back_color: COLOR_BLACK,
+    io_buf_default_fore_color: COLOR_BLACK,
 };
 
 #[allow(unused)]
