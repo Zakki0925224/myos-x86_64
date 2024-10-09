@@ -171,7 +171,7 @@ impl SimpleWindowManager {
                 .collect::<Vec<&str>>()
         );
         multi_layer::draw_layer(&taskbar.layer_id, |l| {
-            l.draw_string(0, 0, &s, GLOBAL_THEME.wm_taskbar_color)?;
+            l.draw_string(7, 7, &s, GLOBAL_THEME.wm_panel_fore_color)?;
             Ok(())
         })?;
 

@@ -56,6 +56,14 @@ Get current working directory absolute path
 
 Change directory
 
+### create_window
+
+Create window
+
+### destroy_window
+
+Destroy window
+
 ## Syscall tables
 
 | number | name               | arg1(%rdi) | arg2(%rsi)            | arg3(%rdx)        | arg4(%r10)     | arg5(%r8)      | arg6(%r9)       | ret(%rax)                                      |

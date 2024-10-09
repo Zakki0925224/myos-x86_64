@@ -64,8 +64,8 @@ impl Window {
         Ok(Self {
             layer_id,
             title,
-            close_button_pos: (width - 1 - 20, 1),
-            close_button_size: (20, 20),
+            close_button_pos: (width - 8 - 14, 6),
+            close_button_size: (16, 14),
             is_closed: false,
         })
     }
@@ -81,28 +81,50 @@ impl Window {
             height,
         } = multi_layer::get_layer_pos_info(&self.layer_id)?;
         multi_layer::draw_layer(&self.layer_id, |l| {
-            l.fill(GLOBAL_THEME.wm_window_back_color)?;
-            l.draw_rect(0, 0, width, 1, GLOBAL_THEME.wm_window_border_color)?;
-            l.draw_rect(0, height - 1, width, 1, GLOBAL_THEME.wm_window_border_color)?;
-            l.draw_rect(0, 0, 1, height - 1, GLOBAL_THEME.wm_window_border_color)?;
-            l.draw_rect(width - 1, 0, 1, height, GLOBAL_THEME.wm_window_border_color)?;
+            // back color
+            l.fill(GLOBAL_THEME.wm_panel_back_color)?;
+
+            // borders
+            l.draw_rect(0, 0, 2, height - 2, GLOBAL_THEME.wm_panel_border_color1)?;
             l.draw_rect(
-                1,
-                1,
+                2,
+                height - 2,
                 width - 2,
-                20,
+                2,
+                GLOBAL_THEME.wm_panel_border_color2,
+            )?;
+
+            l.draw_rect(
+                width - 2,
+                2,
+                2,
+                height - 2,
+                GLOBAL_THEME.wm_panel_border_color2,
+            )?;
+            l.draw_rect(0, 0, width - 2, 2, GLOBAL_THEME.wm_panel_border_color1)?;
+
+            // titlebar
+            l.draw_rect(
+                4,
+                4,
+                width - 8,
+                18,
                 GLOBAL_THEME.wm_window_titlebar_back_color,
-            )?; // titlebar
+            )?;
+
+            // close button
             l.draw_rect(
                 cb_x,
                 cb_y,
                 cb_w,
                 cb_h,
                 GLOBAL_THEME.wm_window_close_button_back_color,
-            )?; // close button
+            )?;
+
+            // title
             l.draw_string(
-                5,
-                5,
+                7,
+                7,
                 &self.title,
                 GLOBAL_THEME.wm_window_titlebar_fore_color,
             )?;
@@ -138,11 +160,29 @@ impl Panel {
             height,
         } = multi_layer::get_layer_pos_info(&self.layer_id)?;
         multi_layer::draw_layer(&self.layer_id, |l| {
+            // back color
             l.fill(GLOBAL_THEME.wm_panel_back_color)?;
-            l.draw_rect(0, 0, width, 1, GLOBAL_THEME.wm_panel_border_color)?;
-            l.draw_rect(0, height - 1, width, 1, GLOBAL_THEME.wm_panel_border_color)?;
-            l.draw_rect(0, 0, 1, height, GLOBAL_THEME.wm_panel_border_color)?;
-            l.draw_rect(width - 1, 0, 1, height, GLOBAL_THEME.wm_panel_border_color)?;
+
+            // borders
+            // borders
+            l.draw_rect(0, 0, 2, height - 2, GLOBAL_THEME.wm_panel_border_color1)?;
+            l.draw_rect(
+                2,
+                height - 2,
+                width - 2,
+                2,
+                GLOBAL_THEME.wm_panel_border_color2,
+            )?;
+
+            l.draw_rect(
+                width - 2,
+                2,
+                2,
+                height - 2,
+                GLOBAL_THEME.wm_panel_border_color2,
+            )?;
+            l.draw_rect(0, 0, width - 2, 2, GLOBAL_THEME.wm_panel_border_color1)?;
+
             Ok(())
         })?;
         Ok(())

@@ -42,7 +42,7 @@ pub fn init_layer_man(graphic_info: &GraphicInfo, transparent_color: RgbColorCod
     info!("graphics: Initialized layer manager");
 
     let (res_x, res_y) = graphic_info.resolution;
-    let console_layer = match multi_layer::create_layer(0, 0, res_x, res_y) {
+    let console_layer = match multi_layer::create_layer(0, 0, res_x, res_y - 30) {
         Ok(l) => l,
         Err(err) => {
             error!("graphics: Failed to create the layer: {:?}", err);
@@ -73,6 +73,10 @@ pub fn init_simple_wm() {
             "graphics: Failed to initialize simple window manager: {:?}",
             err
         );
+    }
+
+    if let Err(err) = simple_window_manager::create_taskbar() {
+        error!("graphics: Failed to create taskbar: {:?}", err);
     }
 
     info!("graphics: Initialized simple window manager");
