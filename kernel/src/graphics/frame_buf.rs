@@ -175,7 +175,7 @@ impl FrameBuffer {
             .into());
         }
 
-        let (res_x, _) = self.get_resolution();
+        let (res_x, res_y) = self.get_resolution();
         let layer_buf_ptr = layer.buf.as_mut_ptr();
         let frame_buf_ptr = if let Some(shadow_buf) = &mut self.shadow_buf {
             shadow_buf.as_mut_ptr()
@@ -190,7 +190,8 @@ impl FrameBuffer {
             width: layer_width,
             height: layer_height,
         } = layer.pos_info;
-        for y in layer_y..layer_y + layer_height {
+
+        for y in layer_y..(layer_y + layer_height).min(res_y) {
             let layer_buf_offset = (layer_width * (y - layer_y) * 4) as isize;
             let frame_buf_offset = ((res_x * y + layer_x) * 4) as isize;
 

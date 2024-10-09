@@ -196,9 +196,13 @@ extern "sysv64" fn syscall_handler(
             let y_pos = arg3 as usize;
             let width = arg4 as usize;
             let height = arg5 as usize;
-            if let Err(err) = sys_create_window(title_ptr, x_pos, y_pos, width, height) {
-                error!("syscall: create_window: {:?}", err);
-                return -1;
+
+            match sys_create_window(title_ptr, x_pos, y_pos, width, height) {
+                Ok(wd) => return wd.get() as i64,
+                Err(err) => {
+                    error!("syscall: create_window: {:?}", err);
+                    return -1;
+                }
             }
         }
         // destroy_window syscall

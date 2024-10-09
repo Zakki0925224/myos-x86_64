@@ -105,9 +105,9 @@ impl SimpleWindowManager {
                 // pointer moved
                 {
                     let new_w_x =
-                        (w_x as isize + m_x_after as isize - m_x_before as isize) as usize;
+                        (w_x as isize + m_x_after as isize - m_x_before as isize).max(0) as usize;
                     let new_w_y =
-                        (w_y as isize + m_y_after as isize - m_y_before as isize) as usize;
+                        (w_y as isize + m_y_after as isize - m_y_before as isize).max(0) as usize;
 
                     multi_layer::move_layer(&w.layer_id, new_w_x, new_w_y)?;
                     break;
