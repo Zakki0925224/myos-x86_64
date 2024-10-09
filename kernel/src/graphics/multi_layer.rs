@@ -302,7 +302,7 @@ impl LayerManager {
 }
 
 pub fn init(transparent_color: RgbColorCode) -> Result<()> {
-    *unsafe { LAYER_MAN.try_lock() }? = Some(LayerManager::new(transparent_color));
+    *unsafe { LAYER_MAN.get_force_mut() } = Some(LayerManager::new(transparent_color));
     Ok(())
 }
 

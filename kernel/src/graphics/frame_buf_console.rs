@@ -4,6 +4,7 @@ use super::{
     multi_layer::{self, LayerId, LayerPositionInfo},
 };
 use crate::{
+    arch,
     error::Result,
     util::{mutex::Mutex, theme::GLOBAL_THEME},
     RgbColorCode,
@@ -260,9 +261,13 @@ impl fmt::Write for FrameBufferConsole {
 }
 
 pub fn init(back_color: RgbColorCode, fore_color: RgbColorCode) -> Result<()> {
-    let mut fbc = FrameBufferConsole::new(back_color, fore_color)?;
-    fbc.init_console()?;
-    *unsafe { FRAME_BUF_CONSOLE.try_lock() }? = Some(fbc);
+    let fbc = arch::disabled_int(|| {
+        let mut fbc = FrameBufferConsole::new(back_color, fore_color)?;
+        fbc.init_console()?;
+        Result::Ok(fbc)
+    })?;
+
+    *unsafe { FRAME_BUF_CONSOLE.get_force_mut() } = Some(fbc);
     Ok(())
 }
 

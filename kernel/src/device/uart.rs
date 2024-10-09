@@ -1,6 +1,6 @@
 use super::{console, DeviceDriverFunction, DeviceDriverInfo};
 use crate::{
-    arch::addr::IoPortAddress,
+    arch::{self, addr::IoPortAddress},
     error::{Error, Result},
     print, println,
     util::{ascii::AsciiCode, mutex::Mutex},
@@ -142,11 +142,14 @@ pub fn probe_and_attach() -> Result<()> {
 }
 
 pub fn poll_normal() -> Result<()> {
-    let mut driver = unsafe { UART_DRIVER.try_lock() }?;
-    let received_data = match driver.poll_normal()? {
+    let received_data = match arch::disabled_int(|| {
+        let mut driver = unsafe { UART_DRIVER.try_lock() }?;
+        driver.poll_normal()
+    })? {
         Some(data) => data,
         None => return Ok(()),
     };
+
     let ascii_code = received_data.try_into()?;
 
     match ascii_code {

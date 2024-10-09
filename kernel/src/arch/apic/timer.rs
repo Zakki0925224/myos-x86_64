@@ -1,3 +1,5 @@
+use log::info;
+
 use crate::{
     acpi,
     arch::{addr::*, idt::VEC_LOCAL_APIC_TIMER_INT},
@@ -62,16 +64,17 @@ impl Timer {
 }
 
 pub fn init() -> Result<()> {
-    unsafe { LOCAL_APIC_TIMER.init() }
+    unsafe { LOCAL_APIC_TIMER.init() }?;
+
+    info!("acpi: Local APIC timer initialized");
+    Ok(())
 }
 
 pub fn start() {
     unsafe { LOCAL_APIC_TIMER.start() };
-}
 
-// pub fn stop() {
-//     unsafe { LOCAL_APIC_TIMER.stop() };
-// }
+    info!("acpi: Local APIC timer started");
+}
 
 pub fn tick() {
     unsafe { LOCAL_APIC_TIMER.tick() };

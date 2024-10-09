@@ -276,7 +276,7 @@ impl FrameBuffer {
 }
 
 pub fn init(graphic_info: &GraphicInfo) -> Result<()> {
-    *unsafe { FRAME_BUF.try_lock() }? = Some(FrameBuffer::new(graphic_info));
+    *unsafe { FRAME_BUF.get_force_mut() } = Some(FrameBuffer::new(graphic_info));
     Ok(())
 }
 
