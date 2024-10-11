@@ -1,4 +1,4 @@
-use crate::{arch, graphics::frame_buf_console, print, util::theme::GLOBAL_THEME};
+use crate::{arch, graphics::frame_buf_console, print, theme::GLOBAL_THEME};
 use log::{Level, LevelFilter, Record};
 
 static LOGGER: SimpleLogger = SimpleLogger;

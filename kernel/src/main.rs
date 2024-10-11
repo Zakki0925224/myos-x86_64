@@ -20,6 +20,7 @@ mod graphics;
 mod mem;
 mod panic;
 mod test;
+mod theme;
 mod util;
 
 #[macro_use]
@@ -32,7 +33,8 @@ use device::uart;
 use fs::{file::bitmap::BitmapImage, vfs};
 use graphics::{color::*, simple_window_manager};
 use log::{error, warn};
-use util::{logger, theme::GLOBAL_THEME};
+use theme::GLOBAL_THEME;
+use util::logger;
 
 #[no_mangle]
 #[start]

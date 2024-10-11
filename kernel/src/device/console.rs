@@ -1,8 +1,9 @@
 use crate::{
     error::{Error, Result},
     graphics::{color::*, frame_buf_console},
+    theme::GLOBAL_THEME,
     uart,
-    util::{ascii::AsciiCode, lifo::Lifo, mutex::Mutex, theme::GLOBAL_THEME},
+    util::{ascii::AsciiCode, lifo::Lifo, mutex::Mutex},
 };
 use alloc::{boxed::Box, string::String};
 use core::fmt::{self, Write};

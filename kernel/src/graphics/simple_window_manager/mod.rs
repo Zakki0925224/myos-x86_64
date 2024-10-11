@@ -3,10 +3,7 @@ use super::{
     multi_layer::{self, LayerId, LayerPositionInfo},
 };
 use crate::{
-    device::ps2_mouse::MouseEvent,
-    error::Result,
-    fs::file::bitmap::BitmapImage,
-    util::{mutex::Mutex, theme::GLOBAL_THEME},
+    device::ps2_mouse::MouseEvent, error::Result, fs::file::bitmap::BitmapImage, util::mutex::Mutex,
 };
 use alloc::{string::String, vec::Vec};
 use components::*;
@@ -52,7 +49,7 @@ impl SimpleWindowManager {
     fn create_taskbar(&mut self) -> Result<()> {
         let width = self.res_x;
         let height = 30;
-        let panel = Panel::create_and_push(0, self.res_y - height, width, height)?;
+        let mut panel = Panel::create_and_push(0, self.res_y - height, width, height)?;
         panel.draw_fresh()?;
         self.taskbar = Some(panel);
         self.update_taskbar()?;
@@ -60,18 +57,17 @@ impl SimpleWindowManager {
     }
 
     fn mouse_pointer_event(&mut self, mouse_event: MouseEvent) -> Result<()> {
-        let layer_id = &self
+        let mouse_pointer = self
             .mouse_pointer
-            .as_ref()
-            .ok_or(SimpleWindowManagerError::MousePointerLayerWasNotFound)?
-            .layer_id;
+            .as_mut()
+            .ok_or(SimpleWindowManagerError::MousePointerLayerWasNotFound)?;
 
         let LayerPositionInfo {
             x: m_x_before,
             y: m_y_before,
             width: m_w,
             height: m_h,
-        } = multi_layer::get_layer_pos_info(layer_id)?;
+        } = mouse_pointer.get_layer_pos_info()?;
 
         let rel_x = (mouse_event.rel_x as isize)
             .clamp(-MOUSE_POINTER_MOVE_THRESHOLD, MOUSE_POINTER_MOVE_THRESHOLD);
@@ -84,7 +80,7 @@ impl SimpleWindowManager {
             (m_y_before as isize + rel_y).clamp(0, self.res_y as isize - m_h as isize) as usize;
 
         // move mouse pointer
-        multi_layer::move_layer(layer_id, m_x_after, m_y_after)?;
+        mouse_pointer.move_by_root(m_x_after, m_y_after)?;
 
         if mouse_event.left {
             for w in self.windows.iter_mut().rev() {
@@ -93,7 +89,7 @@ impl SimpleWindowManager {
                     y: w_y,
                     width: w_w,
                     height: w_h,
-                } = multi_layer::get_layer_pos_info(&w.layer_id)?;
+                } = w.get_layer_pos_info()?;
 
                 // drag window event
                 if m_x_before >= w_x
@@ -109,18 +105,12 @@ impl SimpleWindowManager {
                     let new_w_y =
                         (w_y as isize + m_y_after as isize - m_y_before as isize).max(0) as usize;
 
-                    multi_layer::move_layer(&w.layer_id, new_w_x, new_w_y)?;
+                    w.move_by_root(new_w_x, new_w_y)?;
                     break;
                 }
 
                 // click close button event
-                let (cb_x, cb_y) = w.close_button_pos;
-                let (cb_w, cb_h) = w.close_button_size;
-                if m_x_before >= w_x + cb_x
-                    && m_x_before < w_x + cb_x + cb_w
-                    && m_y_before >= w_y + cb_y
-                    && m_y_before < w_y + cb_y + cb_h
-                {
+                if w.is_close_button_clickable(m_x_before, m_y_before)? {
                     w.is_closed = true;
                     self.windows.retain(|w| !w.is_closed);
                     self.update_taskbar()?;
@@ -140,9 +130,9 @@ impl SimpleWindowManager {
         width: usize,
         height: usize,
     ) -> Result<LayerId> {
-        let window = Window::create_and_push(title, x, y, width, height)?;
+        let mut window = Window::create_and_push(title, x, y, width, height)?;
         window.draw_fresh()?;
-        let layer_id = window.layer_id.clone();
+        let layer_id = window.layer_id_clone();
         self.windows.push(window);
         let _ = self.update_taskbar();
 
@@ -150,7 +140,8 @@ impl SimpleWindowManager {
     }
 
     fn destroy_window(&mut self, layer_id: &LayerId) -> Result<()> {
-        self.windows.retain(|w| w.layer_id.get() != layer_id.get());
+        self.windows
+            .retain(|w| w.layer_id_clone().get() != layer_id.get());
         multi_layer::remove_layer(&layer_id)?;
 
         let _ = self.update_taskbar();
@@ -160,20 +151,17 @@ impl SimpleWindowManager {
     fn update_taskbar(&mut self) -> Result<()> {
         let taskbar = self
             .taskbar
-            .as_ref()
+            .as_mut()
             .ok_or(SimpleWindowManagerError::TaskbarLayerWasNotFound)?;
         taskbar.draw_fresh()?;
         let s = format!(
             "{:?}",
             self.windows
                 .iter()
-                .map(|w| w.title.as_str())
+                .map(|w| w.title())
                 .collect::<Vec<&str>>()
         );
-        multi_layer::draw_layer(&taskbar.layer_id, |l| {
-            l.draw_string(7, 7, &s, GLOBAL_THEME.wm_panel_fore_color)?;
-            Ok(())
-        })?;
+        taskbar.draw_string(7, 7, &s)?;
 
         Ok(())
     }

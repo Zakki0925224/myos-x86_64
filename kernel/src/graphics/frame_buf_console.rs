@@ -3,12 +3,7 @@ use super::{
     frame_buf,
     multi_layer::{self, LayerId, LayerPositionInfo},
 };
-use crate::{
-    arch,
-    error::Result,
-    util::{mutex::Mutex, theme::GLOBAL_THEME},
-    RgbColorCode,
-};
+use crate::{arch, error::Result, theme::GLOBAL_THEME, util::mutex::Mutex, RgbColorCode};
 use core::fmt::{self, Write};
 
 static mut FRAME_BUF_CONSOLE: Mutex<Option<FrameBufferConsole>> = Mutex::new(None);

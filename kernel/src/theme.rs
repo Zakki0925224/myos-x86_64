@@ -69,15 +69,12 @@ const DEFAULT_THEME: Theme = Theme {
     log_color_info: COLOR_CYAN,
     log_color_debug: COLOR_YELLOW,
     log_color_trace: COLOR_GREEN,
-
-    // TODO
-    wm_panel_back_color: CLASSIC_COLOR_2,
-    wm_panel_fore_color: COLOR_BLACK,
-    wm_panel_border_color1: COLOR_WHITE,
-    wm_panel_border_color2: RgbColorCode::new(0x79, 0x75, 0x71),
-    wm_window_titlebar_back_color: RgbColorCode::new(0x0a, 0x24, 0x6a),
-    wm_window_titlebar_fore_color: COLOR_WHITE,
-    wm_window_close_button_back_color: COLOR_RED,
+    wm_panel_back_color: COLOR_BLACK,
+    wm_panel_fore_color: DEFAULT_COLOR_2,
+    wm_panel_border_color1: DEFAULT_COLOR_2,
+    wm_panel_border_color2: DEFAULT_COLOR_2,
+    wm_window_titlebar_back_color: COLOR_BLACK,
+    wm_window_titlebar_fore_color: DEFAULT_COLOR_2,
     io_buf_default_back_color: COLOR_BLACK,
     io_buf_default_fore_color: COLOR_BLACK,
 };
@@ -116,7 +113,6 @@ const CLASSIC_THEME: Theme = Theme {
     wm_panel_border_color2: RgbColorCode::new(0x79, 0x75, 0x71),
     wm_window_titlebar_back_color: RgbColorCode::new(0x0a, 0x24, 0x6a),
     wm_window_titlebar_fore_color: COLOR_WHITE,
-    wm_window_close_button_back_color: COLOR_RED,
     io_buf_default_back_color: COLOR_BLACK,
     io_buf_default_fore_color: COLOR_BLACK,
 };
@@ -141,7 +137,6 @@ pub struct Theme {
     pub wm_panel_border_color2: RgbColorCode, // right, bottom
     pub wm_window_titlebar_back_color: RgbColorCode,
     pub wm_window_titlebar_fore_color: RgbColorCode,
-    pub wm_window_close_button_back_color: RgbColorCode,
     // io buffer
     pub io_buf_default_back_color: RgbColorCode,
     pub io_buf_default_fore_color: RgbColorCode,
