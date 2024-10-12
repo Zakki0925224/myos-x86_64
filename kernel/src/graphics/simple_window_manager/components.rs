@@ -147,31 +147,36 @@ impl Component for Window {
         let LayerPositionInfo {
             x: _,
             y: _,
-            width,
             height,
+            width,
         } = self.get_layer_pos_info()?;
         multi_layer::draw_layer(&self.layer_id, |l| {
             // back color
-            l.fill(GLOBAL_THEME.wm_panel_back_color)?;
+            l.fill(GLOBAL_THEME.wm_component_back_color)?;
 
             // borders
-            l.draw_rect(0, 0, 2, height - 2, GLOBAL_THEME.wm_panel_border_color1)?;
-            l.draw_rect(
-                2,
-                height - 2,
-                width - 2,
-                2,
-                GLOBAL_THEME.wm_panel_border_color2,
-            )?;
+            let border_color1 = GLOBAL_THEME.wm_component_border_color1;
+            let border_color2 = if GLOBAL_THEME.wm_component_border_flat {
+                GLOBAL_THEME.wm_component_border_color1
+            } else {
+                GLOBAL_THEME.wm_component_border_color2
+            };
+            let border_width = if GLOBAL_THEME.wm_component_border_flat {
+                width
+            } else {
+                width - 2
+            };
+            let border_height = if GLOBAL_THEME.wm_component_border_flat {
+                height
+            } else {
+                height - 2
+            };
 
-            l.draw_rect(
-                width - 2,
-                2,
-                2,
-                height - 2,
-                GLOBAL_THEME.wm_panel_border_color2,
-            )?;
-            l.draw_rect(0, 0, width - 2, 2, GLOBAL_THEME.wm_panel_border_color1)?;
+            l.draw_rect(0, 0, 2, border_height, border_color1)?;
+            l.draw_rect(2, height - 2, width - 2, 2, border_color2)?;
+
+            l.draw_rect(width - 2, 2, 2, height - 2, border_color2)?;
+            l.draw_rect(0, 0, border_width, 2, border_color1)?;
 
             // titlebar
             l.draw_rect(
@@ -301,26 +306,31 @@ impl Component for Panel {
 
         multi_layer::draw_layer(&self.layer_id, |l| {
             // back color
-            l.fill(GLOBAL_THEME.wm_panel_back_color)?;
+            l.fill(GLOBAL_THEME.wm_component_back_color)?;
 
             // borders
-            l.draw_rect(0, 0, 2, height - 2, GLOBAL_THEME.wm_panel_border_color1)?;
-            l.draw_rect(
-                2,
-                height - 2,
-                width - 2,
-                2,
-                GLOBAL_THEME.wm_panel_border_color2,
-            )?;
+            let border_color1 = GLOBAL_THEME.wm_component_border_color1;
+            let border_color2 = if GLOBAL_THEME.wm_component_border_flat {
+                GLOBAL_THEME.wm_component_border_color1
+            } else {
+                GLOBAL_THEME.wm_component_border_color2
+            };
+            let border_width = if GLOBAL_THEME.wm_component_border_flat {
+                width
+            } else {
+                width - 2
+            };
+            let border_height = if GLOBAL_THEME.wm_component_border_flat {
+                height
+            } else {
+                height - 2
+            };
 
-            l.draw_rect(
-                width - 2,
-                2,
-                2,
-                height - 2,
-                GLOBAL_THEME.wm_panel_border_color2,
-            )?;
-            l.draw_rect(0, 0, width - 2, 2, GLOBAL_THEME.wm_panel_border_color1)?;
+            l.draw_rect(0, 0, 2, border_height, border_color1)?;
+            l.draw_rect(2, height - 2, width - 2, 2, border_color2)?;
+
+            l.draw_rect(width - 2, 2, 2, height - 2, border_color2)?;
+            l.draw_rect(0, 0, border_width, 2, border_color1)?;
 
             Ok(())
         })
@@ -337,7 +347,7 @@ impl Panel {
 
     pub fn draw_string(&self, x: usize, y: usize, s: &str) -> Result<()> {
         multi_layer::draw_layer(&self.layer_id, |l| {
-            l.draw_string(x, y, s, GLOBAL_THEME.wm_panel_fore_color)
+            l.draw_string(x, y, s, GLOBAL_THEME.wm_component_fore_color)
         })
     }
 }
@@ -394,26 +404,31 @@ impl Component for Button {
 
         multi_layer::draw_layer(&self.layer_id, |l| {
             // back color
-            l.fill(GLOBAL_THEME.wm_panel_back_color)?;
+            l.fill(GLOBAL_THEME.wm_component_back_color)?;
 
             // borders
-            l.draw_rect(0, 0, 2, height - 2, GLOBAL_THEME.wm_panel_border_color1)?;
-            l.draw_rect(
-                2,
-                height - 2,
-                width - 2,
-                2,
-                GLOBAL_THEME.wm_panel_border_color2,
-            )?;
+            let border_color1 = GLOBAL_THEME.wm_component_border_color1;
+            let border_color2 = if GLOBAL_THEME.wm_component_border_flat {
+                GLOBAL_THEME.wm_component_border_color1
+            } else {
+                GLOBAL_THEME.wm_component_border_color2
+            };
+            let border_width = if GLOBAL_THEME.wm_component_border_flat {
+                width
+            } else {
+                width - 2
+            };
+            let border_height = if GLOBAL_THEME.wm_component_border_flat {
+                height
+            } else {
+                height - 2
+            };
 
-            l.draw_rect(
-                width - 2,
-                2,
-                2,
-                height - 2,
-                GLOBAL_THEME.wm_panel_border_color2,
-            )?;
-            l.draw_rect(0, 0, width - 2, 2, GLOBAL_THEME.wm_panel_border_color1)?;
+            l.draw_rect(0, 0, 2, border_height, border_color1)?;
+            l.draw_rect(2, height - 2, width - 2, 2, border_color2)?;
+
+            l.draw_rect(width - 2, 2, 2, height - 2, border_color2)?;
+            l.draw_rect(0, 0, border_width, 2, border_color1)?;
 
             // title
             let (f_w, f_h) = (FONT.get_width(), FONT.get_height());
@@ -421,7 +436,7 @@ impl Component for Button {
                 width / 2 - f_w * self.title.len() / 2,
                 height / 2 - f_h / 2,
                 &self.title,
-                GLOBAL_THEME.wm_panel_fore_color,
+                GLOBAL_THEME.wm_component_fore_color,
             )?;
 
             Ok(())

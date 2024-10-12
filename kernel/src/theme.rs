@@ -69,10 +69,11 @@ const DEFAULT_THEME: Theme = Theme {
     log_color_info: COLOR_CYAN,
     log_color_debug: COLOR_YELLOW,
     log_color_trace: COLOR_GREEN,
-    wm_panel_back_color: COLOR_BLACK,
-    wm_panel_fore_color: DEFAULT_COLOR_2,
-    wm_panel_border_color1: DEFAULT_COLOR_2,
-    wm_panel_border_color2: DEFAULT_COLOR_2,
+    wm_component_back_color: COLOR_BLACK,
+    wm_component_fore_color: DEFAULT_COLOR_2,
+    wm_component_border_color1: DEFAULT_COLOR_2,
+    wm_component_border_color2: DEFAULT_COLOR_2,
+    wm_component_border_flat: true,
     wm_window_titlebar_back_color: COLOR_BLACK,
     wm_window_titlebar_fore_color: DEFAULT_COLOR_2,
     io_buf_default_back_color: COLOR_BLACK,
@@ -107,10 +108,11 @@ const CLASSIC_THEME: Theme = Theme {
     log_color_info: RgbColorCode::new(0x00, 0xc0, 0x00),
     log_color_debug: COLOR_WHITE,
     log_color_trace: COLOR_WHITE,
-    wm_panel_back_color: CLASSIC_COLOR_2,
-    wm_panel_fore_color: COLOR_BLACK,
-    wm_panel_border_color1: COLOR_WHITE,
-    wm_panel_border_color2: RgbColorCode::new(0x79, 0x75, 0x71),
+    wm_component_back_color: CLASSIC_COLOR_2,
+    wm_component_fore_color: COLOR_BLACK,
+    wm_component_border_color1: COLOR_WHITE,
+    wm_component_border_color2: RgbColorCode::new(0x79, 0x75, 0x71),
+    wm_component_border_flat: false,
     wm_window_titlebar_back_color: RgbColorCode::new(0x0a, 0x24, 0x6a),
     wm_window_titlebar_fore_color: COLOR_WHITE,
     io_buf_default_back_color: COLOR_BLACK,
@@ -131,10 +133,11 @@ pub struct Theme {
     pub log_color_debug: RgbColorCode,
     pub log_color_trace: RgbColorCode,
     // simple wm
-    pub wm_panel_back_color: RgbColorCode,
-    pub wm_panel_fore_color: RgbColorCode,
-    pub wm_panel_border_color1: RgbColorCode, // left, top
-    pub wm_panel_border_color2: RgbColorCode, // right, bottom
+    pub wm_component_back_color: RgbColorCode,
+    pub wm_component_fore_color: RgbColorCode,
+    pub wm_component_border_color1: RgbColorCode, // left, top
+    pub wm_component_border_color2: RgbColorCode, // right, bottom
+    pub wm_component_border_flat: bool,
     pub wm_window_titlebar_back_color: RgbColorCode,
     pub wm_window_titlebar_fore_color: RgbColorCode,
     // io buffer
