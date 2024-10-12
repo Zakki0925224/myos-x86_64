@@ -1,6 +1,6 @@
 use super::{
     frame_buf,
-    multi_layer::{self, LayerId, LayerPositionInfo},
+    multi_layer::{LayerId, LayerPositionInfo},
 };
 use crate::{
     device::ps2_mouse::MouseEvent, error::Result, fs::file::bitmap::BitmapImage, util::mutex::Mutex,
@@ -142,7 +142,6 @@ impl SimpleWindowManager {
     fn destroy_window(&mut self, layer_id: &LayerId) -> Result<()> {
         self.windows
             .retain(|w| w.layer_id_clone().get() != layer_id.get());
-        multi_layer::remove_layer(&layer_id)?;
 
         let _ = self.update_taskbar();
         Ok(())

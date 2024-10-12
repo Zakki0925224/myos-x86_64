@@ -7,12 +7,17 @@ use crate::{
     },
     theme::GLOBAL_THEME,
 };
-use alloc::string::String;
+use alloc::{
+    boxed::Box,
+    string::{String, ToString},
+    vec::Vec,
+};
 
 pub trait Component {
     fn layer_id_clone(&self) -> LayerId;
     fn get_layer_pos_info(&self) -> Result<LayerPositionInfo>;
     fn move_by_root(&self, to_x: usize, to_y: usize) -> Result<()>;
+    fn move_by_parent(&self, parent: &dyn Component, to_x: usize, to_y: usize) -> Result<()>;
     fn draw_fresh(&mut self) -> Result<()>;
 }
 
@@ -39,6 +44,24 @@ impl Component for Image {
         multi_layer::move_layer(&self.layer_id, to_x, to_y)
     }
 
+    fn move_by_parent(&self, parent: &dyn Component, to_x: usize, to_y: usize) -> Result<()> {
+        let LayerPositionInfo {
+            x: p_x,
+            y: p_y,
+            width: _,
+            height: _,
+        } = parent.get_layer_pos_info()?;
+
+        let LayerPositionInfo {
+            x,
+            y,
+            width: _,
+            height: _,
+        } = self.get_layer_pos_info()?;
+
+        self.move_by_root(to_x + x - p_x, to_y + y - p_y)
+    }
+
     fn draw_fresh(&mut self) -> Result<()> {
         Ok(())
     }
@@ -63,12 +86,13 @@ impl Image {
     }
 }
 
-#[derive(Debug)]
 pub struct Window {
     layer_id: LayerId,
     title: String,
-    close_button_pos: (usize, usize),
-    close_button_size: (usize, usize),
+    close_button: Button,
+    resize_button: Button,
+    minimize_button: Button,
+    children: Vec<Box<dyn Component>>,
     pub is_closed: bool,
 }
 
@@ -88,13 +112,38 @@ impl Component for Window {
     }
 
     fn move_by_root(&self, to_x: usize, to_y: usize) -> Result<()> {
-        multi_layer::move_layer(&self.layer_id, to_x, to_y)
+        self.close_button.move_by_parent(self, to_x, to_y)?;
+        self.resize_button.move_by_parent(self, to_x, to_y)?;
+        self.minimize_button.move_by_parent(self, to_x, to_y)?;
+
+        for child in &self.children {
+            child.move_by_parent(self, to_x, to_y)?;
+        }
+
+        multi_layer::move_layer(&self.layer_id, to_x, to_y)?;
+
+        Ok(())
+    }
+
+    fn move_by_parent(&self, parent: &dyn Component, to_x: usize, to_y: usize) -> Result<()> {
+        let LayerPositionInfo {
+            x: p_x,
+            y: p_y,
+            width: _,
+            height: _,
+        } = parent.get_layer_pos_info()?;
+
+        let LayerPositionInfo {
+            x,
+            y,
+            width: _,
+            height: _,
+        } = self.get_layer_pos_info()?;
+
+        self.move_by_root(to_x + x - p_x, to_y + y - p_y)
     }
 
     fn draw_fresh(&mut self) -> Result<()> {
-        let (cb_x, cb_y) = self.close_button_pos;
-        let (cb_w, cb_h) = self.close_button_size;
-
         let LayerPositionInfo {
             x: _,
             y: _,
@@ -143,14 +192,15 @@ impl Component for Window {
             Ok(())
         })?;
 
-        // close button
-        self.draw_button(cb_x, cb_y, cb_w, cb_h, "x")?;
+        self.close_button.draw_fresh()?;
+        self.resize_button.draw_fresh()?;
+        self.minimize_button.draw_fresh()?;
 
-        // resize button
-        self.draw_button(cb_x - cb_w - 2, cb_y, cb_w, cb_h, "[]")?;
+        for child in &mut self.children {
+            child.draw_fresh()?;
+        }
 
-        // minimize button
-        self.draw_button(cb_x - cb_w * 2 - 4, cb_y, cb_w, cb_h, "-")
+        Ok(())
     }
 }
 
@@ -165,12 +215,22 @@ impl Window {
         let layer = multi_layer::create_layer(x, y, width, height)?;
         let layer_id = layer.id.clone();
         multi_layer::push_layer(layer)?;
+
+        let close_button =
+            Button::create_and_push("x".to_string(), x + width - 8 - 14, y + 6, 16, 14)?;
+        let resize_button =
+            Button::create_and_push("[]".to_string(), x + width - 8 - 14 - 16 - 2, y + 6, 16, 14)?;
+        let minimize_button =
+            Button::create_and_push("_".to_string(), x + width - 8 - 14 - 32 - 4, y + 6, 16, 14)?;
+
         Ok(Self {
             layer_id,
             title,
-            close_button_pos: (width - 8 - 14, 6),
-            close_button_size: (16, 14),
             is_closed: false,
+            close_button,
+            resize_button,
+            children: Vec::new(),
+            minimize_button,
         })
     }
 
@@ -179,56 +239,14 @@ impl Window {
     }
 
     pub fn is_close_button_clickable(&self, x: usize, y: usize) -> Result<bool> {
-        let (cb_x, cb_y) = self.close_button_pos;
-        let (cb_w, cb_h) = self.close_button_size;
         let LayerPositionInfo {
-            x: w_x,
-            y: w_y,
-            width: _,
-            height: _,
-        } = self.get_layer_pos_info()?;
+            x: cb_x,
+            y: cb_y,
+            width: cb_w,
+            height: cb_h,
+        } = self.close_button.get_layer_pos_info()?;
 
-        Ok(x >= w_x + cb_x && x < w_x + cb_x + cb_w && y >= w_y + cb_y && y < w_y + cb_y + cb_h)
-    }
-
-    fn draw_button(
-        &self,
-        b_x: usize,
-        b_y: usize,
-        b_w: usize,
-        b_h: usize,
-        title: &str,
-    ) -> Result<()> {
-        multi_layer::draw_layer(&self.layer_id, |l| {
-            l.draw_rect(b_x, b_y, b_w, b_h, GLOBAL_THEME.wm_panel_back_color)?;
-            l.draw_rect(b_x, b_y, 2, b_h - 2, GLOBAL_THEME.wm_panel_border_color1)?;
-            l.draw_rect(
-                b_x + 2,
-                b_y + b_h - 2,
-                b_w - 2,
-                2,
-                GLOBAL_THEME.wm_panel_border_color2,
-            )?;
-
-            l.draw_rect(
-                b_x + b_w - 2,
-                b_y + 2,
-                2,
-                b_h - 2,
-                GLOBAL_THEME.wm_panel_border_color2,
-            )?;
-            l.draw_rect(b_x, b_y, b_w - 2, 2, GLOBAL_THEME.wm_panel_border_color1)?;
-
-            let (f_w, f_h) = (FONT.get_width(), FONT.get_height());
-            l.draw_string(
-                b_x + b_w / 2 - f_w * title.len() / 2,
-                b_y + b_h / 2 - f_h / 2,
-                title,
-                GLOBAL_THEME.wm_panel_fore_color,
-            )?;
-
-            Ok(())
-        })
+        Ok(x >= cb_x && x < cb_x + cb_w && y >= cb_y && y < cb_y + cb_h)
     }
 }
 
@@ -255,6 +273,24 @@ impl Component for Panel {
         multi_layer::move_layer(&self.layer_id, to_x, to_y)
     }
 
+    fn move_by_parent(&self, parent: &dyn Component, to_x: usize, to_y: usize) -> Result<()> {
+        let LayerPositionInfo {
+            x: p_x,
+            y: p_y,
+            width: _,
+            height: _,
+        } = parent.get_layer_pos_info()?;
+
+        let LayerPositionInfo {
+            x,
+            y,
+            width: _,
+            height: _,
+        } = self.get_layer_pos_info()?;
+
+        self.move_by_root(to_x + x - p_x, to_y + y - p_y)
+    }
+
     fn draw_fresh(&mut self) -> Result<()> {
         let LayerPositionInfo {
             x: _,
@@ -267,7 +303,6 @@ impl Component for Panel {
             // back color
             l.fill(GLOBAL_THEME.wm_panel_back_color)?;
 
-            // borders
             // borders
             l.draw_rect(0, 0, 2, height - 2, GLOBAL_THEME.wm_panel_border_color1)?;
             l.draw_rect(
@@ -304,5 +339,107 @@ impl Panel {
         multi_layer::draw_layer(&self.layer_id, |l| {
             l.draw_string(x, y, s, GLOBAL_THEME.wm_panel_fore_color)
         })
+    }
+}
+
+pub struct Button {
+    layer_id: LayerId,
+    title: String,
+}
+
+impl Drop for Button {
+    fn drop(&mut self) {
+        let _ = multi_layer::remove_layer(&self.layer_id);
+    }
+}
+
+impl Component for Button {
+    fn layer_id_clone(&self) -> LayerId {
+        self.layer_id.clone()
+    }
+
+    fn get_layer_pos_info(&self) -> Result<LayerPositionInfo> {
+        multi_layer::get_layer_pos_info(&self.layer_id)
+    }
+
+    fn move_by_root(&self, to_x: usize, to_y: usize) -> Result<()> {
+        multi_layer::move_layer(&self.layer_id, to_x, to_y)
+    }
+
+    fn move_by_parent(&self, parent: &dyn Component, to_x: usize, to_y: usize) -> Result<()> {
+        let LayerPositionInfo {
+            x: p_x,
+            y: p_y,
+            width: _,
+            height: _,
+        } = parent.get_layer_pos_info()?;
+
+        let LayerPositionInfo {
+            x,
+            y,
+            width: _,
+            height: _,
+        } = self.get_layer_pos_info()?;
+
+        self.move_by_root(to_x + x - p_x, to_y + y - p_y)
+    }
+
+    fn draw_fresh(&mut self) -> Result<()> {
+        let LayerPositionInfo {
+            x: _,
+            y: _,
+            width,
+            height,
+        } = self.get_layer_pos_info()?;
+
+        multi_layer::draw_layer(&self.layer_id, |l| {
+            // back color
+            l.fill(GLOBAL_THEME.wm_panel_back_color)?;
+
+            // borders
+            l.draw_rect(0, 0, 2, height - 2, GLOBAL_THEME.wm_panel_border_color1)?;
+            l.draw_rect(
+                2,
+                height - 2,
+                width - 2,
+                2,
+                GLOBAL_THEME.wm_panel_border_color2,
+            )?;
+
+            l.draw_rect(
+                width - 2,
+                2,
+                2,
+                height - 2,
+                GLOBAL_THEME.wm_panel_border_color2,
+            )?;
+            l.draw_rect(0, 0, width - 2, 2, GLOBAL_THEME.wm_panel_border_color1)?;
+
+            // title
+            let (f_w, f_h) = (FONT.get_width(), FONT.get_height());
+            l.draw_string(
+                width / 2 - f_w * self.title.len() / 2,
+                height / 2 - f_h / 2,
+                &self.title,
+                GLOBAL_THEME.wm_panel_fore_color,
+            )?;
+
+            Ok(())
+        })
+    }
+}
+
+impl Button {
+    pub fn create_and_push(
+        title: String,
+        x: usize,
+        y: usize,
+        width: usize,
+        height: usize,
+    ) -> Result<Self> {
+        let layer = multi_layer::create_layer(x, y, width, height)?;
+        let layer_id = layer.id.clone();
+        multi_layer::push_layer(layer)?;
+        Ok(Self { layer_id, title })
     }
 }

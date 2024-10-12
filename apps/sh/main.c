@@ -1,4 +1,5 @@
 #include "../libm/libm.h"
+#include "../libm/window.h"
 #define BUF_LEN 128
 
 #define MS_IN_A_DAY (24 * 60 * 60 * 1000)
@@ -85,14 +86,12 @@ void exec_cmd(char *cmd)
     }
     else if (strcmp(splitted_buf[0], "window") == 0)
     {
-        int64_t wd = sys_create_window("test window", 200, 50, 300, 200);
-        if (wd == -1)
+        WindowDescriptor *wdesc = create_window("test window", 200, 50, 300, 200);
+        if (wdesc == NULL)
         {
             printf("sh: window: failed to create window\n");
             return;
         }
-
-        printf("sh: window: wd: %d\n", wd);
     }
     else
     {
