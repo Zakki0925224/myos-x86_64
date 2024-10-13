@@ -6,6 +6,7 @@ use crate::{
         multi_layer::{self, LayerId, LayerPositionInfo},
     },
     theme::GLOBAL_THEME,
+    RgbColorCode,
 };
 use alloc::{
     boxed::Box,
@@ -93,6 +94,8 @@ pub struct Window {
     resize_button: Button,
     minimize_button: Button,
     children: Vec<Box<dyn Component>>,
+    contents_base_rel_x: usize,
+    contents_base_rel_y: usize,
     pub is_closed: bool,
 }
 
@@ -145,10 +148,10 @@ impl Component for Window {
 
     fn draw_fresh(&mut self) -> Result<()> {
         let LayerPositionInfo {
-            x: _,
-            y: _,
-            height,
-            width,
+            x: w_x,
+            y: w_y,
+            height: w_h,
+            width: w_w,
         } = self.get_layer_pos_info()?;
         multi_layer::draw_layer(&self.layer_id, |l| {
             // back color
@@ -162,27 +165,27 @@ impl Component for Window {
                 GLOBAL_THEME.wm_component_border_color2
             };
             let border_width = if GLOBAL_THEME.wm_component_border_flat {
-                width
+                w_w
             } else {
-                width - 2
+                w_w - 2
             };
             let border_height = if GLOBAL_THEME.wm_component_border_flat {
-                height
+                w_h
             } else {
-                height - 2
+                w_h - 2
             };
 
             l.draw_rect(0, 0, 2, border_height, border_color1)?;
-            l.draw_rect(2, height - 2, width - 2, 2, border_color2)?;
+            l.draw_rect(2, w_h - 2, w_w - 2, 2, border_color2)?;
 
-            l.draw_rect(width - 2, 2, 2, height - 2, border_color2)?;
+            l.draw_rect(w_w - 2, 2, 2, w_h - 2, border_color2)?;
             l.draw_rect(0, 0, border_width, 2, border_color1)?;
 
             // titlebar
             l.draw_rect(
                 4,
                 4,
-                width - 8,
+                w_w - 8,
                 18,
                 GLOBAL_THEME.wm_window_titlebar_back_color,
             )?;
@@ -201,8 +204,26 @@ impl Component for Window {
         self.resize_button.draw_fresh()?;
         self.minimize_button.draw_fresh()?;
 
+        let contents_base_rel_x = self.contents_base_rel_x;
+        let mut contents_base_rel_y = self.contents_base_rel_y;
+        let mut max_width = 0;
+
         for child in &mut self.children {
+            let LayerPositionInfo {
+                x: _,
+                y: _,
+                width,
+                height,
+            } = child.get_layer_pos_info()?;
+
+            child.move_by_root(w_x + contents_base_rel_x, w_y + contents_base_rel_y)?;
             child.draw_fresh()?;
+
+            contents_base_rel_y += height + 4; // padding
+
+            if max_width > width {
+                max_width = width;
+            }
         }
 
         Ok(())
@@ -236,6 +257,8 @@ impl Window {
             resize_button,
             children: Vec::new(),
             minimize_button,
+            contents_base_rel_x: 4,
+            contents_base_rel_y: 25,
         })
     }
 
@@ -252,6 +275,11 @@ impl Window {
         } = self.close_button.get_layer_pos_info()?;
 
         Ok(x >= cb_x && x < cb_x + cb_w && y >= cb_y && y < cb_y + cb_h)
+    }
+
+    pub fn push_child(&mut self, child: Box<dyn Component>) -> Result<()> {
+        self.children.push(child);
+        Ok(())
     }
 }
 
@@ -456,5 +484,99 @@ impl Button {
         let layer_id = layer.id.clone();
         multi_layer::push_layer(layer)?;
         Ok(Self { layer_id, title })
+    }
+
+    pub fn create_and_push_without_pos(title: String, width: usize, height: usize) -> Result<Self> {
+        let layer = multi_layer::create_layer(0, 0, width, height)?;
+        let layer_id = layer.id.clone();
+        multi_layer::push_layer(layer)?;
+        Ok(Self { layer_id, title })
+    }
+}
+
+pub struct Label {
+    layer_id: LayerId,
+    label: String,
+    back_color: RgbColorCode,
+    fore_color: RgbColorCode,
+}
+
+impl Drop for Label {
+    fn drop(&mut self) {
+        let _ = multi_layer::remove_layer(&self.layer_id);
+    }
+}
+
+impl Component for Label {
+    fn layer_id_clone(&self) -> LayerId {
+        self.layer_id.clone()
+    }
+
+    fn get_layer_pos_info(&self) -> Result<LayerPositionInfo> {
+        multi_layer::get_layer_pos_info(&self.layer_id)
+    }
+
+    fn move_by_root(&self, to_x: usize, to_y: usize) -> Result<()> {
+        multi_layer::move_layer(&self.layer_id, to_x, to_y)
+    }
+
+    fn move_by_parent(&self, parent: &dyn Component, to_x: usize, to_y: usize) -> Result<()> {
+        let LayerPositionInfo {
+            x: p_x,
+            y: p_y,
+            width: _,
+            height: _,
+        } = parent.get_layer_pos_info()?;
+
+        let LayerPositionInfo {
+            x,
+            y,
+            width: _,
+            height: _,
+        } = self.get_layer_pos_info()?;
+
+        self.move_by_root(to_x + x - p_x, to_y + y - p_y)
+    }
+
+    fn draw_fresh(&mut self) -> Result<()> {
+        multi_layer::draw_layer(&self.layer_id, |l| {
+            // back color
+            l.fill(self.back_color)?;
+
+            // label
+            let (_, f_h) = (FONT.get_width(), FONT.get_height());
+            let c_x = 0;
+            let mut c_y = 0;
+
+            for line in self.label.lines() {
+                l.draw_string(c_x, c_y, line, self.fore_color)?;
+                c_y += f_h;
+            }
+
+            Ok(())
+        })
+    }
+}
+
+impl Label {
+    pub fn create_and_push_without_pos(
+        label: String,
+        back_color: RgbColorCode,
+        fore_color: RgbColorCode,
+    ) -> Result<Self> {
+        // calc width and height
+        let (f_w, f_h) = (FONT.get_width(), FONT.get_height());
+        let width = label.lines().map(|s| s.len()).max().unwrap_or(0) * f_w;
+        let height = label.lines().count() * f_h;
+
+        let layer = multi_layer::create_layer(0, 0, width, height)?;
+        let layer_id = layer.id.clone();
+        multi_layer::push_layer(layer)?;
+        Ok(Self {
+            layer_id,
+            label,
+            back_color,
+            fore_color,
+        })
     }
 }
