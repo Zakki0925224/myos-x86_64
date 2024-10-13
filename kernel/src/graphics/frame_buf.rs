@@ -191,7 +191,11 @@ impl FrameBuffer {
             height: layer_height,
         } = layer.pos_info;
 
-        for y in layer_y..(layer_y + layer_height).min(res_y) {
+        let layer_x = layer_x.min(res_x);
+        let layer_y = layer_y.min(res_y);
+        let layer_y_end = (layer_y + layer_height).min(res_y);
+
+        for y in layer_y..layer_y_end {
             let layer_buf_offset = (layer_width * (y - layer_y) * 4) as isize;
             let frame_buf_offset = ((res_x * y + layer_x) * 4) as isize;
 
