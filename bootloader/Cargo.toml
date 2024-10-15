@@ -6,5 +6,5 @@ authors = ["Zakki <zakki0925224@gmail.com>"]
 
 [dependencies]
 common = { path = "../common" }
-uefi = { version = "0.31.0", features = ["alloc", "global_allocator", "panic_handler", "logger"] }
+uefi = { version = "0.32.0", features = ["alloc", "global_allocator", "panic_handler", "logger"] }
 log = "0.4.18"

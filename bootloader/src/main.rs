@@ -17,46 +17,46 @@ use config::{BootConfig, KERNEL_CONFIG};
 use core::{mem, slice::from_raw_parts_mut};
 use log::info;
 use uefi::{
+    boot::{self, *},
+    entry,
     mem::memory_map::MemoryMap,
-    prelude::*,
     proto::{
-        console::gop::*,
+        console::gop::{GraphicsOutput, PixelFormat},
         media::{file::*, fs::SimpleFileSystem},
     },
-    table::{boot::*, cfg::ACPI2_GUID},
-    CStr16,
+    system,
+    table::cfg::ACPI2_GUID,
+    CStr16, Status,
 };
 
 #[entry]
-fn efi_main(handle: Handle, st: SystemTable<Boot>) -> Status {
+fn efi_main() -> Status {
     uefi::helpers::init().unwrap();
-    let bs = st.boot_services();
-
     info!("Running bootloader...");
 
     // load config
     let config = BootConfig::default();
 
     // graphic info
-    let graphic_info = init_graphic(bs, config.resolution);
+    let graphic_info = init_graphic(config.resolution);
     info!("{:?}", graphic_info);
 
     // load kernel
-    let kernel_entry_point_addr = load_elf(bs, config.kernel_path);
+    let kernel_entry_point_addr = load_elf(config.kernel_path);
     info!("Kernel entry point: 0x{:x}", kernel_entry_point_addr);
 
     // load initramfs
-    let (initramfs_start_virt_addr, initramfs_page_cnt) = load_initramfs(bs, config.initramfs_path);
+    let (initramfs_start_virt_addr, initramfs_page_cnt) = load_initramfs(config.initramfs_path);
 
     // get RSDP address
-    let rsdp_virt_addr = rsdp_addr(&st);
+    let rsdp_virt_addr = rsdp_addr();
 
     // exit boot service and get memory map
     info!("Exit boot services");
     let mut mem_map = Vec::with_capacity(128);
 
     // TODO: loop infinity on VirtualBox and actual device
-    let (_, map) = unsafe { st.exit_boot_services(MemoryType::RUNTIME_SERVICES_DATA) };
+    let map = unsafe { boot::exit_boot_services(MemoryType::RUNTIME_SERVICES_DATA) };
 
     for desc in map.entries() {
         let ty = convert_mem_type(desc.ty);
@@ -88,16 +88,17 @@ fn efi_main(handle: Handle, st: SystemTable<Boot>) -> Status {
     Status::SUCCESS
 }
 
-fn rsdp_addr(st: &SystemTable<Boot>) -> Option<u64> {
-    let acpi2_entry = st.config_table().iter().find(|e| e.guid == ACPI2_GUID);
-    acpi2_entry.map(|e| e.address as u64)
+fn rsdp_addr() -> Option<u64> {
+    system::with_config_table(|e| {
+        let acpi2_entry = e.iter().find(|e| e.guid == ACPI2_GUID);
+        acpi2_entry.map(|e| e.address as u64)
+    })
 }
 
-fn read_file(bs: &BootServices, path: &str) -> RegularFile {
+fn read_file(path: &str) -> RegularFile {
     info!("Opening file: \"{}\"", path);
-    let sfs_handle = bs.get_handle_for_protocol::<SimpleFileSystem>().unwrap();
-    let mut root = bs
-        .open_protocol_exclusive::<SimpleFileSystem>(sfs_handle)
+    let sfs_handle = boot::get_handle_for_protocol::<SimpleFileSystem>().unwrap();
+    let mut root = boot::open_protocol_exclusive::<SimpleFileSystem>(sfs_handle)
         .unwrap()
         .open_volume()
         .unwrap();
@@ -115,8 +116,8 @@ fn read_file(bs: &BootServices, path: &str) -> RegularFile {
     }
 }
 
-fn load_elf(bs: &BootServices, path: &str) -> u64 {
-    let mut file = read_file(bs, path);
+fn load_elf(path: &str) -> u64 {
+    let mut file = read_file(path);
 
     let file_info = file.get_boxed_info::<FileInfo>().unwrap();
     let file_size = file_info.file_size() as usize;
@@ -142,7 +143,7 @@ fn load_elf(bs: &BootServices, path: &str) -> u64 {
     }
 
     let pages = (dest_end - dest_start + UEFI_PAGE_SIZE - 1) / UEFI_PAGE_SIZE;
-    bs.allocate_pages(
+    boot::allocate_pages(
         AllocateType::Address(dest_start as u64),
         MemoryType::LOADER_DATA,
         pages,
@@ -166,8 +167,8 @@ fn load_elf(bs: &BootServices, path: &str) -> u64 {
     elf.header().entry_point
 }
 
-fn load_initramfs(bs: &BootServices, path: &str) -> (u64, usize) {
-    let mut file = read_file(bs, path);
+fn load_initramfs(path: &str) -> (u64, usize) {
+    let mut file = read_file(path);
 
     let file_info = file.get_boxed_info::<FileInfo>().unwrap();
     let file_size = file_info.file_size() as usize;
@@ -177,27 +178,23 @@ fn load_initramfs(bs: &BootServices, path: &str) -> (u64, usize) {
 
     let pages = (file_size + UEFI_PAGE_SIZE - 1) / UEFI_PAGE_SIZE;
     // TODO: want to use virtual address
-    let phys_addr = bs
-        .allocate_pages(AllocateType::AnyPages, MemoryType::LOADER_DATA, pages)
-        .unwrap();
+    let ptr = boot::allocate_pages(AllocateType::AnyPages, MemoryType::LOADER_DATA, pages).unwrap();
 
-    let dest = unsafe { from_raw_parts_mut(phys_addr as *mut u8, pages * UEFI_PAGE_SIZE) };
+    let dest = unsafe { from_raw_parts_mut(ptr.as_ptr(), pages * UEFI_PAGE_SIZE) };
     dest[..file_size].copy_from_slice(&buf);
     dest[file_size..].fill(0);
 
-    info!("Loaded initramfs at: 0x{:x}", phys_addr);
+    info!("Loaded initramfs at: 0x{:x}", dest.as_ptr() as u64);
 
-    (phys_addr, pages)
+    (dest.as_ptr() as u64, pages)
 }
 
-fn init_graphic(bs: &BootServices, resolution: (usize, usize)) -> GraphicInfo {
-    let gop_handle = bs.get_handle_for_protocol::<GraphicsOutput>().unwrap();
-    let mut gop = bs
-        .open_protocol_exclusive::<GraphicsOutput>(gop_handle)
-        .unwrap();
+fn init_graphic(resolution: (usize, usize)) -> GraphicInfo {
+    let gop_handle = boot::get_handle_for_protocol::<GraphicsOutput>().unwrap();
+    let mut gop = boot::open_protocol_exclusive::<GraphicsOutput>(gop_handle).unwrap();
 
     let mode = gop
-        .modes(bs)
+        .modes()
         .find(|mode| mode.info().resolution() == resolution)
         .unwrap();
     info!("Switching graphic mode...");
