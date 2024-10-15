@@ -18,14 +18,14 @@ struct Timer {
 }
 
 impl Timer {
-    pub const fn new() -> Self {
+    const fn new() -> Self {
         Self {
             tick: 0,
             freq: None,
         }
     }
 
-    pub unsafe fn init(&mut self) -> Result<()> {
+    unsafe fn init(&mut self) -> Result<()> {
         // calc freq
         self.stop();
         (DIV_CONF_VIRT_ADDR.as_ptr_mut() as *mut u32).write_volatile(0b1011);
@@ -33,7 +33,7 @@ impl Timer {
             .write_volatile((2 << 16) | VEC_LOCAL_APIC_TIMER_INT as u32);
         // non masked, periodic
         self.start();
-        acpi::pm_timer_wait_ms(1)?;
+        acpi::pm_timer_wait_ms(10)?;
         let tick = self.get_current_tick();
         self.stop();
         self.freq = Some(tick);
@@ -42,15 +42,15 @@ impl Timer {
         Ok(())
     }
 
-    pub unsafe fn start(&self) {
+    unsafe fn start(&self) {
         (INIT_CNT_VIRT_ADDR.as_ptr_mut() as *mut u32).write_volatile(0x0010_0000);
     }
 
-    pub unsafe fn stop(&mut self) {
+    unsafe fn stop(&mut self) {
         (INIT_CNT_VIRT_ADDR.as_ptr_mut() as *mut u32).write_volatile(0);
     }
 
-    pub fn tick(&mut self) {
+    fn tick(&mut self) {
         if self.tick == usize::MAX {
             self.tick = 0;
         }
@@ -58,7 +58,7 @@ impl Timer {
         self.tick += 1;
     }
 
-    pub fn get_current_tick(&self) -> usize {
+    fn get_current_tick(&self) -> usize {
         self.tick
     }
 }
@@ -86,5 +86,5 @@ pub fn get_current_tick() -> usize {
 
 pub fn get_current_ms() -> Option<usize> {
     let freq = unsafe { LOCAL_APIC_TIMER.freq }?;
-    Some(get_current_tick() / freq)
+    Some(get_current_tick() / freq * 10)
 }
