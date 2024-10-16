@@ -281,10 +281,12 @@ extern "x86-interrupt" fn double_fault_handler() {
 extern "x86-interrupt" fn local_apic_timer_handler() {
     arch::apic::timer::tick();
 
-    let _ = multi_layer::draw_to_frame_buf();
-    let _ = frame_buf::apply_shadow_buf();
+    if arch::apic::timer::get_current_ms().is_some() {
+        let _ = multi_layer::draw_to_frame_buf();
+        let _ = frame_buf::apply_shadow_buf();
 
-    let _ = task::poll();
+        let _ = task::poll();
+    }
 
     notify_end_of_int();
 }

@@ -1,10 +1,10 @@
-use log::info;
-
 use crate::{
     acpi,
     arch::{addr::*, idt::VEC_LOCAL_APIC_TIMER_INT},
     error::Result,
 };
+use core::num::{NonZero, NonZeroUsize};
+use log::info;
 
 const LVT_TIMER_VIRT_ADDR: VirtualAddress = VirtualAddress::new(0xfee00320);
 const INIT_CNT_VIRT_ADDR: VirtualAddress = VirtualAddress::new(0xfee00380);
@@ -14,7 +14,7 @@ static mut LOCAL_APIC_TIMER: Timer = Timer::new();
 
 struct Timer {
     tick: usize,
-    freq: Option<usize>,
+    freq: Option<NonZero<usize>>,
 }
 
 impl Timer {
@@ -36,7 +36,8 @@ impl Timer {
         acpi::pm_timer_wait_ms(10)?;
         let tick = self.get_current_tick();
         self.stop();
-        self.freq = Some(tick);
+
+        self.freq = NonZeroUsize::new(tick);
         self.tick = 0;
 
         Ok(())

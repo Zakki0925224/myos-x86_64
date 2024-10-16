@@ -31,11 +31,14 @@ impl log::Log for SimpleLogger {
 
         let _ = frame_buf_console::set_fore_color(fore_color);
 
-        let ms = arch::apic::timer::get_current_ms().unwrap_or(0);
+        if let Some(ms) = arch::apic::timer::get_current_ms() {
+            print!("[{:06}.{:03}]", ms / 1000, ms % 1000,);
+        } else {
+            print!("[??????.???]");
+        }
+
         print!(
-            "[{:06}.{:03}][{}{}]: ",
-            ms / 1000,
-            ms % 1000,
+            "[{}{}]: ",
             if record.level() == Level::Error || record.level() == Level::Debug {
                 ""
             } else {
