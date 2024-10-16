@@ -3,7 +3,9 @@ dump
 qemu_debug.log
 third-party/font.psf
 third-party/OVMF_VARS.fd
+third-party/doom1.wad
 initramfs/apps
+initramfs/doom1.wad
 
 *.elf
 *.o

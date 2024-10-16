@@ -10,6 +10,7 @@ KERNEL_DIR = "kernel"
 DUMP_DIR = "dump"
 THIRD_PARTY_DIR = "third-party"
 QEMU_DIR = "qemu"
+DOOM_DIR = "doom-for-myos"
 INITRAMFS_DIR = "initramfs"
 MNT_DIR_PATH = "/mnt"
 
@@ -20,6 +21,7 @@ ISO_FILE = "myos.iso"
 FONT_FILE = "font.psf"
 OVMF_CODE_FILE = "OVMF_CODE.fd"
 QEMU_TRACE_FILE = "qemu_trace"
+DOOM_WAD_FILE = "doom1.wad"
 INITRAMFS_IMG_FILE = "initramfs.img"
 
 GIT_SUBMODULE_UPDATE = "git submodule update --init --recursive"
@@ -141,6 +143,19 @@ def task_build_qemu():
         )
 
 
+def task_build_doom():
+    # download doom1.wad
+    if not os.path.exists(f"./{THIRD_PARTY_DIR}/{DOOM_WAD_FILE}"):
+        run_cmd(
+            f"wget -P ./{THIRD_PARTY_DIR} https://distro.ibiblio.org/slitaz/sources/packages/d/doom1.wad"
+        )
+
+    d = f"./{THIRD_PARTY_DIR}/{DOOM_DIR}/doomgeneric"
+    run_cmd("make", dir=d)
+    run_cmd(f"cp {d}/doomgeneric ./{APPS_DIR}/doom.elf")
+    run_cmd(f"cp ./{THIRD_PARTY_DIR}/{DOOM_WAD_FILE} ./{INITRAMFS_DIR}")
+
+
 def task_build_bootloader():
     d = f"./{BOOTLOADER_DIR}"
 
@@ -171,6 +186,7 @@ def task_build():
     task_init()
     task_build_cozette()
     task_build_qemu()
+    task_build_doom()
     task_build_bootloader()
     task_build_kernel()
 
