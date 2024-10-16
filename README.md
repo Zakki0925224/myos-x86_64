@@ -36,7 +36,7 @@ This is a replacement project for the previous **[myos](https://github.com/Zakki
 -   OVMF from [EDK II](https://github.com/tianocore/edk2.git) (included)
 -   [Cozette](https://github.com/slavfox/Cozette.git) (download released binary when build)
 -   [QEMU](https://gitlab.com/qemu-project/qemu.git) (for debugging)
--   [doom-for-myos](https://github.com/Zakki0925224/doom-for-myos) (forked from [ozki/doomgeneric](https://github.com/ozkl/doomgeneric))
+-   [doom-for-myos](https://github.com/Zakki0925224/doom-for-myos) (forked from [ozkl/doomgeneric](https://github.com/ozkl/doomgeneric))
 -   [doom1.wad](https://distro.ibiblio.org/slitaz/sources/packages/d/doom1.wad)
 
 ## How to build
