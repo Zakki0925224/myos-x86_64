@@ -150,8 +150,8 @@ def task_build_doom():
             f"wget -P ./{THIRD_PARTY_DIR} https://distro.ibiblio.org/slitaz/sources/packages/d/doom1.wad"
         )
 
-    d = f"./{THIRD_PARTY_DIR}/{DOOM_DIR}/doomgeneric"
-    run_cmd("make", dir=d)
+    d = f"./{THIRD_PARTY_DIR}/{DOOM_DIR}"
+    run_cmd("make -f Makefile.myos", dir=d)
     run_cmd(f"cp {d}/doomgeneric ./{APPS_DIR}/doom.elf")
     run_cmd(f"cp ./{THIRD_PARTY_DIR}/{DOOM_WAD_FILE} ./{INITRAMFS_DIR}")
 
