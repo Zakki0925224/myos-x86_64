@@ -147,7 +147,7 @@ int exec_bf(const char *bf_code)
 
 int main(int argc, char const *argv[])
 {
-    char *bf_code = "++ ++ ++ ++[ > ++ ++[ > ++ > ++ + > ++ + > + < < < < -] > + > + >->> +[ < ] < -] >>.> -- -.++ ++ ++ +..++ +.>>.<-.<.++ +.-- -- --.-- -- -- --.>> +.>++.";
+    const char *bf_code = "++ ++ ++ ++[ > ++ ++[ > ++ > ++ + > ++ + > + < < < < -] > + > + >->> +[ < ] < -] >>.> -- -.++ ++ ++ +..++ +.>>.<-.<.++ +.-- -- --.-- -- -- --.>> +.>++.";
 
     if (argc > 1)
     {
@@ -156,7 +156,10 @@ int main(int argc, char const *argv[])
 
     printf("Welcome to Brainf**k interpreter!\n");
     printf("code: \"%s\"\n", bf_code);
-    int res = exec_bf(bf_code);
+    if (exec_bf(bf_code) == -1)
+    {
+        return 1;
+    }
 
-    return res;
+    return 0;
 }
