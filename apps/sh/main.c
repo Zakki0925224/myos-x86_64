@@ -99,7 +99,7 @@ void exec_cmd(char *cmd)
     }
 }
 
-void _start()
+int main(void)
 {
     int getcwd_ret;
 
@@ -119,5 +119,5 @@ void _start()
         exec_cmd(buf);
     }
 
-    sys_exit(0);
+    return 0;
 }

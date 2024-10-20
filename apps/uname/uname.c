@@ -1,6 +1,6 @@
 #include "../libm/libm.h"
 
-void _start(int argc, char *argv[])
+int main(int argc, const char *argv[])
 {
     utsname *buf = (utsname *)malloc(sizeof(utsname));
     if (buf == NULL)
@@ -67,5 +67,5 @@ void _start(int argc, char *argv[])
         }
     }
 
-    sys_exit(0);
+    return 0;
 }

@@ -1,7 +1,7 @@
 #include "../libm/libm.h"
 
-void _start(void)
+int main(void)
 {
     printf("Hello world!\n");
-    sys_exit(0);
+    return 0;
 }

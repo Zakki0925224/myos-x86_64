@@ -145,7 +145,7 @@ int exec_bf(const char *bf_code)
     return 0;
 }
 
-void _start(int argc, char *argv[])
+int main(int argc, char const *argv[])
 {
     char *bf_code = "++ ++ ++ ++[ > ++ ++[ > ++ > ++ + > ++ + > + < < < < -] > + > + >->> +[ < ] < -] >>.> -- -.++ ++ ++ +..++ +.>>.<-.<.++ +.-- -- --.-- -- -- --.>> +.>++.";
 
@@ -157,5 +157,6 @@ void _start(int argc, char *argv[])
     printf("Welcome to Brainf**k interpreter!\n");
     printf("code: \"%s\"\n", bf_code);
     int res = exec_bf(bf_code);
-    sys_exit(res);
+
+    return res;
 }

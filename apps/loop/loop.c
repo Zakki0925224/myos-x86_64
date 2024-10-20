@@ -1,4 +1,6 @@
-void _start(void)
+#include "../libm/libm.h"
+
+void main(void)
 {
     for (;;)
         ;

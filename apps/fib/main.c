@@ -10,7 +10,7 @@ int fib(int n)
     return fib(n - 1) + fib(n - 2);
 }
 
-void _start(void)
+int main(void)
 {
     for (int i = 0; i < 50; i++)
     {
@@ -18,5 +18,5 @@ void _start(void)
     }
     printf("\n");
 
-    sys_exit(0);
+    return 0;
 }
