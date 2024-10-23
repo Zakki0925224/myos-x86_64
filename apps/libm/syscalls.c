@@ -94,3 +94,8 @@ int64_t sys_destroy_window(int64_t wd)
 {
     return syscall(SN_DESTROY_WINDOW, (uint64_t)wd, 0, 0, 0, 0);
 }
+
+int64_t sys_getcwdenames(char *buf, int buf_len)
+{
+    return syscall(SN_GETCWDENAMES, (uint64_t)buf, (uint64_t)buf_len, 0, 0, 0);
+}

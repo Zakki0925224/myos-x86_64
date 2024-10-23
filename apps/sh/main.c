@@ -1,5 +1,6 @@
 #include "../libm/libm.h"
 #include "../libm/window.h"
+
 #define BUF_LEN 128
 
 #define MS_IN_A_DAY (24 * 60 * 60 * 1000)
@@ -10,6 +11,7 @@
 static char buf[BUF_LEN] = {0};
 static char *splitted_buf[BUF_LEN];
 static char cwd_path[BUF_LEN] = {0};
+static char cwdenames[BUF_LEN * 10] = {0};
 
 void exec_cmd(char *cmd)
 {
@@ -45,6 +47,79 @@ void exec_cmd(char *cmd)
             printf("sh: cd: failed to change directory\n");
             return;
         }
+    }
+    else if (strcmp(splitted_buf[0], "ls") == 0)
+    {
+        if (sys_getcwdenames(cwdenames, sizeof(cwdenames)) == -1)
+        {
+            printf("sh: ls: failed to get entry names in the current working directory\n");
+            return;
+        }
+
+        char old_c = '\0';
+
+        for (int i = 0; i < (int)sizeof(cwdenames); i++)
+        {
+            char c = cwdenames[i];
+
+            // end of name list
+            if (old_c == '\0' && c == '\0' && i > 0)
+            {
+                break;
+            }
+
+            if (c == '\0')
+            {
+                printf("  ");
+            }
+            else
+            {
+                printf("%c", c);
+            }
+
+            old_c = cwdenames[i];
+
+            // clear
+            cwdenames[i] = '\0';
+        }
+    }
+    else if (strcmp(splitted_buf[0], "cat") == 0)
+    {
+        if (cmdargs_len < 2)
+        {
+            return;
+        }
+
+        char *filepath = splitted_buf[1];
+        int64_t fd = sys_open(filepath);
+
+        if (fd == -1)
+        {
+            printf("sh: cat: failed to open the file\n");
+            return;
+        }
+
+        stat *f_stat = (stat *)malloc(sizeof(stat));
+        if (sys_stat(fd, f_stat) == -1)
+        {
+            printf("sh: cat: failed to get the file status\n");
+            return;
+        }
+
+        char *f_buf = (char *)malloc(f_stat->size);
+        if (sys_read(fd, f_buf, f_stat->size) == -1)
+        {
+            printf("sh: cat: failed to read the file\n");
+            return;
+        }
+
+        if (sys_close(fd) == -1)
+        {
+            printf("sh: cat: failed to close the file\n");
+            return;
+        }
+
+        printf("%s\n", f_buf);
     }
     else if (strcmp(splitted_buf[0], "uptime") == 0)
     {

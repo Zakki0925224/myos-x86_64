@@ -1,68 +1,72 @@
 # libm
 
-Standard C library for myos
+Standard C Library for MyOS
 
 ## Syscalls
 
 ### read
 
-Read file
+Reads from a file.
 
 ### write
 
-Write file
+Writes to a file.
 
 ### open
 
-Open file
+Opens a file.
 
 ### close
 
-Close file
+Closes a file.
 
 ### exit
 
-Exit app with status (noreturn)
+Exits the application with a status (noreturn).
 
 ### sbrk
 
-Allocate memory (4KB align)
+Allocates memory, aligned to 4KB.
 
 ### uname
 
-Get system information
+Retrieves system information.
 
 ### break
 
-Trap at current instruction (noreturn)
+Triggers a trap at the current instruction (noreturn).
 
 ### stat
 
-Get file information
+Gets file information.
 
 ### uptime
 
-Get system uptime in milliseconds
+Returns the system uptime in milliseconds.
 
 ### exec
 
-Execute ELF file
+Executes an ELF file.
 
 ### getcwd
 
-Get current working directory absolute path
+Gets the absolute path of the current working directory.
 
 ### chdir
 
-Change directory
+Changes the current working directory.
 
 ### create_window
 
-Create window
+Creates a window.
 
 ### destroy_window
 
-Destroy window
+Destroys a window.
+
+### getcwdenames
+
+Retrieves a list of entry names in the current working directory, separated by null characters (\0).
 
 ## Syscall tables
 
@@ -83,3 +87,4 @@ Destroy window
 | 12     | sys_chdir          | 0xc        | char \*path           | -                 | -              | -              | -               | int64_t (success: 0, error: -1)                |
 | 13     | sys_create_window  | 0xd        | char \*title          | uint64_t x_pos    | uint64_t y_pos | uint64_t width | uint64_t height | int64_t (success: wd, error: -1)               |
 | 14     | sys_destroy_window | 0xe        | int64_t wd            | -                 | -              | -              | -               | int64_t (success: 0, error: -1)                |
+| 15     | sys_getcwdenames   | 0xf        | char \*buf            | int buf_len       | -              | -              | -               | int64_t (success: 0, error: -1)                |

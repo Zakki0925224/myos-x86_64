@@ -6,7 +6,6 @@ use alloc::{
     vec::Vec,
 };
 use core::sync::atomic::{AtomicUsize, Ordering};
-use log::info;
 
 pub mod file_desc;
 
@@ -81,7 +80,7 @@ struct VirtualFileSystem {
 }
 
 impl VirtualFileSystem {
-    pub fn new() -> Self {
+    fn new() -> Self {
         let mut files = Vec::new();
 
         let rootfs_id = FileId::new();
@@ -125,7 +124,7 @@ impl VirtualFileSystem {
         self.files.iter_mut().find(|f| f.id.get() == id.get())
     }
 
-    pub fn find_file_by_path(&self, path: &str) -> Option<&FileInfo> {
+    fn find_file_by_path(&self, path: &str) -> Option<&FileInfo> {
         let mut file_ref = self.find_file(&self.cwd_id)?;
 
         if path.starts_with(PATH_SEPARATOR) {
@@ -173,7 +172,7 @@ impl VirtualFileSystem {
         Some(file_ref)
     }
 
-    pub fn find_file_by_path_mut(&mut self, path: &str) -> Option<&mut FileInfo> {
+    fn find_file_by_path_mut(&mut self, path: &str) -> Option<&mut FileInfo> {
         let file_ref = self.find_file_by_path(path)?;
         let file_ref_id = file_ref.id;
         self.files
@@ -181,7 +180,7 @@ impl VirtualFileSystem {
             .find(|f| f.id.get() == file_ref_id.get())
     }
 
-    pub fn chroot(&mut self, path: &str) -> Result<()> {
+    fn chroot(&mut self, path: &str) -> Result<()> {
         let file_ref = match self.find_file_by_path(path) {
             Some(f) => f,
             None => return Err(VirtualFileSystemError::NoSuchFileOrDirectoryError.into()),
@@ -194,7 +193,7 @@ impl VirtualFileSystem {
         Ok(())
     }
 
-    pub fn chdir(&mut self, path: &str) -> Result<()> {
+    fn chdir(&mut self, path: &str) -> Result<()> {
         let file_ref = match self.find_file_by_path(path) {
             Some(f) => f,
             None => return Err(VirtualFileSystemError::NoSuchFileOrDirectoryError.into()),
@@ -207,7 +206,7 @@ impl VirtualFileSystem {
         Ok(())
     }
 
-    pub fn cwd_files(&mut self) -> Vec<&FileInfo> {
+    fn cwd_files(&mut self) -> Vec<&FileInfo> {
         let mut files = Vec::new();
         let cwd_ref = match self.find_file(&self.cwd_id) {
             Some(f) => f,
@@ -233,7 +232,7 @@ impl VirtualFileSystem {
         files
     }
 
-    pub fn cwd_path(&self) -> Result<String> {
+    fn cwd_path(&self) -> Result<String> {
         let mut path = String::new();
         let mut file_ref = match self.find_file(&self.cwd_id) {
             Some(f) => f,
@@ -262,7 +261,7 @@ impl VirtualFileSystem {
         Ok(path)
     }
 
-    pub fn mount(&mut self, path: &str, fs: FileSystem) -> Result<()> {
+    fn mount(&mut self, path: &str, fs: FileSystem) -> Result<()> {
         fn map_initramfs(mount_fs: &mut FileInfo) -> Vec<FileInfo> {
             let initramfs_ref = match &mut mount_fs.fs {
                 Some(FileSystem::Initramfs(r)) => r,
@@ -365,7 +364,7 @@ impl VirtualFileSystem {
         Ok(())
     }
 
-    pub fn open_file(&mut self, path: &str) -> Result<FileDescriptorNumber> {
+    fn open_file(&mut self, path: &str) -> Result<FileDescriptorNumber> {
         let file_ref = match self.find_file_by_path(path) {
             Some(f) => f,
             None => return Err(VirtualFileSystemError::NoSuchFileOrDirectoryError.into()),
@@ -390,7 +389,7 @@ impl VirtualFileSystem {
         Ok(fd_num)
     }
 
-    pub fn close_file(&mut self, fd_num: &FileDescriptorNumber) -> Result<()> {
+    fn close_file(&mut self, fd_num: &FileDescriptorNumber) -> Result<()> {
         if self.find_fd(fd_num).is_none() {
             return Err(VirtualFileSystemError::ReleasedFileResourceError(fd_num.clone()).into());
         }
@@ -401,7 +400,7 @@ impl VirtualFileSystem {
         Ok(())
     }
 
-    pub fn read_file(&mut self, fd_num: &FileDescriptorNumber) -> Result<Vec<u8>> {
+    fn read_file(&mut self, fd_num: &FileDescriptorNumber) -> Result<Vec<u8>> {
         let fd = match self.find_fd(fd_num) {
             Some(f) => f,
             None => {
@@ -531,7 +530,7 @@ pub fn mount(path: &str, fs: FileSystem) -> Result<()> {
         .mount(path, fs)
 }
 
-pub fn cwd_file_names() -> Result<Vec<String>> {
+pub fn cwd_entry_names() -> Result<Vec<String>> {
     Ok(unsafe { VFS.try_lock() }?
         .as_mut()
         .ok_or(VirtualFileSystemError::NotInitialized)?

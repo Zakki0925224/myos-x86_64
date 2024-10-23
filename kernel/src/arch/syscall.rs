@@ -220,6 +220,15 @@ extern "sysv64" fn syscall_handler(
                 return -1;
             }
         }
+        // getcwdenames syscall
+        15 => {
+            let buf_addr = arg1.into();
+            let buf_len = arg2 as usize;
+            if let Err(err) = sys_getcwdenames(buf_addr, buf_len) {
+                error!("syscall: getcwdenames: {:?}", err);
+                return -1;
+            }
+        }
         num => {
             error!("syscall: Syscall number 0x{:x} is not defined", num);
             return -1;
@@ -389,6 +398,23 @@ fn sys_create_window(
 
 fn sys_destroy_window(wd: LayerId) -> Result<()> {
     simple_window_manager::destroy_window(&wd)
+}
+
+fn sys_getcwdenames(buf_addr: VirtualAddress, buf_len: usize) -> Result<()> {
+    let entry_names = fs::vfs::cwd_entry_names()?;
+    let entry_names_s: Vec<u8> = entry_names
+        .iter()
+        .map(|n| CString::new(n.as_str()).unwrap().into_bytes_with_nul())
+        .flatten()
+        .collect();
+
+    if buf_len < entry_names_s.len() {
+        return Err(Error::Failed("Buffer is too small"));
+    }
+
+    buf_addr.copy_from_nonoverlapping(entry_names_s.as_ptr(), entry_names_s.len());
+
+    Ok(())
 }
 
 pub fn enable() {
