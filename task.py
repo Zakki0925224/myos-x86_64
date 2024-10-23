@@ -48,7 +48,7 @@ QEMU_ARGS = [
     "-accel kvm",
     "-no-reboot",
     "-no-shutdown",
-    "-m 4G",
+    "-m 1G",
     "-serial mon:stdio",
     "-monitor telnet::5678,server,nowait",
     "-gdb tcp::3333",

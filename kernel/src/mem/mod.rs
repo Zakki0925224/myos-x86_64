@@ -15,9 +15,8 @@ pub fn init(mem_map: &[MemoryDescriptor]) {
     }
     info!("mem: Bitmap memory manager initialized");
 
-    let (_, max) = bitmap::get_mem_size().unwrap();
     let start = PAGE_SIZE as u64;
-    let end = max as u64;
+    let end = bitmap::get_total_mem_size().unwrap() as u64;
 
     if let Err(err) = paging::create_new_page_table(
         start.into(),
@@ -53,18 +52,18 @@ pub fn free() {
         }
     }
 
-    let (used, total) = bitmap::get_mem_size().unwrap_or((0, 0));
+    let (used, max) = bitmap::get_mem_size().unwrap_or((0, 0));
     let (used_value, used_unit) = format_size(used);
-    let (total_value, total_unit) = format_size(total);
+    let (max_value, max_unit) = format_size(max);
 
     println!(
         "Memory used: {:.2}{}({}B) / {:.2}{}({}B) ({:.2}%)",
         used_value,
         used_unit,
         used,
-        total_value,
-        total_unit,
-        total,
-        (used as f64 / total as f64) * 100f64
+        max_value,
+        max_unit,
+        max,
+        (used as f64 / max as f64) * 100f64
     );
 }
