@@ -3,7 +3,7 @@ use crate::error::Result;
 use core::alloc::Layout;
 use linked_list_allocator::LockedHeap;
 
-const HEAP_SIZE: usize = PAGE_SIZE * PAGE_SIZE; // 16MiB
+const HEAP_SIZE: usize = 1024 * 1024 * 128; // 128MiB
 
 #[global_allocator]
 static ALLOCATOR: LockedHeap = LockedHeap::empty();

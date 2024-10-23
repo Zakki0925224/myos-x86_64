@@ -102,3 +102,8 @@ void replace(char *src, const char target, const char replace)
         i++;
     }
 }
+
+int is_ascii(const char c)
+{
+    return c >= 0 && c <= 127;
+}

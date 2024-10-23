@@ -50,6 +50,7 @@ extern int strlen(const char *str);
 extern int split(char *str, const char regex, char **buf, size_t buflen);
 extern char *concatenate(const char *strs[], int len, const char *delimiter);
 extern void replace(char *src, const char target, const char replace);
+extern int is_ascii(const char c);
 
 // printf.c
 extern int printf(const char *fmt, ...);

@@ -37,12 +37,34 @@ pub fn init(mem_map: &[MemoryDescriptor]) {
 }
 
 pub fn free() {
+    fn format_size(size: usize) -> (f64, &'static str) {
+        const KIB: usize = 1024;
+        const MIB: usize = 1024 * KIB;
+        const GIB: usize = 1024 * MIB;
+
+        if size >= GIB {
+            (size as f64 / GIB as f64, "GiB")
+        } else if size >= MIB {
+            (size as f64 / MIB as f64, "MiB")
+        } else if size >= KIB {
+            (size as f64 / KIB as f64, "KiB")
+        } else {
+            (size as f64, "B")
+        }
+    }
+
     let (used, total) = bitmap::get_mem_size().unwrap_or((0, 0));
+    let (used_value, used_unit) = format_size(used);
+    let (total_value, total_unit) = format_size(total);
 
     println!(
-        "Memory used: {}B/{}B ({}%)",
+        "Memory used: {:.2}{}({}B) / {:.2}{}({}B) ({:.2}%)",
+        used_value,
+        used_unit,
         used,
+        total_value,
+        total_unit,
         total,
-        (used as f32 / total as f32) * 100f32
+        (used as f64 / total as f64) * 100f64
     );
 }

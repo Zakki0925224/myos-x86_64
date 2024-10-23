@@ -23,7 +23,7 @@ int push_buf_and_write(int buf_i, char c)
         write_buf(buf_i);
         buf_i = 0;
     }
-    BUF[buf_i++] = c;
+    BUF[buf_i++] = is_ascii(c) ? c : '?';
     return buf_i;
 }
 
