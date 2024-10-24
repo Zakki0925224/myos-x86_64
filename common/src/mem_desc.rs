@@ -20,6 +20,14 @@ pub enum MemoryType {
     Other(u32),
 }
 
+impl MemoryType {
+    pub fn is_available_memory(&self) -> bool {
+        *self == Self::BootServicesCode
+            || *self == Self::BootServicesData
+            || *self == Self::Conventional
+    }
+}
+
 #[derive(Debug, Copy, Clone)]
 pub struct MemoryDescriptor {
     pub ty: MemoryType,

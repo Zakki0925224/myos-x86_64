@@ -268,7 +268,7 @@ impl ConfigurationSpaceNonBridgeField {
                         // TODO: implement get bar size
                         paging::update_mapping(&MappingInfo {
                             start,
-                            end: (start.get() + (PAGE_SIZE * 3) as u64).into(),
+                            end: start.offset(PAGE_SIZE * 3).into(),
                             phys_addr: full_phys_addr,
                             rw: ReadWrite::Write,
                             us: EntryMode::Supervisor,

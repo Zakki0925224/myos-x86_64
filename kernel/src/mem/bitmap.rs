@@ -4,7 +4,7 @@ use crate::{
     error::{Error, Result},
     util::mutex::Mutex,
 };
-use common::mem_desc::*;
+use common::mem_desc::{MemoryDescriptor, UEFI_PAGE_SIZE};
 
 static mut BITMAP_MEM_MAN: Mutex<Option<BitmapMemoryManager>> = Mutex::new(None);
 
@@ -43,7 +43,7 @@ impl MemoryFrameInfo {
         us: EntryMode,
         pwt: PageWriteThroughLevel,
     ) -> Result<()> {
-        let page_len = self.frame_size / PAGE_SIZE;
+        let page_len = PAGE_SIZE / PAGE_SIZE;
         let mut start = self.frame_start_virt_addr()?;
 
         for _ in 0..page_len {
@@ -67,7 +67,7 @@ const BITMAP_SIZE: usize = u8::BITS as usize;
 struct Bitmap(u8);
 
 impl Bitmap {
-    pub fn get(&self, index: usize) -> Result<bool> {
+    fn get(&self, index: usize) -> Result<bool> {
         if index >= BITMAP_SIZE {
             return Err(Error::IndexOutOfBoundsError(index));
         }
@@ -75,7 +75,7 @@ impl Bitmap {
         Ok(((self.0 >> index) & 0x1) != 0)
     }
 
-    pub fn set(&mut self, index: usize, value: bool) -> Result<()> {
+    fn set(&mut self, index: usize, value: bool) -> Result<()> {
         if index >= BITMAP_SIZE {
             return Err(Error::IndexOutOfBoundsError(index));
         }
@@ -86,15 +86,15 @@ impl Bitmap {
         Ok(())
     }
 
-    pub fn fill(&mut self, value: bool) {
+    fn fill(&mut self, value: bool) {
         self.0 = if value { 0xff } else { 0 };
     }
 
-    pub fn is_allocated_all(&self) -> bool {
+    fn is_allocated_all(&self) -> bool {
         self.0 == 0xff
     }
 
-    pub fn is_free_all(&self) -> bool {
+    fn is_free_all(&self) -> bool {
         self.0 == 0
     }
 }
@@ -117,30 +117,28 @@ pub enum BitmapMemoryManagerError {
 #[derive(Debug)]
 pub struct BitmapMemoryManager {
     bitmap_phys_addr: PhysicalAddress,
-    bitmap_len: usize,
-    frame_len: usize,
+    total_frame_len: usize,
     allocated_frame_len: usize,
     free_frame_len: usize,
-    frame_size: usize,
-    max_mem_size: usize,
+    total_available_mem_size: usize,
 }
 
 impl BitmapMemoryManager {
     fn new(mem_map: &[MemoryDescriptor]) -> Self {
-        // TODO: boot services data/code
+        assert_eq!(UEFI_PAGE_SIZE, PAGE_SIZE);
+
         let max_phys_addr = mem_map
             .iter()
             .map(|d| d.phys_start + d.page_cnt * UEFI_PAGE_SIZE as u64)
             .max()
             .unwrap();
-        let total_page_cnt = max_phys_addr as usize / UEFI_PAGE_SIZE;
-        let bitmap_len = total_page_cnt / BITMAP_SIZE;
+        let total_frame_len = ((max_phys_addr as usize + UEFI_PAGE_SIZE) / UEFI_PAGE_SIZE).max(1);
 
         // find available memory area for bitmap
         let mut bitmap_phys_addr = PhysicalAddress::default();
         for d in mem_map {
-            if d.ty != MemoryType::Conventional
-                || (d.page_cnt as usize) * UEFI_PAGE_SIZE < bitmap_len
+            if !d.ty.is_available_memory()
+                || (d.page_cnt as usize) * UEFI_PAGE_SIZE < total_frame_len / BITMAP_SIZE
                 || d.phys_start == 0
                 || d.phys_start % UEFI_PAGE_SIZE as u64 != 0
             {
@@ -156,63 +154,54 @@ impl BitmapMemoryManager {
         }
 
         // calc max available memory size
-        let mut max_mem_size = 0;
+        let mut total_available_mem_size = 0;
         for d in mem_map {
-            match d.ty {
-                MemoryType::BootServicesCode
-                | MemoryType::BootServicesData
-                | MemoryType::Conventional => (),
-                _ => continue,
+            if !d.ty.is_available_memory() {
+                continue;
             }
 
-            max_mem_size += d.page_cnt as usize * UEFI_PAGE_SIZE;
+            total_available_mem_size += d.page_cnt as usize * UEFI_PAGE_SIZE;
         }
 
         Self {
             bitmap_phys_addr,
-            bitmap_len,
-            frame_len: total_page_cnt,
-            allocated_frame_len: total_page_cnt,
+            total_frame_len,
+            allocated_frame_len: total_frame_len,
             free_frame_len: 0,
-            frame_size: UEFI_PAGE_SIZE,
-            max_mem_size,
+            total_available_mem_size,
         }
     }
 
     fn init(&mut self, mem_map: &[MemoryDescriptor]) -> Result<()> {
         // fill all bitmap
-        for i in 0..self.bitmap_len {
+        for i in 0..self.bitmap_len() {
             self.bitmap(i)?.fill(true);
         }
 
         // deallocate available memory frame
         for d in mem_map {
-            match d.ty {
-                MemoryType::BootServicesCode
-                | MemoryType::BootServicesData
-                | MemoryType::Conventional => (),
-                _ => continue,
+            if !d.ty.is_available_memory() {
+                continue;
             }
 
             if d.phys_start == 0 {
                 continue;
             }
 
-            if d.phys_start % (self.frame_size as u64) != 0 {
+            if d.phys_start % (PAGE_SIZE as u64) != 0 {
                 continue;
             }
 
             for i in 0..d.page_cnt {
-                let frame_index =
-                    (d.phys_start + (i * self.frame_size as u64)) as usize / self.frame_size;
+                let frame_index = (d.phys_start + (i * PAGE_SIZE as u64)) as usize / PAGE_SIZE;
 
                 self.dealloc_frame(frame_index)?;
             }
         }
 
         // allocate bitmap memory frame
-        let start = self.bitmap_phys_addr.get() as usize / self.frame_size;
-        let end = self.bitmap_phys_addr.offset(self.bitmap_len).get() as usize / self.frame_size;
+        let start = self.bitmap_phys_addr.get() as usize / PAGE_SIZE;
+        let end = self.bitmap_phys_addr.offset(self.bitmap_len()).get() as usize / PAGE_SIZE;
         for i in start..=end {
             // ignore already allocated error
             let _ = self.alloc_frame(i);
@@ -221,24 +210,15 @@ impl BitmapMemoryManager {
         Ok(())
     }
 
-    fn get_max_mem_size(&self) -> usize {
-        self.max_mem_size
-    }
-
-    // TODO: calc used size by conventional
-    fn get_used_mem_size(&self) -> usize {
-        self.allocated_frame_len * self.frame_size
-    }
-
-    fn get_total_mem_size(&self) -> usize {
-        self.frame_len * self.frame_size
+    fn bitmap_len(&self) -> usize {
+        self.total_frame_len / BITMAP_SIZE
     }
 
     fn get_mem_frame(&self, frame_index: usize) -> Option<MemoryFrameInfo> {
         if let Ok(bitmap) = self.bitmap(self.bitmap_offset(frame_index)) {
             return Some(MemoryFrameInfo {
-                frame_start_phys_addr: ((frame_index * self.frame_size) as u64).into(),
-                frame_size: self.frame_size,
+                frame_start_phys_addr: ((frame_index * PAGE_SIZE) as u64).into(),
+                frame_size: PAGE_SIZE,
                 frame_index,
                 is_allocated: bitmap.get(self.bitmap_pos(frame_index)).unwrap(),
             });
@@ -253,7 +233,7 @@ impl BitmapMemoryManager {
         }
 
         let mut found_mem_frame_index = 0;
-        'outer: for i in 0..self.bitmap_len {
+        'outer: for i in 0..self.bitmap_len() {
             let bitmap = self.bitmap(i)?;
             if bitmap.is_allocated_all() {
                 continue;
@@ -273,8 +253,8 @@ impl BitmapMemoryManager {
         assert_ne!(found_mem_frame_index, 0);
         self.alloc_frame(found_mem_frame_index)?;
         let mem_frame_info = MemoryFrameInfo {
-            frame_start_phys_addr: ((found_mem_frame_index * self.frame_size) as u64).into(),
-            frame_size: self.frame_size,
+            frame_start_phys_addr: ((found_mem_frame_index * PAGE_SIZE) as u64).into(),
+            frame_size: PAGE_SIZE,
             frame_index: found_mem_frame_index,
             is_allocated: true,
         };
@@ -298,7 +278,7 @@ impl BitmapMemoryManager {
         let mut start_mem_frame_index = None;
         let mut end_mem_frame_index = None;
 
-        'outer: for i in 0..self.bitmap_len {
+        'outer: for i in 0..self.bitmap_len() {
             let bitmap = self.bitmap(i)?;
 
             if len == BITMAP_SIZE && bitmap.is_free_all() {
@@ -340,8 +320,8 @@ impl BitmapMemoryManager {
         }
 
         let mem_frame_info = MemoryFrameInfo {
-            frame_start_phys_addr: ((start_mem_frame_index * self.frame_size) as u64).into(),
-            frame_size: self.frame_size * len,
+            frame_start_phys_addr: ((start_mem_frame_index * PAGE_SIZE) as u64).into(),
+            frame_size: PAGE_SIZE * len,
             frame_index: start_mem_frame_index,
             is_allocated: true,
         };
@@ -366,7 +346,7 @@ impl BitmapMemoryManager {
         let frame_size = mem_frame_info.frame_size;
         let frame_index = mem_frame_info.frame_index;
 
-        for i in frame_index..frame_index + (frame_size / self.frame_size) {
+        for i in frame_index..frame_index + (frame_size / PAGE_SIZE) {
             self.dealloc_frame(i)?;
         }
 
@@ -374,7 +354,7 @@ impl BitmapMemoryManager {
     }
 
     fn bitmap(&self, offset: usize) -> Result<&mut Bitmap> {
-        if offset >= self.bitmap_len {
+        if offset >= self.bitmap_len() {
             return Err(Error::IndexOutOfBoundsError(offset));
         }
 
@@ -396,6 +376,10 @@ impl BitmapMemoryManager {
 
         self.allocated_frame_len += 1;
         self.free_frame_len -= 1;
+        assert_eq!(
+            self.total_frame_len,
+            self.allocated_frame_len + self.free_frame_len
+        );
 
         Ok(())
     }
@@ -415,6 +399,10 @@ impl BitmapMemoryManager {
 
         self.allocated_frame_len -= 1;
         self.free_frame_len += 1;
+        assert_eq!(
+            self.total_frame_len,
+            self.allocated_frame_len + self.free_frame_len
+        );
 
         Ok(())
     }
@@ -439,7 +427,8 @@ pub fn get_total_mem_size() -> Result<usize> {
     let total = unsafe { BITMAP_MEM_MAN.try_lock() }?
         .as_ref()
         .ok_or(BitmapMemoryManagerError::NotInitialized)?
-        .get_total_mem_size();
+        .total_frame_len
+        * PAGE_SIZE;
     Ok(total)
 }
 
@@ -448,8 +437,9 @@ pub fn get_mem_size() -> Result<(usize, usize)> {
     let bitmap_mem_man = binding
         .as_ref()
         .ok_or(BitmapMemoryManagerError::NotInitialized)?;
-    let used = bitmap_mem_man.get_used_mem_size();
-    let total = bitmap_mem_man.get_max_mem_size();
+    let used =
+        bitmap_mem_man.total_frame_len * PAGE_SIZE - bitmap_mem_man.allocated_frame_len * PAGE_SIZE;
+    let total = bitmap_mem_man.total_available_mem_size;
     Ok((used, total))
 }
 
