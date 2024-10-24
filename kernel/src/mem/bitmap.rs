@@ -120,6 +120,7 @@ pub struct BitmapMemoryManager {
     total_frame_len: usize,
     allocated_frame_len: usize,
     free_frame_len: usize,
+    allocated_frame_len_in_available_mem: usize,
     total_available_mem_size: usize,
 }
 
@@ -138,7 +139,7 @@ impl BitmapMemoryManager {
         let mut bitmap_phys_addr = PhysicalAddress::default();
         for d in mem_map {
             if !d.ty.is_available_memory()
-                || (d.page_cnt as usize) * UEFI_PAGE_SIZE < total_frame_len / BITMAP_SIZE
+                || (d.page_cnt as usize) * UEFI_PAGE_SIZE < (total_frame_len / BITMAP_SIZE)
                 || d.phys_start == 0
                 || d.phys_start % UEFI_PAGE_SIZE as u64 != 0
             {
@@ -153,10 +154,18 @@ impl BitmapMemoryManager {
             panic!("mem: Failed to allocate memory for bitmap");
         }
 
-        // calc max available memory size
+        // calc total available memory size
         let mut total_available_mem_size = 0;
         for d in mem_map {
             if !d.ty.is_available_memory() {
+                continue;
+            }
+
+            if d.phys_start == 0 {
+                continue;
+            }
+
+            if d.phys_start % (PAGE_SIZE as u64) != 0 {
                 continue;
             }
 
@@ -168,6 +177,7 @@ impl BitmapMemoryManager {
             total_frame_len,
             allocated_frame_len: total_frame_len,
             free_frame_len: 0,
+            allocated_frame_len_in_available_mem: total_available_mem_size / UEFI_PAGE_SIZE,
             total_available_mem_size,
         }
     }
@@ -376,6 +386,7 @@ impl BitmapMemoryManager {
 
         self.allocated_frame_len += 1;
         self.free_frame_len -= 1;
+        self.allocated_frame_len_in_available_mem += 1;
         assert_eq!(
             self.total_frame_len,
             self.allocated_frame_len + self.free_frame_len
@@ -399,6 +410,7 @@ impl BitmapMemoryManager {
 
         self.allocated_frame_len -= 1;
         self.free_frame_len += 1;
+        self.allocated_frame_len_in_available_mem -= 1;
         assert_eq!(
             self.total_frame_len,
             self.allocated_frame_len + self.free_frame_len
@@ -437,8 +449,7 @@ pub fn get_mem_size() -> Result<(usize, usize)> {
     let bitmap_mem_man = binding
         .as_ref()
         .ok_or(BitmapMemoryManagerError::NotInitialized)?;
-    let used =
-        bitmap_mem_man.total_frame_len * PAGE_SIZE - bitmap_mem_man.allocated_frame_len * PAGE_SIZE; // TODO
+    let used = bitmap_mem_man.allocated_frame_len_in_available_mem * PAGE_SIZE;
     let total = bitmap_mem_man.total_available_mem_size;
     Ok((used, total))
 }

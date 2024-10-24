@@ -325,7 +325,7 @@ impl PageManager {
             self.calc_virt_addr(pml4_table_mem_frame_info.frame_start_phys_addr)?;
         let pml4_page_table = &mut *pml4_virt_addr.as_ptr_mut::<PageTable>();
 
-        let (_, total_mem_size) = bitmap::get_mem_size()?;
+        let total_mem_size = bitmap::get_total_mem_size()?;
         for i in (start.get() as usize..total_mem_size.min(end.get() as usize)).step_by(PAGE_SIZE) {
             self.set_map(
                 (i as u64).into(),
