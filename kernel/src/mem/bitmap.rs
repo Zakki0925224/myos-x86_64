@@ -43,7 +43,7 @@ impl MemoryFrameInfo {
         us: EntryMode,
         pwt: PageWriteThroughLevel,
     ) -> Result<()> {
-        let page_len = PAGE_SIZE / PAGE_SIZE;
+        let page_len = self.frame_size / PAGE_SIZE;
         let mut start = self.frame_start_virt_addr()?;
 
         for _ in 0..page_len {
@@ -438,7 +438,7 @@ pub fn get_mem_size() -> Result<(usize, usize)> {
         .as_ref()
         .ok_or(BitmapMemoryManagerError::NotInitialized)?;
     let used =
-        bitmap_mem_man.total_frame_len * PAGE_SIZE - bitmap_mem_man.allocated_frame_len * PAGE_SIZE;
+        bitmap_mem_man.total_frame_len * PAGE_SIZE - bitmap_mem_man.allocated_frame_len * PAGE_SIZE; // TODO
     let total = bitmap_mem_man.total_available_mem_size;
     Ok((used, total))
 }

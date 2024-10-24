@@ -29,6 +29,9 @@ pub fn init(mem_map: &[MemoryDescriptor]) {
         error!("paging: Failed to create new page table: {:?}", err);
     }
 
+    info!("mem_map addr: 0x{:x}", mem_map.as_ptr() as u64);
+    loop {}
+
     if let Err(err) = allocator::init_heap() {
         panic!("mem: {:?}", err);
     }

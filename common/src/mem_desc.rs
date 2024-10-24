@@ -23,7 +23,7 @@ pub enum MemoryType {
 impl MemoryType {
     pub fn is_available_memory(&self) -> bool {
         *self == Self::BootServicesCode
-            || *self == Self::BootServicesData
+            //|| *self == Self::BootServicesData
             || *self == Self::Conventional
     }
 }
