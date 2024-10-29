@@ -100,6 +100,7 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
 
     env::print_info();
     mem::free();
+    arch::cpu::print_cpuid();
 
     // tasks
     let task_poll_virtio_net = async {
