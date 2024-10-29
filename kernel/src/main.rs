@@ -97,9 +97,9 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
 
     // enable SSE instructions
     if let Err(err) = arch::enable_sse() {
-        error!("arch: Failed to enable SSE instructions: {:?}", err);
+        error!("arch: Failed to enable SSE extensions: {:?}", err);
     } else {
-        info!("arch: Enabled SSE instructions");
+        info!("arch: Enabled SSE extensions");
     }
 
     #[cfg(test)]

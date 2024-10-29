@@ -46,6 +46,7 @@ QEMU_DRIVES = [
 
 QEMU_ARGS = [
     "-accel kvm",
+    "-cpu host",
     "-no-reboot",
     "-no-shutdown",
     "-m 512M",
@@ -151,8 +152,9 @@ def task_build_doom():
         )
 
     d = f"./{THIRD_PARTY_DIR}/{DOOM_DIR}"
-    # run_cmd("make -f Makefile.myos", dir=d)
-    run_cmd("make", dir=d)
+    run_cmd("make clean", dir=d)
+    run_cmd("make -f Makefile.myos", dir=d)
+    # run_cmd("make", dir=d)
     run_cmd(f"cp {d}/doomgeneric ./{APPS_DIR}/doom.elf")
     run_cmd(f"cp ./{THIRD_PARTY_DIR}/{DOOM_WAD_FILE} ./{INITRAMFS_DIR}")
 

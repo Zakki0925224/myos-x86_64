@@ -1,12 +1,11 @@
+use crate::{
+    error::{Error, Result},
+    mem::bitmap,
+};
 use core::arch::asm;
 use register::{
     control::{Cr0, Cr4},
     Register,
-};
-
-use crate::{
-    error::{Error, Result},
-    mem::bitmap,
 };
 
 pub mod acpi;
@@ -30,9 +29,33 @@ pub struct DescriptorTableArgs {
 }
 
 pub fn enable_sse() -> Result<()> {
-    if !cpu::version_info().feature_sse {
+    let cpu_vi = cpu::version_info();
+
+    if !cpu_vi.feature_sse {
         return Err(Error::Failed("CPU does not support SSE"));
     }
+
+    if !cpu_vi.feature_sse2 {
+        return Err(Error::Failed("CPU does not support SSE2"));
+    }
+
+    if !cpu_vi.feature_sse3 {
+        return Err(Error::Failed("CPU does not support SSE3"));
+    }
+
+    if !cpu_vi.feature_ssse3 {
+        return Err(Error::Failed("CPU does not support SSSE3"));
+    }
+
+    if !cpu_vi.feature_sse4_1 {
+        return Err(Error::Failed("CPU does not support SSE4.1"));
+    }
+
+    if !cpu_vi.feature_sse4_2 {
+        return Err(Error::Failed("CPU does not support SSE4.2"));
+    }
+
+    // TODO: check fxsave/fxrestor
 
     let mut cr0 = Cr0::read();
     cr0.set_emulation(false);
