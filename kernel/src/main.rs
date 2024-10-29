@@ -32,7 +32,7 @@ use common::boot_info::BootInfo;
 use device::uart;
 use fs::{file::bitmap::BitmapImage, vfs};
 use graphics::{color::*, simple_window_manager};
-use log::{error, warn};
+use log::{error, info, warn};
 use theme::GLOBAL_THEME;
 use util::logger;
 
@@ -95,12 +95,18 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
         &boot_info.kernel_config,
     );
 
+    // enable SSE instructions
+    if let Err(err) = arch::enable_sse() {
+        error!("arch: Failed to enable SSE instructions: {:?}", err);
+    } else {
+        info!("arch: Enabled SSE instructions");
+    }
+
     #[cfg(test)]
     test_main();
 
     env::print_info();
     mem::free();
-    arch::cpu::print_cpuid();
 
     // tasks
     let task_poll_virtio_net = async {

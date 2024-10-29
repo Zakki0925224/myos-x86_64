@@ -18,9 +18,9 @@ void add_vectors(const float *a, const float *b, float *result, int n)
 
 int main()
 {
-    float a[N] = {1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0};
-    float b[N] = {0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5};
-    float result[N];
+    float a[N] __attribute__((aligned(16))) = {1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0};
+    float b[N] __attribute__((aligned(16))) = {0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5};
+    float result[N] __attribute__((aligned(16)));
 
     add_vectors(a, b, result, N);
 

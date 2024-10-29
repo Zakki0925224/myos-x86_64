@@ -4,6 +4,11 @@ use register::{
     Register,
 };
 
+use crate::{
+    error::{Error, Result},
+    mem::bitmap,
+};
+
 pub mod acpi;
 pub mod addr;
 pub mod apic;
@@ -24,14 +29,17 @@ pub struct DescriptorTableArgs {
     pub base: u64,
 }
 
-// TODO
-pub fn enable_sse() {
+pub fn enable_sse() -> Result<()> {
+    if !cpu::version_info().feature_sse {
+        return Err(Error::Failed("CPU does not support SSE"));
+    }
+
     let mut cr0 = Cr0::read();
     cr0.set_emulation(false);
-    cr0.set_monitor_coporsessor(true);
+    cr0.set_monitor_coprocessor(true);
     cr0.write();
     cr0 = Cr0::read();
-    assert_eq!(cr0.emulation(), true);
+    assert_eq!(cr0.emulation(), false);
     assert_eq!(cr0.monitor_coprocessor(), true);
 
     let mut cr4 = Cr4::read();
@@ -41,6 +49,15 @@ pub fn enable_sse() {
     cr4 = Cr4::read();
     assert_eq!(cr4.osfxsr(), true);
     assert_eq!(cr4.osxmmexcept(), true);
+
+    // allocate FXSAVE region (512 bytes, 16 bytes align)
+    let fxsave_start = bitmap::alloc_mem_frame(1)?.frame_start_virt_addr()?;
+
+    unsafe {
+        asm!("fxsave64 [{}]", in(reg) fxsave_start.as_ptr::<u8>());
+    }
+
+    Ok(())
 }
 
 pub fn hlt() {

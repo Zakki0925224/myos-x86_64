@@ -39,8 +39,8 @@ impl Cr0 {
         self.0 = (self.0 & !0x40) | ((value as u64) << 2);
     }
 
-    pub fn set_monitor_coporsessor(&mut self, value: bool) {
-        self.0 = (self.0 & !0x20) | ((value as u64) << 1);
+    pub fn set_monitor_coprocessor(&mut self, value: bool) {
+        self.0 = (self.0 & !0x02) | ((value as u64) << 1);
     }
 
     pub fn paging(&self) -> bool {
@@ -52,7 +52,7 @@ impl Cr0 {
     }
 
     pub fn monitor_coprocessor(&self) -> bool {
-        (self.0 & 0x20) != 0
+        (self.0 & 0x02) != 0
     }
 }
 
