@@ -2,6 +2,7 @@
 #include <stddef.h>
 #include "utsname.h"
 #include "stat.h"
+#include "temp.h"
 
 // syscalls.c
 // syscall numbers
@@ -59,23 +60,6 @@ extern int printf(const char *fmt, ...);
 extern void *malloc(size_t len);
 
 // tempolary
-extern void *memset(void *s, int c, size_t n)
-{
-    return NULL;
-}
-typedef struct _FILE
-{
-} FILE;
-extern FILE *stdin;
-extern FILE *stdout;
-extern FILE *stderr;
-
-extern int fprintf(FILE *stream, const char *fmt, ...)
-{
-    return -1;
-}
-
-extern int snprintf(char *buff, size_t size, const char *format, ...)
-{
-    return -1;
-}
+extern void *memset(void *s, int c, size_t n);
+extern int fprintf(FILE *stream, const char *fmt, ...);
+extern int snprintf(char *buff, size_t size, const char *format, ...);

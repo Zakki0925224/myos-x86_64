@@ -1,4 +1,4 @@
-SRC_FILES := string.c syscalls.c printf.c malloc.c window.c main.c
+SRC_FILES := string.c syscalls.c printf.c malloc.c window.c main.c temp.c
 OBJ_FILES := $(SRC_FILES:.c=.o)
 LIB_FILE := libm.a
 

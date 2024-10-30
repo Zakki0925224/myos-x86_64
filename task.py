@@ -153,8 +153,8 @@ def task_build_doom():
 
     d = f"./{THIRD_PARTY_DIR}/{DOOM_DIR}"
     run_cmd("make clean", dir=d)
-    run_cmd("make -f Makefile.myos", dir=d)
-    # run_cmd("make", dir=d)
+    # run_cmd("make -f Makefile.myos", dir=d)
+    run_cmd("make", dir=d)
     run_cmd(f"cp {d}/doomgeneric ./{APPS_DIR}/doom.elf")
     run_cmd(f"cp ./{THIRD_PARTY_DIR}/{DOOM_WAD_FILE} ./{INITRAMFS_DIR}")
 
@@ -189,7 +189,6 @@ def task_build():
     task_init()
     task_build_cozette()
     task_build_qemu()
-    task_build_doom()
     task_build_bootloader()
     task_build_kernel()
 
@@ -222,6 +221,7 @@ def task_build_apps():
 
 def task_make_initramfs():
     task_build_apps()
+    task_build_doom()
 
     run_cmd(
         f"dd if=/dev/zero of=./{OUTPUT_DIR}/{INITRAMFS_IMG_FILE} bs=1M count=128"
