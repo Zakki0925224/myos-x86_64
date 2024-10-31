@@ -8,13 +8,12 @@ typedef struct _FILE
 {
 } FILE;
 
-extern FILE stdin;
-extern FILE stdout;
-extern FILE stderr;
+// extern FILE *stdin;
+// extern FILE *stdout;
+// extern FILE *stderr;
 
-// TODO
-#define stdin &stdin
-#define stdout &stdout
-#define stderr &stderr
+// #define stdin stdin
+// #define stdout stdout
+// #define stderr stderr
 
 #endif
