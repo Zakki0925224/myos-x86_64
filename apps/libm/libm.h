@@ -1,3 +1,6 @@
+#ifndef _LIBM_H
+#define _LIBM_H
+
 #include <stdint.h>
 #include <stddef.h>
 #include "utsname.h"
@@ -63,3 +66,5 @@ extern void *malloc(size_t len);
 extern void *memset(void *s, int c, size_t n);
 extern int fprintf(FILE *stream, const char *fmt, ...);
 extern int snprintf(char *buff, size_t size, const char *format, ...);
+
+#endif
