@@ -10,9 +10,9 @@ int strcmp(const char *s1, const char *s2)
     return *s1 - *s2;
 }
 
-int strlen(const char *str)
+size_t strlen(const char *str)
 {
-    int res = 0;
+    size_t res = 0;
     while (*str++)
     {
         res++;

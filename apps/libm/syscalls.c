@@ -60,7 +60,7 @@ void sys_break()
     syscall(SN_BREAK, 0, 0, 0, 0, 0);
 }
 
-int64_t sys_stat(int64_t fd, stat *buf)
+int64_t sys_stat(int64_t fd, f_stat *buf)
 {
     return syscall(SN_STAT, (uint64_t)fd, (uint64_t)buf, 0, 0, 0);
 }

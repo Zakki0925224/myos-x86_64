@@ -99,15 +99,15 @@ void exec_cmd(char *cmd)
             return;
         }
 
-        stat *f_stat = (stat *)malloc(sizeof(stat));
-        if (sys_stat(fd, f_stat) == -1)
+        f_stat *file_stat = (f_stat *)malloc(sizeof(f_stat));
+        if (sys_stat(fd, file_stat) == -1)
         {
             printf("sh: cat: failed to get the file status\n");
             return;
         }
 
-        char *f_buf = (char *)malloc(f_stat->size);
-        if (sys_read(fd, f_buf, f_stat->size) == -1)
+        char *f_buf = (char *)malloc(file_stat->size);
+        if (sys_read(fd, f_buf, file_stat->size) == -1)
         {
             printf("sh: cat: failed to read the file\n");
             return;

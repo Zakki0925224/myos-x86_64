@@ -3,4 +3,4 @@
 typedef struct
 {
     uint64_t size;
-} stat;
+} f_stat;

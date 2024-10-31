@@ -1,6 +1,7 @@
 #ifndef _LIBM_H
 #define _LIBM_H
 
+#include <stdarg.h>
 #include <stdint.h>
 #include <stddef.h>
 #include "utsname.h"
@@ -39,7 +40,7 @@ extern void sys_exit(uint64_t status);
 extern void *sys_sbrk(uint64_t len);
 extern int64_t sys_uname(utsname *buf);
 extern void sys_break();
-extern int64_t sys_stat(int64_t fd, stat *buf);
+extern int64_t sys_stat(int64_t fd, f_stat *buf);
 extern uint64_t sys_uptime();
 extern int64_t sys_exec(const char *args);
 extern int64_t sys_getcwd(char *buf, int buf_len);
@@ -50,7 +51,7 @@ extern int64_t sys_getcwdenames(char *buf, int buf_len);
 
 // string.h
 extern int strcmp(const char *s1, const char *s2);
-extern int strlen(const char *str);
+extern size_t strlen(const char *str);
 extern int split(char *str, const char regex, char **buf, size_t buflen);
 extern char *concatenate(const char *strs[], int len, const char *delimiter);
 extern void replace(char *src, const char target, const char replace);
@@ -66,5 +67,40 @@ extern void *malloc(size_t len);
 extern void *memset(void *s, int c, size_t n);
 extern int fprintf(FILE *stream, const char *fmt, ...);
 extern int snprintf(char *buff, size_t size, const char *format, ...);
+extern int strcasecmp(const char *s1, const char *s2);
+extern char *strdup(const char *s);
+extern void free(void *ptr);
+extern char *strrchr(const char *s, int c);
+extern void *memcpy(void *dest, const void *src, size_t len);
+extern void *memmove(void *dest, const void *src, size_t len);
+extern int strncasecmp(const char *s1, const char *s2, size_t n);
+extern void exit(int status);
+extern int atoi(const char *str);
+extern FILE *fopen(const char *filename, const char *mode);
+extern int fclose(FILE *stream);
+extern int remove(const char *__filename);
+extern long int ftell(FILE *__stream);
+extern int rename(const char *__old, const char *__new);
+extern int fflush(FILE *__stream);
+extern int puts(const char *c);
+extern int putchar(int c);
+extern int system(const char *command);
+extern char *strchr(const char *s, int c);
+extern int vfprintf(FILE *stream, const char *fmt, va_list ap);
+extern int sscanf(const char *buf, const char *fmt, ...);
+extern double atof(const char *__nptr);
+extern int abs(int value);
+extern size_t fread(void *ptr, size_t size, size_t count, FILE *stream);
+extern int fseek(FILE *__stream, long int __off, int __whence);
+extern size_t fwrite(const void *buffer, size_t size, size_t count, FILE *stream);
+extern char *strstr(const char *s1, const char *s2);
+extern int strncmp(const char *s1, const char *s2, size_t n);
+extern char *strncpy(char *dst, const char *src, size_t n);
+extern int vsnprintf(char *buffer, size_t bufsize, const char *format, va_list arg);
+extern void *realloc(void *ptr, size_t size);
+extern void *calloc(size_t num_elems, size_t size);
+extern double fabs(double x);
+extern int toupper(int __c);
+extern int mkdir(const char *__path, __mode_t __mode);
 
 #endif
