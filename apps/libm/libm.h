@@ -63,6 +63,12 @@ extern int printf(const char *fmt, ...);
 // malloc.c
 extern void *malloc(size_t len);
 
+// exit.c
+extern void exit(int status);
+
+// abs.c
+extern int abs(int i);
+
 // tempolary
 extern void *memset(void *s, int c, size_t n);
 extern int fprintf(FILE *stream, const char *fmt, ...);
@@ -74,7 +80,6 @@ extern char *strrchr(const char *s, int c);
 extern void *memcpy(void *dest, const void *src, size_t len);
 extern void *memmove(void *dest, const void *src, size_t len);
 extern int strncasecmp(const char *s1, const char *s2, size_t n);
-extern void exit(int status);
 extern int atoi(const char *str);
 extern FILE *fopen(const char *filename, const char *mode);
 extern int fclose(FILE *stream);
@@ -89,7 +94,6 @@ extern char *strchr(const char *s, int c);
 extern int vfprintf(FILE *stream, const char *fmt, va_list ap);
 extern int sscanf(const char *buf, const char *fmt, ...);
 extern double atof(const char *__nptr);
-extern int abs(int value);
 extern size_t fread(void *ptr, size_t size, size_t count, FILE *stream);
 extern int fseek(FILE *__stream, long int __off, int __whence);
 extern size_t fwrite(const void *buffer, size_t size, size_t count, FILE *stream);

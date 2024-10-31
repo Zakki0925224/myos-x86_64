@@ -50,11 +50,6 @@ int strncasecmp(const char *s1, const char *s2, size_t n)
     return -1;
 }
 
-void exit(int status)
-{
-    sys_exit((uint64_t)status);
-}
-
 int atoi(const char *str)
 {
     return -1;
@@ -125,11 +120,6 @@ int sscanf(const char *buf, const char *fmt, ...)
 double atof(const char *__nptr)
 {
     return -1.0;
-}
-
-int abs(int value)
-{
-    return -1;
 }
 
 size_t fread(void *ptr, size_t size, size_t count, FILE *stream)

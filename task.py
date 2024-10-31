@@ -152,6 +152,7 @@ def task_build_doom():
         )
 
     d = f"./{THIRD_PARTY_DIR}/{DOOM_DIR}"
+    run_cmd("git checkout master", dir=d)
     run_cmd("make -f Makefile.myos", dir=d)
     # run_cmd("make", dir=d)
     run_cmd(f"cp {d}/doomgeneric ./{APPS_DIR}/doom.elf")
