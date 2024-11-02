@@ -1,5 +1,7 @@
 #include <stdarg.h>
-#include "libm.h"
+#include <stdio.h>
+#include "syscalls.h"
+#include "string.h"
 
 #define BUF_SIZE 100
 static char BUF[BUF_SIZE];

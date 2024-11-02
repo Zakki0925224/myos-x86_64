@@ -1,9 +1,14 @@
 fn main() {
-    println!("cargo::rustc-link-search=../libm");
+    println!("cargo::rustc-link-search=../libc");
     println!("cargo::rustc-link-lib=m");
 
     let bindings = bindgen::Builder::default()
-        .header("../libm/libm.h")
+        .header("../libc/stdio.h")
+        .header("../libc/string.h")
+        .header("../libc/syscalls.h")
+        .header("../libc/temp.h")
+        .header("../libc/utsname.h")
+        .header("../libc/window.h")
         .use_core()
         .generate()
         .expect("Failed to generate bindings");

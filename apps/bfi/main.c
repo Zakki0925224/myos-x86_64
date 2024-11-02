@@ -1,4 +1,6 @@
-#include "../libm/libm.h"
+#include <stdio.h>
+#include <stdint.h>
+#include <string.h>
 
 #define MEM_LEN 30000
 #define STACK_LEN 32

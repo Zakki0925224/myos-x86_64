@@ -3,13 +3,13 @@ OBJ_FILES := $(SRC_FILES:.c=.o)
 OUT_FILE := ../sh.elf
 
 CC := gcc
-CFLAGS := -O2 -Wall -g -m64 -nostdlib -fno-builtin -mno-sse -mno-mmx -std=c11
+CFLAGS := -I ../libc -O2 -Werror -g -m64 -nostdlib -fno-builtin -mno-sse -mno-mmx -std=c11
 
 LD := ld.lld
 LDFLAGS := -z norelro --static
 
-LIB_DIR := ../libm
-LIB := -L$(LIB_DIR) -lm
+LIB_DIR := ../libc
+LIB := -L$(LIB_DIR) -lc
 
 $(OUT_FILE): $(OBJ_FILES)
 	make -C $(LIB_DIR)

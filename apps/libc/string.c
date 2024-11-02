@@ -1,4 +1,5 @@
-#include "libm.h"
+#include "stdio.h"
+#include "string.h"
 
 int strcmp(const char *s1, const char *s2)
 {

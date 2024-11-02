@@ -1,4 +1,4 @@
-#include "../libm/libm.h"
+#include <stdio.h>
 #include <emmintrin.h>
 
 #define N 8

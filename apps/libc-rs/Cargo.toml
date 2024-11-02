@@ -1,5 +1,5 @@
 [package]
-name = "libm-rs"
+name = "libc-rs"
 version = "0.1.0"
 edition = "2021"
 authors = ["Zakki <zakki0925224@gmail.com>"]

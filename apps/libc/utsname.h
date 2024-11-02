@@ -1,3 +1,6 @@
+#ifndef _UTSNAME_H
+#define _UTSNAME_H
+
 #define UTS_LEN 64
 
 typedef struct
@@ -9,3 +12,5 @@ typedef struct
     char machine[UTS_LEN];
     char domainname[UTS_LEN];
 } utsname;
+
+#endif

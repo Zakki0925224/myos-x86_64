@@ -1,5 +1,8 @@
-#include "../libm/libm.h"
-#include "../libm/window.h"
+#include <stdio.h>
+#include <stat.h>
+#include <window.h>
+#include <string.h>
+#include <syscalls.h>
 
 #define BUF_LEN 128
 

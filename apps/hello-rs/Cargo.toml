@@ -5,4 +5,4 @@ edition = "2021"
 authors = ["Zakki <zakki0925224@gmail.com>"]
 
 [dependencies]
-libm-rs = { path = "../libm-rs" }
+libc-rs = { path = "../libc-rs" }

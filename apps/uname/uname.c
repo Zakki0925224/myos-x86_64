@@ -1,11 +1,14 @@
-#include "../libm/libm.h"
+#include <stdio.h>
+#include <utsname.h>
+#include <string.h>
+#include <syscalls.h>
 
 int main(int argc, const char *argv[])
 {
     utsname *buf = (utsname *)malloc(sizeof(utsname));
     if (buf == NULL)
     {
-        sys_exit(1);
+        exit(1);
     }
 
     sys_uname(buf);
@@ -13,7 +16,7 @@ int main(int argc, const char *argv[])
     if (argc == 1)
     {
         printf("%s", buf->sysname);
-        sys_exit(0);
+        exit(0);
     }
 
     if (strcmp(argv[1], "--help") == 0)
@@ -27,7 +30,7 @@ int main(int argc, const char *argv[])
         printf(" -v\tprint the kernel version\n");
         printf(" -m\tprint the machine hardware name\n");
         printf(" -d\tprint the domain name\n");
-        sys_exit(0);
+        exit(0);
     }
 
     for (int i = 1; i < argc; i++)
@@ -35,7 +38,7 @@ int main(int argc, const char *argv[])
         if (strcmp(argv[i], "-a") == 0)
         {
             printf("%s %s %s %s %s %s", buf->sysname, buf->nodename, buf->release, buf->version, buf->machine, buf->domainname);
-            sys_exit(0);
+            exit(0);
         }
     }
 

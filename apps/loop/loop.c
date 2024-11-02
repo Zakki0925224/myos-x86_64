@@ -1,7 +1,7 @@
-#include "../libm/libm.h"
-
-void main(void)
+int main(void)
 {
     for (;;)
         ;
+
+    return 0;
 }

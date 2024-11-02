@@ -1,4 +1,4 @@
-#include "../libm/libm.h"
+#include <stdio.h>
 
 int fib(int n)
 {

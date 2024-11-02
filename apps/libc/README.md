@@ -1,4 +1,4 @@
-# libm
+# libc
 
 Standard C Library for MyOS
 

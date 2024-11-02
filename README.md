@@ -28,7 +28,7 @@ This is a replacement project for the previous **[myos](https://github.com/Zakki
 -   [x] GUI support by using UEFI GOP
 -   [x] Initramfs (FAT32 formatted image)
 -   [x] My own virtual file system (WIP, read only)
--   [x] [Userland applications](/apps/) (Standard C library for myos available [here](/apps/libm/))
+-   [x] [Userland applications](/apps/) (libc for myos available [here](/apps/libc/))
 -   [x] Async runtime
 
 ## Third party

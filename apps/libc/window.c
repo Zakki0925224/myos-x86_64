@@ -1,4 +1,5 @@
-#include "libm.h"
+#include "stdio.h"
+#include "syscalls.h"
 #include "window.h"
 
 WindowDescriptor *create_window(const char *title, uint64_t x_pos, uint64_t y_pos, uint64_t width, uint64_t height)
