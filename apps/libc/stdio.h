@@ -52,8 +52,6 @@ extern char *strncpy(char *dst, const char *src, size_t n);
 extern int vsnprintf(char *buffer, size_t bufsize, const char *format, va_list arg);
 extern void *realloc(void *ptr, size_t size);
 extern void *calloc(size_t num_elems, size_t size);
-extern double fabs(double x);
-extern int toupper(int __c);
 extern int mkdir(const char *__path, __mode_t __mode);
 
 #endif

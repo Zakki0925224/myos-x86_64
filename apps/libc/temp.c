@@ -168,16 +168,6 @@ void *calloc(size_t num_elems, size_t size)
     return NULL;
 }
 
-double fabs(double x)
-{
-    return -1.0;
-}
-
-int toupper(int __c)
-{
-    return -1;
-}
-
 int mkdir(const char *__path, __mode_t __mode)
 {
     return -1;
