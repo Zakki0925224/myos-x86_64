@@ -464,6 +464,10 @@ pub fn debug_user_task() {
     }
 }
 
+pub fn is_running_user_task() -> bool {
+    unsafe { USER_TASKS.get_force_mut() }.len() > 1
+}
+
 fn debug_task(task: &Task) {
     let ctx = &task.context;
     println!("task id: {}", task.id.get());

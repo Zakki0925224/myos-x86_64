@@ -257,7 +257,15 @@ extern "x86-interrupt" fn breakpoint_handler(stack_frame: InterruptStackFrame) {
 }
 
 extern "x86-interrupt" fn general_protection_fault_handler(stack_frame: InterruptStackFrame) {
-    panic!("int: GENERAL PROTECTION FAULT, {:?}", stack_frame);
+    error!("int: GENERAL PROTECTION FAULT, {:?}", stack_frame);
+
+    if task::is_running_user_task() {
+        task::debug_user_task();
+        task::return_task(122);
+        unreachable!();
+    }
+
+    panic!();
 }
 
 extern "x86-interrupt" fn page_fault_handler(
@@ -268,10 +276,18 @@ extern "x86-interrupt" fn page_fault_handler(
     let page_virt_addr = (accessed_virt_addr & !0xfff).into();
     let page_table_entry = paging::read_page_table_entry(page_virt_addr);
 
-    panic!(
+    error!(
         "int: PAGE FAULT, Accessed virtual address: 0x{:x}, {:?}, {:?}, Page table entry (at 0x{:x}): {:?}",
         accessed_virt_addr, error_code, stack_frame, page_virt_addr.get(), page_table_entry
     );
+
+    if task::is_running_user_task() {
+        task::debug_user_task();
+        task::return_task(123);
+        unreachable!();
+    }
+
+    panic!();
 }
 
 extern "x86-interrupt" fn double_fault_handler() {
