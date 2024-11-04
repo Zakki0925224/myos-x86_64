@@ -24,7 +24,8 @@ QEMU_TRACE_FILE = "qemu_trace"
 DOOM_WAD_FILE = "doom1.wad"
 INITRAMFS_IMG_FILE = "initramfs.img"
 
-GIT_SUBMODULE_UPDATE = "git submodule update --init --recursive"
+# GIT_SUBMODULE_UPDATE = "git submodule update --init --recursive"
+GIT_SUBMODULE_UPDATE = f"git submodule update --init {THIRD_PARTY_DIR}/{DOOM_DIR}"
 GIT_CHECKOUT_TO_LATEST_TAG = "git fetch --tags && latestTag=$(git describe --tags `git rev-list --tags --max-count=1`) && git checkout $latestTag && git gc"
 
 QEMU_ARCH = "qemu-system-x86_64"
@@ -188,7 +189,7 @@ def task_build():
     task_clear()
     task_init()
     task_build_cozette()
-    task_build_qemu()
+    # task_build_qemu()
     task_build_bootloader()
     task_build_kernel()
 
@@ -259,8 +260,8 @@ def task_run():
     global is_kernel_test
 
     task_make_img()
-    cmd = qemu_cmd() if is_kernel_test else own_qemu_cmd()
-    # cmd = qemu_cmd()
+    # cmd = qemu_cmd() if is_kernel_test else own_qemu_cmd()
+    cmd = qemu_cmd()
 
     run_cmd(cmd, ignore_error=not is_kernel_test, check_qemu_exit_code=is_kernel_test)
 

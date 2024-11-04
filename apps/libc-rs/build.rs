@@ -1,6 +1,6 @@
 fn main() {
     println!("cargo::rustc-link-search=../libc");
-    println!("cargo::rustc-link-lib=m");
+    println!("cargo::rustc-link-lib=c");
 
     let bindings = bindgen::Builder::default()
         .header("../libc/stdio.h")
