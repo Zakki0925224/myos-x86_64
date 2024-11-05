@@ -1,5 +1,6 @@
 #include "stdlib.h"
 #include "string.h"
+#include "ctype.h"
 
 int strcmp(const char *s1, const char *s2)
 {
@@ -111,5 +112,162 @@ int is_ascii(const char c)
 
 void *memcpy(void *dest, const void *src, size_t len)
 {
+    char *d = (char *)dest;
+    const char *s = (char *)src;
+
+    while (len--)
+        *d++ = *s++;
+
+    return dest;
+}
+
+void *memset(void *dest, int val, size_t len)
+{
+    unsigned char *ptr = (unsigned char *)dest;
+
+    while (len-- > 0)
+        *ptr++ = val;
+
+    return dest;
+}
+
+void *memmove(void *dest, const void *src, size_t len)
+{
+    char *d = (char *)dest;
+    const char *s = (char *)src;
+
+    if (d < s)
+    {
+        while (len--)
+            *d++ = *s++;
+    }
+    else
+    {
+        char *lasts = (char *)(s + (len - 1));
+        char *lastd = (char *)(d + (len - 1));
+
+        while (len--)
+            *lastd-- = *lasts--;
+    }
+
+    return dest;
+}
+
+int strcasecmp(const char *s1, const char *s2)
+{
+    int d = 0;
+
+    for (;;)
+    {
+        const int c1 = tolower(*s1++);
+        const int c2 = tolower(*s2++);
+
+        if (((d = c1 - c2) != 0) || (c2 == '\0'))
+            break;
+    }
+
+    return d;
+}
+
+int strncasecmp(const char *s1, const char *s2, size_t n)
+{
+    int d = 0;
+
+    for (; n != 0; n--)
+    {
+        const int c1 = tolower(*s1++);
+        const int c2 = tolower(*s2++);
+
+        if (((d = c1 - c2) != 0) || (c2 == '\0'))
+            break;
+    }
+
+    return d;
+}
+
+char *strchr(const char *s1, int i)
+{
+    const unsigned char *s = (const unsigned char *)s1;
+    unsigned char c = (unsigned char)i;
+
+    while (*s && *s != c)
+        s++;
+
+    if (*s == c)
+        return (char *)s;
+
+    return NULL;
+}
+
+char *strrchr(const char *s, int i)
+{
+    const char *last = NULL;
+
+    if (i)
+    {
+        while ((s = strchr(s, i)))
+        {
+            last = s;
+            s++;
+        }
+    }
+    else
+    {
+        last = strchr(s, i);
+    }
+
+    return (char *)last;
+}
+
+int strncmp(const char *s1, const char *s2, size_t n)
+{
+    if (n == 0)
+        return 0;
+
+    while (n-- > 0 && *s1 == *s2)
+    {
+        if (n == 0 || *s1 == '\0')
+            return 0;
+
+        s1++;
+        s2++;
+    }
+
+    return (*(unsigned char *)s1 - *(unsigned char *)s2);
+}
+
+char *strncpy(char *dst, const char *src, size_t n)
+{
+    return NULL;
+}
+
+char *strdup(const char *s)
+{
+    return NULL;
+}
+
+char *strstr(const char *s1, const char *s2)
+{
+    size_t i;
+    int c = s2[0];
+
+    if (c == 0)
+        return (char *)s1;
+
+    for (; s1[0] != '\0'; s1++)
+    {
+        if (s1[0] != c)
+            continue;
+
+        for (i = 1; s2[i] != 0; i++)
+        {
+            if (s1[i] != s2[i])
+                break;
+        }
+
+        if (s2[i] == '\0')
+            return (char *)s1;
+    }
+
     return NULL;
 }
