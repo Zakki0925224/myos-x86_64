@@ -1,4 +1,4 @@
-#include "stdio.h"
+#include "stdlib.h"
 #include "string.h"
 
 int strcmp(const char *s1, const char *s2)
@@ -107,4 +107,9 @@ void replace(char *src, const char target, const char replace)
 int is_ascii(const char c)
 {
     return c >= 0 && c <= 127;
+}
+
+void *memcpy(void *dest, const void *src, size_t len)
+{
+    return NULL;
 }

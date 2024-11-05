@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <utsname.h>
 #include <string.h>
 #include <syscalls.h>

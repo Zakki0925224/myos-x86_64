@@ -9,3 +9,8 @@ int toupper(int c)
 
     return c;
 }
+
+int isspace(int c)
+{
+    return ((c == ' ') || (c == '\n') || (c == '\t'));
+}

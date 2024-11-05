@@ -48,6 +48,7 @@ int printf(const char *fmt, ...)
 
     if (str_len <= 0)
     {
+        va_end(ap);
         return 0;
     }
 
