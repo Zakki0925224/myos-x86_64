@@ -30,6 +30,7 @@ This is a replacement project for the previous **[myos](https://github.com/Zakki
 -   [x] My own virtual file system (WIP, read only)
 -   [x] [Userland applications](/apps/) (libc for myos available [here](/apps/libc/))
 -   [x] Async runtime
+-   [ ] DOOM challenge! (WIP)
 
 ## Third party
 
