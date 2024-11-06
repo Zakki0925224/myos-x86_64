@@ -12,15 +12,15 @@ static KERNEL_STACK: KernelStack = KernelStack::new();
 struct KernelStack([u8; KERNEL_STACK_SIZE]);
 
 impl KernelStack {
-    pub const fn new() -> Self {
+    const fn new() -> Self {
         Self([0; KERNEL_STACK_SIZE])
     }
 
-    pub fn len(&self) -> usize {
+    fn len(&self) -> usize {
         self.0.len()
     }
 
-    pub fn as_ptr(&self) -> *const u8 {
+    fn as_ptr(&self) -> *const u8 {
         self.0.as_ptr()
     }
 }

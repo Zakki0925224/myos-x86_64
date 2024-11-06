@@ -268,12 +268,12 @@ def task_run():
 
 def task_run_nographic():
     task_make_img()
-    run_cmd(f"{own_qemu_cmd()} -nographic", ignore_error=True)
+    run_cmd(f"{qemu_cmd()} -nographic", ignore_error=True)
 
 
 def task_run_with_gdb():
     task_make_img()
-    run_cmd(f"{own_qemu_cmd()} -S")
+    run_cmd(f"{qemu_cmd()} -S")
 
 
 def task_monitor():

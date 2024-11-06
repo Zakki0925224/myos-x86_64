@@ -2,25 +2,4 @@ SRC_FILES := main.c
 OBJ_FILES := $(SRC_FILES:.c=.o)
 OUT_FILE := ../sse-test.elf
 
-CC := gcc
-CFLAGS := -I ../libc -O2 -Werror -g -m64 -nostdlib -fno-builtin -std=c11
-
-LD := ld.lld
-LDFLAGS := -z norelro --static
-
-LIB_DIR := ../libc
-LIB := -L$(LIB_DIR) -lc
-
-$(OUT_FILE): $(OBJ_FILES)
-	make -C $(LIB_DIR)
-	$(LD) $(OBJ_FILES) $(LIB) -o $@ $(LDFLAGS)
-
-%.o: %.c
-	$(CC) -c $< -o $@ $(CFLAGS)
-
-clean:
-	rm -f $(OUT_FILE) $(OBJ_FILES)
-
-all: $(OUT_FILE)
-
-.PHONY: clean all
+include ../Makefile.common

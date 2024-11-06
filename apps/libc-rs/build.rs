@@ -3,10 +3,14 @@ fn main() {
     println!("cargo::rustc-link-lib=c");
 
     let bindings = bindgen::Builder::default()
+        .header("../libc/sys/stat.h")
+        .header("../libc/ctype.h")
+        .header("../libc/math.h")
+        .header("../libc/stat.h")
         .header("../libc/stdio.h")
+        .header("../libc/stdlib.h")
         .header("../libc/string.h")
         .header("../libc/syscalls.h")
-        .header("../libc/temp.h")
         .header("../libc/utsname.h")
         .header("../libc/window.h")
         .use_core()
