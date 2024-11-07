@@ -48,13 +48,11 @@ int _printf(char *buf, int buf_len, const char *fmt, va_list ap)
             continue;
         }
 
-        if (str_i >= str_len)
-            continue;
-
         char nc = fmt[str_i++];
         switch (nc)
         {
         case 'd':
+        case 'i':
         {
             int va_num = va_arg(ap, int);
             if (va_num == 0)
@@ -69,16 +67,19 @@ int _printf(char *buf, int buf_len, const char *fmt, va_list ap)
             }
 
             char num_str[20];
-            int num_len = 0;
-            while (va_num > 0)
+            int num_len = 0, i;
+
+            while (va_num > 0 && num_len < 20)
             {
                 num_str[num_len++] = '0' + (va_num % 10);
                 va_num /= 10;
             }
-            for (int i = num_len - 1; i >= 0; --i)
+
+            for (i = num_len - 1; i >= 0; i--)
             {
                 buf_i = write_buf(buf, buf_len, buf_i, num_str[i]);
             }
+
             break;
         }
 
