@@ -1,3 +1,5 @@
+#include "stdio.h" // for printf
+
 #include "stdlib.h"
 #include "string.h"
 #include "ctype.h"
@@ -238,11 +240,13 @@ int strncmp(const char *s1, const char *s2, size_t n)
 
 char *strncpy(char *dst, const char *src, size_t n)
 {
+    printf("[DEBUG]strncpy called\n");
     return NULL;
 }
 
 char *strdup(const char *s)
 {
+    printf("[DEBUG]strdup called\n");
     return NULL;
 }
 

@@ -3,159 +3,111 @@
 #include "syscalls.h"
 #include "string.h"
 
-#define BUF_SIZE 100
+#define BUF_SIZE 1000
 static char BUF[BUF_SIZE];
 
-int write_buf(int buf_i)
+int write_buf(char *buf, int buf_len, int write_len, char c)
 {
-    int64_t ret = sys_write(FDN_STDOUT, BUF, buf_i);
-
-    if (ret == -1)
-    {
+    if (write_len >= buf_len)
         return -1;
-    }
-    return 0;
+
+    buf[write_len++] = c;
+    return write_len;
 }
 
-int push_buf_and_write(int buf_i, char c)
-{
-    if (buf_i >= BUF_SIZE)
-    {
-        // write
-        write_buf(buf_i);
-        buf_i = 0;
-    }
-    BUF[buf_i++] = is_ascii(c) ? c : '?';
-    return buf_i;
-}
-
-int printf(const char *fmt, ...)
+int _printf(char *buf, int buf_len, const char *fmt, va_list ap)
 {
     int ret = 0;
-    va_list ap;
-    va_start(ap, fmt);
-
-    int i;
     int str_len = strlen(fmt);
     int str_i = 0;
     int buf_i = 0;
-    char c, nc;
 
-    int va_num, va_num_tmp, va_num_digit, digit;
-    char va_c;
-    const char *va_s = NULL;
-    int va_s_len;
-
-    if (str_len <= 0)
+    if (str_len >= buf_len)
     {
-        va_end(ap);
-        return 0;
+        return -1;
     }
 
     for (;;)
     {
         if (str_i >= str_len)
         {
-            // write
-            if (write_buf(buf_i) == -1)
-            {
-                ret = -1;
-            }
+            ret = write_buf(buf, buf_len, buf_i, '\0');
             break;
         }
 
-        c = fmt[str_i++];
+        char c = fmt[str_i++];
 
         if (c != '%')
         {
-            buf_i = push_buf_and_write(buf_i, c);
+            buf_i = write_buf(buf, buf_len, buf_i, c);
+            if (buf_i == -1)
+            {
+                ret = -1;
+                break;
+            }
             continue;
         }
 
         if (str_i >= str_len)
-        {
-            // write buf at next loop
             continue;
-        }
 
-        nc = fmt[str_i++];
+        char nc = fmt[str_i++];
         switch (nc)
         {
         case 'd':
         {
-            va_num = va_arg(ap, int);
-            va_num_digit = 0;
-
+            int va_num = va_arg(ap, int);
             if (va_num == 0)
             {
-                buf_i = push_buf_and_write(buf_i, '0');
+                buf_i = write_buf(buf, buf_len, buf_i, '0');
                 break;
             }
             else if (va_num < 0)
             {
-                buf_i = push_buf_and_write(buf_i, '-');
+                buf_i = write_buf(buf, buf_len, buf_i, '-');
                 va_num = -va_num;
             }
 
-            va_num_tmp = va_num;
-            while (va_num_tmp > 0)
+            char num_str[20];
+            int num_len = 0;
+            while (va_num > 0)
             {
-                va_num_tmp /= 10;
-                va_num_digit++;
-            }
-
-            if (va_num_digit >= BUF_SIZE)
-            {
-                ret = -1;
-                break;
-            }
-
-            if (buf_i + va_num_digit >= BUF_SIZE)
-            {
-                if (write_buf(buf_i) == -1)
-                {
-                    ret = -1;
-                    break;
-                }
-            }
-
-            for (i = va_num_digit - 1; i >= 0; i--)
-            {
-                digit = va_num % 10;
+                num_str[num_len++] = '0' + (va_num % 10);
                 va_num /= 10;
-                push_buf_and_write(buf_i + i, '0' + digit);
             }
-
-            buf_i += va_num_digit;
+            for (int i = num_len - 1; i >= 0; --i)
+            {
+                buf_i = write_buf(buf, buf_len, buf_i, num_str[i]);
+            }
             break;
         }
 
         case 'c':
         {
-            va_c = va_arg(ap, int);
-            buf_i = push_buf_and_write(buf_i, va_c);
+            char va_c = va_arg(ap, int);
+            buf_i = write_buf(buf, buf_len, buf_i, va_c);
             break;
         }
+
         case 's':
         {
-            va_s = va_arg(ap, char *);
+            const char *va_s = va_arg(ap, char *);
             if (va_s == NULL)
             {
                 ret = -1;
                 break;
             }
 
-            va_s_len = strlen(va_s);
-            for (i = 0; i < va_s_len; i++)
+            int va_s_len = strlen(va_s);
+            for (int i = 0; i < va_s_len; i++)
             {
-                buf_i = push_buf_and_write(buf_i, va_s[i]);
+                buf_i = write_buf(buf, buf_len, buf_i, va_s[i]);
             }
-            va_s = NULL;
             break;
         }
 
         case '%':
-            buf_i = push_buf_and_write(buf_i, '%');
+            buf_i = write_buf(buf, buf_len, buf_i, '%');
             break;
 
         default:
@@ -163,18 +115,57 @@ int printf(const char *fmt, ...)
             break;
         }
 
-        if (ret == -1)
+        if (buf_i == -1 || ret == -1)
         {
             break;
         }
     }
 
-    va_end(ap);
+    return ret;
+}
 
-    // TODO: debugging
+int printf(const char *fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    int ret = _printf(BUF, BUF_SIZE, fmt, ap);
+
     if (ret == -1)
     {
-        printf("<PRINTF ERROR>\n");
+        ret = _printf(BUF, BUF_SIZE, "<PRINTF ERROR>\n", ap);
+    }
+    va_end(ap);
+
+    if (ret != -1)
+    {
+        ret = sys_write(FDN_STDOUT, BUF, strlen(BUF));
+    }
+
+    return ret;
+}
+
+int vsnprintf(char *buffer, size_t bufsize, const char *format, va_list arg)
+{
+    int ret = _printf(buffer, bufsize, format, arg);
+
+    if (ret != -1)
+    {
+        ret = strlen(buffer);
+    }
+
+    return ret;
+}
+
+int snprintf(char *buff, size_t size, const char *format, ...)
+{
+    va_list ap;
+    va_start(ap, format);
+    int ret = _printf(buff, size, format, ap);
+    va_end(ap);
+
+    if (ret != -1)
+    {
+        ret = strlen(buff);
     }
 
     return ret;

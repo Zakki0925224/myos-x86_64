@@ -154,6 +154,7 @@ def task_build_doom():
 
     d = f"./{THIRD_PARTY_DIR}/{DOOM_DIR}"
     run_cmd("git checkout master", dir=d)
+    run_cmd("make -f Makefile.myos clean", dir=d)
     run_cmd("make -f Makefile.myos", dir=d)
     # run_cmd("make", dir=d)
     run_cmd(f"cp {d}/doomgeneric ./{APPS_DIR}/doom.elf")
@@ -216,8 +217,8 @@ def task_build_apps():
 
 
 def task_make_initramfs():
-    task_build_apps()
     task_build_doom()
+    task_build_apps()
 
     run_cmd(
         f"dd if=/dev/zero of=./{OUTPUT_DIR}/{INITRAMFS_IMG_FILE} bs=1M count=128"
