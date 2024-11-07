@@ -240,14 +240,36 @@ int strncmp(const char *s1, const char *s2, size_t n)
 
 char *strncpy(char *dst, const char *src, size_t n)
 {
-    printf("[DEBUG]strncpy called\n");
-    return NULL;
+    if (n != 0)
+    {
+        char *d = dst;
+        const char *s = src;
+
+        do
+        {
+            if ((*d++ = *s++) == 0)
+            {
+                while (--n != 0)
+                    *d++ = 0;
+
+                break;
+            }
+        } while (--n != 0);
+    }
+
+    return dst;
 }
 
 char *strdup(const char *s)
 {
-    printf("[DEBUG]strdup called\n");
-    return NULL;
+    size_t len = strlen(s) + 1;
+    char *mem = (char *)malloc(len);
+
+    if (mem == NULL)
+        return NULL;
+
+    memcpy(mem, s, len);
+    return mem;
 }
 
 char *strstr(const char *s1, const char *s2)
