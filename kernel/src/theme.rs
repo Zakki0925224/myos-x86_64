@@ -1,6 +1,6 @@
 use crate::RgbColorCode;
 
-pub const GLOBAL_THEME: Theme = CLASSIC_THEME;
+pub const GLOBAL_THEME: Theme = DEFAULT_THEME;
 
 #[allow(unused)]
 const COLOR_WHITE: RgbColorCode = RgbColorCode::new(255, 255, 255);

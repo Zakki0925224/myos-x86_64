@@ -305,7 +305,7 @@ fn sys_exit(status: u64) {
 }
 
 fn sys_sbrk(len: usize) -> Result<VirtualAddress> {
-    let mem_frame_info = bitmap::alloc_mem_frame((len / PAGE_SIZE).max(1))?;
+    let mem_frame_info = bitmap::alloc_mem_frame((len + PAGE_SIZE - 1) / PAGE_SIZE)?;
     mem_frame_info.set_permissions_to_user()?;
     let virt_addr = mem_frame_info.frame_start_virt_addr()?;
     info!(

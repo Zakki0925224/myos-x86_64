@@ -1,6 +1,7 @@
 #include "stdio.h" // for printf
 
 #include "stdlib.h"
+#include "string.h"
 #include "syscalls.h"
 #include <stddef.h>
 
@@ -31,16 +32,27 @@ void free(void *ptr)
     printf("[DEBUG]free called\n");
 }
 
-void *calloc(size_t num_elems, size_t size)
+void *calloc(size_t count, size_t size)
 {
-    printf("[DEBUG]calloc called\n");
-    return NULL;
+    // printf("[DEBUG]calloc called\n");
+    void *ptr = malloc(count * size);
+    if (ptr == NULL)
+        return NULL;
+
+    memset(ptr, 0, count * size);
+    return ptr;
 }
 
 void *realloc(void *ptr, size_t size)
 {
-    printf("[DEBUG]realloc called\n");
-    return NULL;
+    // printf("[DEBUG]realloc called\n");
+    void *new_ptr = malloc(size);
+    if (new_ptr == NULL)
+        return NULL;
+
+    memcpy(new_ptr, ptr, size);
+    free(ptr);
+    return new_ptr;
 }
 
 int system(const char *command)

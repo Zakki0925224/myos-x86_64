@@ -501,4 +501,14 @@ fn debug_task(task: &Task) {
         "\tr12: 0x{:016x}, r13: 0x{:016x}, r14: 0x{:016x}, r15: 0x{:016x}",
         ctx.r12, ctx.r13, ctx.r14, ctx.r15
     );
+    println!("allocated mem frame info:");
+    for mem_frame_info in &task.allocated_mem_frame_info {
+        let virt_addr = mem_frame_info.frame_start_virt_addr().unwrap();
+
+        println!(
+            "\t(virt)0x{:x}-0x{:x}",
+            virt_addr.get(),
+            virt_addr.offset(mem_frame_info.frame_size).get(),
+        );
+    }
 }
