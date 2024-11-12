@@ -5,7 +5,6 @@ use crate::{
         bitmap::{self, MemoryFrameInfo},
         paging::{self, *},
     },
-    println,
     util::mutex::Mutex,
 };
 use alloc::{boxed::Box, collections::VecDeque, ffi::CString, vec::Vec};
@@ -17,7 +16,7 @@ use core::{
     sync::atomic::*,
     task::{Context as ExecutorContext, Poll, RawWaker, RawWakerVTable, Waker},
 };
-use log::info;
+use log::{debug, info, trace};
 
 static mut TASK_EXECUTOR: Mutex<Executor> = Mutex::new(Executor::new());
 
@@ -96,7 +95,7 @@ impl Executor {
             let waker = dummy_waker();
             let mut context = ExecutorContext::from_waker(&waker);
             match task.poll(&mut context) {
-                Poll::Ready(()) => info!("task: Done (id: {})", task.id.get()),
+                Poll::Ready(()) => trace!("task: Done (id: {})", task.id.get()),
                 Poll::Pending => self.task_queue.push_back(task),
             }
         }
@@ -190,7 +189,7 @@ impl Drop for Task {
             bitmap::dealloc_mem_frame(*mem_frame_info).unwrap();
         }
 
-        info!("task: Dropped tid: {}", self.id.get());
+        trace!("task: Dropped tid: {}", self.id.get());
     }
 }
 
@@ -353,7 +352,7 @@ impl Task {
     }
 
     fn switch_to(&self, next_task: &Task) {
-        info!(
+        trace!(
             "task: Switch context tid: {} to {}",
             self.id.get(),
             next_task.id.get()
@@ -455,12 +454,12 @@ pub fn return_task(exit_status: u64) {
 }
 
 pub fn debug_user_task() {
-    println!("===USER TASK INFO===");
+    debug!("===USER TASK INFO===");
     let user_task = unsafe { USER_TASKS.get_force_mut() }.last();
     if let Some(task) = user_task {
         debug_task(task);
     } else {
-        println!("User task no available");
+        debug!("User task no available");
     }
 }
 
@@ -470,42 +469,42 @@ pub fn is_running_user_task() -> bool {
 
 fn debug_task(task: &Task) {
     let ctx = &task.context;
-    println!("task id: {}", task.id.get());
-    println!(
+    debug!("task id: {}", task.id.get());
+    debug!(
         "stack: (phys)0x{:x}, size: 0x{:x}bytes",
         task.stack_mem_frame_info.frame_start_phys_addr.get(),
         task.stack_mem_frame_info.frame_size,
     );
-    println!("context:");
-    println!(
+    debug!("context:");
+    debug!(
         "\tcr3: 0x{:016x}, rip: 0x{:016x}, rflags: 0x{:016x},",
         ctx.cr3, ctx.rip, ctx.rflags
     );
-    println!(
+    debug!(
         "\tcs : 0x{:016x}, ss : 0x{:016x}, fs : 0x{:016x}, gs : 0x{:016x},",
         ctx.cs, ctx.ss, ctx.fs, ctx.gs
     );
-    println!(
+    debug!(
         "\trax: 0x{:016x}, rbx: 0x{:016x}, rcx: 0x{:016x}, rdx: 0x{:016x},",
         ctx.rax, ctx.rbx, ctx.rcx, ctx.rdx
     );
-    println!(
+    debug!(
         "\trdi: 0x{:016x}, rsi: 0x{:016x}, rsp: 0x{:016x}, rbp: 0x{:016x},",
         ctx.rdi, ctx.rsi, ctx.rsp, ctx.rbp
     );
-    println!(
+    debug!(
         "\tr8 : 0x{:016x}, r9 : 0x{:016x}, r10: 0x{:016x}, r11: 0x{:016x},",
         ctx.r8, ctx.r9, ctx.r10, ctx.r11
     );
-    println!(
+    debug!(
         "\tr12: 0x{:016x}, r13: 0x{:016x}, r14: 0x{:016x}, r15: 0x{:016x}",
         ctx.r12, ctx.r13, ctx.r14, ctx.r15
     );
-    println!("allocated mem frame info:");
+    debug!("allocated mem frame info:");
     for mem_frame_info in &task.allocated_mem_frame_info {
         let virt_addr = mem_frame_info.frame_start_virt_addr().unwrap();
 
-        println!(
+        debug!(
             "\t(virt)0x{:x}-0x{:x}",
             virt_addr.get(),
             virt_addr.offset(mem_frame_info.frame_size).get(),

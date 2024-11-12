@@ -32,7 +32,7 @@ use common::boot_info::BootInfo;
 use device::uart;
 use fs::{file::bitmap::BitmapImage, vfs};
 use graphics::{color::*, simple_window_manager};
-use log::{error, info, warn};
+use log::*;
 use theme::GLOBAL_THEME;
 use util::logger;
 

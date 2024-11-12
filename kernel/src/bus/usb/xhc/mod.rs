@@ -18,7 +18,7 @@ use crate::{
 };
 use alloc::vec::Vec;
 use core::mem::size_of;
-use log::{error, info, warn};
+use log::{debug, error, info, warn};
 
 pub mod context;
 pub mod port;
@@ -110,7 +110,7 @@ impl XhcDriver {
             };
 
             pci::configure_device(bus, device, func, |d| {
-                info!(
+                debug!(
                     "xhc: xHC device: {:?} - {}",
                     d.device_class(),
                     d.conf_space_header().get_device_name().unwrap()
@@ -209,7 +209,7 @@ impl XhcDriver {
                     .configure
                     .set_max_device_slots_enabled(self.num_of_slots as u8);
                 self.write_ope_reg(ope_reg);
-                info!(
+                debug!(
                     "xhc: Max ports: {}, Max slots: {}",
                     self.num_of_ports, self.num_of_slots
                 );

@@ -308,7 +308,7 @@ fn sys_sbrk(len: usize) -> Result<VirtualAddress> {
     let mem_frame_info = bitmap::alloc_mem_frame((len + PAGE_SIZE - 1) / PAGE_SIZE)?;
     mem_frame_info.set_permissions_to_user()?;
     let virt_addr = mem_frame_info.frame_start_virt_addr()?;
-    info!(
+    trace!(
         "syscall: sbrk: allocated {} bytes at 0x{:x}",
         mem_frame_info.frame_size,
         virt_addr.get()

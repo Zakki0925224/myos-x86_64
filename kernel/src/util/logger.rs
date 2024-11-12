@@ -13,7 +13,7 @@ struct SimpleLogger;
 
 impl log::Log for SimpleLogger {
     fn enabled(&self, metadata: &log::Metadata) -> bool {
-        metadata.level() <= Level::Info
+        metadata.level() <= Level::max()
     }
 
     fn log(&self, record: &Record) {
@@ -39,10 +39,9 @@ impl log::Log for SimpleLogger {
 
         print!(
             "[{}{}]: ",
-            if record.level() == Level::Error || record.level() == Level::Debug {
-                ""
-            } else {
-                " "
+            match record.level() {
+                Level::Error | Level::Debug | Level::Trace => "",
+                _ => " ",
             },
             record.level()
         );
