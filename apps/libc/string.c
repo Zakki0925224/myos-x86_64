@@ -238,22 +238,22 @@ int strncmp(const char *s1, const char *s2, size_t n)
 
 char *strncpy(char *dst, const char *src, size_t n)
 {
-    if (n != 0)
+    if (n == 0)
+        return dst;
+
+    char *d = dst;
+    const char *s = src;
+
+    do
     {
-        char *d = dst;
-        const char *s = src;
-
-        do
+        if ((*d++ = *s++) == 0)
         {
-            if ((*d++ = *s++) == 0)
-            {
-                while (--n != 0)
-                    *d++ = 0;
+            while (--n != 0)
+                *d++ = 0;
 
-                break;
-            }
-        } while (--n != 0);
-    }
+            break;
+        }
+    } while (--n != 0);
 
     return dst;
 }

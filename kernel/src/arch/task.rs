@@ -16,7 +16,9 @@ use core::{
     sync::atomic::*,
     task::{Context as ExecutorContext, Poll, RawWaker, RawWakerVTable, Waker},
 };
-use log::{debug, info, trace};
+use log::{debug, trace};
+
+use super::addr::VirtualAddress;
 
 static mut TASK_EXECUTOR: Mutex<Executor> = Mutex::new(Executor::new());
 
@@ -431,6 +433,21 @@ pub fn push_allocated_mem_frame_info_for_user_task(mem_frame_info: MemoryFrameIn
     user_task.allocated_mem_frame_info.push(mem_frame_info);
 
     Ok(())
+}
+
+pub fn get_memory_frame_size_by_virt_addr(virt_addr: VirtualAddress) -> Result<Option<usize>> {
+    let user_task = unsafe { USER_TASKS.get_force_mut() }
+        .iter_mut()
+        .last()
+        .unwrap();
+
+    for mem_frame_info in &user_task.allocated_mem_frame_info {
+        if mem_frame_info.frame_start_virt_addr()? == virt_addr {
+            return Ok(Some(mem_frame_info.frame_size));
+        }
+    }
+
+    Ok(None)
 }
 
 pub fn return_task(exit_status: u64) {

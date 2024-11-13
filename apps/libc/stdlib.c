@@ -46,11 +46,20 @@ void *calloc(size_t count, size_t size)
 void *realloc(void *ptr, size_t size)
 {
     // printf("[DEBUG]realloc called\n");
+    if (ptr == NULL)
+    {
+        return malloc(size);
+    }
+
+    size_t old_size = sys_sbrksz(ptr);
+    if (old_size == 0)
+        return NULL;
+
     void *new_ptr = malloc(size);
     if (new_ptr == NULL)
         return NULL;
 
-    memcpy(new_ptr, ptr, size);
+    memcpy(new_ptr, ptr, old_size > size ? size : old_size);
     free(ptr);
     return new_ptr;
 }

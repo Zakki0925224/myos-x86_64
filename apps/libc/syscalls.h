@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <stddef.h>
 #include "utsname.h"
 #include "stat.h"
 
@@ -22,6 +23,7 @@
 #define SN_CREATE_WINDOW 13
 #define SN_DESTROY_WINDOW 14
 #define SN_GETCWDENAMES 15
+#define SN_SBRKSZ 16
 
 // defined file descriptor numbers
 #define FDN_STDIN 0
@@ -44,5 +46,6 @@ extern int64_t sys_chdir(const char *path);
 extern int64_t sys_create_window(const char *title, uint64_t x_pos, uint64_t y_pos, uint64_t width, uint64_t height);
 extern int64_t sys_destroy_window(int64_t wd);
 extern int64_t sys_getcwdenames(char *buf, int buf_len);
+extern size_t sys_sbrksz(const void *target);
 
 #endif

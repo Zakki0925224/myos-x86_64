@@ -1,5 +1,6 @@
 #include <stdarg.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include "syscalls.h"
 #include "string.h"
 
@@ -49,6 +50,29 @@ int _printf(char *buf, int buf_len, const char *fmt, va_list ap)
         }
 
         char nc = fmt[str_i++];
+
+        bool zero_fill = false;
+        int min_width = 0;
+        bool period = false;
+
+        while ((nc >= '0' && nc <= '9') || nc == '.')
+        {
+            if (nc == '.')
+            {
+                period = true;
+            }
+            else if (nc == '0')
+            {
+                zero_fill = true;
+            }
+            else
+            {
+                min_width = nc - '0';
+            }
+
+            nc = fmt[str_i++];
+        }
+
         switch (nc)
         {
         case 'd':
@@ -73,6 +97,11 @@ int _printf(char *buf, int buf_len, const char *fmt, va_list ap)
             {
                 num_str[num_len++] = '0' + (va_num % 10);
                 va_num /= 10;
+            }
+
+            for (i = 0; i < min_width - num_len; i++)
+            {
+                buf_i = write_buf(buf, buf_len, buf_i, zero_fill || period ? '0' : ' ');
             }
 
             for (i = num_len - 1; i >= 0; i--)

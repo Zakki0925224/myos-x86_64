@@ -229,6 +229,22 @@ extern "sysv64" fn syscall_handler(
                 return -1;
             }
         }
+        // sbrksz syscall
+        16 => {
+            let target_addr = arg1.into();
+
+            return match sys_sbrksz(target_addr) {
+                Ok(size) => size as i64,
+                Err(err) => {
+                    error!(
+                        "syscall: sbrksz: {:?}, target addr: 0x{:x}",
+                        err,
+                        target_addr.get()
+                    );
+                    0
+                }
+            };
+        }
         num => {
             error!("syscall: Syscall number 0x{:x} is not defined", num);
             return -1;
@@ -415,6 +431,12 @@ fn sys_getcwdenames(buf_addr: VirtualAddress, buf_len: usize) -> Result<()> {
     buf_addr.copy_from_nonoverlapping(entry_names_s.as_ptr(), entry_names_s.len());
 
     Ok(())
+}
+
+fn sys_sbrksz(target_addr: VirtualAddress) -> Result<usize> {
+    let size = task::get_memory_frame_size_by_virt_addr(target_addr)?
+        .ok_or(Error::Failed("Failed to get memory frame size"))?;
+    Ok(size)
 }
 
 pub fn enable() {

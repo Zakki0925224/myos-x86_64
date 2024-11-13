@@ -98,3 +98,8 @@ int64_t sys_getcwdenames(char *buf, int buf_len)
 {
     return syscall(SN_GETCWDENAMES, (uint64_t)buf, (uint64_t)buf_len, 0, 0, 0);
 }
+
+size_t sys_sbrksz(const void *target)
+{
+    return (size_t)syscall(SN_SBRKSZ, (uint64_t)target, 0, 0, 0, 0);
+}
