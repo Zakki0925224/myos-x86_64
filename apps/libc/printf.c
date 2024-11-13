@@ -23,16 +23,12 @@ int _printf(char *buf, int buf_len, const char *fmt, va_list ap)
     int str_i = 0;
     int buf_i = 0;
 
-    if (str_len >= buf_len)
+    while (buf_i != -1 && ret != -1)
     {
-        return -1;
-    }
-
-    for (;;)
-    {
-        if (str_i >= str_len)
+        if (str_i >= str_len || buf_i >= buf_len - 1)
         {
             ret = write_buf(buf, buf_len, buf_i, '\0');
+            buf_i = -1;
             break;
         }
 
@@ -53,13 +49,12 @@ int _printf(char *buf, int buf_len, const char *fmt, va_list ap)
 
         bool zero_fill = false;
         int min_width = 0;
-        bool period = false;
 
         while ((nc >= '0' && nc <= '9') || nc == '.')
         {
             if (nc == '.')
             {
-                period = true;
+                zero_fill = true;
             }
             else if (nc == '0')
             {
@@ -101,7 +96,7 @@ int _printf(char *buf, int buf_len, const char *fmt, va_list ap)
 
             for (i = 0; i < min_width - num_len; i++)
             {
-                buf_i = write_buf(buf, buf_len, buf_i, zero_fill || period ? '0' : ' ');
+                buf_i = write_buf(buf, buf_len, buf_i, zero_fill ? '0' : ' ');
             }
 
             for (i = num_len - 1; i >= 0; i--)
@@ -144,11 +139,6 @@ int _printf(char *buf, int buf_len, const char *fmt, va_list ap)
             ret = -1;
             break;
         }
-
-        if (buf_i == -1 || ret == -1)
-        {
-            break;
-        }
     }
 
     return ret;
@@ -174,28 +164,28 @@ int printf(const char *fmt, ...)
     return ret;
 }
 
-int vsnprintf(char *buffer, size_t bufsize, const char *format, va_list arg)
+int vsnprintf(char *buf, size_t bufsize, const char *format, va_list arg)
 {
-    int ret = _printf(buffer, bufsize, format, arg);
+    int ret = _printf(buf, bufsize, format, arg);
 
     if (ret != -1)
     {
-        ret = strlen(buffer);
+        ret = strlen(buf);
     }
 
     return ret;
 }
 
-int snprintf(char *buff, size_t size, const char *format, ...)
+int snprintf(char *buf, size_t size, const char *format, ...)
 {
     va_list ap;
     va_start(ap, format);
-    int ret = _printf(buff, size, format, ap);
+    int ret = _printf(buf, size, format, ap);
     va_end(ap);
 
     if (ret != -1)
     {
-        ret = strlen(buff);
+        ret = strlen(buf);
     }
 
     return ret;

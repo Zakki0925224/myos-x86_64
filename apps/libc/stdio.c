@@ -162,7 +162,7 @@ int fseek(FILE *stream, long int offset, int whence)
     }
 }
 
-size_t fwrite(const void *buffer, size_t size, size_t count, FILE *stream)
+size_t fwrite(const void *buf, size_t size, size_t count, FILE *stream)
 {
     printf("[DEBUG]fwrite called\n");
     return -1;

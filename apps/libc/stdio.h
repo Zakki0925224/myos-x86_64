@@ -24,7 +24,7 @@ extern int printf(const char *fmt, ...);
 
 extern void exit(int status);
 extern int fprintf(FILE *stream, const char *fmt, ...);
-extern int snprintf(char *buff, size_t size, const char *format, ...);
+extern int snprintf(char *buf, size_t size, const char *format, ...);
 extern FILE *fopen(const char *filename, const char *mode);
 extern int fclose(FILE *stream);
 extern long int ftell(FILE *stream);
@@ -35,7 +35,7 @@ extern int vfprintf(FILE *stream, const char *fmt, va_list ap);
 extern int sscanf(const char *buf, const char *fmt, ...);
 extern size_t fread(void *buf, size_t size, size_t count, FILE *stream);
 extern int fseek(FILE *stream, long int offset, int whence);
-extern size_t fwrite(const void *buffer, size_t size, size_t count, FILE *stream);
-extern int vsnprintf(char *buffer, size_t bufsize, const char *format, va_list arg);
+extern size_t fwrite(const void *buf, size_t size, size_t count, FILE *stream);
+extern int vsnprintf(char *buf, size_t bufsize, const char *format, va_list arg);
 
 #endif
