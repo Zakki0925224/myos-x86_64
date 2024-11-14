@@ -36,7 +36,7 @@ impl Cr0 {
     }
 
     pub fn set_emulation(&mut self, value: bool) {
-        self.0 = (self.0 & !0x40) | ((value as u64) << 2);
+        self.0 = (self.0 & !0x04) | ((value as u64) << 2);
     }
 
     pub fn set_monitor_coprocessor(&mut self, value: bool) {
@@ -48,7 +48,7 @@ impl Cr0 {
     }
 
     pub fn emulation(&self) -> bool {
-        (self.0 & 0x40) != 0
+        (self.0 & 0x04) != 0
     }
 
     pub fn monitor_coprocessor(&self) -> bool {

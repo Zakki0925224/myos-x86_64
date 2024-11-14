@@ -129,3 +129,41 @@ impl SystemCallFlagMaskRegister {
         self.0
     }
 }
+
+pub struct Xcr0(u64);
+
+impl Register<u64> for Xcr0 {
+    fn read() -> Self {
+        Self(arch::read_xcr0())
+    }
+
+    fn write(&self) {
+        arch::write_xcr0(self.0)
+    }
+
+    fn raw(&self) -> u64 {
+        self.0
+    }
+
+    fn set_raw(&mut self, value: u64) {
+        self.0 = value;
+    }
+}
+
+impl Xcr0 {
+    pub fn set_sse(&mut self, value: bool) {
+        self.0 = (self.0 & !0x2) | ((value as u64) << 1);
+    }
+
+    pub fn set_avx(&mut self, value: bool) {
+        self.0 = (self.0 & !0x4) | ((value as u64) << 2);
+    }
+
+    pub fn sse(&self) -> bool {
+        (self.0 & 0x2) != 0
+    }
+
+    pub fn avx(&self) -> bool {
+        (self.0 & 0x4) != 0
+    }
+}

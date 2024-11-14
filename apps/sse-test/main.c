@@ -1,33 +1,23 @@
 #include <stdio.h>
-#include <emmintrin.h>
 
-#define N 8
-
-void add_vectors(const float *a, const float *b, float *result, int n)
+float hoge()
 {
-    for (int i = 0; i < n; i += 4)
-    {
-        __m128 vec_a = _mm_loadu_ps(&a[i]);
-        __m128 vec_b = _mm_loadu_ps(&b[i]);
-
-        __m128 vec_result = _mm_add_ps(vec_a, vec_b);
-
-        _mm_storeu_ps(&result[i], vec_result);
-    }
+    return 0;
 }
 
 int main()
 {
-    float a[N] __attribute__((aligned(16))) = {1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0};
-    float b[N] __attribute__((aligned(16))) = {0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5};
-    float result[N] __attribute__((aligned(16)));
+    // __m128 a = _mm_set_ps(1.0f, 2.0f, 3.0f, 4.0f);
+    // __m128 b;
 
-    add_vectors(a, b, result, N);
+    // __asm__(
+    //     "movaps %[a], %[b]"
+    //     : [b] "=x"(b)
+    //     : [a] "x"(a));
 
-    for (int i = 0; i < N; ++i)
-    {
-        printf("result[%d] = %f\n", i, result[i]);
-    }
-
+    // float result[4];
+    // _mm_store_ps(result, b);
+    // printf("Result: %.2f, %.2f, %.2f, %.2f\n", result[0], result[1], result[2], result[3]);
+    printf("%d\n", hoge());
     return 0;
 }

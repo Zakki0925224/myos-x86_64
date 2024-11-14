@@ -1,7 +1,4 @@
-use crate::{
-    error::{Error, Result},
-    mem::bitmap,
-};
+use crate::error::{Error, Result};
 use core::arch::asm;
 use register::{
     control::{Cr0, Cr4},
@@ -20,6 +17,11 @@ pub mod register;
 pub mod syscall;
 pub mod task;
 pub mod tss;
+
+const FXSAVE: Fxsave = Fxsave([0; 512]);
+
+#[repr(align(16))]
+struct Fxsave(#[allow(dead_code)] [u8; 512]);
 
 #[repr(C, packed(2))]
 #[derive(Debug, Default)]
@@ -73,11 +75,8 @@ pub fn enable_sse() -> Result<()> {
     assert_eq!(cr4.osfxsr(), true);
     assert_eq!(cr4.osxmmexcept(), true);
 
-    // allocate FXSAVE region (512 bytes, 16 bytes align)
-    let fxsave_start = bitmap::alloc_mem_frame(1)?.frame_start_virt_addr()?;
-
     unsafe {
-        asm!("fxsave64 [{}]", in(reg) fxsave_start.as_ptr::<u8>());
+        asm!("fxrstor64 [{}]", in(reg) &FXSAVE as *const _);
     }
 
     Ok(())
@@ -109,7 +108,7 @@ pub fn out8(port: u16, data: u8) {
 }
 
 pub fn in8(port: u16) -> u8 {
-    let mut data: u8;
+    let data: u8;
     unsafe {
         asm!(
             "in al, dx",
@@ -131,7 +130,7 @@ pub fn out16(port: u16, data: u16) {
 }
 
 pub fn in16(port: u16) -> u16 {
-    let mut data: u16;
+    let data: u16;
     unsafe {
         asm!(
             "in ax, dx",
@@ -153,7 +152,7 @@ pub fn out32(port: u32, data: u32) {
 }
 
 pub fn in32(port: u32) -> u32 {
-    let mut data: u32;
+    let data: u32;
     unsafe {
         asm!(
             "in eax, dx",
@@ -183,8 +182,8 @@ pub fn ltr(sel: u16) {
 }
 
 pub fn read_msr(addr: u32) -> u64 {
-    let mut low: u32;
-    let mut high: u32;
+    let low: u32;
+    let high: u32;
 
     unsafe {
         asm!("rdmsr", in("ecx") addr, out("eax") low, out("edx") high);
@@ -199,5 +198,19 @@ pub fn write_msr(addr: u32, value: u64) {
 
     unsafe {
         asm!("wrmsr", in("ecx") addr, in("eax") low, in("edx") high);
+    }
+}
+
+pub fn read_xcr0() -> u64 {
+    let value;
+    unsafe {
+        asm!("xgetbv", out("rax") value);
+    }
+    value
+}
+
+pub fn write_xcr0(value: u64) {
+    unsafe {
+        asm!("xsetbv", in("rax") value);
     }
 }

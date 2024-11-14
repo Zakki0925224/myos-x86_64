@@ -101,7 +101,7 @@ const VEC_BREAKPOINT: usize = 0x03;
 const _VEC_OVERFLOW: usize = 0x04;
 const _VEC_BOUND_RANGE_EXCEEDED: usize = 0x05;
 const _VEC_INVALID_OPCODE: usize = 0x06;
-const _VEC_DEVICE_NOT_AVAILABLE: usize = 0x07;
+const VEC_DEVICE_NOT_AVAILABLE: usize = 0x07;
 const VEC_DOUBLE_FAULT: usize = 0x08;
 const _VEC_INVALID_TSS: usize = 0x0a;
 const _VEC_SEG_NOT_PRESENT: usize = 0x0b;
@@ -290,6 +290,10 @@ extern "x86-interrupt" fn page_fault_handler(
     panic!();
 }
 
+extern "x86-interrupt" fn device_not_available_handler() {
+    panic!("int: DEVICE NOT AVAILABLE");
+}
+
 extern "x86-interrupt" fn double_fault_handler() {
     panic!("int: DOUBLE FAULT");
 }
@@ -352,6 +356,12 @@ pub fn init_idt() {
     idt.set_handler(
         VEC_PAGE_FAULT,
         InterruptHandler::PageFault(page_fault_handler),
+        GateType::Interrupt,
+    )
+    .unwrap();
+    idt.set_handler(
+        VEC_DEVICE_NOT_AVAILABLE,
+        InterruptHandler::Normal(device_not_available_handler),
         GateType::Interrupt,
     )
     .unwrap();
