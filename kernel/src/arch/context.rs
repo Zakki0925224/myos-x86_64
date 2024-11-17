@@ -189,6 +189,7 @@ impl Context {
         self.rdi = rdi;
         self.rsi = rsi;
         self.rsp = rsp;
+        self.rbp = rsp;
         self.cr3 = Cr3::read().raw();
         self.rflags = 0x202; // TODO: read current rflags
         self.cs = cs as u64;

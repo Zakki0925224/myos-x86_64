@@ -18,11 +18,6 @@ pub mod syscall;
 pub mod task;
 pub mod tss;
 
-const FXSAVE: Fxsave = Fxsave([0; 512]);
-
-#[repr(align(16))]
-struct Fxsave(#[allow(dead_code)] [u8; 512]);
-
 #[repr(C, packed(2))]
 #[derive(Debug, Default)]
 pub struct DescriptorTableArgs {
@@ -57,8 +52,6 @@ pub fn enable_sse() -> Result<()> {
         return Err(Error::Failed("CPU does not support SSE4.2"));
     }
 
-    // TODO: check fxsave/fxrestor
-
     let mut cr0 = Cr0::read();
     cr0.set_emulation(false);
     cr0.set_monitor_coprocessor(true);
@@ -74,10 +67,6 @@ pub fn enable_sse() -> Result<()> {
     cr4 = Cr4::read();
     assert_eq!(cr4.osfxsr(), true);
     assert_eq!(cr4.osxmmexcept(), true);
-
-    unsafe {
-        asm!("fxrstor64 [{}]", in(reg) &FXSAVE as *const _);
-    }
 
     Ok(())
 }

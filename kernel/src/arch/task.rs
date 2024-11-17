@@ -267,12 +267,15 @@ impl Task {
         };
 
         // stack
-        let stack_mem_frame_info = bitmap::alloc_mem_frame((stack_size / PAGE_SIZE).max(1))?;
+        let stack_mem_frame_info =
+            bitmap::alloc_mem_frame(((stack_size + PAGE_SIZE - 1) / PAGE_SIZE).max(1))?;
         match mode {
             ContextMode::Kernel => stack_mem_frame_info.set_permissions_to_supervisor()?,
             ContextMode::User => stack_mem_frame_info.set_permissions_to_user()?,
         }
-        let rsp = stack_mem_frame_info.frame_start_virt_addr()?.get() + stack_size as u64 - 1;
+        let rsp =
+            (stack_mem_frame_info.frame_start_virt_addr()?.get() + stack_size as u64 - 63) & !63;
+        assert!(rsp % 64 == 0); // must be 64 bytes align for SSE and AVX instructions, etc.
 
         // args
         let mut args_mem_frame_info = None;
