@@ -1,5 +1,5 @@
 CC := gcc
-CFLAGS := -I ../libc -O2 -Werror -g -m64 -nostdlib -fno-builtin -std=c11
+CFLAGS := -I ../libc -O2 -Werror -g -m64 -nostdlib -fno-builtin -mno-mmx -mno-sse -msoft-float -std=c11
 
 LD := ld.lld
 LDFLAGS := -z norelro --static --image-base=0x10000000
