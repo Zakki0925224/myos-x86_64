@@ -25,7 +25,9 @@ DOOM_WAD_FILE = "doom1.wad"
 INITRAMFS_IMG_FILE = "initramfs.img"
 
 # GIT_SUBMODULE_UPDATE = "git submodule update --init --recursive"
-GIT_SUBMODULE_UPDATE = f"git submodule update --init {THIRD_PARTY_DIR}/{DOOM_DIR}"
+GIT_SUBMODULE_UPDATE = (
+    f"git submodule update --init --recursive {THIRD_PARTY_DIR}/{DOOM_DIR}"
+)
 GIT_CHECKOUT_TO_LATEST_TAG = "git fetch --tags && latestTag=$(git describe --tags `git rev-list --tags --max-count=1`) && git checkout $latestTag && git gc"
 
 QEMU_ARCH = "qemu-system-x86_64"

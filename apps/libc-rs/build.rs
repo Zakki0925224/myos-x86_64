@@ -5,7 +5,6 @@ fn main() {
     let bindings = bindgen::Builder::default()
         .header("../libc/sys/stat.h")
         .header("../libc/ctype.h")
-        .header("../libc/math.h")
         .header("../libc/stat.h")
         .header("../libc/stdio.h")
         .header("../libc/stdlib.h")
