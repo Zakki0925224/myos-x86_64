@@ -46,7 +46,12 @@ impl SimpleWindowManager {
     }
 
     fn create_mouse_pointer(&mut self, pointer_bmp: &BitmapImage) -> Result<()> {
-        self.mouse_pointer = Some(Image::create_and_push(pointer_bmp, 0, 0, true)?);
+        self.mouse_pointer = Some(Image::create_and_push_from_bitmap_image(
+            pointer_bmp,
+            0,
+            0,
+            true,
+        )?);
 
         Ok(())
     }

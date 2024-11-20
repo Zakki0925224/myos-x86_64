@@ -1,4 +1,5 @@
 use crate::{
+    addr::VirtualAddress,
     error::{Error, Result},
     fs::file::bitmap::BitmapImage,
     graphics::{
@@ -13,6 +14,7 @@ use alloc::{
     string::{String, ToString},
     vec::Vec,
 };
+use common::graphic_info::PixelFormat;
 
 pub trait Component {
     fn layer_id_clone(&self) -> LayerId;
@@ -24,6 +26,7 @@ pub trait Component {
 
 pub struct Image {
     layer_id: LayerId,
+    framebuf_virt_addr: Option<VirtualAddress>,
 }
 
 impl Drop for Image {
@@ -64,12 +67,34 @@ impl Component for Image {
     }
 
     fn draw_fresh(&mut self) -> Result<()> {
+        if let Some(framebuf_virt_addr) = self.framebuf_virt_addr {
+            let LayerPositionInfo {
+                x: _,
+                y: _,
+                width,
+                height,
+            } = multi_layer::get_layer_pos_info(&self.layer_id)?;
+
+            for y in 0..height {
+                for x in 0..width {
+                    let data = unsafe {
+                        framebuf_virt_addr
+                            .offset((y * width + x) * 4)
+                            .as_ptr::<u32>()
+                            .read()
+                    };
+                    let color_code = RgbColorCode::from_pixel_data(data, PixelFormat::Rgb);
+                    multi_layer::draw_layer(&self.layer_id, |l| l.write(x, y, color_code))?;
+                }
+            }
+        }
+
         Ok(())
     }
 }
 
 impl Image {
-    pub fn create_and_push(
+    pub fn create_and_push_from_bitmap_image(
         bitmap_image: &BitmapImage,
         x: usize,
         y: usize,
@@ -83,7 +108,27 @@ impl Image {
         layer.always_on_top = always_on_top;
         let layer_id = layer.id.clone();
         multi_layer::push_layer(layer)?;
-        Ok(Self { layer_id })
+        Ok(Self {
+            layer_id,
+            framebuf_virt_addr: None,
+        })
+    }
+
+    pub fn create_and_push_from_framebuf(
+        x: usize,
+        y: usize,
+        width: usize,
+        height: usize,
+        framebuf_virt_addr: VirtualAddress,
+    ) -> Result<Self> {
+        let framebuf_virt_addr = Some(framebuf_virt_addr);
+        let layer = multi_layer::create_layer(x, y, width, height)?;
+        let layer_id = layer.id.clone();
+        multi_layer::push_layer(layer)?;
+        Ok(Self {
+            layer_id,
+            framebuf_virt_addr,
+        })
     }
 }
 
