@@ -260,24 +260,31 @@ fn sys_read(fd: FileDescriptorNumber, buf_addr: VirtualAddress, buf_len: usize) 
             return Err(Error::Failed("fd is not defined"));
         }
         FileDescriptorNumber::STDIN => {
-            let mut input_s = None;
-            while input_s.is_none() {
-                if !console::is_ready_get_line() {
-                    super::hlt();
-                    continue;
+            if buf_len > 1 {
+                let mut input_s = None;
+                while input_s.is_none() {
+                    if !console::is_ready_get_line() {
+                        super::hlt();
+                        continue;
+                    }
+
+                    super::disabled_int(|| {
+                        input_s = console::get_line()?;
+                        Result::Ok(())
+                    })?;
+                    break;
                 }
 
-                super::disabled_int(|| {
-                    input_s = console::get_line()?;
-                    Result::Ok(())
-                })?;
-                break;
+                let c_s = CString::new(input_s.unwrap())
+                    .unwrap()
+                    .into_bytes_with_nul();
+                buf_addr.copy_from_nonoverlapping(c_s.as_ptr(), buf_len);
             }
-
-            let c_s = CString::new(input_s.unwrap())
-                .unwrap()
-                .into_bytes_with_nul();
-            buf_addr.copy_from_nonoverlapping(c_s.as_ptr(), buf_len);
+            // buf_len == 1
+            else {
+                let ascii = super::disabled_int(|| console::get_ascii())?;
+                buf_addr.copy_from_nonoverlapping(&(ascii as u8), 1);
+            }
         }
         fd => {
             let data = vfs::read_file(&fd)?;

@@ -160,6 +160,21 @@ impl Console {
 
         s.chars().rev().collect()
     }
+
+    pub fn get_ascii(&mut self, buf_type: BufferType) -> AsciiCode {
+        let buf = match buf_type {
+            BufferType::Input => &mut self.input_buf,
+            BufferType::Output => &mut self.output_buf,
+            BufferType::ErrorOutput => &mut self.err_output_buf,
+        };
+
+        let ascii_code = match buf.pop() {
+            Ok(value) => value.ascii_code,
+            Err(_) => AsciiCode::Null,
+        };
+
+        ascii_code
+    }
 }
 
 impl fmt::Write for Console {
@@ -237,4 +252,9 @@ pub fn get_line() -> Result<Option<String>> {
     } else {
         Ok(None)
     }
+}
+
+pub fn get_ascii() -> Result<AsciiCode> {
+    let mut console = unsafe { CONSOLE.try_lock() }?;
+    Ok(console.get_ascii(BufferType::Input))
 }
