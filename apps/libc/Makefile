@@ -1,4 +1,4 @@
-SRC_FILES := stdio.c stdlib.c string.c syscalls.c printf.c window.c main.c math.c ctype.c sys/stat.c
+SRC_FILES := stdio.c stdlib.c string.c syscalls.c printf.c window.c main.c ctype.c sys/stat.c
 OBJ_FILES := $(SRC_FILES:.c=.o)
 LIB_FILE := libc.a
 
