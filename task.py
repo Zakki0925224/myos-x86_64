@@ -104,17 +104,17 @@ def run_cmd(
 
 
 # tasks
-def task_clear():
+def clear():
     run_cmd(f"rm -rf ./{OUTPUT_DIR}")
     run_cmd(f"rm -rf ./{DUMP_DIR}")
 
 
-def task_init():
+def init():
     run_cmd(GIT_SUBMODULE_UPDATE)
     run_cmd(f"mkdir -p ./{OUTPUT_DIR}")
 
 
-def task_build_cozette():
+def build_cozette():
     d = f"./{THIRD_PARTY_DIR}"
     cozette_bdf = "cozette.bdf"
 
@@ -131,7 +131,7 @@ def task_build_cozette():
         run_cmd(f"rm ./{cozette_bdf}", dir=d)
 
 
-def task_build_qemu():
+def build_qemu():
     global is_kernel_test
 
     d = f"./{THIRD_PARTY_DIR}/{QEMU_DIR}"
@@ -163,10 +163,10 @@ def task_build_doom():
     run_cmd(f"cp ./{THIRD_PARTY_DIR}/{DOOM_WAD_FILE} ./{INITRAMFS_DIR}")
 
 
-def task_build_bootloader():
+def build_bootloader():
     d = f"./{BOOTLOADER_DIR}"
 
-    task_init()
+    init()
     run_cmd("cargo build", d)
     run_cmd(
         f"cp ./target/x86_64-unknown-uefi/debug/bootloader.efi ../{OUTPUT_DIR}/{BOOTLOADER_FILE}",
@@ -174,7 +174,7 @@ def task_build_bootloader():
     )
 
 
-def task_build_kernel():
+def build_kernel():
     global is_kernel_test, test_kernel_path
     d = f"./{KERNEL_DIR}"
     kernel_path = (
@@ -183,21 +183,21 @@ def task_build_kernel():
         else "./target/x86_64-kernel/debug/kernel"
     )
 
-    task_init()
+    init()
     run_cmd("cargo build", d)
     run_cmd(f"cp {kernel_path} ../{OUTPUT_DIR}/{KERNEL_FILE}", d)
 
 
-def task_build():
-    task_clear()
-    task_init()
-    task_build_cozette()
+def build():
+    clear()
+    init()
+    build_cozette()
     # task_build_qemu()
-    task_build_bootloader()
-    task_build_kernel()
+    build_bootloader()
+    build_kernel()
 
 
-def task_build_apps():
+def build_apps():
     d = f"./{APPS_DIR}"
     dirs = [f for f in os.listdir(d) if os.path.isdir(os.path.join(d, f))]
     dirs.sort()
@@ -218,9 +218,9 @@ def task_build_apps():
     run_cmd(f'find ./{INITRAMFS_DIR} -type d -name "target" | xargs rm -rf')
 
 
-def task_make_initramfs():
+def make_initramfs():
     task_build_doom()
-    task_build_apps()
+    build_apps()
 
     run_cmd(
         f"dd if=/dev/zero of=./{OUTPUT_DIR}/{INITRAMFS_IMG_FILE} bs=1M count=128"
@@ -235,9 +235,9 @@ def task_make_initramfs():
     run_cmd(f"sudo umount {MNT_DIR_PATH}")
 
 
-def task_make_img():
-    task_build()
-    task_make_initramfs()
+def make_img():
+    build()
+    make_initramfs()
     run_cmd(f"qemu-img create -f raw ./{OUTPUT_DIR}/{IMG_FILE} 200M")
     run_cmd(
         f'mkfs.fat -n "MYOS" -F 32 -s 2 ./{OUTPUT_DIR}/{IMG_FILE}'
@@ -254,41 +254,41 @@ def task_make_img():
     run_cmd(f"sudo umount {MNT_DIR_PATH}")
 
 
-def task_make_iso():
-    task_make_img()
+def make_iso():
+    make_img()
     run_cmd(f"dd if=./{OUTPUT_DIR}/{IMG_FILE} of=./{OUTPUT_DIR}/{ISO_FILE}")
 
 
-def task_run():
+def run():
     global is_kernel_test
 
-    task_make_img()
+    make_img()
     # cmd = qemu_cmd() if is_kernel_test else own_qemu_cmd()
     cmd = qemu_cmd()
 
     run_cmd(cmd, ignore_error=not is_kernel_test, check_qemu_exit_code=is_kernel_test)
 
 
-def task_run_nographic():
-    task_make_img()
+def run_nographic():
+    make_img()
     run_cmd(f"{qemu_cmd()} -nographic", ignore_error=True)
 
 
-def task_run_with_gdb():
-    task_make_img()
+def run_with_gdb():
+    make_img()
     run_cmd(f"{qemu_cmd()} -S")
 
 
-def task_monitor():
+def monitor():
     run_cmd("telnet localhost 5678")
 
 
-def task_gdb():
+def gdb():
     run_cmd(f'rust-gdb ./{OUTPUT_DIR}/{KERNEL_FILE} -ex "target remote :3333"')
 
 
-def task_dump():
-    task_build()
+def dump():
+    build()
     run_cmd(f"mkdir -p ./{DUMP_DIR}")
     run_cmd(f"objdump -d ./{OUTPUT_DIR}/{KERNEL_FILE} > ./{DUMP_DIR}/dump_kernel.txt")
     run_cmd(
@@ -301,27 +301,27 @@ def kernel_test_runner(kernel_path: str):
     os.chdir("../")
     is_kernel_test = True
     test_kernel_path = kernel_path
-    task_run()
+    run()
 
 
 TASKS = [
-    task_clear,
-    task_init,
-    task_build_cozette,
-    task_build_qemu,
-    task_build_bootloader,
-    task_build_kernel,
-    task_build,
-    task_build_apps,
-    task_make_initramfs,
-    task_make_img,
-    task_make_iso,
-    task_run,
-    task_run_nographic,
-    task_run_with_gdb,
-    task_monitor,
-    task_gdb,
-    task_dump,
+    clear,
+    init,
+    build_cozette,
+    build_qemu,
+    build_bootloader,
+    build_kernel,
+    build,
+    build_apps,
+    make_initramfs,
+    make_img,
+    make_iso,
+    run,
+    run_nographic,
+    run_with_gdb,
+    monitor,
+    gdb,
+    dump,
 ]
 
 if __name__ == "__main__":

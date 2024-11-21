@@ -76,7 +76,7 @@ This is a replacement project for the previous **[myos](https://github.com/Zakki
 ```bash
 $ git clone https://github.com/Zakki0925224/myos-x86_64.git
 $ cd myos-x86_64
-$ python3 ./task.py task_build
+$ python3 ./task.py build
 ```
 
 ## How to run kernel test
