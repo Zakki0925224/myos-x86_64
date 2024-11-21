@@ -3,7 +3,7 @@ use super::{
     frame_buf,
     multi_layer::{self, LayerId, LayerPositionInfo},
 };
-use crate::{arch, error::Result, theme::GLOBAL_THEME, util::mutex::Mutex, RgbColorCode};
+use crate::{arch, error::Result, theme::GLOBAL_THEME, util::mutex::Mutex, ColorCode};
 use core::fmt::{self, Write};
 
 static mut FRAME_BUF_CONSOLE: Mutex<Option<FrameBufferConsole>> = Mutex::new(None);
@@ -14,9 +14,9 @@ pub enum FrameBufferConsoleError {
 }
 
 pub struct FrameBufferConsole {
-    back_color: RgbColorCode,
-    default_fore_color: RgbColorCode,
-    fore_color: RgbColorCode,
+    back_color: ColorCode,
+    default_fore_color: ColorCode,
+    fore_color: ColorCode,
     max_x_res: usize,
     max_y_res: usize,
     char_max_x_len: usize,
@@ -27,7 +27,7 @@ pub struct FrameBufferConsole {
 }
 
 impl FrameBufferConsole {
-    pub fn new(back_color: RgbColorCode, fore_color: RgbColorCode) -> Result<Self> {
+    pub fn new(back_color: ColorCode, fore_color: ColorCode) -> Result<Self> {
         let max_x_res = frame_buf::get_stride()?;
         let max_y_res = frame_buf::get_resolution()?.1;
         let char_max_x_len = max_x_res / FONT.get_width() - 1;
@@ -80,7 +80,7 @@ impl FrameBufferConsole {
         return self.init_console();
     }
 
-    pub fn set_fore_color(&mut self, fore_color: RgbColorCode) {
+    pub fn set_fore_color(&mut self, fore_color: ColorCode) {
         self.fore_color = fore_color;
     }
 
@@ -187,7 +187,7 @@ impl FrameBufferConsole {
         Ok(())
     }
 
-    fn fill(&self, color_code: RgbColorCode) -> Result<()> {
+    fn fill(&self, color_code: ColorCode) -> Result<()> {
         if let Some(layer_id) = &self.target_layer_id {
             multi_layer::draw_layer(layer_id, |l| l.fill(color_code))?;
         } else {
@@ -203,7 +203,7 @@ impl FrameBufferConsole {
         y: usize,
         width: usize,
         height: usize,
-        color_code: RgbColorCode,
+        color_code: ColorCode,
     ) -> Result<()> {
         if let Some(layer_id) = &self.target_layer_id {
             multi_layer::draw_layer(layer_id, |l| l.draw_rect(x, y, width, height, color_code))?;
@@ -214,7 +214,7 @@ impl FrameBufferConsole {
         Ok(())
     }
 
-    fn draw_font(&self, x: usize, y: usize, c: char, color_code: RgbColorCode) -> Result<()> {
+    fn draw_font(&self, x: usize, y: usize, c: char, color_code: ColorCode) -> Result<()> {
         if let Some(layer_id) = &self.target_layer_id {
             multi_layer::draw_layer(layer_id, |l| l.draw_font(x, y, c, color_code))?;
         } else {
@@ -255,7 +255,7 @@ impl fmt::Write for FrameBufferConsole {
     }
 }
 
-pub fn init(back_color: RgbColorCode, fore_color: RgbColorCode) -> Result<()> {
+pub fn init(back_color: ColorCode, fore_color: ColorCode) -> Result<()> {
     let fbc = arch::disabled_int(|| {
         let mut fbc = FrameBufferConsole::new(back_color, fore_color)?;
         fbc.init_console()?;
@@ -273,7 +273,7 @@ pub fn set_target_layer_id(layer_id: &LayerId) -> Result<()> {
         .set_target_layer_id(layer_id)
 }
 
-pub fn set_fore_color(fore_color: RgbColorCode) -> Result<()> {
+pub fn set_fore_color(fore_color: ColorCode) -> Result<()> {
     unsafe { FRAME_BUF_CONSOLE.try_lock() }?
         .as_mut()
         .ok_or(FrameBufferConsoleError::NotInitialized)?

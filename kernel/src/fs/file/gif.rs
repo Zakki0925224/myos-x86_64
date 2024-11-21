@@ -1,4 +1,4 @@
-use crate::{error::Result, graphics::color::RgbColorCode};
+use crate::{error::Result, graphics::color::ColorCode};
 use alloc::vec::Vec;
 use core::mem::size_of;
 
@@ -70,18 +70,18 @@ impl<'a> GifImage<'a> {
         self.header().magic == MAGIC
     }
 
-    pub fn global_color_table(&self) -> Vec<RgbColorCode> {
+    pub fn global_color_table(&self) -> Vec<ColorCode> {
         let header = self.header();
         let offset = size_of::<Header>();
         let size = header.global_color_table_size();
-        let rgb_size = size_of::<RgbColorCode>();
+        let rgb_size = size_of::<ColorCode>();
 
         let mut buf = Vec::with_capacity(rgb_size * size);
         for i in 0..size {
             let r = self.data[offset + i * rgb_size];
             let g = self.data[offset + i * rgb_size + 1];
             let b = self.data[offset + i * rgb_size + 2];
-            buf.push(RgbColorCode::new(r, g, b));
+            buf.push(ColorCode::new_rgb(r, g, b));
         }
 
         buf
@@ -90,7 +90,7 @@ impl<'a> GifImage<'a> {
     pub fn blocks(&self) -> Result<Vec<Block>> {
         let header = self.header();
         let mut offset =
-            size_of::<Header>() + size_of::<RgbColorCode>() * header.global_color_table_size();
+            size_of::<Header>() + size_of::<ColorCode>() * header.global_color_table_size();
 
         let mut blocks = Vec::new();
 

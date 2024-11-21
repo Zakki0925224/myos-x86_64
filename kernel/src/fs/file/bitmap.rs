@@ -1,4 +1,4 @@
-use crate::graphics::color::RgbColorCode;
+use crate::graphics::color::ColorCode;
 use alloc::vec::Vec;
 use core::mem::size_of;
 
@@ -56,7 +56,7 @@ impl<'a> BitmapImage<'a> {
         &self.data[offset..]
     }
 
-    pub fn bitmap_to_rgb_color_code(&self) -> Vec<RgbColorCode> {
+    pub fn bitmap_to_rgb_color_code(&self) -> Vec<ColorCode> {
         let bitmap = self.bitmap();
         let info_header = self.info_header();
         let width = info_header.width.abs() as usize;
@@ -73,7 +73,7 @@ impl<'a> BitmapImage<'a> {
                 let b = bitmap[offset];
                 let g = bitmap[offset + 1];
                 let r = bitmap[offset + 2];
-                data.push(RgbColorCode { r, g, b });
+                data.push(ColorCode::new_rgb(r, g, b));
             }
         }
 

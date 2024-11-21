@@ -17,8 +17,11 @@ use crate::{
     mem::{bitmap, paging::PAGE_SIZE},
     print, util,
 };
-use alloc::{ffi::CString, string::*, vec::Vec};
-use common::libm::{Stat, Utsname};
+use alloc::{boxed::Box, ffi::CString, string::*, vec::Vec};
+use common::{
+    graphic_info::PixelFormat,
+    libm::{Stat, Utsname},
+};
 use core::{arch::asm, slice};
 use log::*;
 
@@ -245,6 +248,42 @@ extern "sysv64" fn syscall_handler(
                 }
             };
         }
+        // flush_window syscall
+        17 => {
+            let wd = match LayerId::new_val(arg1 as i64) {
+                Ok(wd) => wd,
+                Err(err) => {
+                    error!("syscall: flush_window: {:?}", err);
+                    return -1;
+                }
+            };
+
+            if let Err(err) = sys_flush_window(wd) {
+                error!("syscall: flush_window: {:?}", err);
+                return -1;
+            }
+        }
+        // add_image_to_window syscall
+        18 => {
+            let wd = match LayerId::new_val(arg1 as i64) {
+                Ok(wd) => wd,
+                Err(err) => {
+                    error!("syscall: add_image_to_window: {:?}", err);
+                    return -1;
+                }
+            };
+            let width = arg2 as usize;
+            let height = arg3 as usize;
+            let pixel_format = (arg4 as u8).into();
+            let framebuf_virt_addr = arg5.into();
+
+            if let Err(err) =
+                sys_add_image_to_window(wd, width, height, pixel_format, framebuf_virt_addr)
+            {
+                error!("syscall: add_image_to_window: {:?}", err);
+                return -1;
+            }
+        }
         num => {
             error!("syscall: Syscall number 0x{:x} is not defined", num);
             return -1;
@@ -445,6 +484,30 @@ fn sys_sbrksz(target_addr: VirtualAddress) -> Result<usize> {
     let size = task::get_memory_frame_size_by_virt_addr(target_addr)?
         .ok_or(Error::Failed("Failed to get memory frame size"))?;
     Ok(size)
+}
+
+fn sys_flush_window(wd: LayerId) -> Result<()> {
+    simple_window_manager::flush_window(&wd)
+}
+
+fn sys_add_image_to_window(
+    wd: LayerId,
+    width: usize,
+    height: usize,
+    pixel_format: PixelFormat,
+    framebuf_virt_addr: VirtualAddress,
+) -> Result<()> {
+    let image = simple_window_manager::components::Image::create_and_push_from_framebuf(
+        0,
+        0,
+        width,
+        height,
+        framebuf_virt_addr,
+        pixel_format,
+    )?;
+    simple_window_manager::add_component_to_window(&wd, Box::new(image))?;
+
+    Ok(())
 }
 
 pub fn enable() {

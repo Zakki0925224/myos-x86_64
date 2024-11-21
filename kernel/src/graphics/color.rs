@@ -2,25 +2,20 @@ use common::graphic_info::PixelFormat;
 
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(C)]
-pub struct RgbColorCode {
+pub struct ColorCode {
     pub r: u8,
     pub g: u8,
     pub b: u8,
+    pub a: u8,
 }
 
-impl From<(u8, u8, u8)> for RgbColorCode {
-    fn from(color: (u8, u8, u8)) -> Self {
-        Self {
-            r: color.0,
-            g: color.1,
-            b: color.2,
-        }
+impl ColorCode {
+    pub const fn new_rgb(r: u8, g: u8, b: u8) -> Self {
+        Self { r, g, b, a: 0 }
     }
-}
 
-impl RgbColorCode {
-    pub const fn new(r: u8, g: u8, b: u8) -> Self {
-        Self { r, g, b }
+    pub const fn new_rgba(r: u8, g: u8, b: u8, a: u8) -> Self {
+        Self { r, g, b, a }
     }
 
     pub fn from_pixel_data(data: u32, pixel_format: PixelFormat) -> Self {
@@ -29,11 +24,19 @@ impl RgbColorCode {
                 r: (data >> 16) as u8,
                 g: (data >> 8) as u8,
                 b: (data >> 0) as u8,
+                a: 0,
             },
             PixelFormat::Rgb => Self {
                 r: (data >> 0) as u8,
                 g: (data >> 8) as u8,
                 b: (data >> 16) as u8,
+                a: 0,
+            },
+            PixelFormat::Bgra => Self {
+                r: (data >> 16) as u8,
+                g: (data >> 8) as u8,
+                b: (data >> 0) as u8,
+                a: (data >> 24) as u8,
             },
         }
     }
@@ -42,6 +45,12 @@ impl RgbColorCode {
         match pixel_format {
             PixelFormat::Bgr => (self.r as u32) << 16 | (self.g as u32) << 8 | (self.b as u32) << 0,
             PixelFormat::Rgb => (self.r as u32) << 0 | (self.g as u32) << 8 | (self.b as u32) << 16,
+            PixelFormat::Bgra => {
+                (self.r as u32) << 16
+                    | (self.g as u32) << 8
+                    | (self.b as u32) << 0
+                    | (self.a as u32) << 24
+            }
         }
     }
 }

@@ -7,7 +7,7 @@ use crate::{
         multi_layer::{self, LayerId, LayerPositionInfo},
     },
     theme::GLOBAL_THEME,
-    RgbColorCode,
+    ColorCode,
 };
 use alloc::{
     boxed::Box,
@@ -21,12 +21,13 @@ pub trait Component {
     fn get_layer_pos_info(&self) -> Result<LayerPositionInfo>;
     fn move_by_root(&self, to_x: usize, to_y: usize) -> Result<()>;
     fn move_by_parent(&self, parent: &dyn Component, to_x: usize, to_y: usize) -> Result<()>;
-    fn draw_fresh(&mut self) -> Result<()>;
+    fn draw_flush(&mut self) -> Result<()>;
 }
 
 pub struct Image {
     layer_id: LayerId,
     framebuf_virt_addr: Option<VirtualAddress>,
+    pixel_format: Option<PixelFormat>,
 }
 
 impl Drop for Image {
@@ -66,8 +67,10 @@ impl Component for Image {
         self.move_by_root(to_x + x - p_x, to_y + y - p_y)
     }
 
-    fn draw_fresh(&mut self) -> Result<()> {
-        if let Some(framebuf_virt_addr) = self.framebuf_virt_addr {
+    fn draw_flush(&mut self) -> Result<()> {
+        if let (Some(framebuf_virt_addr), Some(pixel_format)) =
+            (self.framebuf_virt_addr, self.pixel_format)
+        {
             let LayerPositionInfo {
                 x: _,
                 y: _,
@@ -83,7 +86,7 @@ impl Component for Image {
                             .as_ptr::<u32>()
                             .read()
                     };
-                    let color_code = RgbColorCode::from_pixel_data(data, PixelFormat::Rgb);
+                    let color_code = ColorCode::from_pixel_data(data, pixel_format);
                     multi_layer::draw_layer(&self.layer_id, |l| l.write(x, y, color_code))?;
                 }
             }
@@ -111,6 +114,7 @@ impl Image {
         Ok(Self {
             layer_id,
             framebuf_virt_addr: None,
+            pixel_format: None,
         })
     }
 
@@ -120,14 +124,17 @@ impl Image {
         width: usize,
         height: usize,
         framebuf_virt_addr: VirtualAddress,
+        pixel_format: PixelFormat,
     ) -> Result<Self> {
         let framebuf_virt_addr = Some(framebuf_virt_addr);
+        let pixel_format = Some(pixel_format);
         let layer = multi_layer::create_layer(x, y, width, height)?;
         let layer_id = layer.id.clone();
         multi_layer::push_layer(layer)?;
         Ok(Self {
             layer_id,
             framebuf_virt_addr,
+            pixel_format,
         })
     }
 }
@@ -191,7 +198,7 @@ impl Component for Window {
         self.move_by_root(to_x + x - p_x, to_y + y - p_y)
     }
 
-    fn draw_fresh(&mut self) -> Result<()> {
+    fn draw_flush(&mut self) -> Result<()> {
         let LayerPositionInfo {
             x: w_x,
             y: w_y,
@@ -245,9 +252,9 @@ impl Component for Window {
             Ok(())
         })?;
 
-        self.close_button.draw_fresh()?;
-        self.resize_button.draw_fresh()?;
-        self.minimize_button.draw_fresh()?;
+        self.close_button.draw_flush()?;
+        self.resize_button.draw_flush()?;
+        self.minimize_button.draw_flush()?;
 
         let contents_base_rel_x = self.contents_base_rel_x;
         let mut contents_base_rel_y = self.contents_base_rel_y;
@@ -262,7 +269,7 @@ impl Component for Window {
             } = child.get_layer_pos_info()?;
 
             child.move_by_root(w_x + contents_base_rel_x, w_y + contents_base_rel_y)?;
-            child.draw_fresh()?;
+            child.draw_flush()?;
 
             contents_base_rel_y += height + 4; // padding
 
@@ -369,7 +376,7 @@ impl Component for Panel {
         self.move_by_root(to_x + x - p_x, to_y + y - p_y)
     }
 
-    fn draw_fresh(&mut self) -> Result<()> {
+    fn draw_flush(&mut self) -> Result<()> {
         let LayerPositionInfo {
             x: _,
             y: _,
@@ -467,7 +474,7 @@ impl Component for Button {
         self.move_by_root(to_x + x - p_x, to_y + y - p_y)
     }
 
-    fn draw_fresh(&mut self) -> Result<()> {
+    fn draw_flush(&mut self) -> Result<()> {
         let LayerPositionInfo {
             x: _,
             y: _,
@@ -530,20 +537,13 @@ impl Button {
         multi_layer::push_layer(layer)?;
         Ok(Self { layer_id, title })
     }
-
-    pub fn create_and_push_without_pos(title: String, width: usize, height: usize) -> Result<Self> {
-        let layer = multi_layer::create_layer(0, 0, width, height)?;
-        let layer_id = layer.id.clone();
-        multi_layer::push_layer(layer)?;
-        Ok(Self { layer_id, title })
-    }
 }
 
 pub struct Label {
     layer_id: LayerId,
     label: String,
-    back_color: RgbColorCode,
-    fore_color: RgbColorCode,
+    back_color: ColorCode,
+    fore_color: ColorCode,
 }
 
 impl Drop for Label {
@@ -583,7 +583,7 @@ impl Component for Label {
         self.move_by_root(to_x + x - p_x, to_y + y - p_y)
     }
 
-    fn draw_fresh(&mut self) -> Result<()> {
+    fn draw_flush(&mut self) -> Result<()> {
         multi_layer::draw_layer(&self.layer_id, |l| {
             // back color
             l.fill(self.back_color)?;
@@ -604,17 +604,19 @@ impl Component for Label {
 }
 
 impl Label {
-    pub fn create_and_push_without_pos(
+    pub fn create_and_push(
+        x: usize,
+        y: usize,
         label: String,
-        back_color: RgbColorCode,
-        fore_color: RgbColorCode,
+        back_color: ColorCode,
+        fore_color: ColorCode,
     ) -> Result<Self> {
         // calc width and height
         let (f_w, f_h) = (FONT.get_width(), FONT.get_height());
         let width = label.lines().map(|s| s.len()).max().unwrap_or(0) * f_w;
         let height = label.lines().count() * f_h;
 
-        let layer = multi_layer::create_layer(0, 0, width, height)?;
+        let layer = multi_layer::create_layer(x, y, width, height)?;
         let layer_id = layer.id.clone();
         multi_layer::push_layer(layer)?;
         Ok(Self {

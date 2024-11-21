@@ -1,5 +1,5 @@
 use super::{
-    color::RgbColorCode,
+    color::ColorCode,
     draw::Draw,
     font::{FONT, TAB_DISP_STR},
     frame_buf,
@@ -68,7 +68,7 @@ impl Draw for Layer {
         y: usize,
         width: usize,
         height: usize,
-        color_code: RgbColorCode,
+        color_code: ColorCode,
     ) -> Result<()> {
         for y in y..y + height {
             for x in x..x + width {
@@ -79,7 +79,7 @@ impl Draw for Layer {
         Ok(())
     }
 
-    fn fill(&mut self, color_code: RgbColorCode) -> Result<()> {
+    fn fill(&mut self, color_code: ColorCode) -> Result<()> {
         let (width, height) = self.get_resolution();
 
         for y in 0..height {
@@ -91,7 +91,7 @@ impl Draw for Layer {
         Ok(())
     }
 
-    fn draw_string(&mut self, x: usize, y: usize, s: &str, color_code: RgbColorCode) -> Result<()> {
+    fn draw_string(&mut self, x: usize, y: usize, s: &str, color_code: ColorCode) -> Result<()> {
         let font_width = FONT.get_width();
         let font_height = FONT.get_height();
         let mut char_x = x;
@@ -128,7 +128,7 @@ impl Draw for Layer {
         Ok(())
     }
 
-    fn draw_font(&mut self, x: usize, y: usize, c: char, color_code: RgbColorCode) -> Result<()> {
+    fn draw_font(&mut self, x: usize, y: usize, c: char, color_code: ColorCode) -> Result<()> {
         let glyph = FONT.get_glyph(FONT.unicode_char_to_glyph_index(c))?;
 
         for h in 0..FONT.get_height() {
@@ -151,12 +151,12 @@ impl Draw for Layer {
         Ok(())
     }
 
-    fn read(&self, x: usize, y: usize) -> Result<RgbColorCode> {
+    fn read(&self, x: usize, y: usize) -> Result<ColorCode> {
         let data = self.read_pixel(x, y)?;
-        Ok(RgbColorCode::from_pixel_data(data, self.format))
+        Ok(ColorCode::from_pixel_data(data, self.format))
     }
 
-    fn write(&mut self, x: usize, y: usize, color_code: RgbColorCode) -> Result<()> {
+    fn write(&mut self, x: usize, y: usize, color_code: ColorCode) -> Result<()> {
         self.write_pixel(x, y, color_code.to_color_code(self.format))
     }
 }
@@ -244,11 +244,11 @@ impl Layer {
 
 struct LayerManager {
     layers: Vec<Layer>,
-    pub transparent_color: RgbColorCode,
+    pub transparent_color: ColorCode,
 }
 
 impl LayerManager {
-    pub fn new(transparent_color: RgbColorCode) -> Self {
+    pub fn new(transparent_color: ColorCode) -> Self {
         Self {
             layers: Vec::new(),
             transparent_color,
@@ -301,7 +301,7 @@ impl LayerManager {
     }
 }
 
-pub fn init(transparent_color: RgbColorCode) -> Result<()> {
+pub fn init(transparent_color: ColorCode) -> Result<()> {
     *unsafe { LAYER_MAN.get_force_mut() } = Some(LayerManager::new(transparent_color));
     Ok(())
 }

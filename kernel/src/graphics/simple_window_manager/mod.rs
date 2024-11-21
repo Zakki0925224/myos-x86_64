@@ -3,14 +3,9 @@ use super::{
     multi_layer::{LayerId, LayerPositionInfo},
 };
 use crate::{
-    device::ps2_mouse::MouseEvent, error::Result, fs::file::bitmap::BitmapImage,
-    theme::GLOBAL_THEME, util::mutex::Mutex,
+    device::ps2_mouse::MouseEvent, error::Result, fs::file::bitmap::BitmapImage, util::mutex::Mutex,
 };
-use alloc::{
-    boxed::Box,
-    string::{String, ToString},
-    vec::Vec,
-};
+use alloc::{boxed::Box, string::String, vec::Vec};
 use components::*;
 
 pub mod components;
@@ -24,6 +19,7 @@ pub enum SimpleWindowManagerError {
     NotInitialized,
     MousePointerLayerWasNotFound,
     TaskbarLayerWasNotFound,
+    WindowWasNotFound { layer_id: usize },
 }
 
 struct SimpleWindowManager {
@@ -60,7 +56,7 @@ impl SimpleWindowManager {
         let width = self.res_x;
         let height = 30;
         let mut panel = Panel::create_and_push(0, self.res_y - height, width, height)?;
-        panel.draw_fresh()?;
+        panel.draw_flush()?;
         self.taskbar = Some(panel);
         self.update_taskbar()?;
         Ok(())
@@ -142,29 +138,29 @@ impl SimpleWindowManager {
     ) -> Result<LayerId> {
         let mut window = Window::create_and_push(title, x, y, width, height)?;
 
-        let button1 = Button::create_and_push_without_pos("button 1".to_string(), 100, 25)?;
-        let button2 = Button::create_and_push_without_pos("button 2".to_string(), 100, 25)?;
-        let button3 = Button::create_and_push_without_pos("button 3".to_string(), 100, 25)?;
-        let button4 = Button::create_and_push_without_pos("button 4".to_string(), 100, 25)?;
-        let button5 = Button::create_and_push_without_pos("button 5".to_string(), 100, 25)?;
-        let button6 = Button::create_and_push_without_pos("button 6".to_string(), 100, 25)?;
-        let button7 = Button::create_and_push_without_pos("button 7".to_string(), 100, 25)?;
-        let label = Label::create_and_push_without_pos(
-            "[32] Sed ut perspiciatis, unde omnis iste natus error sit voluptatem\naccusantium doloremque laudantium, totam rem aperiam eaque ipsa, quae\nab illo inventore veritatis et quasi architecto beatae vitae dicta sunt,\nexplicabo.\nNemo enim ipsam voluptatem, quia voluptas sit, aspernatur aut\nodit aut fugit, sed quia consequuntur magni dolores eos, qui ratione\nvoluptatem sequi nesciunt, neque porro quisquam est, qui dolorem ipsum,\nquia dolor sit, amet, consectetur, adipisci velit, sed quia non numquam\neius modi tempora incidunt, ut labore et dolore magnam aliquam quaerat\nvoluptatem.".to_string(),
-            GLOBAL_THEME.fore_color,
-            GLOBAL_THEME.back_color,
-        )?;
+        // let button1 = Button::create_and_push("button 1".to_string(), 0, 0, 100, 25)?;
+        // let button2 = Button::create_and_push("button 2".to_string(), 0, 0, 100, 25)?;
+        // let button3 = Button::create_and_push("button 3".to_string(), 0, 0, 100, 25)?;
+        // let button4 = Button::create_and_push("button 4".to_string(), 0, 0, 100, 25)?;
+        // let button5 = Button::create_and_push("button 5".to_string(), 0, 0, 100, 25)?;
+        // let button6 = Button::create_and_push("button 6".to_string(), 0, 0, 100, 25)?;
+        // let button7 = Button::create_and_push("button 7".to_string(), 0, 0, 100, 25)?;
+        // let label = Label::create_and_push(0, 0,
+        //     "[32] Sed ut perspiciatis, unde omnis iste natus error sit voluptatem\naccusantium doloremque laudantium, totam rem aperiam eaque ipsa, quae\nab illo inventore veritatis et quasi architecto beatae vitae dicta sunt,\nexplicabo.\nNemo enim ipsam voluptatem, quia voluptas sit, aspernatur aut\nodit aut fugit, sed quia consequuntur magni dolores eos, qui ratione\nvoluptatem sequi nesciunt, neque porro quisquam est, qui dolorem ipsum,\nquia dolor sit, amet, consectetur, adipisci velit, sed quia non numquam\neius modi tempora incidunt, ut labore et dolore magnam aliquam quaerat\nvoluptatem.".to_string(),
+        //     GLOBAL_THEME.fore_color,
+        //     GLOBAL_THEME.back_color,
+        // )?;
 
-        window.push_child(Box::new(button1))?;
-        window.push_child(Box::new(button2))?;
-        window.push_child(Box::new(button3))?;
-        window.push_child(Box::new(button4))?;
-        window.push_child(Box::new(button5))?;
-        window.push_child(Box::new(button6))?;
-        window.push_child(Box::new(button7))?;
-        window.push_child(Box::new(label))?;
+        // window.push_child(Box::new(button1))?;
+        // window.push_child(Box::new(button2))?;
+        // window.push_child(Box::new(button3))?;
+        // window.push_child(Box::new(button4))?;
+        // window.push_child(Box::new(button5))?;
+        // window.push_child(Box::new(button6))?;
+        // window.push_child(Box::new(button7))?;
+        // window.push_child(Box::new(label))?;
 
-        window.draw_fresh()?;
+        window.draw_flush()?;
         let layer_id = window.layer_id_clone();
         self.windows.push(window);
         let _ = self.update_taskbar();
@@ -180,12 +176,42 @@ impl SimpleWindowManager {
         Ok(())
     }
 
+    fn flush_window(&mut self, layer_id: &LayerId) -> Result<()> {
+        let window = self
+            .windows
+            .iter_mut()
+            .find(|w| w.layer_id_clone().get() == layer_id.get())
+            .ok_or(SimpleWindowManagerError::WindowWasNotFound {
+                layer_id: layer_id.get(),
+            })?;
+        window.draw_flush()?;
+
+        Ok(())
+    }
+
+    fn add_component_to_window(
+        &mut self,
+        layer_id: &LayerId,
+        component: Box<dyn Component>,
+    ) -> Result<()> {
+        let window = self
+            .windows
+            .iter_mut()
+            .find(|w| w.layer_id_clone().get() == layer_id.get())
+            .ok_or(SimpleWindowManagerError::WindowWasNotFound {
+                layer_id: layer_id.get(),
+            })?;
+        window.push_child(component)?;
+
+        Ok(())
+    }
+
     fn update_taskbar(&mut self) -> Result<()> {
         let taskbar = self
             .taskbar
             .as_mut()
             .ok_or(SimpleWindowManagerError::TaskbarLayerWasNotFound)?;
-        taskbar.draw_fresh()?;
+        taskbar.draw_flush()?;
         let s = format!(
             "{:?}",
             self.windows
@@ -244,4 +270,18 @@ pub fn create_window(
         .as_mut()
         .ok_or(SimpleWindowManagerError::NotInitialized)?
         .create_window(title, x, y, width, height)
+}
+
+pub fn flush_window(layer_id: &LayerId) -> Result<()> {
+    unsafe { SIMPLE_WM.try_lock() }?
+        .as_mut()
+        .ok_or(SimpleWindowManagerError::NotInitialized)?
+        .flush_window(layer_id)
+}
+
+pub fn add_component_to_window(layer_id: &LayerId, component: Box<dyn Component>) -> Result<()> {
+    unsafe { SIMPLE_WM.try_lock() }?
+        .as_mut()
+        .ok_or(SimpleWindowManagerError::NotInitialized)?
+        .add_component_to_window(layer_id, component)
 }

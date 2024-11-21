@@ -103,3 +103,13 @@ size_t sys_sbrksz(const void *target)
 {
     return (size_t)syscall(SN_SBRKSZ, (uint64_t)target, 0, 0, 0, 0);
 }
+
+int64_t sys_flush_window(int64_t wd)
+{
+    return syscall(SN_FLUSH_WINDOW, (uint64_t)wd, 0, 0, 0, 0);
+}
+
+int64_t sys_add_image_to_window(int64_t wd, uint64_t image_width, uint64_t image_height, uint8_t pixel_format, const char *framebuf)
+{
+    return syscall(SN_ADD_IMAGE_TO_WINDOW, (uint64_t)wd, image_width, image_height, (uint64_t)pixel_format, (uint64_t)framebuf);
+}

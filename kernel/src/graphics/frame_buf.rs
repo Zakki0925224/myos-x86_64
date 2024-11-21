@@ -1,5 +1,5 @@
 use super::{
-    color::RgbColorCode,
+    color::ColorCode,
     draw::Draw,
     font::{FONT, TAB_DISP_STR},
     multi_layer::{Layer, LayerPositionInfo},
@@ -39,7 +39,7 @@ impl Draw for FrameBuffer {
         y: usize,
         width: usize,
         height: usize,
-        color_code: RgbColorCode,
+        color_code: ColorCode,
     ) -> Result<()> {
         for y in y..y + height {
             for x in x..x + width {
@@ -50,7 +50,7 @@ impl Draw for FrameBuffer {
         Ok(())
     }
 
-    fn draw_string(&mut self, x: usize, y: usize, s: &str, color_code: RgbColorCode) -> Result<()> {
+    fn draw_string(&mut self, x: usize, y: usize, s: &str, color_code: ColorCode) -> Result<()> {
         let font_width = FONT.get_width();
         let font_height = FONT.get_height();
         let mut char_x = x;
@@ -78,7 +78,7 @@ impl Draw for FrameBuffer {
         Ok(())
     }
 
-    fn draw_font(&mut self, x: usize, y: usize, c: char, color_code: RgbColorCode) -> Result<()> {
+    fn draw_font(&mut self, x: usize, y: usize, c: char, color_code: ColorCode) -> Result<()> {
         let glyph = FONT.get_glyph(FONT.unicode_char_to_glyph_index(c))?;
 
         for h in 0..FONT.get_height() {
@@ -94,7 +94,7 @@ impl Draw for FrameBuffer {
         Ok(())
     }
 
-    fn fill(&mut self, color_code: RgbColorCode) -> Result<()> {
+    fn fill(&mut self, color_code: ColorCode) -> Result<()> {
         let (max_x, max_y) = self.get_resolution();
         for y in 0..max_y {
             for x in 0..max_x {
@@ -112,12 +112,12 @@ impl Draw for FrameBuffer {
         Ok(())
     }
 
-    fn read(&self, x: usize, y: usize) -> Result<RgbColorCode> {
+    fn read(&self, x: usize, y: usize) -> Result<ColorCode> {
         let data = self.read_pixel(x, y)?;
-        Ok(RgbColorCode::from_pixel_data(data, self.format))
+        Ok(ColorCode::from_pixel_data(data, self.format))
     }
 
-    fn write(&mut self, x: usize, y: usize, color_code: RgbColorCode) -> Result<()> {
+    fn write(&mut self, x: usize, y: usize, color_code: ColorCode) -> Result<()> {
         self.write_pixel(x, y, color_code.to_color_code(self.format))
     }
 }
@@ -165,7 +165,7 @@ impl FrameBuffer {
     pub fn apply_layer_buf(
         &mut self,
         layer: &mut Layer,
-        transparent_color: RgbColorCode,
+        transparent_color: ColorCode,
     ) -> Result<()> {
         if layer.format != self.format {
             return Err(FrameBufferError::InvalidPixelFormatError {
@@ -311,7 +311,7 @@ pub fn draw_rect(
     y: usize,
     width: usize,
     height: usize,
-    color_code: RgbColorCode,
+    color_code: ColorCode,
 ) -> Result<()> {
     unsafe { FRAME_BUF.try_lock() }?
         .as_mut()
@@ -319,7 +319,7 @@ pub fn draw_rect(
         .draw_rect(x, y, width, height, color_code)
 }
 
-pub fn draw_font(x: usize, y: usize, c: char, color_code: RgbColorCode) -> Result<()> {
+pub fn draw_font(x: usize, y: usize, c: char, color_code: ColorCode) -> Result<()> {
     unsafe { FRAME_BUF.try_lock() }?
         .as_mut()
         .ok_or(FrameBufferError::NotInitialized)?
@@ -333,7 +333,7 @@ pub fn copy(x: usize, y: usize, to_x: usize, to_y: usize) -> Result<()> {
         .copy(x, y, to_x, to_y)
 }
 
-pub fn fill(color_code: RgbColorCode) -> Result<()> {
+pub fn fill(color_code: ColorCode) -> Result<()> {
     unsafe { FRAME_BUF.try_lock() }?
         .as_mut()
         .ok_or(FrameBufferError::NotInitialized)?
@@ -348,7 +348,7 @@ pub fn enable_shadow_buf() -> Result<()> {
     Ok(())
 }
 
-pub fn apply_layer_buf(layer: &mut Layer, transparent_color: RgbColorCode) -> Result<()> {
+pub fn apply_layer_buf(layer: &mut Layer, transparent_color: ColorCode) -> Result<()> {
     unsafe { FRAME_BUF.try_lock() }?
         .as_mut()
         .ok_or(FrameBufferError::NotInitialized)?

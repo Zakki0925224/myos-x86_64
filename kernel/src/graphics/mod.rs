@@ -1,4 +1,4 @@
-use self::color::RgbColorCode;
+use self::color::ColorCode;
 use common::graphic_info::GraphicInfo;
 use log::{error, info};
 
@@ -10,7 +10,7 @@ pub mod frame_buf_console;
 pub mod multi_layer;
 pub mod simple_window_manager;
 
-pub fn init(graphic_info: &GraphicInfo, back_color: RgbColorCode, fore_color: RgbColorCode) {
+pub fn init(graphic_info: &GraphicInfo, back_color: ColorCode, fore_color: ColorCode) {
     if let Err(err) = frame_buf::init(graphic_info) {
         panic!("graphics: Failed to initialize frame buffer: {:?}", err);
     }
@@ -33,7 +33,7 @@ pub fn enable_shadow_buf() {
     info!("graphics: Enabled shadow buffer");
 }
 
-pub fn init_layer_man(graphic_info: &GraphicInfo, transparent_color: RgbColorCode) {
+pub fn init_layer_man(graphic_info: &GraphicInfo, transparent_color: ColorCode) {
     if let Err(err) = multi_layer::init(transparent_color) {
         error!("graphics: Failed to initialize layer manager: {:?}", err);
         return;
