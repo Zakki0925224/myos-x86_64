@@ -49,20 +49,25 @@ int _printf(char *buf, int buf_len, const char *fmt, va_list ap)
 
         bool zero_fill = false;
         int min_width = 0;
+        int precision = -1;
 
         while ((nc >= '0' && nc <= '9') || nc == '.')
         {
             if (nc == '.')
             {
-                zero_fill = true;
+                precision = 0;
             }
-            else if (nc == '0')
+            else if (precision >= 0)
+            {
+                precision = precision * 10 + (nc - '0');
+            }
+            else if (nc == '0' && min_width == 0)
             {
                 zero_fill = true;
             }
             else
             {
-                min_width = nc - '0';
+                min_width = min_width * 10 + (nc - '0');
             }
 
             nc = fmt[str_i++];
@@ -76,7 +81,10 @@ int _printf(char *buf, int buf_len, const char *fmt, va_list ap)
             int va_num = va_arg(ap, int);
             if (va_num == 0)
             {
-                buf_i = write_buf(buf, buf_len, buf_i, '0');
+                for (int i = 0; i < (precision > 0 ? precision : 1); i++)
+                {
+                    buf_i = write_buf(buf, buf_len, buf_i, '0');
+                }
                 break;
             }
             else if (va_num < 0)
@@ -86,7 +94,7 @@ int _printf(char *buf, int buf_len, const char *fmt, va_list ap)
             }
 
             char num_str[20];
-            int num_len = 0, i;
+            int num_len = 0;
 
             while (va_num > 0 && num_len < 20)
             {
@@ -94,14 +102,19 @@ int _printf(char *buf, int buf_len, const char *fmt, va_list ap)
                 va_num /= 10;
             }
 
-            for (i = 0; i < min_width - num_len; i++)
+            for (int i = 0; i < (precision > num_len ? precision - num_len : 0); i++)
             {
-                buf_i = write_buf(buf, buf_len, buf_i, zero_fill ? '0' : ' ');
+                buf_i = write_buf(buf, buf_len, buf_i, '0');
             }
 
-            for (i = num_len - 1; i >= 0; i--)
+            for (int i = num_len - 1; i >= 0; i--)
             {
                 buf_i = write_buf(buf, buf_len, buf_i, num_str[i]);
+            }
+
+            for (int i = 0; i < (min_width > num_len ? min_width - num_len : 0); i++)
+            {
+                buf_i = write_buf(buf, buf_len, buf_i, ' ');
             }
 
             break;
