@@ -1,6 +1,7 @@
 use crate::{
     arch::{addr::VirtualAddress, context::*},
     error::*,
+    fs::{self, vfs::file_desc::FileDescriptorNumber},
     graphics::{multi_layer::LayerId, simple_window_manager},
     mem::{
         bitmap::{self, MemoryFrameInfo},
@@ -153,6 +154,7 @@ struct Task {
     program_mem_info: Vec<(MemoryFrameInfo, MappingInfo)>,
     allocated_mem_frame_info: Vec<MemoryFrameInfo>,
     created_wd: Vec<LayerId>,
+    opend_fd: Vec<FileDescriptorNumber>,
 }
 
 impl Drop for Task {
@@ -191,9 +193,14 @@ impl Drop for Task {
             bitmap::dealloc_mem_frame(*mem_frame_info).unwrap();
         }
 
-        // destroy all created window
+        // destroy all created windows
         for wd in self.created_wd.iter() {
             simple_window_manager::destroy_window(wd).unwrap();
+        }
+
+        // close all opend files
+        for fd in self.opend_fd.iter() {
+            fs::vfs::close_file(fd).unwrap();
         }
 
         trace!("task: Dropped tid: {}", self.id.get());
@@ -330,6 +337,7 @@ impl Task {
             program_mem_info,
             allocated_mem_frame_info: Vec::new(),
             created_wd: Vec::new(),
+            opend_fd: Vec::new(),
         })
     }
 
@@ -475,6 +483,24 @@ pub fn remove_wd(wd: &LayerId) {
         .unwrap();
 
     user_task.created_wd.retain(|cwd| cwd.get() != wd.get());
+}
+
+pub fn push_fd(fd: FileDescriptorNumber) {
+    let user_task = unsafe { USER_TASKS.get_force_mut() }
+        .iter_mut()
+        .last()
+        .unwrap();
+
+    user_task.opend_fd.push(fd);
+}
+
+pub fn remove_fd(fd: &FileDescriptorNumber) {
+    let user_task = unsafe { USER_TASKS.get_force_mut() }
+        .iter_mut()
+        .last()
+        .unwrap();
+
+    user_task.opend_fd.retain(|cfdn| cfdn.get() != fd.get());
 }
 
 pub fn return_task(exit_status: u64) {

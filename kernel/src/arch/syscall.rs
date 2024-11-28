@@ -355,11 +355,17 @@ fn sys_write(fd: FileDescriptorNumber, s_ptr: *const u8, s_len: usize) -> Result
 
 fn sys_open(filename_ptr: *const u8) -> Result<FileDescriptorNumber> {
     let filename = unsafe { util::cstring::from_cstring_ptr(filename_ptr) };
-    vfs::open_file(&filename)
+    let fd = vfs::open_file(&filename)?;
+    task::push_fd(fd);
+
+    Ok(fd)
 }
 
 fn sys_close(fd: FileDescriptorNumber) -> Result<()> {
-    vfs::close_file(&fd)
+    vfs::close_file(&fd)?;
+    task::remove_fd(&fd);
+
+    Ok(())
 }
 
 fn sys_exit(status: u64) {
