@@ -1,6 +1,7 @@
 use crate::{
-    arch::context::*,
+    arch::{addr::VirtualAddress, context::*},
     error::*,
+    graphics::{multi_layer::LayerId, simple_window_manager},
     mem::{
         bitmap::{self, MemoryFrameInfo},
         paging::{self, *},
@@ -17,8 +18,6 @@ use core::{
     task::{Context as ExecutorContext, Poll, RawWaker, RawWakerVTable, Waker},
 };
 use log::{debug, trace};
-
-use super::addr::VirtualAddress;
 
 static mut TASK_EXECUTOR: Mutex<Executor> = Mutex::new(Executor::new());
 
@@ -153,6 +152,7 @@ struct Task {
     stack_mem_frame_info: MemoryFrameInfo,
     program_mem_info: Vec<(MemoryFrameInfo, MappingInfo)>,
     allocated_mem_frame_info: Vec<MemoryFrameInfo>,
+    created_wd: Vec<LayerId>,
 }
 
 impl Drop for Task {
@@ -189,6 +189,11 @@ impl Drop for Task {
         for mem_frame_info in self.allocated_mem_frame_info.iter() {
             mem_frame_info.set_permissions_to_supervisor().unwrap();
             bitmap::dealloc_mem_frame(*mem_frame_info).unwrap();
+        }
+
+        // destroy all created window
+        for wd in self.created_wd.iter() {
+            simple_window_manager::destroy_window(wd).unwrap();
         }
 
         trace!("task: Dropped tid: {}", self.id.get());
@@ -324,6 +329,7 @@ impl Task {
             stack_mem_frame_info,
             program_mem_info,
             allocated_mem_frame_info: Vec::new(),
+            created_wd: Vec::new(),
         })
     }
 
@@ -451,6 +457,24 @@ pub fn get_memory_frame_size_by_virt_addr(virt_addr: VirtualAddress) -> Result<O
     }
 
     Ok(None)
+}
+
+pub fn push_wd(wd: LayerId) {
+    let user_task = unsafe { USER_TASKS.get_force_mut() }
+        .iter_mut()
+        .last()
+        .unwrap();
+
+    user_task.created_wd.push(wd);
+}
+
+pub fn remove_wd(wd: &LayerId) {
+    let user_task = unsafe { USER_TASKS.get_force_mut() }
+        .iter_mut()
+        .last()
+        .unwrap();
+
+    user_task.created_wd.retain(|cwd| cwd.get() != wd.get());
 }
 
 pub fn return_task(exit_status: u64) {

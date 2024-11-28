@@ -456,11 +456,17 @@ fn sys_create_window(
     height: usize,
 ) -> Result<LayerId> {
     let title = unsafe { util::cstring::from_cstring_ptr(title_ptr) };
-    simple_window_manager::create_window(title, x_pos, y_pos, width, height)
+    let wd = simple_window_manager::create_window(title, x_pos, y_pos, width, height)?;
+    task::push_wd(wd.clone());
+
+    Ok(wd)
 }
 
 fn sys_destroy_window(wd: LayerId) -> Result<()> {
-    simple_window_manager::destroy_window(&wd)
+    simple_window_manager::destroy_window(&wd)?;
+    task::remove_wd(&wd);
+
+    Ok(())
 }
 
 fn sys_getcwdenames(buf_addr: VirtualAddress, buf_len: usize) -> Result<()> {
