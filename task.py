@@ -24,10 +24,6 @@ QEMU_TRACE_FILE = "qemu_trace"
 DOOM_WAD_FILE = "doom1.wad"
 INITRAMFS_IMG_FILE = "initramfs.img"
 
-# GIT_SUBMODULE_UPDATE = "git submodule update --init --recursive"
-GIT_SUBMODULE_UPDATE = (
-    f"git submodule update --init --recursive {THIRD_PARTY_DIR}/{DOOM_DIR}"
-)
 GIT_CHECKOUT_TO_LATEST_TAG = "git fetch --tags && latestTag=$(git describe --tags `git rev-list --tags --max-count=1`) && git checkout $latestTag && git gc"
 
 QEMU_ARCH = "qemu-system-x86_64"
@@ -79,6 +75,10 @@ def own_qemu_cmd() -> str:
     return f"./{THIRD_PARTY_DIR}/{QEMU_DIR}/build/{qemu_cmd()} --display sdl --trace events=./{QEMU_TRACE_FILE}"
 
 
+def git_submodule_update_cmd(path: str) -> str:
+    return f"git submodule update --init --recursive {path}"
+
+
 def run_cmd(
     cmd: str,
     dir: str = "./",
@@ -110,7 +110,6 @@ def clear():
 
 
 def init():
-    run_cmd(GIT_SUBMODULE_UPDATE)
     run_cmd(f"mkdir -p ./{OUTPUT_DIR}")
 
 
@@ -135,6 +134,7 @@ def build_qemu():
     global is_kernel_test
 
     d = f"./{THIRD_PARTY_DIR}/{QEMU_DIR}"
+    run_cmd(git_submodule_update_cmd(d))
 
     if is_kernel_test:
         return
@@ -155,6 +155,7 @@ def task_build_doom():
         )
 
     d = f"./{THIRD_PARTY_DIR}/{DOOM_DIR}"
+    run_cmd(git_submodule_update_cmd(d))
     run_cmd("git checkout master", dir=d)
     run_cmd("make -f Makefile.myos", dir=d)
     # run_cmd("make", dir=d)
@@ -191,7 +192,7 @@ def build():
     clear()
     init()
     build_cozette()
-    # task_build_qemu()
+    # build_qemu()
     build_bootloader()
     build_kernel()
 
