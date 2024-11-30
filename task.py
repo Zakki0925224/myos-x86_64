@@ -19,6 +19,7 @@ KERNEL_FILE = "kernel.elf"
 IMG_FILE = "myos.img"
 ISO_FILE = "myos.iso"
 FONT_FILE = "font.psf"
+COZETTE_BDF = "cozette.bdf"
 OVMF_CODE_FILE = "OVMF_CODE.fd"
 QEMU_TRACE_FILE = "qemu_trace"
 DOOM_WAD_FILE = "doom1.wad"
@@ -104,30 +105,24 @@ def run_cmd(
 
 
 # tasks
-def clear():
-    run_cmd(f"rm -rf ./{OUTPUT_DIR}")
-    run_cmd(f"rm -rf ./{DUMP_DIR}")
-
-
 def init():
     run_cmd(f"mkdir -p ./{OUTPUT_DIR}")
 
 
 def build_cozette():
     d = f"./{THIRD_PARTY_DIR}"
-    cozette_bdf = "cozette.bdf"
 
     if not os.path.exists(f"./{THIRD_PARTY_DIR}/{FONT_FILE}"):
         run_cmd(
-            f'wget -qO- https://api.github.com/repos/slavfox/Cozette/releases/latest | grep "{cozette_bdf}" | cut -d : -f 2,3 | tr -d \\" | wget -i - -O {cozette_bdf}',
+            f'wget -qO- https://api.github.com/repos/slavfox/Cozette/releases/latest | grep "{COZETTE_BDF}" | cut -d : -f 2,3 | tr -d \\" | wget -O ./{COZETTE_BDF} -i -',
             dir=d,
             ignore_error=True,
         )
         run_cmd(
-            f"bdf2psf --fb ./{cozette_bdf} /usr/share/bdf2psf/standard.equivalents /usr/share/bdf2psf/fontsets/Uni2.512 512 ./{FONT_FILE}",
+            f"bdf2psf --fb ./{COZETTE_BDF} /usr/share/bdf2psf/standard.equivalents /usr/share/bdf2psf/fontsets/Uni2.512 512 ./{FONT_FILE}",
             dir=d,
         )
-        run_cmd(f"rm ./{cozette_bdf}", dir=d)
+        run_cmd(f"rm ./{COZETTE_BDF}", dir=d)
 
 
 def build_qemu():
@@ -189,7 +184,6 @@ def build_kernel():
 
 
 def build():
-    clear()
     init()
     build_cozette()
     # build_qemu()
@@ -304,8 +298,34 @@ def kernel_test_runner(kernel_path: str):
     run()
 
 
+def clean():
+    run_cmd(f"rm -rf ./{OUTPUT_DIR}")
+    run_cmd(f"rm -rf ./{DUMP_DIR}")
+    run_cmd(f"rm -f ./{THIRD_PARTY_DIR}/{DOOM_WAD_FILE}")
+    run_cmd(f"rm -f ./{THIRD_PARTY_DIR}/{FONT_FILE}")
+    run_cmd(f"rm -f ./{THIRD_PARTY_DIR}/{COZETTE_BDF}")
+    run_cmd(f"rm -rf ./{THIRD_PARTY_DIR}/{DOOM_DIR}/build")
+    run_cmd(f"rm -rf ./{THIRD_PARTY_DIR}/{QEMU_DIR}/build")
+    run_cmd("cargo clean", dir=f"./{BOOTLOADER_DIR}")
+    run_cmd("cargo clean", dir="./common")
+    run_cmd("cargo clean", dir="./kernel")
+
+    # clean apps
+    apps_dir = f"./{APPS_DIR}"
+    app_dirs = [
+        f for f in os.listdir(apps_dir) if os.path.isdir(os.path.join(apps_dir, f))
+    ]
+
+    for dir_name in app_dirs:
+        pwd = f"{apps_dir}/{dir_name}"
+
+        if os.path.exists(f"{pwd}/Makefile"):
+            run_cmd("make clean", dir=pwd)
+        else:
+            run_cmd("cargo clean", dir=pwd)
+
+
 TASKS = [
-    clear,
     init,
     build_cozette,
     build_qemu,
@@ -322,6 +342,7 @@ TASKS = [
     monitor,
     gdb,
     dump,
+    clean,
 ]
 
 if __name__ == "__main__":
