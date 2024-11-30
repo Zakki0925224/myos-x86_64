@@ -26,7 +26,7 @@ const LEGACY_WHITE: ColorCode = BASE_WHITE;
 #[allow(unused)]
 const LEGACY_THEME: Theme = Theme {
     transparent_color: LEGACY_BLACK,
-    back_color: LEGACY_BLACK,
+    back_color: ColorCode::new_rgb(0x03, 0x1a, 0x00),
     fore_color: LEGACY_GREEN,
     sample_rect_colors: [
         LEGACY_BLACK,
