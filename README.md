@@ -44,7 +44,7 @@ This is a replacement project for the previous **[myos](https://github.com/Zakki
 -   [doom-for-myos](https://github.com/Zakki0925224/doom-for-myos) (forked from [ozkl/doomgeneric](https://github.com/ozkl/doomgeneric))
 -   [doom1.wad](https://distro.ibiblio.org/slitaz/sources/packages/d/doom1.wad)
 
-## How to build
+## How to run
 
 ### Minimum packages required to build and run
 
@@ -58,7 +58,6 @@ This is a replacement project for the previous **[myos](https://github.com/Zakki
     -   clang
     -   qemu-system
     -   dosfstools
-    -   curl
     -   wget
 
 -   For build Cozette
@@ -74,9 +73,12 @@ This is a replacement project for the previous **[myos](https://github.com/Zakki
     -   libsdl2-dev
 
 ```bash
+# install required packages
+$ sudo apt update && sudo apt install python3 build-essential lld gcc-multilib clang qemu-system dosfstools wget python3-venv bdf2psf ninja-build meson libglib2.0-dev libsdl2-dev
+
 $ git clone https://github.com/Zakki0925224/myos-x86_64.git
 $ cd myos-x86_64
-$ python3 ./task.py build
+$ python3 ./task.py run
 ```
 
 ## How to run kernel test

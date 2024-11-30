@@ -119,7 +119,7 @@ def build_cozette():
 
     if not os.path.exists(f"./{THIRD_PARTY_DIR}/{FONT_FILE}"):
         run_cmd(
-            f'curl -s https://api.github.com/repos/slavfox/Cozette/releases/latest | grep "{cozette_bdf}" | cut -d : -f 2,3 | tr -d \\" | wget -qi -',
+            f'wget -qO- https://api.github.com/repos/slavfox/Cozette/releases/latest | grep "{cozette_bdf}" | cut -d : -f 2,3 | tr -d \\" | wget -i - -O {cozette_bdf}',
             dir=d,
             ignore_error=True,
         )
