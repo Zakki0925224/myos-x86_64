@@ -102,29 +102,35 @@ impl Ps2KeyboardDriver {
         for scan_code in key_map {
             let key_code = scan_code.key_code;
 
-            let key_state = if scan_code.pressed == code {
-                KeyState::Pressed
-            } else if scan_code.released == code {
-                KeyState::Released
-            } else {
-                continue;
+            let key_state = match scan_code {
+                sc if sc.pressed == code => KeyState::Pressed,
+                sc if sc.released == code => KeyState::Released,
+                _ => continue,
             };
 
-            // println!("{:?}", code);
-            // println!("{:?}, {:?}", key_code, key_state);
-
+            // prev keys
             let ModifierKeysState {
-                shift: prev_shift,
-                ctrl: prev_ctrl,
-                gui: prev_gui,
-                alt: prev_alt,
+                shift: mut shift,
+                ctrl: mut ctrl,
+                gui: mut gui,
+                alt: mut alt,
             } = self.mod_keys_state;
 
+            if key_code.is_shift() {
+                shift = key_state == KeyState::Pressed;
+            } else if key_code.is_ctrl() {
+                ctrl = key_state == KeyState::Pressed;
+            } else if key_code.is_gui() {
+                gui = key_state == KeyState::Pressed;
+            } else if key_code.is_alt() {
+                alt = key_state == KeyState::Pressed;
+            }
+
             self.mod_keys_state = ModifierKeysState {
-                shift: key_code.is_shift() || prev_shift,
-                ctrl: key_code.is_ctrl() || prev_ctrl,
-                gui: key_code.is_gui() || prev_gui,
-                alt: key_code.is_alt() || prev_alt,
+                shift,
+                ctrl,
+                gui,
+                alt,
             };
 
             let ascii_code = match self.mod_keys_state.shift {
