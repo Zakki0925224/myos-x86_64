@@ -15,7 +15,7 @@ This is a replacement project for the previous **[myos](https://github.com/Zakki
 
 ### doomgeneric
 
-[![doomgeneric - myos-x86_64]()](https://www.youtube.com/watch?v=DRtx9h6xlkg)
+[![doomgeneric - myos-x86_64](http://img.youtube.com/vi/DRtx9h6xlkg/0.jpg)](https://www.youtube.com/watch?v=DRtx9h6xlkg)
 
 ## Features
 
