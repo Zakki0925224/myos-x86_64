@@ -142,7 +142,7 @@ def build_qemu():
         )
 
 
-def task_build_doom():
+def build_doom():
     # download doom1.wad
     if not os.path.exists(f"./{THIRD_PARTY_DIR}/{DOOM_WAD_FILE}"):
         run_cmd(
@@ -213,7 +213,7 @@ def build_apps():
 
 
 def make_initramfs():
-    task_build_doom()
+    build_doom()
     build_apps()
 
     run_cmd(
@@ -329,6 +329,7 @@ TASKS = [
     init,
     build_cozette,
     build_qemu,
+    build_doom,
     build_bootloader,
     build_kernel,
     build,

@@ -13,6 +13,10 @@ This is a replacement project for the previous **[myos](https://github.com/Zakki
 ![](https://github.com/Zakki0925224/myos-x86_64/assets/49384910/b134ef0a-c94e-46f8-a578-a6e160747fae)
 ![](https://github.com/Zakki0925224/myos-x86_64/assets/49384910/fce1c2e4-f56b-46fa-8530-9eeec6069591)
 
+### doomgeneric
+
+[![doomgeneric - myos-x86_64]()](https://www.youtube.com/watch?v=DRtx9h6xlkg)
+
 ## Features
 
 -   [x] Written in Rust
@@ -34,7 +38,7 @@ This is a replacement project for the previous **[myos](https://github.com/Zakki
 -   [x] My own virtual file system (WIP, read only)
 -   [x] [Userland applications](/apps/) (libc for myos available [here](/apps/libc/))
 -   [x] Async runtime
--   [x] DOOM challenge! => [playing movie](https://x.com/zakki0925224/status/1859466847093203298)
+-   [x] DOOM challenge!
 
 ## Third party
 
