@@ -47,7 +47,8 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
     logger::init();
 
     // attach uart driver
-    device::uart::probe_and_attach().unwrap();
+    // do not use .unwrap() here!!
+    let _ = device::uart::probe_and_attach();
 
     // initialize memory management
     mem::init(boot_info.mem_map);

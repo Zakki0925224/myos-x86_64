@@ -48,7 +48,8 @@ impl UartDriver {
     }
 
     fn send_data(&self, data: u8) {
-        while !self.is_transmit_empty() {}
+        // TODO: loop infinity on VirtualBox and actual device
+        //while !self.is_transmit_empty() {}
 
         if let Ok(io_port_addr) = self.io_port_addr() {
             io_port_addr.out8(data);

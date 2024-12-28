@@ -55,7 +55,6 @@ fn efi_main() -> Status {
     info!("Exit boot services");
     let mut mem_map = Vec::with_capacity(128);
 
-    // TODO: loop infinity on VirtualBox and actual device
     let map = unsafe { boot::exit_boot_services(MemoryType::RUNTIME_SERVICES_DATA) };
 
     for desc in map.entries() {
