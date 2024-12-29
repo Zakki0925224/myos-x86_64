@@ -78,6 +78,7 @@ impl UartDriver {
 }
 
 impl DeviceDriverFunction for UartDriver {
+    type AttachInput = ();
     type PollNormalOutput = Option<u8>;
     type PollInterruptOutput = ();
 
@@ -89,7 +90,7 @@ impl DeviceDriverFunction for UartDriver {
         Ok(())
     }
 
-    fn attach(&mut self) -> Result<()> {
+    fn attach(&mut self, _arg: Self::AttachInput) -> Result<()> {
         let io_port_addr = IoPortAddress::new(ComPort::Com1 as u32);
 
         io_port_addr.offset(1).out8(0x00); // IER - disable all interrupts
@@ -135,7 +136,7 @@ pub fn get_device_driver_info() -> Result<DeviceDriverInfo> {
 pub fn probe_and_attach() -> Result<()> {
     let mut driver = unsafe { UART_DRIVER.try_lock() }?;
     driver.probe()?;
-    driver.attach()?;
+    driver.attach(())?;
     let info = driver.get_device_driver_info()?;
     info!("{}: Attached!", info.name);
 

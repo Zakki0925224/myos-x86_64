@@ -119,6 +119,7 @@ impl Ps2MouseDriver {
 }
 
 impl DeviceDriverFunction for Ps2MouseDriver {
+    type AttachInput = ();
     type PollNormalOutput = Option<MouseEvent>;
     type PollInterruptOutput = ();
 
@@ -130,7 +131,7 @@ impl DeviceDriverFunction for Ps2MouseDriver {
         Ok(())
     }
 
-    fn attach(&mut self) -> Result<()> {
+    fn attach(&mut self, _arg: Self::AttachInput) -> Result<()> {
         // send next wrote byte to ps/2 secondary port
         PS2_CMD_AND_STATE_REG_ADDR.out8(0xd4);
         self.wait_ready();
@@ -179,7 +180,7 @@ pub fn probe_and_attach() -> Result<()> {
     arch::disabled_int(|| {
         let mut driver = unsafe { PS2_MOUSE_DRIVER.try_lock() }?;
         driver.probe()?;
-        driver.attach()?;
+        driver.attach(())?;
         info!("{}: Attached!", driver.get_device_driver_info()?.name);
         Result::Ok(())
     })

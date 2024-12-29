@@ -57,6 +57,11 @@ impl log::Log for SimpleLogger {
         print!("{:?}\n", record.args());
 
         let _ = frame_buf_console::reset_fore_color();
+
+        // show panic screen
+        if record.level() == Level::Error {
+            let _ = crate::device::panic_screen::write_fmt(*record.args());
+        }
     }
 
     fn flush(&self) {}

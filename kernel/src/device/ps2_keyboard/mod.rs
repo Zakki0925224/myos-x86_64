@@ -168,6 +168,7 @@ impl Ps2KeyboardDriver {
 }
 
 impl DeviceDriverFunction for Ps2KeyboardDriver {
+    type AttachInput = ();
     type PollNormalOutput = Option<KeyEvent>;
     type PollInterruptOutput = ();
 
@@ -179,7 +180,7 @@ impl DeviceDriverFunction for Ps2KeyboardDriver {
         Ok(())
     }
 
-    fn attach(&mut self) -> Result<()> {
+    fn attach(&mut self, _arg: Self::AttachInput) -> Result<()> {
         PS2_CMD_AND_STATE_REG_ADDR.out8(0x60); // write configuration byte
         self.wait_ready();
         PS2_DATA_REG_ADDR.out8(0x47); // enable interrupt
@@ -221,7 +222,7 @@ pub fn probe_and_attach() -> Result<()> {
     arch::disabled_int(|| {
         let mut driver = unsafe { PS2_KBD_DRIVER.try_lock() }?;
         driver.probe()?;
-        driver.attach()?;
+        driver.attach(())?;
         info!("{}: Attached!", driver.get_device_driver_info()?.name);
         Result::Ok(())
     })

@@ -271,7 +271,7 @@ impl FrameBuffer {
             let ref_value = if let Some(shadow_buf) = &mut self.shadow_buf {
                 shadow_buf.as_mut_ptr().add(offset).cast()
             } else {
-                &mut *(self.frame_buf_virt_addr.offset(offset).as_ptr_mut() as *mut _)
+                self.frame_buf_virt_addr.offset(offset).as_ptr_mut()
             };
             *ref_value = data;
         }

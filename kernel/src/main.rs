@@ -44,6 +44,7 @@ pub extern "sysv64" fn kernel_entry(boot_info: &BootInfo) -> ! {
 
 pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
     // initialize logger
+    device::panic_screen::probe_and_attach(boot_info.graphic_info).unwrap();
     logger::init();
 
     // attach uart driver

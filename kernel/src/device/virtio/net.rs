@@ -160,6 +160,7 @@ impl VirtioNetDriver {
 }
 
 impl DeviceDriverFunction for VirtioNetDriver {
+    type AttachInput = ();
     type PollNormalOutput = ();
     type PollInterruptOutput = ();
 
@@ -182,7 +183,7 @@ impl DeviceDriverFunction for VirtioNetDriver {
         Ok(())
     }
 
-    fn attach(&mut self) -> Result<()> {
+    fn attach(&mut self, _arg: Self::AttachInput) -> Result<()> {
         if self.pci_device_bdf.is_none() {
             return Err(Error::Failed("Device driver is not probed"));
         }
@@ -308,7 +309,7 @@ pub fn probe_and_attach() -> Result<()> {
     arch::disabled_int(|| {
         let mut driver = unsafe { VIRTIO_NET_DRIVER.try_lock() }?;
         driver.probe()?;
-        driver.attach()?;
+        driver.attach(())?;
         info!("{}: Attached!", driver.get_device_driver_info()?.name);
         Result::Ok(())
     })

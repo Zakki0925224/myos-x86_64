@@ -108,8 +108,8 @@ impl FrameBufferConsole {
         Ok(())
     }
 
-    pub fn write_string(&mut self, string: &str) -> Result<()> {
-        for c in string.chars() {
+    pub fn write_str(&mut self, s: &str) -> Result<()> {
+        for c in s.chars() {
             self.write_char(c)?;
         }
 
@@ -149,7 +149,6 @@ impl FrameBufferConsole {
     fn tab(&mut self) -> Result<()> {
         for c in TAB_DISP_STR.chars() {
             self.write_char(c)?;
-            self.inc_cursor()?;
         }
 
         Ok(())
@@ -250,7 +249,7 @@ impl FrameBufferConsole {
 
 impl fmt::Write for FrameBufferConsole {
     fn write_str(&mut self, s: &str) -> fmt::Result {
-        let _ = self.write_string(s);
+        let _ = self.write_str(s);
         Ok(())
     }
 }

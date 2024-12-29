@@ -2,6 +2,7 @@ use crate::error::Result;
 use log::error;
 
 pub mod console;
+pub mod panic_screen;
 pub mod ps2_keyboard;
 pub mod ps2_mouse;
 pub mod uart;
@@ -24,6 +25,7 @@ impl DeviceDriverInfo {
 }
 
 trait DeviceDriverFunction {
+    type AttachInput;
     type PollNormalOutput;
     type PollInterruptOutput;
 
@@ -31,7 +33,7 @@ trait DeviceDriverFunction {
     // check and find device
     fn probe(&mut self) -> Result<()>;
     // initialize device
-    fn attach(&mut self) -> Result<()>;
+    fn attach(&mut self, arg: Self::AttachInput) -> Result<()>;
     // normal polling
     fn poll_normal(&mut self) -> Result<Self::PollNormalOutput>;
     // interrupt polling
