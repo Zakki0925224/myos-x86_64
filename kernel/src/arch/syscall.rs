@@ -6,7 +6,7 @@ use crate::{
         register::{model_specific::*, Register},
         task,
     },
-    device::console,
+    device::{self, console},
     env,
     error::*,
     fs::{
@@ -424,7 +424,7 @@ fn sys_stat(fd: FileDescriptorNumber, buf_addr: VirtualAddress) -> Result<()> {
 }
 
 fn sys_uptime() -> u64 {
-    apic::timer::get_current_ms().unwrap_or(0) as u64
+    device::local_apic_timer::get_current_ms().unwrap_or(0) as u64
 }
 
 fn sys_exec(args_ptr: *const u8) -> Result<()> {

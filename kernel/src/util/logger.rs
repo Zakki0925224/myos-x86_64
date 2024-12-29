@@ -1,4 +1,4 @@
-use crate::{arch, graphics::frame_buf_console, print, theme::GLOBAL_THEME};
+use crate::{device, graphics::frame_buf_console, print, theme::GLOBAL_THEME};
 use log::{Level, LevelFilter, Record};
 
 static LOGGER: SimpleLogger = SimpleLogger;
@@ -31,7 +31,7 @@ impl log::Log for SimpleLogger {
 
         let _ = frame_buf_console::set_fore_color(fore_color);
 
-        if let Some(ms) = arch::apic::timer::get_current_ms() {
+        if let Some(ms) = device::local_apic_timer::get_current_ms() {
             print!("[{:06}.{:03}]", ms / 1000, ms % 1000,);
         } else {
             print!("[??????.???]");

@@ -6,7 +6,6 @@ use crate::{
     },
     device,
     error::{Error, Result},
-    graphics::*,
     mem::paging,
     util::mutex::Mutex,
 };
@@ -114,12 +113,9 @@ const _VEC_MACHINE_CHECK: usize = 0x12;
 const _VEC_SIMD_FLOATING_POINT_EX: usize = 0x13;
 const _VEC_VIRT_EX: usize = 0x14;
 const _VEC_CTRL_PROTECTION_EX: usize = 0x15;
-pub const VEC_LOCAL_APIC_TIMER_INT: usize = 0x41;
 
 pub const VEC_PS2_KBD: usize = 0x21; // ps/2 keyboard
 pub const VEC_PS2_MOUSE: usize = 0x2c; // ps/2 mouse
-
-const END_OF_INT_REG_ADDR: VirtualAddress = VirtualAddress::new(0xfee000b0);
 
 const MASTER_PIC_ADDR: IoPortAddress = IoPortAddress::new(0x20);
 const SLAVE_PIC_ADDR: IoPortAddress = IoPortAddress::new(0xa0);
@@ -241,13 +237,7 @@ impl InterruptDescriptorTable {
     }
 }
 
-fn notify_end_of_int() {
-    unsafe {
-        (END_OF_INT_REG_ADDR.as_ptr_mut() as *mut u32).write_volatile(0);
-    }
-}
-
-pub fn pic_notify_end_of_int() {
+pub fn notify_end_of_int() {
     MASTER_PIC_ADDR.out8(PIC_END_OF_INT_CMD);
     SLAVE_PIC_ADDR.out8(PIC_END_OF_INT_CMD);
 }
@@ -292,19 +282,6 @@ extern "x86-interrupt" fn page_fault_handler(
 
 extern "x86-interrupt" fn double_fault_handler() {
     panic!("int: DOUBLE FAULT");
-}
-
-extern "x86-interrupt" fn local_apic_timer_handler() {
-    arch::apic::timer::tick();
-
-    if arch::apic::timer::get_current_ms().is_some() {
-        let _ = multi_layer::draw_to_frame_buf();
-        let _ = frame_buf::apply_shadow_buf();
-
-        let _ = task::poll();
-    }
-
-    notify_end_of_int();
 }
 
 pub fn init_pic() {
@@ -358,12 +335,6 @@ pub fn init_idt() {
     idt.set_handler(
         VEC_DOUBLE_FAULT,
         InterruptHandler::Normal(double_fault_handler),
-        GateType::Interrupt,
-    )
-    .unwrap();
-    idt.set_handler(
-        VEC_LOCAL_APIC_TIMER_INT,
-        InterruptHandler::Normal(local_apic_timer_handler),
         GateType::Interrupt,
     )
     .unwrap();

@@ -945,5 +945,5 @@ extern "x86-interrupt" fn poll_int_xhc_driver() {
         error!("xhc: {:?}", err);
     }
 
-    idt::pic_notify_end_of_int();
+    idt::notify_end_of_int();
 }

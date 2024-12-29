@@ -64,8 +64,7 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
     acpi::init(boot_info.rsdp_virt_addr.unwrap().into()).unwrap();
 
     // initialize and start local APIC timer
-    apic::timer::init().unwrap();
-    apic::timer::start();
+    device::local_apic_timer::probe_and_attach().unwrap();
 
     // initialize frame buffer, console
     graphics::init(
@@ -94,13 +93,6 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
         boot_info.initramfs_start_virt_addr.into(),
         &boot_info.kernel_config,
     );
-
-    // enable SSE instructions
-    // if let Err(err) = arch::enable_sse() {
-    //     error!("arch: Failed to enable SSE extensions: {:?}", err);
-    // } else {
-    //     info!("arch: Enabled SSE extensions");
-    // }
 
     #[cfg(test)]
     test_main();

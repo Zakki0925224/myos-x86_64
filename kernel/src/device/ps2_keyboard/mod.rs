@@ -263,5 +263,5 @@ pub extern "x86-interrupt" fn poll_int_ps2_kbd_driver() {
     if let Ok(mut driver) = unsafe { PS2_KBD_DRIVER.try_lock() } {
         let _ = driver.poll_int();
     }
-    idt::pic_notify_end_of_int();
+    idt::notify_end_of_int();
 }

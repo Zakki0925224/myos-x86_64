@@ -29,7 +29,7 @@ struct PanicScreenDriver {
 impl PanicScreenDriver {
     const fn new() -> Self {
         Self {
-            device_driver_info: DeviceDriverInfo::new("panic_screen"),
+            device_driver_info: DeviceDriverInfo::new("panic-screen"),
             curosr_x: None,
             cursor_y: None,
             res_x: None,

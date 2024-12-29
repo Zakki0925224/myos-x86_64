@@ -198,5 +198,5 @@ pub extern "x86-interrupt" fn poll_int_ps2_mouse_driver() {
     if let Ok(mut driver) = unsafe { PS2_MOUSE_DRIVER.try_lock() } {
         let _ = driver.poll_int();
     }
-    idt::pic_notify_end_of_int();
+    idt::notify_end_of_int();
 }
