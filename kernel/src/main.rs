@@ -61,9 +61,7 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
     idt::init_idt();
 
     // initialize ACPI
-    if let Some(rsdp_virt_addr) = boot_info.rsdp_virt_addr {
-        acpi::init(rsdp_virt_addr.into()).unwrap();
-    }
+    acpi::init(boot_info.rsdp_virt_addr.unwrap().into()).unwrap();
 
     // initialize and start local APIC timer
     apic::timer::init().unwrap();

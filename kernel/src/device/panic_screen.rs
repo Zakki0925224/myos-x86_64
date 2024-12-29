@@ -3,6 +3,7 @@ use crate::{
     addr::VirtualAddress,
     error::Result,
     graphics::font::{FONT, TAB_DISP_STR},
+    theme::GLOBAL_THEME,
     util::mutex::Mutex,
     ColorCode,
 };
@@ -11,7 +12,7 @@ use core::fmt::{self, Write};
 use log::info;
 
 const BACK_COLOR: ColorCode = ColorCode::new_rgb(0, 0, 0);
-const FORE_COLOR: ColorCode = ColorCode::new_rgb(0xff, 0xff, 0xff);
+const FORE_COLOR: ColorCode = GLOBAL_THEME.log_color_error;
 
 static mut PANIC_SCREEN_DRIVER: Mutex<PanicScreenDriver> = Mutex::new(PanicScreenDriver::new());
 
@@ -131,10 +132,10 @@ impl PanicScreenDriver {
         for h in 0..font_height {
             for w in 0..font_width {
                 if !(font_glyph[h] << w) & 0x80 == 0x80 {
-                    continue;
+                    self.write_pixel(x + w, y + h, BACK_COLOR);
+                } else {
+                    self.write_pixel(x + w, y + h, FORE_COLOR);
                 }
-
-                self.write_pixel(x + w, y + h, FORE_COLOR);
             }
         }
 
