@@ -37,6 +37,7 @@ QEMU_DEVICES = [
     # "-device usb-kbd",
     "-device isa-debug-exit,iobase=0xf4,iosize=0x04",
     # "-device virtio-net,netdev=net0,mac=52:54:00:12:34:56 -netdev user,id=net0",
+    "-audiodev pa,id=speaker -machine pcspk-audiodev=speaker",
 ]
 
 QEMU_DRIVES = [

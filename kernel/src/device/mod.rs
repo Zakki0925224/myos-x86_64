@@ -6,6 +6,7 @@ pub mod local_apic_timer;
 pub mod panic_screen;
 pub mod ps2_keyboard;
 pub mod ps2_mouse;
+pub mod speaker;
 pub mod uart;
 pub mod usb;
 pub mod virtio;
@@ -61,4 +62,11 @@ pub fn init() {
         let name = virtio::net::get_device_driver_info().unwrap().name;
         error!("{}: Failed to probe or attach device: {:?}", name, err);
     }
+
+    // speaker
+    if let Err(err) = speaker::probe_and_attach() {
+        let name = speaker::get_device_driver_info().unwrap().name;
+        error!("{}: Failed to probe or attach device: {:?}", name, err);
+    }
+    speaker::beep();
 }
