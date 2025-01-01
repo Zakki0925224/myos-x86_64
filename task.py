@@ -306,6 +306,7 @@ def clean():
     run_cmd(f"rm -f ./{THIRD_PARTY_DIR}/{FONT_FILE}")
     run_cmd(f"rm -f ./{THIRD_PARTY_DIR}/{COZETTE_BDF}")
     run_cmd(f"rm -rf ./{THIRD_PARTY_DIR}/{DOOM_DIR}/build")
+    run_cmd(f"rm -f ./{APPS_DIR}/doom.elf")
     run_cmd(f"rm -rf ./{THIRD_PARTY_DIR}/{QEMU_DIR}/build")
     run_cmd("cargo clean", dir=f"./{BOOTLOADER_DIR}")
     run_cmd("cargo clean", dir="./common")
