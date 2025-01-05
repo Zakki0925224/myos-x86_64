@@ -3,7 +3,7 @@ use crate::{arch, error::Result, util::sleep};
 use core::num::NonZeroU8;
 use log::info;
 
-static mut SPEAKER: Speaker = Speaker::new();
+static mut SPEAKER_DRIVER: SpeakerDriver = SpeakerDriver::new();
 
 #[repr(u32)]
 #[derive(Copy, Clone)]
@@ -30,12 +30,16 @@ impl Pitch {
     }
 }
 
-struct Speaker;
+struct SpeakerDriver {
+    device_driver_info: DeviceDriverInfo,
+}
 
 // https://wiki.osdev.org/PC_Speaker
-impl Speaker {
+impl SpeakerDriver {
     const fn new() -> Self {
-        Self
+        Self {
+            device_driver_info: DeviceDriverInfo::new("speaker"),
+        }
     }
 
     fn play(&self, freq: u32) {
@@ -81,13 +85,13 @@ impl Speaker {
     }
 }
 
-impl DeviceDriverFunction for Speaker {
+impl DeviceDriverFunction for SpeakerDriver {
     type AttachInput = ();
     type PollNormalOutput = ();
     type PollInterruptOutput = ();
 
     fn get_device_driver_info(&self) -> Result<DeviceDriverInfo> {
-        Ok(DeviceDriverInfo::new("speaker"))
+        Ok(self.device_driver_info.clone())
     }
 
     fn probe(&mut self) -> Result<()> {
@@ -95,6 +99,7 @@ impl DeviceDriverFunction for Speaker {
     }
 
     fn attach(&mut self, _arg: Self::AttachInput) -> Result<()> {
+        self.device_driver_info.attached = true;
         Ok(())
     }
 
@@ -108,13 +113,13 @@ impl DeviceDriverFunction for Speaker {
 }
 
 pub fn get_device_driver_info() -> Result<DeviceDriverInfo> {
-    unsafe { SPEAKER.get_device_driver_info() }
+    unsafe { SPEAKER_DRIVER.get_device_driver_info() }
 }
 
 pub fn probe_and_attach() -> Result<()> {
     unsafe {
-        SPEAKER.probe()?;
-        SPEAKER.attach(())?;
+        SPEAKER_DRIVER.probe()?;
+        SPEAKER_DRIVER.attach(())?;
         info!("{}: Attached!", get_device_driver_info()?.name);
     }
 
@@ -122,5 +127,5 @@ pub fn probe_and_attach() -> Result<()> {
 }
 
 pub fn beep() {
-    unsafe { SPEAKER.beep() };
+    unsafe { SPEAKER_DRIVER.beep() };
 }

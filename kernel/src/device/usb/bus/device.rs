@@ -1,29 +1,30 @@
-use super::{
-    descriptor::{
-        config::ConfigurationDescriptor, device::DeviceDescriptor, endpoint::EndpointDescriptor,
-        hid::HumanInterfaceDeviceDescriptor, interface::InterfaceDescriptor, Descriptor,
-        DescriptorHeader, DescriptorType,
-    },
-    setup_trb::*,
-    xhc::{
-        self,
-        context::{endpoint::*, input::InputControlContext},
-        ring_buffer::*,
-        trb::*,
-    },
+use super::descriptor::{
+    config::ConfigurationDescriptor, device::DeviceDescriptor, endpoint::EndpointDescriptor,
+    hid::HumanInterfaceDeviceDescriptor, interface::InterfaceDescriptor, Descriptor,
+    DescriptorHeader, DescriptorType,
 };
 use crate::{
-    arch::addr::*,
-    device::usb::hid_keyboard::InputData,
+    addr::VirtualAddress,
+    device::{
+        self,
+        usb::{
+            hid_keyboard::InputData,
+            trb::*,
+            xhc::{
+                context::{endpoint::*, input::InputControlContext},
+                ringbuf::*,
+            },
+        },
+    },
     error::Result,
-    mem::bitmap::{self, *},
+    mem::bitmap::{self, MemoryFrameInfo},
     println,
 };
 use alloc::vec::Vec;
 use core::mem::size_of;
 
 const RING_BUF_LEN: usize = 16;
-const DEFAULT_CONTROL_PIPE_ID: u8 = 1;
+const DEFAULT_CTRL_PIPE_ID: u8 = 1;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum UsbDeviceError {
@@ -65,7 +66,7 @@ impl UsbDevice {
         let mut transfer_ring_bufs: [Option<RingBuffer<RING_BUF_LEN>>; 32] = Default::default();
         transfer_ring_bufs[1] = Some(dcp_ring_buf);
 
-        let dev = Self {
+        let device = Self {
             is_configured: false,
             slot_id,
             transfer_ring_bufs,
@@ -78,7 +79,7 @@ impl UsbDevice {
             conf_descs: Vec::new(),
         };
 
-        Ok(dev)
+        Ok(device)
     }
 
     pub fn init(&mut self) -> Result<()> {
@@ -230,14 +231,14 @@ impl UsbDevice {
     }
 
     pub fn configure_endpoint(&mut self, endpoint_type: EndpointType) -> Result<()> {
-        let port = match xhc::find_port_by_slot_id(self.slot_id)? {
+        let port = match device::usb::xhc::find_port_by_slot_id(self.slot_id)? {
             Some(port) => port,
             None => return Err(UsbDeviceError::XhcPortNotFoundError.into()),
         };
 
         let mut configured_endpoint_dci = self.configured_endpoint_dci.clone();
 
-        let device_context = xhc::read_device_context(self.slot_id)?.unwrap();
+        let device_context = device::usb::xhc::read_device_context(self.slot_id)?.unwrap();
         let mut input_context = port.read_input_context();
         input_context.device_context.slot_context = device_context.slot_context;
         let mut input_ctrl_context = InputControlContext::default();
@@ -294,7 +295,7 @@ impl UsbDevice {
             .unwrap()
             .get();
 
-        xhc::push_cmd_ring(config_endpoint_trb)
+        device::usb::xhc::push_cmd_ring(config_endpoint_trb)
     }
 
     pub fn configure_endpoint_transfer_ring(&mut self) -> Result<()> {
@@ -307,7 +308,7 @@ impl UsbDevice {
                 trb.set_other_flags(0x12); // IOC, ISP bit
 
                 ring_buf.fill_and_alloc_buf(trb)?;
-                xhc::ring_doorbell(self.slot_id, *endpoint_id as u8)?;
+                device::usb::xhc::ring_doorbell(self.slot_id, *endpoint_id as u8)?;
             }
         }
 
@@ -500,6 +501,6 @@ impl UsbDevice {
             dcp_transfer_ring.push(trb)?;
         }
 
-        xhc::ring_doorbell(self.slot_id, DEFAULT_CONTROL_PIPE_ID)
+        device::usb::xhc::ring_doorbell(self.slot_id, DEFAULT_CTRL_PIPE_ID)
     }
 }

@@ -1,11 +1,12 @@
 use crate::{
     acpi::AcpiError,
-    bus::usb::{
-        device::UsbDeviceError,
-        xhc::{ring_buffer::RingBufferError, XhcDriverError},
-        UsbDriverError,
+    device::{
+        console::ConsoleError,
+        usb::{
+            bus::{device::UsbDeviceError, UsbBusDriverError},
+            xhc::{ringbuf::RingBufferError, XhcDriverError},
+        },
     },
-    device::console::ConsoleError,
     fs::vfs::VirtualFileSystemError,
     graphics::{
         font::FontError, frame_buf::FrameBufferError, frame_buf_console::FrameBufferConsoleError,
@@ -28,7 +29,7 @@ pub enum Error {
     BitmapMemoryManagerError(BitmapMemoryManagerError),
     PageManagerError(PageManagerError),
     ConsoleError(ConsoleError),
-    UsbDriverError(UsbDriverError),
+    UsbBusDriverError(UsbBusDriverError),
     UsbDeviceError(UsbDeviceError),
     XhcDriverError(XhcDriverError),
     RingBufferError(RingBufferError),
@@ -101,9 +102,9 @@ impl From<ConsoleError> for Error {
     }
 }
 
-impl From<UsbDriverError> for Error {
-    fn from(err: UsbDriverError) -> Self {
-        Self::UsbDriverError(err)
+impl From<UsbBusDriverError> for Error {
+    fn from(err: UsbBusDriverError) -> Self {
+        Self::UsbBusDriverError(err)
     }
 }
 

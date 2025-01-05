@@ -1,5 +1,5 @@
-use super::{register::*, trb::*};
-use crate::{error::Result, mem::bitmap, println};
+use super::register::InterrupterRegisterSet;
+use crate::{device::usb::trb::*, error::Result, mem::bitmap, println};
 use alloc::boxed::Box;
 use core::mem::size_of;
 

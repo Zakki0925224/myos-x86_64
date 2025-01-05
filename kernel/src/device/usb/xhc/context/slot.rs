@@ -1,4 +1,4 @@
-use crate::bus::usb::xhc::register::PortSpeedIdValue;
+use crate::device::usb::xhc::register::PortSpeedIdValue;
 
 #[derive(Debug, Clone, Copy, Default)]
 #[repr(C)]

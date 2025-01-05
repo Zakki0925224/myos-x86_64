@@ -1,3 +1,4 @@
+use crate::addr::IoPortAddress;
 use crate::{
     arch::{addr::*, register::msi::*},
     error::{Error, Result},

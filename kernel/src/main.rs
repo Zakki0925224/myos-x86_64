@@ -11,7 +11,6 @@
 #![reexport_test_harness_main = "test_main"]
 
 mod arch;
-mod bus;
 mod device;
 mod env;
 mod error;
@@ -95,8 +94,23 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
     // enable syscall
     syscall::enable();
 
-    // initialize pci, usb
-    bus::init();
+    // initialize pci-bus driver
+    if let Err(err) = device::pci_bus::probe_and_attach() {
+        let name = device::pci_bus::get_device_driver_info().unwrap().name;
+        error!("{}: Failed to probe or attach device: {:?}", name, err);
+    }
+
+    // initialize xhc driver
+    if let Err(err) = device::usb::xhc::probe_and_attach() {
+        let name = device::usb::xhc::get_device_driver_info().unwrap().name;
+        error!("{}: Failed to probe or attach device: {:?}", name, err);
+    }
+
+    // initialize usb-bus driver
+    // if let Err(err) = device::usb::bus::probe_and_attach() {
+    //     let name = device::usb::bus::get_device_driver_info().unwrap().name;
+    //     error!("{}: Failed to probe or attach device: {:?}", name, err);
+    // }
 
     // initalize virtio-net
     if let Err(err) = device::virtio::net::probe_and_attach() {

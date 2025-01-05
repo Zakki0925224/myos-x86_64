@@ -1,16 +1,17 @@
 use crate::{
     addr::IoPortAddress,
     arch,
-    bus::pci::{self, conf_space::BaseAddress, vendor_id},
     device::{
+        self,
         virtio::{virt_queue, DeviceStatus, InterruptType, IoRegister, NetworkDeviceFeature},
         DeviceDriverFunction, DeviceDriverInfo,
     },
     error::{Error, Result},
+    idt,
     mem::{bitmap, paging::PAGE_SIZE},
     util::mutex::Mutex,
 };
-use log::info;
+use log::{debug, info};
 
 static mut VIRTIO_NET_DRIVER: Mutex<VirtioNetDriver> = Mutex::new(VirtioNetDriver::new());
 
@@ -169,13 +170,14 @@ impl DeviceDriverFunction for VirtioNetDriver {
     }
 
     fn probe(&mut self) -> Result<()> {
-        pci::find_devices(2, 0, 0, |d| {
+        device::pci_bus::find_devices(2, 0, 0, |d| {
             let vendor_id = d.conf_space_header().vendor_id;
             let device_id = d.conf_space_header().device_id;
 
             // transitional virtio-net device
-            if vendor_id == vendor_id::RED_HAT && device_id == 0x1000 {
-                self.pci_device_bdf = Some(d.device_bdf());
+            // redhat
+            if vendor_id == 0x1af4 && device_id == 0x1000 {
+                self.pci_device_bdf = Some(d.bdf());
             }
             Ok(())
         })?;
@@ -189,14 +191,14 @@ impl DeviceDriverFunction for VirtioNetDriver {
         }
 
         let (bus, device, func) = self.pci_device_bdf.unwrap();
-        pci::configure_device(bus, device, func, |d| {
+        device::pci_bus::configure_device(bus, device, func, |d| {
             let conf_space = d.read_conf_space_non_bridge_field()?;
             let bars = conf_space.get_bars()?;
             let (_, mmio_bar) = bars
                 .get(0)
                 .ok_or(Error::Failed("Failed to read MMIO base address register"))?;
             let io_port_base = match mmio_bar {
-                BaseAddress::MmioAddressSpace(addr) => *addr,
+                device::pci_bus::conf_space::BaseAddress::MmioAddressSpace(addr) => *addr,
                 _ => return Err(Error::Failed("Invalid base address register")),
             }
             .into();
@@ -221,11 +223,11 @@ impl DeviceDriverFunction for VirtioNetDriver {
 
             // configure interrupt
             // TODO
-            // let vec_num = idt::set_handler_dyn_vec(
-            //     idt::InterruptHandler::Normal(poll_int_vtnet_driver),
-            //     idt::GateType::Interrupt,
-            // )?;
-            // d.write_interrupt_line(vec_num)?;
+            let vec_num = idt::set_handler_dyn_vec(
+                idt::InterruptHandler::Normal(poll_int_vtnet_driver),
+                idt::GateType::Interrupt,
+            )?;
+            d.write_interrupt_line(vec_num)?;
 
             // register virtqueues
             let queue_size = self.io_register()?.read_queue_size() as usize;
@@ -261,7 +263,7 @@ impl DeviceDriverFunction for VirtioNetDriver {
             }
 
             self.send_packet()?;
-            info!("{:?}", self.conf_field);
+            debug!("{}: {:?}", self.device_driver_info.name, self.conf_field);
 
             Ok(())
         })?;
@@ -271,20 +273,22 @@ impl DeviceDriverFunction for VirtioNetDriver {
     }
 
     fn poll_normal(&mut self) -> Result<Self::PollNormalOutput> {
-        if !self.device_driver_info.attached {
+        let DeviceDriverInfo { name, attached } = self.device_driver_info;
+
+        if !attached {
             return Err(Error::Failed("Device driver is not attached"));
         }
 
         match self.io_register()?.interrupt_type() {
             Some(InterruptType::DeviceConfiguration) => {
-                info!("device configuration updated");
+                info!("{}: device configuration updated", name);
             }
             Some(InterruptType::Queue) => {
                 // TODO
                 arch::disabled_int(|| {
                     let rx_queue = self.rx_queue()?;
                     let data = rx_queue.read_data()?;
-                    info!("data: {:?}", data);
+                    info!("{}: data: {:?}", name, data);
 
                     Result::Ok(())
                 })?;
@@ -323,9 +327,9 @@ pub fn poll_normal() -> Result<()> {
     })
 }
 
-// extern "x86-interrupt" fn poll_int_vtnet_driver() {
-//     if let Ok(mut driver) = unsafe { VIRTIO_NET_DRIVER.try_lock() } {
-//         let _ = driver.poll_int();
-//     }
-//     idt::pic_notify_end_of_int();
-// }
+extern "x86-interrupt" fn poll_int_vtnet_driver() {
+    if let Ok(mut driver) = unsafe { VIRTIO_NET_DRIVER.try_lock() } {
+        let _ = driver.poll_int();
+    }
+    idt::notify_end_of_int();
+}

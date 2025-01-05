@@ -16,15 +16,15 @@ const DIV_CONF_VIRT_ADDR: VirtualAddress = VirtualAddress::new(0xfee003e0);
 
 const END_OF_INT_REG_ADDR: VirtualAddress = VirtualAddress::new(0xfee000b0);
 
-static mut LOCAL_APIC_TIMER: LocalApicTimer = LocalApicTimer::new();
+static mut LOCAL_APIC_TIMER_DRIVER: LocalApicTimerDriver = LocalApicTimerDriver::new();
 
-struct LocalApicTimer {
+struct LocalApicTimerDriver {
     device_driver_info: DeviceDriverInfo,
     tick: usize,
     freq: Option<NonZero<usize>>,
 }
 
-impl LocalApicTimer {
+impl LocalApicTimerDriver {
     const fn new() -> Self {
         Self {
             device_driver_info: DeviceDriverInfo::new("local-apic-timer"),
@@ -54,7 +54,7 @@ impl LocalApicTimer {
     }
 }
 
-impl DeviceDriverFunction for LocalApicTimer {
+impl DeviceDriverFunction for LocalApicTimerDriver {
     type AttachInput = ();
     type PollNormalOutput = ();
     type PollInterruptOutput = ();
@@ -119,13 +119,13 @@ impl DeviceDriverFunction for LocalApicTimer {
 }
 
 pub fn get_device_driver_info() -> Result<DeviceDriverInfo> {
-    unsafe { LOCAL_APIC_TIMER.get_device_driver_info() }
+    unsafe { LOCAL_APIC_TIMER_DRIVER.get_device_driver_info() }
 }
 
 pub fn probe_and_attach() -> Result<()> {
     unsafe {
-        LOCAL_APIC_TIMER.probe()?;
-        LOCAL_APIC_TIMER.attach(())?;
+        LOCAL_APIC_TIMER_DRIVER.probe()?;
+        LOCAL_APIC_TIMER_DRIVER.attach(())?;
         info!("{}: Attached!", get_device_driver_info()?.name);
     }
 
@@ -133,17 +133,17 @@ pub fn probe_and_attach() -> Result<()> {
 }
 
 pub fn get_current_tick() -> usize {
-    unsafe { LOCAL_APIC_TIMER.tick() }
+    unsafe { LOCAL_APIC_TIMER_DRIVER.tick() }
 }
 
 pub fn get_current_ms() -> Option<usize> {
-    let freq = unsafe { LOCAL_APIC_TIMER.freq }?;
+    let freq = unsafe { LOCAL_APIC_TIMER_DRIVER.freq }?;
     Some(get_current_tick() / freq * 10)
 }
 
 extern "x86-interrupt" fn poll_int_local_apic_timer() {
     unsafe {
-        let _ = LOCAL_APIC_TIMER.poll_int();
+        let _ = LOCAL_APIC_TIMER_DRIVER.poll_int();
 
         // notify end of interrupt
         (END_OF_INT_REG_ADDR.as_ptr_mut() as *mut u32).write_volatile(0);

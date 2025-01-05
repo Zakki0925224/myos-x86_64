@@ -1,9 +1,9 @@
 use crate::error::Result;
-use log::error;
 
 pub mod console;
 pub mod local_apic_timer;
 pub mod panic_screen;
+pub mod pci_bus;
 pub mod ps2_keyboard;
 pub mod ps2_mouse;
 pub mod speaker;
