@@ -29,7 +29,6 @@ extern crate alloc;
 use alloc::vec::Vec;
 use arch::*;
 use common::boot_info::BootInfo;
-use device::uart;
 use fs::{file::bitmap::BitmapImage, vfs};
 use graphics::{color::*, simple_window_manager};
 use log::*;
@@ -60,6 +59,20 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
     idt::init_pic();
     idt::init_idt();
 
+    // initialize PS/2 keyboard and mouse
+    if let Err(err) = device::ps2_keyboard::probe_and_attach() {
+        let name = device::ps2_keyboard::get_device_driver_info().unwrap().name;
+        error!("{}: Failed to probe or attach device: {:?}", name, err);
+    }
+
+    if let Err(err) = device::ps2_mouse::probe_and_attach() {
+        let name = device::ps2_mouse::get_device_driver_info().unwrap().name;
+        error!("{}: Failed to probe or attach device: {:?}", name, err);
+    }
+
+    // clear console input for PS/2 keyboard magic byte
+    let _ = device::console::clear_input_buf();
+
     // initialize ACPI
     acpi::init(boot_info.rsdp_virt_addr.unwrap().into()).unwrap();
 
@@ -85,8 +98,17 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
     // initialize pci, usb
     bus::init();
 
-    // initialize device drivers
-    device::init();
+    // initalize virtio-net
+    if let Err(err) = device::virtio::net::probe_and_attach() {
+        let name = device::virtio::net::get_device_driver_info().unwrap().name;
+        error!("{}: Failed to probe or attach device: {:?}", name, err);
+    }
+
+    // initialize speaker
+    if let Err(err) = device::speaker::probe_and_attach() {
+        let name = device::speaker::get_device_driver_info().unwrap().name;
+        error!("{}: Failed to probe or attach device: {:?}", name, err);
+    }
 
     // initialize initramfs, VFS
     fs::init(
