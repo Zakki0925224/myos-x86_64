@@ -270,14 +270,10 @@ impl LayerManager {
     }
 
     pub fn get_layer(&mut self, layer_id: &LayerId) -> Result<&mut Layer> {
-        match self
-            .layers
+        self.layers
             .iter_mut()
             .find(|l| l.id.get() == layer_id.get())
-        {
-            Some(l) => return Ok(l),
-            None => return Err(LayerError::InvalidLayerIdError(layer_id.get()).into()),
-        }
+            .ok_or(LayerError::InvalidLayerIdError(layer_id.get()).into())
     }
 
     pub fn draw_to_frame_buf(&mut self) -> Result<()> {

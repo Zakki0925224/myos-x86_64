@@ -231,10 +231,8 @@ impl UsbDevice {
     }
 
     pub fn configure_endpoint(&mut self, endpoint_type: EndpointType) -> Result<()> {
-        let port = match device::usb::xhc::find_port_by_slot_id(self.slot_id)? {
-            Some(port) => port,
-            None => return Err(UsbDeviceError::XhcPortNotFoundError.into()),
-        };
+        let port = device::usb::xhc::find_port_by_slot_id(self.slot_id)?
+            .ok_or(UsbDeviceError::XhcPortNotFoundError)?;
 
         let mut configured_endpoint_dci = self.configured_endpoint_dci.clone();
 

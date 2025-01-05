@@ -181,10 +181,9 @@ impl VirtualFileSystem {
     }
 
     fn chroot(&mut self, path: &str) -> Result<()> {
-        let file_ref = match self.find_file_by_path(path) {
-            Some(f) => f,
-            None => return Err(VirtualFileSystemError::NoSuchFileOrDirectoryError.into()),
-        };
+        let file_ref = self
+            .find_file_by_path(path)
+            .ok_or(VirtualFileSystemError::NoSuchFileOrDirectoryError)?;
         if !self.is_directory(file_ref) {
             return Err(VirtualFileSystemError::NotDirectoryError.into());
         }
@@ -194,10 +193,9 @@ impl VirtualFileSystem {
     }
 
     fn chdir(&mut self, path: &str) -> Result<()> {
-        let file_ref = match self.find_file_by_path(path) {
-            Some(f) => f,
-            None => return Err(VirtualFileSystemError::NoSuchFileOrDirectoryError.into()),
-        };
+        let file_ref = self
+            .find_file_by_path(path)
+            .ok_or(VirtualFileSystemError::NoSuchFileOrDirectoryError)?;
         if !self.is_directory(file_ref) {
             return Err(VirtualFileSystemError::NotDirectoryError.into());
         }
@@ -234,10 +232,9 @@ impl VirtualFileSystem {
 
     fn cwd_path(&self) -> Result<String> {
         let mut path = String::new();
-        let mut file_ref = match self.find_file(&self.cwd_id) {
-            Some(f) => f,
-            None => return Err(VirtualFileSystemError::NoSuchFileOrDirectoryError.into()),
-        };
+        let mut file_ref = self
+            .find_file(&self.cwd_id)
+            .ok_or(VirtualFileSystemError::NoSuchFileOrDirectoryError)?;
         path = format!("{}", file_ref.name);
 
         if file_ref.id == self.root_id {
@@ -245,10 +242,9 @@ impl VirtualFileSystem {
         }
 
         while let Some(parent_file_id) = file_ref.parent {
-            file_ref = match self.find_file(&parent_file_id) {
-                Some(f) => f,
-                None => return Err(VirtualFileSystemError::NoSuchFileOrDirectoryError.into()),
-            };
+            file_ref = self
+                .find_file(&parent_file_id)
+                .ok_or(VirtualFileSystemError::NoSuchFileOrDirectoryError)?;
 
             if file_ref.id == self.root_id {
                 path = format!("/{}", path);
@@ -337,10 +333,9 @@ impl VirtualFileSystem {
         }
 
         let path_parts: Vec<&str> = path.split(PATH_SEPARATOR).collect();
-        let mount_name = match path_parts.last() {
-            Some(s) => *s,
-            None => return Err(VirtualFileSystemError::NoSuchFileOrDirectoryError.into()),
-        };
+        let mount_name = path_parts
+            .last()
+            .ok_or(VirtualFileSystemError::NoSuchFileOrDirectoryError)?;
 
         let mut mount_fs = FileInfo {
             id: FileId::new(),
@@ -365,10 +360,9 @@ impl VirtualFileSystem {
     }
 
     fn open_file(&mut self, path: &str) -> Result<FileDescriptorNumber> {
-        let file_ref = match self.find_file_by_path(path) {
-            Some(f) => f,
-            None => return Err(VirtualFileSystemError::NoSuchFileOrDirectoryError.into()),
-        };
+        let file_ref = self
+            .find_file_by_path(path)
+            .ok_or(VirtualFileSystemError::NoSuchFileOrDirectoryError)?;
 
         if let Some(fd) = self.find_fd_by_file_id(&file_ref.id) {
             return Err(VirtualFileSystemError::BlockingFileResourceError(fd.num).into());
@@ -401,19 +395,15 @@ impl VirtualFileSystem {
     }
 
     fn read_file(&mut self, fd_num: &FileDescriptorNumber) -> Result<Vec<u8>> {
-        let fd = match self.find_fd(fd_num) {
-            Some(f) => f,
-            None => {
-                return Err(
-                    VirtualFileSystemError::ReleasedFileResourceError(fd_num.clone()).into(),
-                )
-            }
-        };
+        let fd = self
+            .find_fd(fd_num)
+            .ok_or(VirtualFileSystemError::ReleasedFileResourceError(
+                fd_num.clone(),
+            ))?;
 
-        let file_ref = match self.find_file_mut(&fd.file_id.clone()) {
-            Some(f) => f,
-            None => return Err(VirtualFileSystemError::NoSuchFileOrDirectoryError.into()),
-        };
+        let file_ref = self
+            .find_file_mut(&fd.file_id.clone())
+            .ok_or(VirtualFileSystemError::NoSuchFileOrDirectoryError)?;
 
         if file_ref.ty != FileType::File {
             return Err(VirtualFileSystemError::NotFileError.into());
@@ -424,10 +414,9 @@ impl VirtualFileSystem {
         // TODO: if fs not found, loop infinity
         while let Some(parent_file_id) = fs_root_file_ref.parent {
             file_names_to_root_file.push(fs_root_file_ref.name.clone());
-            fs_root_file_ref = match self.find_file_mut(&parent_file_id) {
-                Some(f) => f,
-                None => return Err(VirtualFileSystemError::NoSuchFileOrDirectoryError.into()),
-            };
+            fs_root_file_ref = self
+                .find_file_mut(&parent_file_id)
+                .ok_or(VirtualFileSystemError::NoSuchFileOrDirectoryError)?;
 
             if fs_root_file_ref.fs.is_some() {
                 break;
@@ -473,26 +462,23 @@ impl VirtualFileSystem {
         parent_dir_path: &str,
         target_file_ref: &mut FileInfo,
     ) -> Result<()> {
-        let parent_dir_file_ref = match self.find_file_by_path_mut(parent_dir_path) {
-            Some(f) => f,
-            None => return Err(VirtualFileSystemError::NoSuchFileOrDirectoryError.into()),
-        };
+        let parent_dir_file_ref = self
+            .find_file_by_path_mut(parent_dir_path)
+            .ok_or(VirtualFileSystemError::NoSuchFileOrDirectoryError)?;
         if parent_dir_file_ref.ty != FileType::Directory {
             return Err(VirtualFileSystemError::NotDirectoryError.into());
         }
         target_file_ref.parent = Some(parent_dir_file_ref.id);
 
         if let Some(child_file_id) = parent_dir_file_ref.child {
-            let mut file_ref = match self.find_file_mut(&child_file_id) {
-                Some(f) => f,
-                None => return Err(VirtualFileSystemError::NoSuchFileOrDirectoryError.into()),
-            };
+            let mut file_ref = self
+                .find_file_mut(&child_file_id)
+                .ok_or(VirtualFileSystemError::NoSuchFileOrDirectoryError)?;
 
             while let Some(next_file_id) = file_ref.next {
-                file_ref = match self.find_file_mut(&next_file_id) {
-                    Some(f) => f,
-                    None => return Err(VirtualFileSystemError::NoSuchFileOrDirectoryError.into()),
-                };
+                file_ref = self
+                    .find_file_mut(&next_file_id)
+                    .ok_or(VirtualFileSystemError::NoSuchFileOrDirectoryError)?;
             }
 
             file_ref.next = Some(target_file_ref.id);
