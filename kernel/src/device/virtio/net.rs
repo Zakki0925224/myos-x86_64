@@ -187,11 +187,8 @@ impl DeviceDriverFunction for VirtioNetDriver {
     }
 
     fn attach(&mut self, _arg: Self::AttachInput) -> Result<()> {
-        if self.pci_device_bdf.is_none() {
-            return Err(Error::Failed("Device driver is not probed"));
-        }
+        let (bus, device, func) = self.pci_device_bdf.ok_or("Device driver is not probed")?;
 
-        let (bus, device, func) = self.pci_device_bdf.unwrap();
         device::pci_bus::configure_device(bus, device, func, |d| {
             let conf_space = d.read_conf_space_non_bridge_field()?;
             let bars = conf_space.get_bars()?;

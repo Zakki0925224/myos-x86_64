@@ -38,6 +38,7 @@ QEMU_DEVICES = [
     "-device isa-debug-exit,iobase=0xf4,iosize=0x04",
     # "-device virtio-net,netdev=net0,mac=52:54:00:12:34:56 -netdev user,id=net0",
     "-audiodev pa,id=speaker -machine pcspk-audiodev=speaker",
+    "-device rtl8139,netdev=net0, -netdev user,id=net0",
 ]
 
 QEMU_DRIVES = [
@@ -251,7 +252,9 @@ def make_img():
 
 def make_iso():
     make_img()
-    run_cmd(f"dd if=./{OUTPUT_DIR}/{IMG_FILE} of=./{OUTPUT_DIR}/{ISO_FILE}")
+    run_cmd(
+        f"dd if=./{OUTPUT_DIR}/{IMG_FILE} of=./{OUTPUT_DIR}/{ISO_FILE} bs=1M count=128"
+    )
 
 
 def run():

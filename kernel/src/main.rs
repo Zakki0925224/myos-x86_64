@@ -109,18 +109,24 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
     //     error!("{}: Failed to probe or attach device: {:?}", name, err);
     // }
 
-    // initalize virtio-net
+    // initalize virtio-net driver
     // if let Err(err) = device::virtio::net::probe_and_attach() {
     //     let name = device::virtio::net::get_device_driver_info().unwrap().name;
     //     error!("{}: Failed to probe or attach device: {:?}", name, err);
     // }
 
-    // initialize speaker
+    // initialize speaker driver
     if let Err(err) = device::speaker::probe_and_attach() {
         let name = device::speaker::get_device_driver_info().unwrap().name;
         error!("{}: Failed to probe or attach device: {:?}", name, err);
     }
     // device::speaker::beep();
+
+    // initialize RTL8139 driver
+    if let Err(err) = device::rtl8139::probe_and_attach() {
+        let name = device::rtl8139::get_device_driver_info().unwrap().name;
+        error!("{}: Failed to probe or attach device: {:?}", name, err);
+    }
 
     // initialize initramfs, VFS
     fs::init(

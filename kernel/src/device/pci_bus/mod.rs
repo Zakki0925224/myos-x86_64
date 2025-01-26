@@ -85,6 +85,20 @@ impl PciBusDriver {
             .collect()
     }
 
+    fn find_device_by_vendor_and_device_id_mut(
+        &mut self,
+        vendor_id: u16,
+        device_id: u16,
+    ) -> Result<&mut PciDevice> {
+        self.pci_devices
+            .iter_mut()
+            .find(|d| {
+                d.conf_space_header().vendor_id == vendor_id
+                    && d.conf_space_header().device_id == device_id
+            })
+            .ok_or(Error::Failed("PCI device not found"))
+    }
+
     fn debug(&self) {
         for d in &self.pci_devices {
             let (bus, device, func) = d.bdf();
@@ -212,4 +226,15 @@ pub fn find_devices<F: FnMut(&mut dyn PciDeviceFunctions) -> Result<()>>(
     }
 
     Ok(())
+}
+
+pub fn find_device_by_vendor_and_device_id<F: FnMut(&mut dyn PciDeviceFunctions) -> Result<()>>(
+    vendor_id: u16,
+    device_id: u16,
+    mut f: F,
+) -> Result<()> {
+    let mut driver = unsafe { PCI_BUS_DRIVER.try_lock() }?;
+    let device = driver.find_device_by_vendor_and_device_id_mut(vendor_id, device_id)?;
+
+    f(device)
 }

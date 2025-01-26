@@ -1,6 +1,5 @@
-use alloc::vec::Vec;
-
 use crate::error::Result;
+use alloc::vec::Vec;
 
 pub mod console;
 pub mod local_apic_timer;
@@ -8,6 +7,7 @@ pub mod panic_screen;
 pub mod pci_bus;
 pub mod ps2_keyboard;
 pub mod ps2_mouse;
+pub mod rtl8139;
 pub mod speaker;
 pub mod uart;
 pub mod usb;
