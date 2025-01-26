@@ -7,7 +7,7 @@ use crate::{
 use alloc::vec::Vec;
 use conf_space::*;
 use device::{PciDevice, PciDeviceFunctions};
-use log::info;
+use log::{debug, info};
 
 pub mod conf_space;
 mod device;
@@ -34,6 +34,17 @@ impl PciBusDriver {
             for device in 0..PCI_DEVICE_DEVICE_LEN {
                 for func in 0..PCI_DEVICE_FUNC_LEN {
                     if let Some(pci_device) = PciDevice::try_new(bus, device, func) {
+                        debug!(
+                            "{}: {}.{}.{} {} found",
+                            self.device_driver_info.name,
+                            bus,
+                            device,
+                            func,
+                            pci_device
+                                .conf_space_header()
+                                .get_device_name()
+                                .unwrap_or("<UNKNOWN NAME>")
+                        );
                         devices.push(pci_device);
                     }
                 }
@@ -134,6 +145,14 @@ impl DeviceDriverFunction for PciBusDriver {
     }
 
     fn poll_int(&mut self) -> Result<Self::PollInterruptOutput> {
+        unimplemented!()
+    }
+
+    fn read(&mut self) -> Result<Vec<u8>> {
+        unimplemented!()
+    }
+
+    fn write(&mut self, _data: &[u8]) -> Result<()> {
         unimplemented!()
     }
 }

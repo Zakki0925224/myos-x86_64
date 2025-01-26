@@ -11,6 +11,7 @@ use crate::{
     mem::{bitmap, paging::PAGE_SIZE},
     util::mutex::Mutex,
 };
+use alloc::vec::Vec;
 use log::{debug, info};
 
 static mut VIRTIO_NET_DRIVER: Mutex<VirtioNetDriver> = Mutex::new(VirtioNetDriver::new());
@@ -300,6 +301,14 @@ impl DeviceDriverFunction for VirtioNetDriver {
     }
 
     fn poll_int(&mut self) -> Result<Self::PollInterruptOutput> {
+        unimplemented!()
+    }
+
+    fn read(&mut self) -> Result<Vec<u8>> {
+        unimplemented!()
+    }
+
+    fn write(&mut self, _data: &[u8]) -> Result<()> {
         unimplemented!()
     }
 }

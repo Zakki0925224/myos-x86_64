@@ -879,6 +879,14 @@ impl DeviceDriverFunction for XhcDriver {
 
         Ok(())
     }
+
+    fn read(&mut self) -> Result<Vec<u8>> {
+        unimplemented!()
+    }
+
+    fn write(&mut self, _data: &[u8]) -> Result<()> {
+        unimplemented!()
+    }
 }
 
 pub fn get_device_driver_info() -> Result<DeviceDriverInfo> {

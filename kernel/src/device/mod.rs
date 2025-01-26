@@ -1,3 +1,5 @@
+use alloc::vec::Vec;
+
 use crate::error::Result;
 
 pub mod console;
@@ -40,4 +42,8 @@ trait DeviceDriverFunction {
     fn poll_normal(&mut self) -> Result<Self::PollNormalOutput>;
     // interrupt polling
     fn poll_int(&mut self) -> Result<Self::PollInterruptOutput>;
+    // read data from device
+    fn read(&mut self) -> Result<Vec<u8>>;
+    // write data to device
+    fn write(&mut self, data: &[u8]) -> Result<()>;
 }

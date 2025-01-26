@@ -7,6 +7,7 @@ use crate::{
     util::mutex::Mutex,
     ColorCode,
 };
+use alloc::vec::Vec;
 use common::graphic_info::{GraphicInfo, PixelFormat};
 use core::fmt::{self, Write};
 use log::info;
@@ -180,6 +181,14 @@ impl DeviceDriverFunction for PanicScreenDriver {
     }
 
     fn poll_int(&mut self) -> Result<Self::PollInterruptOutput> {
+        unimplemented!()
+    }
+
+    fn read(&mut self) -> Result<Vec<u8>> {
+        unimplemented!()
+    }
+
+    fn write(&mut self, _data: &[u8]) -> Result<()> {
         unimplemented!()
     }
 }

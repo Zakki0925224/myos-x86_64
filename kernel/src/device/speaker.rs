@@ -1,5 +1,6 @@
 use super::{DeviceDriverFunction, DeviceDriverInfo};
 use crate::{arch, error::Result, util::sleep};
+use alloc::vec::Vec;
 use core::num::NonZeroU8;
 use log::info;
 
@@ -108,6 +109,14 @@ impl DeviceDriverFunction for SpeakerDriver {
     }
 
     fn poll_int(&mut self) -> Result<Self::PollInterruptOutput> {
+        unimplemented!()
+    }
+
+    fn read(&mut self) -> Result<Vec<u8>> {
+        unimplemented!()
+    }
+
+    fn write(&mut self, _data: &[u8]) -> Result<()> {
         unimplemented!()
     }
 }

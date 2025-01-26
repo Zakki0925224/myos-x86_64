@@ -10,6 +10,7 @@ use crate::{
     idt, print, println,
     util::{ascii::AsciiCode, fifo::Fifo, mutex::Mutex},
 };
+use alloc::vec::Vec;
 use log::info;
 
 pub mod key_event;
@@ -210,6 +211,14 @@ impl DeviceDriverFunction for Ps2KeyboardDriver {
         self.input(data)?;
 
         Ok(())
+    }
+
+    fn read(&mut self) -> Result<Vec<u8>> {
+        unimplemented!()
+    }
+
+    fn write(&mut self, _data: &[u8]) -> Result<()> {
+        unimplemented!()
     }
 }
 

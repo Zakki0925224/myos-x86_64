@@ -31,12 +31,12 @@ QEMU_ARCH = "qemu-system-x86_64"
 QEMU_TARGET_ARCH = "x86_64-softmmu"
 
 QEMU_DEVICES = [
-    "-device nec-usb-xhci,id=xhci",
+    # "-device nec-usb-xhci,id=xhci",
     "-device ahci,id=ahci",
     "-device ide-cd,drive=disk,bus=ahci.0,bootindex=1",
     # "-device usb-kbd",
     "-device isa-debug-exit,iobase=0xf4,iosize=0x04",
-    "-device virtio-net,netdev=net0,mac=52:54:00:12:34:56 -netdev user,id=net0",
+    # "-device virtio-net,netdev=net0,mac=52:54:00:12:34:56 -netdev user,id=net0",
     "-audiodev pa,id=speaker -machine pcspk-audiodev=speaker",
 ]
 

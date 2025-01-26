@@ -164,6 +164,14 @@ impl DeviceDriverFunction for UsbBusDriver {
     fn poll_int(&mut self) -> Result<Self::PollInterruptOutput> {
         unimplemented!()
     }
+
+    fn read(&mut self) -> Result<Vec<u8>> {
+        unimplemented!()
+    }
+
+    fn write(&mut self, _data: &[u8]) -> Result<()> {
+        unimplemented!()
+    }
 }
 
 pub fn get_device_driver_info() -> Result<DeviceDriverInfo> {

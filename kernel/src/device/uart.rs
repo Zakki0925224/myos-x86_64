@@ -5,6 +5,7 @@ use crate::{
     print, println,
     util::{ascii::AsciiCode, mutex::Mutex},
 };
+use alloc::vec::Vec;
 use log::info;
 
 static mut UART_DRIVER: Mutex<UartDriver> = Mutex::new(UartDriver::new());
@@ -124,6 +125,14 @@ impl DeviceDriverFunction for UartDriver {
     }
 
     fn poll_int(&mut self) -> Result<Self::PollInterruptOutput> {
+        unimplemented!()
+    }
+
+    fn read(&mut self) -> Result<Vec<u8>> {
+        unimplemented!()
+    }
+
+    fn write(&mut self, _data: &[u8]) -> Result<()> {
         unimplemented!()
     }
 }

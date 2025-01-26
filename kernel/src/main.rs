@@ -58,20 +58,6 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
     idt::init_pic();
     idt::init_idt();
 
-    // initialize PS/2 keyboard and mouse
-    if let Err(err) = device::ps2_keyboard::probe_and_attach() {
-        let name = device::ps2_keyboard::get_device_driver_info().unwrap().name;
-        error!("{}: Failed to probe or attach device: {:?}", name, err);
-    }
-
-    if let Err(err) = device::ps2_mouse::probe_and_attach() {
-        let name = device::ps2_mouse::get_device_driver_info().unwrap().name;
-        error!("{}: Failed to probe or attach device: {:?}", name, err);
-    }
-
-    // clear console input for PS/2 keyboard magic byte
-    let _ = device::console::clear_input_buf();
-
     // initialize ACPI
     acpi::init(boot_info.rsdp_virt_addr.unwrap().into()).unwrap();
 
@@ -91,8 +77,19 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
     // initialize simple window manager
     graphics::init_simple_wm();
 
-    // enable syscall
-    syscall::enable();
+    // initialize PS/2 keyboard and mouse
+    if let Err(err) = device::ps2_keyboard::probe_and_attach() {
+        let name = device::ps2_keyboard::get_device_driver_info().unwrap().name;
+        error!("{}: Failed to probe or attach device: {:?}", name, err);
+    }
+
+    if let Err(err) = device::ps2_mouse::probe_and_attach() {
+        let name = device::ps2_mouse::get_device_driver_info().unwrap().name;
+        error!("{}: Failed to probe or attach device: {:?}", name, err);
+    }
+
+    // clear console input for PS/2 keyboard magic byte
+    let _ = device::console::clear_input_buf();
 
     // initialize pci-bus driver
     if let Err(err) = device::pci_bus::probe_and_attach() {
@@ -101,10 +98,10 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
     }
 
     // initialize xhc driver
-    if let Err(err) = device::usb::xhc::probe_and_attach() {
-        let name = device::usb::xhc::get_device_driver_info().unwrap().name;
-        error!("{}: Failed to probe or attach device: {:?}", name, err);
-    }
+    // if let Err(err) = device::usb::xhc::probe_and_attach() {
+    //     let name = device::usb::xhc::get_device_driver_info().unwrap().name;
+    //     error!("{}: Failed to probe or attach device: {:?}", name, err);
+    // }
 
     // initialize usb-bus driver
     // if let Err(err) = device::usb::bus::probe_and_attach() {
@@ -113,22 +110,26 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
     // }
 
     // initalize virtio-net
-    if let Err(err) = device::virtio::net::probe_and_attach() {
-        let name = device::virtio::net::get_device_driver_info().unwrap().name;
-        error!("{}: Failed to probe or attach device: {:?}", name, err);
-    }
+    // if let Err(err) = device::virtio::net::probe_and_attach() {
+    //     let name = device::virtio::net::get_device_driver_info().unwrap().name;
+    //     error!("{}: Failed to probe or attach device: {:?}", name, err);
+    // }
 
     // initialize speaker
     if let Err(err) = device::speaker::probe_and_attach() {
         let name = device::speaker::get_device_driver_info().unwrap().name;
         error!("{}: Failed to probe or attach device: {:?}", name, err);
     }
+    // device::speaker::beep();
 
     // initialize initramfs, VFS
     fs::init(
         boot_info.initramfs_start_virt_addr.into(),
         &boot_info.kernel_config,
     );
+
+    // enable syscall
+    syscall::enable();
 
     #[cfg(test)]
     test_main();

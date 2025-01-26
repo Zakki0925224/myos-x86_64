@@ -7,6 +7,7 @@ use crate::{
     idt::{self, GateType, InterruptHandler},
     task,
 };
+use alloc::vec::Vec;
 use core::num::{NonZero, NonZeroUsize};
 use log::{debug, info};
 
@@ -115,6 +116,14 @@ impl DeviceDriverFunction for LocalApicTimerDriver {
         }
 
         Ok(())
+    }
+
+    fn read(&mut self) -> Result<Vec<u8>> {
+        unimplemented!()
+    }
+
+    fn write(&mut self, _data: &[u8]) -> Result<()> {
+        unimplemented!()
     }
 }
 

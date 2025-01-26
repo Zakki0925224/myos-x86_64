@@ -5,6 +5,7 @@ use crate::{
     idt,
     util::{fifo::Fifo, mutex::Mutex},
 };
+use alloc::vec::Vec;
 use log::info;
 
 const PS2_DATA_REG_ADDR: IoPortAddress = IoPortAddress::new(0x60);
@@ -168,6 +169,14 @@ impl DeviceDriverFunction for Ps2MouseDriver {
         self.receive(data)?;
 
         Ok(())
+    }
+
+    fn read(&mut self) -> Result<Vec<u8>> {
+        unimplemented!()
+    }
+
+    fn write(&mut self, _data: &[u8]) -> Result<()> {
+        unimplemented!()
     }
 }
 
