@@ -9,8 +9,12 @@ pub enum FifoError {
 }
 
 #[derive(Debug)]
+#[repr(C, align(4096))]
+struct FifoInner<T: Sized + Copy, const SIZE: usize>([T; SIZE]);
+
+#[derive(Debug)]
 pub struct Fifo<T: Sized + Copy, const SIZE: usize> {
-    buf: [T; SIZE],
+    buf: FifoInner<T, SIZE>,
     size: usize,
     read_ptr: AtomicUsize,
     write_ptr: AtomicUsize,
@@ -19,7 +23,7 @@ pub struct Fifo<T: Sized + Copy, const SIZE: usize> {
 impl<T: Sized + Copy, const SIZE: usize> Fifo<T, SIZE> {
     pub const fn new(default: T) -> Self {
         Self {
-            buf: [default; SIZE],
+            buf: FifoInner([default; SIZE]),
             size: SIZE,
             read_ptr: AtomicUsize::new(0),
             write_ptr: AtomicUsize::new(0),
@@ -70,7 +74,36 @@ impl<T: Sized + Copy, const SIZE: usize> Fifo<T, SIZE> {
             return Err(FifoError::BufferIsLocked.into());
         }
 
-        self.buf[write_ptr] = value;
+        self.buf.0[write_ptr] = value;
+
+        Ok(())
+    }
+
+    // for ring buffer
+    pub fn enqueue_overwrite(&mut self, value: T) -> Result<()> {
+        let read_ptr = self.read_ptr.load(Ordering::Relaxed);
+        let write_ptr = self.write_ptr.load(Ordering::Relaxed);
+        let mut next_write_ptr = (write_ptr + 1) % self.size;
+
+        if next_write_ptr == read_ptr {
+            // reset
+            next_write_ptr = 0;
+        }
+
+        if self
+            .write_ptr
+            .compare_exchange(
+                write_ptr,
+                next_write_ptr,
+                Ordering::SeqCst,
+                Ordering::SeqCst,
+            )
+            .is_err()
+        {
+            return Err(FifoError::BufferIsLocked.into());
+        }
+
+        self.buf.0[write_ptr] = value;
 
         Ok(())
     }
@@ -97,11 +130,11 @@ impl<T: Sized + Copy, const SIZE: usize> Fifo<T, SIZE> {
             return Err(FifoError::BufferIsLocked.into());
         }
 
-        Ok(self.buf[read_ptr])
+        Ok(self.buf.0[read_ptr])
     }
 
     pub fn get_buf_ref(&self) -> &[T; SIZE] {
-        &self.buf
+        &self.buf.0
     }
 }
 

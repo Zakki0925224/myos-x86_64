@@ -4,10 +4,13 @@ use crate::{
     device,
     error::{Error, Result},
     idt,
-    util::mutex::Mutex,
+    util::{fifo::Fifo, mutex::Mutex},
 };
 use alloc::vec::Vec;
 use log::{debug, info};
+
+const RX_BUF_SIZE: usize = 8192;
+const TX_BUF_SIZE: usize = 8192;
 
 static mut RTL8139_DRIVER: Mutex<Rtl8139Driver> = Mutex::new(Rtl8139Driver::new());
 
@@ -76,6 +79,8 @@ struct Rtl8139Driver {
     device_driver_info: DeviceDriverInfo,
     pci_device_bdf: Option<(usize, usize, usize)>,
     io_register: Option<IoRegister>,
+    rx_buf: Fifo<u8, RX_BUF_SIZE>,
+    tx_buf: Fifo<u8, TX_BUF_SIZE>,
 }
 
 impl Rtl8139Driver {
@@ -84,6 +89,8 @@ impl Rtl8139Driver {
             device_driver_info: DeviceDriverInfo::new("rtl8139"),
             pci_device_bdf: None,
             io_register: None,
+            rx_buf: Fifo::new(0),
+            tx_buf: Fifo::new(0),
         }
     }
 
@@ -163,8 +170,16 @@ impl DeviceDriverFunction for Rtl8139Driver {
             }
 
             // set RX buffer address
-            // TODO
-            io_register.write_rx_buf_addr(0x0);
+            let rx_buf_addr = self.rx_buf.get_buf_ref().as_ptr() as u64;
+            if rx_buf_addr % 16 != 0 {
+                return Err(Error::Failed("RX buffer address is not aligned"));
+            }
+
+            if rx_buf_addr > u32::MAX as u64 {
+                return Err(Error::Failed("RX buffer address is too large"));
+            }
+
+            io_register.write_rx_buf_addr(rx_buf_addr as u32);
 
             // configre interrupt mask
             io_register.write_int_mask(0x5); // TOK, ROK
@@ -183,7 +198,12 @@ impl DeviceDriverFunction for Rtl8139Driver {
     }
 
     fn poll_normal(&mut self) -> Result<Self::PollNormalOutput> {
-        unimplemented!()
+        let io_register = self.io_register()?;
+        let status = io_register.read_int_status();
+        io_register.write_int_status(0x05);
+        debug!("{}: status: 0x{:02x}", self.device_driver_info.name, status);
+
+        Ok(())
     }
 
     fn poll_int(&mut self) -> Result<Self::PollInterruptOutput> {
@@ -223,6 +243,13 @@ pub fn probe_and_attach() -> Result<()> {
     driver.probe()?;
     driver.attach(())?;
     info!("{}: Attached!", driver.get_device_driver_info()?.name);
+    Ok(())
+}
+
+pub fn poll_normal() -> Result<()> {
+    if let Ok(mut driver) = unsafe { RTL8139_DRIVER.try_lock() } {
+        driver.poll_normal()?;
+    }
     Ok(())
 }
 

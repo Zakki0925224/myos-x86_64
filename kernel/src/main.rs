@@ -165,9 +165,17 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
         }
     };
 
+    // let task_poll_rtl8139 = async {
+    //     loop {
+    //         let _ = device::rtl8139::poll_normal();
+    //         task::exec_yield().await;
+    //     }
+    // };
+
     task::spawn(task_poll_virtio_net).unwrap();
     task::spawn(task_poll_uart).unwrap();
     task::spawn(task_poll_ps2_keyboard).unwrap();
+    //task::spawn(task_poll_rtl8139).unwrap();
     task::spawn(poll_ps2_mouse()).unwrap();
     task::ready().unwrap();
 
