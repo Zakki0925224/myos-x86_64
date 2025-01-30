@@ -79,35 +79,6 @@ impl<T: Sized + Copy, const SIZE: usize> Fifo<T, SIZE> {
         Ok(())
     }
 
-    // for ring buffer
-    pub fn enqueue_overwrite(&mut self, value: T) -> Result<()> {
-        let read_ptr = self.read_ptr.load(Ordering::Relaxed);
-        let write_ptr = self.write_ptr.load(Ordering::Relaxed);
-        let mut next_write_ptr = (write_ptr + 1) % self.size;
-
-        if next_write_ptr == read_ptr {
-            // reset
-            next_write_ptr = 0;
-        }
-
-        if self
-            .write_ptr
-            .compare_exchange(
-                write_ptr,
-                next_write_ptr,
-                Ordering::SeqCst,
-                Ordering::SeqCst,
-            )
-            .is_err()
-        {
-            return Err(FifoError::BufferIsLocked.into());
-        }
-
-        self.buf.0[write_ptr] = value;
-
-        Ok(())
-    }
-
     pub fn dequeue(&mut self) -> Result<T> {
         let read_ptr = self.read_ptr.load(Ordering::Relaxed);
         let write_ptr = self.write_ptr.load(Ordering::Relaxed);

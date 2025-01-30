@@ -7,7 +7,8 @@ use alloc::vec::Vec;
 
 pub trait PciDeviceFunctions {
     fn bdf(&self) -> (usize, usize, usize);
-    fn conf_space_header(&self) -> &ConfigurationSpaceCommonHeaderField;
+    fn read_conf_space_header(&self) -> Result<ConfigurationSpaceCommonHeaderField>;
+    fn write_conf_space_header(&self, value: ConfigurationSpaceCommonHeaderField) -> Result<()>;
     fn read_conf_space_non_bridge_field(&self) -> Result<ConfigurationSpaceNonBridgeField>;
     fn read_conf_space_pci_to_pci_bridge_field(
         &self,
@@ -29,7 +30,6 @@ pub trait PciDeviceFunctions {
 #[derive(Debug, Clone)]
 pub struct PciDevice {
     bdf: (usize, usize, usize),
-    conf_space_header: ConfigurationSpaceCommonHeaderField,
 }
 
 impl PciDevice {
@@ -43,16 +43,17 @@ impl PciDevice {
 
         Some(Self {
             bdf: (bus, device, func),
-            conf_space_header,
         })
     }
 
     fn read_caps_ptr(&self) -> Option<u8> {
-        if !self.conf_space_header.status.caps_list_available() {
+        let conf_space_header = self.read_conf_space_header().ok()?;
+
+        if conf_space_header.status.caps_list_available() {
             return None;
         }
 
-        match self.conf_space_header.get_header_type() {
+        match conf_space_header.get_header_type() {
             ConfigurationSpaceHeaderType::NonBridge
             | ConfigurationSpaceHeaderType::MultiFunction => {
                 Some(self.read_conf_space_non_bridge_field().unwrap().caps_ptr)
@@ -72,14 +73,20 @@ impl PciDeviceFunctions for PciDevice {
         self.bdf
     }
 
-    fn conf_space_header(&self) -> &ConfigurationSpaceCommonHeaderField {
-        &self.conf_space_header
+    fn read_conf_space_header(&self) -> Result<ConfigurationSpaceCommonHeaderField> {
+        let (bus, device, func) = self.bdf;
+        ConfigurationSpaceCommonHeaderField::read(bus, device, func)
+    }
+
+    fn write_conf_space_header(&self, value: ConfigurationSpaceCommonHeaderField) -> Result<()> {
+        let (bus, device, func) = self.bdf;
+        value.write(bus, device, func)
     }
 
     fn read_conf_space_non_bridge_field(&self) -> Result<ConfigurationSpaceNonBridgeField> {
         let (bus, device, func) = self.bdf;
 
-        match self.conf_space_header.get_header_type() {
+        match self.read_conf_space_header()?.get_header_type() {
             ConfigurationSpaceHeaderType::NonBridge
             | ConfigurationSpaceHeaderType::MultiFunction => {
                 ConfigurationSpaceNonBridgeField::read(bus, device, func)
@@ -93,7 +100,7 @@ impl PciDeviceFunctions for PciDevice {
     ) -> Result<ConfigurationSpacePciToPciBridgeField> {
         let (bus, device, func) = self.bdf;
 
-        match self.conf_space_header.get_header_type() {
+        match self.read_conf_space_header()?.get_header_type() {
             ConfigurationSpaceHeaderType::PciToPciBridge => {
                 ConfigurationSpacePciToPciBridgeField::read(bus, device, func)
             }
@@ -106,7 +113,7 @@ impl PciDeviceFunctions for PciDevice {
     ) -> Result<ConfigurationSpacePciToCardBusField> {
         let (bus, device, func) = self.bdf;
 
-        match self.conf_space_header.get_header_type() {
+        match self.read_conf_space_header()?.get_header_type() {
             ConfigurationSpaceHeaderType::PciToCardBusBridge => {
                 ConfigurationSpacePciToCardBusField::read(bus, device, func)
             }
@@ -131,14 +138,19 @@ impl PciDeviceFunctions for PciDevice {
     }
 
     fn device_class(&self) -> (u8, u8, u8) {
-        let class = self.conf_space_header.class_code;
-        let subclass = self.conf_space_header.subclass;
-        let prog_if = self.conf_space_header.prog_if;
+        let conf_space_header = self.read_conf_space_header().unwrap();
+
+        let class = conf_space_header.class_code;
+        let subclass = conf_space_header.subclass;
+        let prog_if = conf_space_header.prog_if;
         (class, subclass, prog_if)
     }
 
     fn is_available_msi_int(&self) -> bool {
-        self.conf_space_header.status.caps_list_available()
+        self.read_conf_space_header()
+            .unwrap()
+            .status
+            .caps_list_available()
     }
 
     fn read_msi_caps_list(&self) -> Vec<MsiCapabilityField> {

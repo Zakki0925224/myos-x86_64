@@ -355,6 +355,13 @@ pub fn init_idt() {
     info!("idt: Initialized");
 }
 
+pub fn set_handler(vec_num: usize, handler: InterruptHandler, gate_type: GateType) -> Result<()> {
+    let mut idt = unsafe { IDT.try_lock() }?;
+    idt.set_handler(vec_num, handler, gate_type)?;
+    idt.load();
+    Ok(())
+}
+
 pub fn set_handler_dyn_vec(handler: InterruptHandler, gate_type: GateType) -> Result<u8> {
     let mut idt = unsafe { IDT.try_lock() }?;
     let vec_num = idt.set_handler_dyn_vec(handler, gate_type)?;

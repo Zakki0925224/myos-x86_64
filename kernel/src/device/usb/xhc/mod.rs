@@ -512,7 +512,10 @@ impl DeviceDriverFunction for XhcDriver {
 
     fn probe(&mut self) -> Result<()> {
         device::pci_bus::find_devices(0x0c, 0x03, 0x30, |d| {
-            let device_name = d.conf_space_header().get_device_name().unwrap();
+            let conf_space_header = d.read_conf_space_header()?;
+            let device_name = conf_space_header
+                .get_device_name()
+                .ok_or(Error::Failed("Invalid device name"))?;
 
             if device_name.contains("xHCI") || device_name.contains("3.") {
                 self.pci_device_bdf = Some(d.bdf());

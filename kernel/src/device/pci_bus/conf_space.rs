@@ -20,6 +20,16 @@ const PCI_CONF_UNIQUE_FIELD_OFFSET: usize = 16;
 #[repr(transparent)]
 pub struct ConfigurationSpaceCommandRegister(u16);
 
+impl ConfigurationSpaceCommandRegister {
+    pub fn write_bus_master_enable(&mut self, value: bool) {
+        self.0 = (self.0 & !0x4) | ((value as u16) << 2);
+    }
+
+    pub fn write_int_disable(&mut self, value: bool) {
+        self.0 = (self.0 & !0x400) | ((value as u16) << 10);
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 #[repr(transparent)]
 pub struct ConfigurationSpaceStatusRegister(u16);
@@ -65,6 +75,15 @@ impl ConfigurationSpaceCommonHeaderField {
         }
 
         Ok(unsafe { transmute::<[u32; 4], Self>(data) })
+    }
+
+    pub fn write(&self, bus: usize, device: usize, func: usize) -> Result<()> {
+        let data = unsafe { transmute::<Self, [u32; 4]>(*self) };
+        for (i, elem) in data.iter().enumerate() {
+            write_conf_space(bus, device, func, i * 4, *elem)?;
+        }
+
+        Ok(())
     }
 
     pub fn is_exist(&self) -> bool {

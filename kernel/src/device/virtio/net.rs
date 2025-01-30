@@ -172,8 +172,9 @@ impl DeviceDriverFunction for VirtioNetDriver {
 
     fn probe(&mut self) -> Result<()> {
         device::pci_bus::find_devices(2, 0, 0, |d| {
-            let vendor_id = d.conf_space_header().vendor_id;
-            let device_id = d.conf_space_header().device_id;
+            let conf_space_header = d.read_conf_space_header()?;
+            let vendor_id = conf_space_header.vendor_id;
+            let device_id = conf_space_header.device_id;
 
             // transitional virtio-net device
             // redhat

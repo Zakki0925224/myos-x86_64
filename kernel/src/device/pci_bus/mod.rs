@@ -41,7 +41,8 @@ impl PciBusDriver {
                             device,
                             func,
                             pci_device
-                                .conf_space_header()
+                                .read_conf_space_header()
+                                .unwrap()
                                 .get_device_name()
                                 .unwrap_or("<UNKNOWN NAME>")
                         );
@@ -93,8 +94,8 @@ impl PciBusDriver {
         self.pci_devices
             .iter_mut()
             .find(|d| {
-                d.conf_space_header().vendor_id == vendor_id
-                    && d.conf_space_header().device_id == device_id
+                let conf_space_header = d.read_conf_space_header().unwrap();
+                conf_space_header.vendor_id == vendor_id && conf_space_header.device_id == device_id
             })
             .ok_or(Error::Failed("PCI device not found"))
     }
@@ -102,7 +103,7 @@ impl PciBusDriver {
     fn debug(&self) {
         for d in &self.pci_devices {
             let (bus, device, func) = d.bdf();
-            let conf_space_header = d.conf_space_header();
+            let conf_space_header = d.read_conf_space_header().unwrap();
             println!("{}:{}:{}", bus, device, func);
             println!("{:?}", conf_space_header.get_header_type());
             println!("{:?}", conf_space_header.get_device_name());
