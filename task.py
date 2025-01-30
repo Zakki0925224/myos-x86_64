@@ -38,7 +38,7 @@ QEMU_DEVICES = [
     "-device isa-debug-exit,iobase=0xf4,iosize=0x04",
     # "-device virtio-net,netdev=net0,mac=52:54:00:12:34:56 -netdev user,id=net0",
     "-audiodev pa,id=speaker -machine pcspk-audiodev=speaker",
-    "-device rtl8139,netdev=net0, -netdev user,id=net0",
+    f"-device rtl8139,netdev=net0, -netdev user,id=net0,hostfwd=tcp:127.0.0.1:1234-:80 -object filter-dump,id=f0,netdev=net0,file={DUMP_DIR}/dump.pcap",  # <- curl localhost:1234
 ]
 
 QEMU_DRIVES = [
@@ -137,9 +137,9 @@ def build_qemu():
         return
 
     if not os.path.exists(f"{d}/build/{QEMU_ARCH}"):
-        run_cmd(f"{GIT_CHECKOUT_TO_LATEST_TAG}", dir=d)
+        # run_cmd(f"{GIT_CHECKOUT_TO_LATEST_TAG}", dir=d)
         run_cmd(
-            f'mkdir -p build && cd build && ../configure --target-list={QEMU_TARGET_ARCH} --enable-trace-backends=log --enable-sdl --extra-cflags="-DDEBUG_XHCI" && make -j$(nproc)',
+            f'mkdir -p build && cd build && ../configure --target-list={QEMU_TARGET_ARCH} --enable-trace-backends=log --enable-sdl --extra-cflags="-DDEBUG_RTL8139" && make -j$(nproc)',
             dir=d,
         )
 
@@ -188,7 +188,7 @@ def build_kernel():
 def build():
     init()
     build_cozette()
-    # build_qemu()
+    build_qemu()
     build_bootloader()
     build_kernel()
 
@@ -261,9 +261,10 @@ def run():
     global is_kernel_test
 
     make_img()
-    # cmd = qemu_cmd() if is_kernel_test else own_qemu_cmd()
-    cmd = qemu_cmd()
+    cmd = qemu_cmd() if is_kernel_test else own_qemu_cmd()
+    # cmd = qemu_cmd()
 
+    run_cmd(f"mkdir -p ./{DUMP_DIR}")
     run_cmd(cmd, ignore_error=not is_kernel_test, check_qemu_exit_code=is_kernel_test)
 
 
