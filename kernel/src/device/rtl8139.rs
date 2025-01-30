@@ -3,13 +3,13 @@ use crate::{
     addr::IoPortAddress,
     device,
     error::{Error, Result},
+    net::eth::EthernetPacket,
     util::mutex::Mutex,
 };
 use alloc::{boxed::Box, vec::Vec};
 use log::{debug, info};
 
 const RX_BUF_SIZE: usize = 8192;
-const TX_BUF_SIZE: usize = 8192;
 
 static mut RTL8139_DRIVER: Mutex<Rtl8139Driver> = Mutex::new(Rtl8139Driver::new());
 
@@ -98,6 +98,23 @@ impl RxBuffer {
     fn buf_ptr(&self) -> *const u8 {
         self.buf.as_ptr()
     }
+
+    fn pop_eth_packet(&mut self) -> Result<EthernetPacket> {
+        let packet = &self.buf[self.packet_ptr..];
+
+        // RTL8139 metadata
+        let rtl8139_status = u16::from_le_bytes([packet[0], packet[1]]);
+        let rtl8139_len = u16::from_le_bytes([packet[2], packet[3]]);
+
+        if rtl8139_status & 0xe03f == 0 {
+            return Err(Error::Failed("Invalid packet"));
+        }
+
+        self.packet_ptr = (self.packet_ptr + rtl8139_len as usize) % RX_BUF_SIZE;
+
+        let packet = &packet[4..rtl8139_len as usize];
+        Ok(EthernetPacket::new(packet))
+    }
 }
 
 struct TxBuffer {
@@ -155,6 +172,20 @@ impl Rtl8139Driver {
         self.io_register
             .as_ref()
             .ok_or(Error::Failed("I/O register is not initialized"))
+    }
+
+    fn receive_packet(&mut self) -> Result<()> {
+        let eth_packet = self.rx_buf.pop_eth_packet()?;
+        debug!(
+            "{}: {:?}\ndst_mac: {:?}, src_mac: {:?}, ether_type: {:?}",
+            self.device_driver_info.name,
+            eth_packet.raw(),
+            eth_packet.dst_mac(),
+            eth_packet.src_mac(),
+            eth_packet.ether_type()
+        );
+
+        Ok(())
     }
 
     fn send_packet(&mut self, packet: Box<[u8]>) -> Result<()> {
@@ -269,9 +300,6 @@ impl DeviceDriverFunction for Rtl8139Driver {
                 mac_addr[5]
             );
 
-            // it works!
-            self.send_packet(Box::new([0x00, 0x01, 0x02, 0x03, 0x04]))?;
-
             Ok(())
         })?;
 
@@ -293,30 +321,15 @@ impl DeviceDriverFunction for Rtl8139Driver {
         // ROK
         if status & 1 != 0 {
             debug!("{}: ROK", self.device_driver_info.name);
+            self.receive_packet()?;
+            //self.send_packet(Box::new([0x00, 0x01, 0x02, 0x03, 0x04]))?;
         }
 
         Ok(())
     }
 
     fn poll_int(&mut self) -> Result<Self::PollInterruptOutput> {
-        let io_register = self.io_register()?;
-        let status = io_register.read_int_status();
-        // clear interrupt status
-        io_register.write_int_status(0x05);
-
-        debug!("{}: status: 0x{:04x}", self.device_driver_info.name, status);
-
-        // TOK
-        if status & (1 << 2) != 0 {
-            debug!("{}: TOK", self.device_driver_info.name);
-        }
-
-        // ROK
-        if status & 1 != 0 {
-            debug!("{}: ROK", self.device_driver_info.name);
-        }
-
-        Ok(())
+        unimplemented!()
     }
 
     fn read(&mut self) -> Result<Vec<u8>> {
