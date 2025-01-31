@@ -110,7 +110,7 @@ impl RxBuffer {
             return Err(Error::Failed("Invalid packet"));
         }
 
-        self.packet_ptr = (self.packet_ptr + rtl8139_len as usize) % RX_BUF_SIZE;
+        self.packet_ptr = (self.packet_ptr + rtl8139_len as usize + 4) % RX_BUF_SIZE;
 
         let packet = &packet[4..rtl8139_len as usize];
         Ok(EthernetPacket::new(packet))
@@ -177,12 +177,13 @@ impl Rtl8139Driver {
     fn receive_packet(&mut self) -> Result<()> {
         let eth_packet = self.rx_buf.pop_eth_packet()?;
         debug!(
-            "{}: {:?}\ndst_mac: {:?}, src_mac: {:?}, ether_type: {:?}",
+            "{}: {:?}\ndst_mac: {:?}, src_mac: {:?}, ether_type: {:?}\npayload: {:?}",
             self.device_driver_info.name,
             eth_packet.raw(),
             eth_packet.dst_mac(),
             eth_packet.src_mac(),
-            eth_packet.ether_type()
+            eth_packet.ether_type(),
+            eth_packet.payload()
         );
 
         Ok(())
@@ -310,16 +311,20 @@ impl DeviceDriverFunction for Rtl8139Driver {
     fn poll_normal(&mut self) -> Result<Self::PollNormalOutput> {
         let io_register = self.io_register()?;
         let status = io_register.read_int_status();
-        // clear interrupt status
-        io_register.write_int_status(0x05);
 
         // TOK
         if status & (1 << 2) != 0 {
+            // clear TOK
+            io_register.write_int_status(0x04);
+
             debug!("{}: TOK", self.device_driver_info.name);
         }
 
         // ROK
         if status & 1 != 0 {
+            // clear ROK
+            io_register.write_int_status(0x01);
+
             debug!("{}: ROK", self.device_driver_info.name);
             self.receive_packet()?;
             //self.send_packet(Box::new([0x00, 0x01, 0x02, 0x03, 0x04]))?;

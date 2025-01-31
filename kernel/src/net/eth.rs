@@ -1,3 +1,4 @@
+use super::arp;
 use core::fmt::Debug;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -15,19 +16,9 @@ impl Debug for EthernetAddress {
     }
 }
 
-impl EthernetAddress {
-    const ETH_ADDR_BROADCAST: Self = Self::new([0xff, 0xff, 0xff, 0xff, 0xff, 0xff]);
-
-    pub const fn new(mac: [u8; 6]) -> Self {
+impl From<[u8; 6]> for EthernetAddress {
+    fn from(mac: [u8; 6]) -> Self {
         Self(mac)
-    }
-
-    pub fn raw(&self) -> [u8; 6] {
-        self.0
-    }
-
-    pub fn is_broadcast(&self) -> bool {
-        *self == Self::ETH_ADDR_BROADCAST
     }
 }
 
@@ -40,8 +31,10 @@ pub enum EtherType {
     PayloadLength(u16),
 }
 
-impl EtherType {
-    pub const fn new(value: u16) -> Self {
+impl From<[u8; 2]> for EtherType {
+    fn from(data: [u8; 2]) -> Self {
+        let value = u16::from_be_bytes(data);
+
         if value <= 0x05dc {
             EtherType::PayloadLength(value)
         } else {
@@ -53,6 +46,12 @@ impl EtherType {
             }
         }
     }
+}
+
+#[derive(Debug)]
+pub enum EthernetPayload {
+    ARP(arp::ArpPacket),
+    None,
 }
 
 pub struct EthernetPacket<'a> {
@@ -70,15 +69,25 @@ impl<'a> EthernetPacket<'a> {
 
     pub fn dst_mac(&self) -> EthernetAddress {
         let mac = &self.data[0..6];
-        EthernetAddress::new([mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]])
+        [mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]].into()
     }
 
     pub fn src_mac(&self) -> EthernetAddress {
         let mac = &self.data[6..12];
-        EthernetAddress::new([mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]])
+        [mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]].into()
     }
 
     pub fn ether_type(&self) -> EtherType {
-        EtherType::new(u16::from_be_bytes([self.data[12], self.data[13]]))
+        [self.data[12], self.data[13]].into()
+    }
+
+    pub fn payload(&self) -> EthernetPayload {
+        match self.ether_type() {
+            EtherType::ARP => {
+                let arp_packet = arp::ArpPacket::new(&self.data[14..]);
+                EthernetPayload::ARP(arp_packet)
+            }
+            _ => EthernetPayload::None,
+        }
     }
 }
