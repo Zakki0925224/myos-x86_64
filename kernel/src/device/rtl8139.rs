@@ -3,7 +3,10 @@ use crate::{
     addr::IoPortAddress,
     device,
     error::{Error, Result},
-    net::eth::EthernetPacket,
+    net::{
+        self,
+        eth::{EtherType, EthernetAddress, EthernetFrame, EthernetPayload},
+    },
     util::mutex::Mutex,
 };
 use alloc::{boxed::Box, vec::Vec};
@@ -99,7 +102,7 @@ impl RxBuffer {
         self.buf.as_ptr()
     }
 
-    fn pop_eth_packet(&mut self) -> Result<EthernetPacket> {
+    fn pop_eth_frame(&mut self) -> Result<EthernetFrame> {
         let packet = &self.buf[self.packet_ptr..];
 
         // RTL8139 metadata
@@ -112,8 +115,8 @@ impl RxBuffer {
 
         self.packet_ptr = (self.packet_ptr + rtl8139_len as usize + 4) % RX_BUF_SIZE;
 
-        let packet = &packet[4..rtl8139_len as usize];
-        Ok(EthernetPacket::new(packet))
+        let frame = &packet[4..rtl8139_len as usize];
+        Ok(EthernetFrame::new(frame))
     }
 }
 
@@ -174,29 +177,24 @@ impl Rtl8139Driver {
             .ok_or(Error::Failed("I/O register is not initialized"))
     }
 
-    fn receive_packet(&mut self) -> Result<()> {
-        let eth_packet = self.rx_buf.pop_eth_packet()?;
-        debug!(
-            "{}: {:?}\ndst_mac: {:?}, src_mac: {:?}, ether_type: {:?}\npayload: {:?}",
-            self.device_driver_info.name,
-            eth_packet.raw(),
-            eth_packet.dst_mac(),
-            eth_packet.src_mac(),
-            eth_packet.ether_type(),
-            eth_packet.payload()
-        );
-
-        Ok(())
+    fn mac_addr(&self) -> Result<EthernetAddress> {
+        Ok(self.io_register()?.read_mac_addr().into())
     }
 
-    fn send_packet(&mut self, packet: Box<[u8]>) -> Result<()> {
+    fn receive_packet(&mut self) -> Result<EthernetFrame> {
+        self.rx_buf.pop_eth_frame()
+    }
+
+    fn send_packet(&mut self, eth_frame: EthernetFrame) -> Result<()> {
         let io_register = self.io_register()?;
-        let packet_len = packet.len();
         let tx_packet_ptr = self.tx_buf.packet_ptr;
 
-        io_register.write_tx_start_addr(packet.as_ref().as_ptr() as u32, tx_packet_ptr);
+        let boxed_eth_frame = eth_frame.to_vec().into_boxed_slice();
+        let packet_len = boxed_eth_frame.len();
+
+        io_register.write_tx_start_addr(boxed_eth_frame.as_ptr() as u32, tx_packet_ptr);
         io_register.write_tx_status(packet_len as u32, tx_packet_ptr);
-        self.tx_buf.push(packet);
+        self.tx_buf.push(boxed_eth_frame);
 
         Ok(())
     }
@@ -289,17 +287,8 @@ impl DeviceDriverFunction for Rtl8139Driver {
             // );
             // d.write_interrupt_line(vec_num)?;
 
-            let mac_addr = io_register.read_mac_addr();
-            debug!(
-                "{}: MAC address: {:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}",
-                self.device_driver_info.name,
-                mac_addr[0],
-                mac_addr[1],
-                mac_addr[2],
-                mac_addr[3],
-                mac_addr[4],
-                mac_addr[5]
-            );
+            let mac_addr = self.mac_addr()?;
+            net::set_my_mac_addr(mac_addr)?;
 
             Ok(())
         })?;
@@ -309,6 +298,8 @@ impl DeviceDriverFunction for Rtl8139Driver {
     }
 
     fn poll_normal(&mut self) -> Result<Self::PollNormalOutput> {
+        let name = self.device_driver_info.name;
+
         let io_register = self.io_register()?;
         let status = io_register.read_int_status();
 
@@ -317,7 +308,7 @@ impl DeviceDriverFunction for Rtl8139Driver {
             // clear TOK
             io_register.write_int_status(0x04);
 
-            debug!("{}: TOK", self.device_driver_info.name);
+            debug!("{}: TOK", name);
         }
 
         // ROK
@@ -325,9 +316,27 @@ impl DeviceDriverFunction for Rtl8139Driver {
             // clear ROK
             io_register.write_int_status(0x01);
 
-            debug!("{}: ROK", self.device_driver_info.name);
-            self.receive_packet()?;
-            //self.send_packet(Box::new([0x00, 0x01, 0x02, 0x03, 0x04]))?;
+            debug!("{}: ROK", name);
+            let eth_frame = self.receive_packet()?;
+
+            if let Some(reply_payload) = net::receive_eth_payload(eth_frame.payload())? {
+                let payload_vec = reply_payload.to_vec();
+
+                match reply_payload {
+                    EthernetPayload::Arp(_) => {
+                        let reply_eth_frame = EthernetFrame::new_with(
+                            eth_frame.src_mac_addr,
+                            net::my_mac_addr()?,
+                            EtherType::Arp,
+                            &payload_vec,
+                        );
+                        self.send_packet(reply_eth_frame)?;
+                    }
+                    _ => {
+                        unimplemented!()
+                    }
+                }
+            }
         }
 
         Ok(())
