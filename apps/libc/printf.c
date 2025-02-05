@@ -79,15 +79,9 @@ int _printf(char *buf, int buf_len, const char *fmt, va_list ap)
         case 'i':
         {
             int va_num = va_arg(ap, int);
-            if (va_num == 0)
-            {
-                for (int i = 0; i < (precision > 0 ? precision : 1); i++)
-                {
-                    buf_i = write_buf(buf, buf_len, buf_i, '0');
-                }
-                break;
-            }
-            else if (va_num < 0)
+            bool is_negative = va_num < 0;
+
+            if (is_negative)
             {
                 buf_i = write_buf(buf, buf_len, buf_i, '-');
                 va_num = -va_num;
@@ -96,10 +90,23 @@ int _printf(char *buf, int buf_len, const char *fmt, va_list ap)
             char num_str[20];
             int num_len = 0;
 
-            while (va_num > 0 && num_len < 20)
+            if (va_num == 0)
             {
-                num_str[num_len++] = '0' + (va_num % 10);
-                va_num /= 10;
+                num_str[num_len++] = '0';
+            }
+            else
+            {
+                while (va_num > 0 && num_len < 20)
+                {
+                    num_str[num_len++] = '0' + (va_num % 10);
+                    va_num /= 10;
+                }
+            }
+
+            for (int i = 0; i < (min_width > num_len ? min_width - num_len : 0); i++)
+            {
+                char fill_char = zero_fill ? '0' : ' ';
+                buf_i = write_buf(buf, buf_len, buf_i, fill_char);
             }
 
             for (int i = 0; i < (precision > num_len ? precision - num_len : 0); i++)
@@ -112,9 +119,51 @@ int _printf(char *buf, int buf_len, const char *fmt, va_list ap)
                 buf_i = write_buf(buf, buf_len, buf_i, num_str[i]);
             }
 
+            break;
+        }
+
+        case 'x':
+        case 'X':
+        {
+            int va_num = va_arg(ap, int);
+            char num_str[20];
+            int num_len = 0;
+
+            if (va_num == 0)
+            {
+                num_str[num_len++] = '0';
+            }
+            else
+            {
+                while (va_num > 0 && num_len < 20)
+                {
+                    int digit = va_num % 16;
+                    if (digit < 10)
+                    {
+                        num_str[num_len++] = '0' + digit;
+                    }
+                    else
+                    {
+                        num_str[num_len++] = (nc == 'x' ? 'a' : 'A') + digit - 10;
+                    }
+                    va_num /= 16;
+                }
+            }
+
             for (int i = 0; i < (min_width > num_len ? min_width - num_len : 0); i++)
             {
-                buf_i = write_buf(buf, buf_len, buf_i, ' ');
+                char fill_char = zero_fill ? '0' : ' ';
+                buf_i = write_buf(buf, buf_len, buf_i, fill_char);
+            }
+
+            for (int i = 0; i < (precision > num_len ? precision - num_len : 0); i++)
+            {
+                buf_i = write_buf(buf, buf_len, buf_i, '0');
+            }
+
+            for (int i = num_len - 1; i >= 0; i--)
+            {
+                buf_i = write_buf(buf, buf_len, buf_i, num_str[i]);
             }
 
             break;
