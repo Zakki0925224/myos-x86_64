@@ -56,7 +56,7 @@ impl ArpPacket {
     ) -> Self {
         Self {
             hardware_ty: [0, 1],
-            protocol_ty: EtherType::IPv4,
+            protocol_ty: EtherType::Ipv4,
             hardware_len: 6,
             protocol_len: 4,
             op: op.into(),

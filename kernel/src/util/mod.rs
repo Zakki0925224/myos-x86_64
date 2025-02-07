@@ -1,7 +1,6 @@
 pub mod ascii;
 pub mod cstring;
 pub mod fifo;
-pub mod hexdump;
 pub mod lifo;
 pub mod logger;
 pub mod mutex;

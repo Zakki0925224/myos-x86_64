@@ -5,10 +5,12 @@ use crate::{
 use arp::{ArpOperation, ArpPacket, ArpTable};
 use core::net::Ipv4Addr;
 use eth::{EthernetAddress, EthernetPayload};
+use ip::Ipv4Packet;
 use log::info;
 
 pub mod arp;
 pub mod eth;
+pub mod ip;
 
 static mut NETWORK_MAN: Mutex<NetworkManager> =
     Mutex::new(NetworkManager::new(Ipv4Addr::new(10, 0, 2, 15)));
@@ -82,6 +84,12 @@ impl NetworkManager {
         }
     }
 
+    fn receive_ipv4_packet(&mut self, packet: Ipv4Packet) -> Result<Option<Ipv4Packet>> {
+        info!("net: Received IPv4 packet: {:?}", packet);
+
+        Ok(None)
+    }
+
     fn receive_eth_payload(&mut self, payload: EthernetPayload) -> Result<Option<EthernetPayload>> {
         let mut replay_payload = None;
 
@@ -89,6 +97,11 @@ impl NetworkManager {
             EthernetPayload::Arp(arp_packet) => {
                 if let Some(reply_arp_packet) = self.receive_arp_packet(arp_packet)? {
                     replay_payload = Some(EthernetPayload::Arp(reply_arp_packet));
+                }
+            }
+            EthernetPayload::Ipv4(ipv4_packet) => {
+                if let Some(reply_ipv4_packet) = self.receive_ipv4_packet(ipv4_packet)? {
+                    replay_payload = Some(EthernetPayload::Ipv4(reply_ipv4_packet));
                 }
             }
             EthernetPayload::None => {

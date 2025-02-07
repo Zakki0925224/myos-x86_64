@@ -1,4 +1,4 @@
-use super::arp;
+use super::{arp::ArpPacket, ip::Ipv4Packet};
 use alloc::vec::Vec;
 use core::fmt::Debug;
 
@@ -31,8 +31,8 @@ impl Into<[u8; 6]> for EthernetAddress {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EtherType {
-    IPv4,
-    IPv6,
+    Ipv4,
+    Ipv6,
     Arp,
     Other(u16),
     PayloadLength(u16),
@@ -46,8 +46,8 @@ impl From<[u8; 2]> for EtherType {
             EtherType::PayloadLength(value)
         } else {
             match value {
-                0x0800 => EtherType::IPv4,
-                0x86dd => EtherType::IPv6,
+                0x0800 => EtherType::Ipv4,
+                0x86dd => EtherType::Ipv6,
                 0x0806 => EtherType::Arp,
                 _ => EtherType::Other(value),
             }
@@ -58,8 +58,8 @@ impl From<[u8; 2]> for EtherType {
 impl Into<[u8; 2]> for EtherType {
     fn into(self) -> [u8; 2] {
         match self {
-            EtherType::IPv4 => [0x08, 0x00],
-            EtherType::IPv6 => [0x86, 0xdd],
+            EtherType::Ipv4 => [0x08, 0x00],
+            EtherType::Ipv6 => [0x86, 0xdd],
             EtherType::Arp => [0x08, 0x06],
             EtherType::Other(value) => value.to_be_bytes(),
             EtherType::PayloadLength(value) => value.to_be_bytes(),
@@ -69,7 +69,8 @@ impl Into<[u8; 2]> for EtherType {
 
 #[derive(Debug)]
 pub enum EthernetPayload {
-    Arp(arp::ArpPacket),
+    Arp(ArpPacket),
+    Ipv4(Ipv4Packet),
     None,
 }
 
@@ -77,6 +78,7 @@ impl EthernetPayload {
     pub fn to_vec(&self) -> Vec<u8> {
         match self {
             EthernetPayload::Arp(packet) => packet.raw().to_vec(),
+            EthernetPayload::Ipv4(_) => todo!(),
             EthernetPayload::None => Vec::new(),
         }
     }
@@ -165,8 +167,12 @@ impl<'a> EthernetFrame<'a> {
     pub fn payload(&self) -> EthernetPayload {
         match self.ether_type {
             EtherType::Arp => {
-                let arp_packet = arp::ArpPacket::new(&self.payload);
+                let arp_packet = ArpPacket::new(&self.payload);
                 EthernetPayload::Arp(arp_packet)
+            }
+            EtherType::Ipv4 => {
+                let ipv4_packet = Ipv4Packet::new(&self.payload);
+                EthernetPayload::Ipv4(ipv4_packet)
             }
             _ => EthernetPayload::None,
         }

@@ -138,8 +138,10 @@ def build_qemu():
 
     if not os.path.exists(f"{d}/build/{QEMU_ARCH}"):
         # run_cmd(f"{GIT_CHECKOUT_TO_LATEST_TAG}", dir=d)
+        # extra_cflags = '--extra-cflags="-DDEBUG_RTL8139"'
+        extra_cflags = ""
         run_cmd(
-            f'mkdir -p build && cd build && ../configure --target-list={QEMU_TARGET_ARCH} --enable-trace-backends=log --enable-sdl --extra-cflags="-DDEBUG_RTL8139" && make -j$(nproc)',
+            f"mkdir -p build && cd build && ../configure --target-list={QEMU_TARGET_ARCH} --enable-trace-backends=log --enable-sdl {extra_cflags} && make -j$(nproc)",
             dir=d,
         )
 

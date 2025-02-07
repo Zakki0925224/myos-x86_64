@@ -30,6 +30,7 @@ This is a replacement project for the previous **[myos](https://github.com/Zakki
 -   Device support
     -   [x] PS/2 Keyboard and Mouse
     -   [x] Serial connection (UART 16650A)
+    -   [ ] RTL8139 (WIP)
     -   [ ] xHCI (WIP)
     -   [ ] VirtIO (WIP)
         -   [ ] virtio-net (WIP)
