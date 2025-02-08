@@ -217,8 +217,12 @@ def build_apps():
 
 
 def make_initramfs():
+    global is_kernel_test
+
     build_doom()
-    build_apps()
+
+    if not is_kernel_test:
+        build_apps()
 
     run_cmd(
         f"dd if=/dev/zero of=./{OUTPUT_DIR}/{INITRAMFS_IMG_FILE} bs=1M count=128"

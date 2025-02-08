@@ -1,9 +1,9 @@
-use super::vfs;
+use super::{path::Path, vfs};
 use crate::{arch::task, error::Result};
 use common::elf::Elf64;
 use log::info;
 
-pub fn exec_elf(elf_path: &str, args: &[&str]) -> Result<()> {
+pub fn exec_elf(elf_path: &Path, args: &[&str]) -> Result<()> {
     let fd_num = vfs::open_file(elf_path)?;
     let elf_data = vfs::read_file(&fd_num)?;
     let elf64 = match Elf64::new(&elf_data) {

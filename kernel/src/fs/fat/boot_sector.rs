@@ -1,4 +1,4 @@
-use super::FatType;
+use super::volume::FatType;
 use alloc::string::String;
 
 #[derive(Debug, Clone, Copy)]

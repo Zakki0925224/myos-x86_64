@@ -1,14 +1,12 @@
-use crate::{
-    arch::addr::VirtualAddress,
-    fs::{fat::FatVolume, initramfs::Initramfs, vfs::FileSystem},
-};
+use crate::{arch::addr::VirtualAddress, fs::vfs::FileSystem};
 use common::kernel_config::KernelConfig;
+use fat::{volume::FatVolume, Fat};
 use log::{error, info};
 
 pub mod exec;
 pub mod fat;
 pub mod file;
-pub mod initramfs;
+pub mod path;
 pub mod vfs;
 
 pub fn init(initramfs_virt_addr: VirtualAddress, kernel_config: &KernelConfig) {
@@ -18,19 +16,14 @@ pub fn init(initramfs_virt_addr: VirtualAddress, kernel_config: &KernelConfig) {
     info!("fs: VFS initialized");
 
     let fat_volume = FatVolume::new(initramfs_virt_addr);
-    let mut initramfs = Initramfs::new(2);
+    let fat_fs = Fat::new(fat_volume);
 
-    if let Err(err) = initramfs.init(fat_volume) {
-        error!("fs: Failed to initialized initramfs: {:?}", err);
-    }
-    info!("fs: Initramfs initialized");
-
-    if let Err(err) = vfs::mount("/mnt/initramfs", FileSystem::Initramfs(initramfs)) {
+    if let Err(err) = vfs::mount_fs(&"/mnt/initramfs".into(), FileSystem::Fat(fat_fs)) {
         error!("fs: Failed to mount initramfs to VFS: {:?}", err);
     }
     info!("fs: Mounted initramfs to VFS");
 
-    let dirname = kernel_config.init_cwd_path;
+    let dirname = kernel_config.init_cwd_path.into();
     if let Err(err) = vfs::chdir(&dirname) {
         error!("fs: Failed to chdir to {}: {:?}", dirname, err);
     }

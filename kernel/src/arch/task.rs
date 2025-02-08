@@ -1,7 +1,7 @@
 use crate::{
     arch::{addr::VirtualAddress, context::*},
     error::*,
-    fs::{self, vfs::file_desc::FileDescriptorNumber},
+    fs::{self, path::Path, vfs::FileDescriptorNumber},
     graphics::{multi_layer::LayerId, simple_window_manager},
     mem::{
         bitmap::{self, MemoryFrameInfo},
@@ -9,7 +9,7 @@ use crate::{
     },
     util::mutex::Mutex,
 };
-use alloc::{boxed::Box, collections::VecDeque, ffi::CString, vec::Vec};
+use alloc::{boxed::Box, collections::VecDeque, ffi::CString, string::ToString, vec::Vec};
 use common::elf::{self, *};
 use core::{
     future::Future,
@@ -381,7 +381,7 @@ impl Task {
     }
 }
 
-pub fn exec_user_task(elf64: Elf64, file_name: &str, args: &[&str]) -> Result<u64> {
+pub fn exec_user_task(elf64: Elf64, path: &Path, args: &[&str]) -> Result<u64> {
     let kernel_task = unsafe { KERNEL_TASK.get_force_mut() };
     let user_tasks = unsafe { USER_TASKS.get_force_mut() };
 
@@ -398,7 +398,7 @@ pub fn exec_user_task(elf64: Elf64, file_name: &str, args: &[&str]) -> Result<u6
     let user_task = Task::new(
         1024 * 1024,
         Some(elf64),
-        Some(&[&[file_name], args].concat()),
+        Some(&[&[path.to_string().as_str()], args].concat()),
         ContextMode::User,
     );
 

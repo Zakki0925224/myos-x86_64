@@ -1,7 +1,6 @@
 use crate::{
     arch::{
         addr::VirtualAddress,
-        apic,
         gdt::*,
         register::{model_specific::*, Register},
         task,
@@ -11,7 +10,7 @@ use crate::{
     error::*,
     fs::{
         self,
-        vfs::{self, file_desc::FileDescriptorNumber},
+        vfs::{self, FileDescriptorNumber},
     },
     graphics::{multi_layer::LayerId, simple_window_manager},
     mem::{bitmap, paging::PAGE_SIZE},
@@ -354,8 +353,10 @@ fn sys_write(fd: FileDescriptorNumber, s_ptr: *const u8, s_len: usize) -> Result
 }
 
 fn sys_open(filename_ptr: *const u8) -> Result<FileDescriptorNumber> {
-    let filename = unsafe { util::cstring::from_cstring_ptr(filename_ptr) };
-    let fd = vfs::open_file(&filename)?;
+    let path = unsafe { util::cstring::from_cstring_ptr(filename_ptr) }
+        .as_str()
+        .into();
+    let fd = vfs::open_file(&path)?;
     task::push_fd(fd);
 
     Ok(fd)
@@ -430,14 +431,16 @@ fn sys_uptime() -> u64 {
 fn sys_exec(args_ptr: *const u8) -> Result<()> {
     let args = unsafe { util::cstring::from_cstring_ptr(args_ptr) };
     let args: Vec<&str> = args.split(' ').collect();
-    fs::exec::exec_elf(args[0], &args[1..])?;
+    fs::exec::exec_elf(&args[0].into(), &args[1..])?;
 
     Ok(())
 }
 
 fn sys_getcwd(buf_addr: VirtualAddress, buf_len: usize) -> Result<()> {
     let cwd = vfs::cwd_path()?;
-    let cwd_s = CString::new(cwd.as_str()).unwrap().into_bytes_with_nul();
+    let cwd_s = CString::new(cwd.to_string().as_str())
+        .unwrap()
+        .into_bytes_with_nul();
 
     if buf_len < cwd_s.len() {
         return Err(Error::Failed("Buffer is too small"));
@@ -449,7 +452,9 @@ fn sys_getcwd(buf_addr: VirtualAddress, buf_len: usize) -> Result<()> {
 }
 
 fn sys_chdir(path_ptr: *const u8) -> Result<()> {
-    let path = unsafe { util::cstring::from_cstring_ptr(path_ptr) };
+    let path = unsafe { util::cstring::from_cstring_ptr(path_ptr) }
+        .as_str()
+        .into();
     vfs::chdir(&path)?;
     Ok(())
 }

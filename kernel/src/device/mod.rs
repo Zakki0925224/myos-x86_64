@@ -28,7 +28,7 @@ impl DeviceDriverInfo {
     }
 }
 
-trait DeviceDriverFunction {
+pub trait DeviceDriverFunction {
     type AttachInput;
     type PollNormalOutput;
     type PollInterruptOutput;

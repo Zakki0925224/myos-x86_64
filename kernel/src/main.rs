@@ -189,7 +189,7 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
             if splited.len() == 0 || splited[0] == "" {
                 error!("Invalid init app exec args: {:?}", args);
                 break;
-            } else if let Err(err) = fs::exec::exec_elf(splited[0], &splited[1..]) {
+            } else if let Err(err) = fs::exec::exec_elf(&splited[0].into(), &splited[1..]) {
                 error!("{:?}", err);
                 break;
             }
@@ -204,7 +204,7 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
 async fn poll_ps2_mouse() {
     let mut is_created_mouse_pointer_layer = false;
     let mouse_pointer_bmp_fd = loop {
-        match vfs::open_file("/mnt/initramfs/sys/mouse_pointer.bmp") {
+        match vfs::open_file(&"/mnt/initramfs/sys/mouse_pointer.bmp".into()) {
             Ok(fd) => break fd,
             Err(e) => {
                 warn!("Failed to open mouse pointer bitmap, Retrying...: {:?}", e);
