@@ -74,9 +74,15 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
 
     // initialize graphics shadow buffer and layer manager
     graphics::enable_shadow_buf();
-    graphics::init_layer_man(&boot_info.graphic_info, GLOBAL_THEME.transparent_color);
+    graphics::init_layer_man(&boot_info.graphic_info);
     // initialize simple window manager
     graphics::init_simple_wm();
+
+    // initialize initramfs, VFS
+    fs::init(
+        boot_info.initramfs_start_virt_addr.into(),
+        &boot_info.kernel_config,
+    );
 
     // initialize PS/2 keyboard and mouse
     if let Err(err) = device::ps2_keyboard::probe_and_attach() {
@@ -128,12 +134,6 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
         let name = device::rtl8139::get_device_driver_info().unwrap().name;
         error!("{}: Failed to probe or attach device: {:?}", name, err);
     }
-
-    // initialize initramfs, VFS
-    fs::init(
-        boot_info.initramfs_start_virt_addr.into(),
-        &boot_info.kernel_config,
-    );
 
     // enable syscall
     syscall::enable();

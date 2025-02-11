@@ -162,11 +162,7 @@ impl FrameBuffer {
     }
 
     // no check disabled layer
-    pub fn apply_layer_buf(
-        &mut self,
-        layer: &mut Layer,
-        transparent_color: ColorCode,
-    ) -> Result<()> {
+    pub fn apply_layer_buf(&mut self, layer: &mut Layer) -> Result<()> {
         if layer.format != self.format {
             return Err(FrameBufferError::InvalidPixelFormatError {
                 _self: self.format,
@@ -183,7 +179,6 @@ impl FrameBuffer {
             self.frame_buf_virt_addr.as_ptr_mut()
         };
 
-        let transparent_color = transparent_color.to_color_code(layer.format);
         let LayerPositionInfo {
             x: layer_x,
             y: layer_y,
@@ -348,11 +343,11 @@ pub fn enable_shadow_buf() -> Result<()> {
     Ok(())
 }
 
-pub fn apply_layer_buf(layer: &mut Layer, transparent_color: ColorCode) -> Result<()> {
+pub fn apply_layer_buf(layer: &mut Layer) -> Result<()> {
     unsafe { FRAME_BUF.try_lock() }?
         .as_mut()
         .ok_or(FrameBufferError::NotInitialized)?
-        .apply_layer_buf(layer, transparent_color)
+        .apply_layer_buf(layer)
 }
 
 pub fn apply_shadow_buf() -> Result<()> {

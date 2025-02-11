@@ -7,6 +7,7 @@ use crate::{
     apic,
     device::{self, pci_bus::conf_space::BaseAddress, DeviceDriverFunction, DeviceDriverInfo},
     error::{Error, Result},
+    fs::vfs,
     idt,
     mem::bitmap,
     register::msi::*,
@@ -755,6 +756,14 @@ impl DeviceDriverFunction for XhcDriver {
             Ok(())
         })?;
 
+        let dev_desc = vfs::DeviceFileDescriptor {
+            get_device_driver_info,
+            open,
+            close,
+            read,
+            write,
+        };
+        vfs::add_dev_file(dev_desc, self.device_driver_info.name)?;
         self.device_driver_info.attached = true;
         Ok(())
     }
@@ -883,6 +892,14 @@ impl DeviceDriverFunction for XhcDriver {
         Ok(())
     }
 
+    fn open(&mut self) -> Result<()> {
+        unimplemented!()
+    }
+
+    fn close(&mut self) -> Result<()> {
+        unimplemented!()
+    }
+
     fn read(&mut self) -> Result<Vec<u8>> {
         unimplemented!()
     }
@@ -906,6 +923,26 @@ pub fn probe_and_attach() -> Result<()> {
     driver.start()?;
 
     Ok(())
+}
+
+pub fn open() -> Result<()> {
+    let mut driver = unsafe { XHC_DRIVER.try_lock() }?;
+    driver.open()
+}
+
+pub fn close() -> Result<()> {
+    let mut driver = unsafe { XHC_DRIVER.try_lock() }?;
+    driver.close()
+}
+
+pub fn read() -> Result<Vec<u8>> {
+    let mut driver = unsafe { XHC_DRIVER.try_lock() }?;
+    driver.read()
+}
+
+pub fn write(data: &[u8]) -> Result<()> {
+    let mut driver = unsafe { XHC_DRIVER.try_lock() }?;
+    driver.write(data)
 }
 
 pub fn find_port_by_slot_id(slot_id: usize) -> Result<Option<Port>> {

@@ -3,6 +3,7 @@ use crate::{
     arch,
     device::{DeviceDriverFunction, DeviceDriverInfo},
     error::{Error, Result},
+    fs::vfs,
     util::mutex::Mutex,
 };
 use alloc::{boxed::Box, vec::Vec};
@@ -153,6 +154,14 @@ impl DeviceDriverFunction for UsbBusDriver {
             device.is_configured = true;
         }
 
+        let dev_desc = vfs::DeviceFileDescriptor {
+            get_device_driver_info,
+            open,
+            close,
+            read,
+            write,
+        };
+        vfs::add_dev_file(dev_desc, self.device_driver_info.name)?;
         self.device_driver_info.attached = true;
         Ok(())
     }
@@ -162,6 +171,14 @@ impl DeviceDriverFunction for UsbBusDriver {
     }
 
     fn poll_int(&mut self) -> Result<Self::PollInterruptOutput> {
+        unimplemented!()
+    }
+
+    fn open(&mut self) -> Result<()> {
+        unimplemented!()
+    }
+
+    fn close(&mut self) -> Result<()> {
         unimplemented!()
     }
 
@@ -187,6 +204,26 @@ pub fn probe_and_attach() -> Result<()> {
     info!("{}: Attached!", driver_name);
 
     Ok(())
+}
+
+pub fn open() -> Result<()> {
+    let mut driver = unsafe { USB_BUS_DRIVER.try_lock() }?;
+    driver.open()
+}
+
+pub fn close() -> Result<()> {
+    let mut driver = unsafe { USB_BUS_DRIVER.try_lock() }?;
+    driver.close()
+}
+
+pub fn read() -> Result<Vec<u8>> {
+    let mut driver = unsafe { USB_BUS_DRIVER.try_lock() }?;
+    driver.read()
+}
+
+pub fn write(data: &[u8]) -> Result<()> {
+    let mut driver = unsafe { USB_BUS_DRIVER.try_lock() }?;
+    driver.write(data)
 }
 
 pub fn find_device_by_slot_id(slot_id: usize) -> Result<Option<UsbDevice>> {

@@ -1,4 +1,4 @@
-use crate::ColorCode;
+use crate::{graphics::frame_buf_console, println, ColorCode};
 
 pub const GLOBAL_THEME: Theme = LEGACY_THEME;
 
@@ -25,7 +25,6 @@ const LEGACY_WHITE: ColorCode = BASE_WHITE;
 
 #[allow(unused)]
 const LEGACY_THEME: Theme = Theme {
-    transparent_color: LEGACY_BLACK,
     back_color: ColorCode::new_rgb(0x03, 0x1a, 0x00),
     fore_color: LEGACY_GREEN,
     sample_rect_colors: [
@@ -68,7 +67,6 @@ const CLASSIC_FORE: ColorCode = ColorCode::new_rgb(0xd4, 0xd0, 0xc8);
 
 #[allow(unused)]
 const CLASSIC_THEME: Theme = Theme {
-    transparent_color: BASE_BLACK,
     back_color: CLASSIC_BACK,
     fore_color: BASE_WHITE,
     sample_rect_colors: [
@@ -106,9 +104,64 @@ const CLASSIC_THEME: Theme = Theme {
 };
 
 #[allow(unused)]
+const EGA_BLACK: ColorCode = BASE_BLACK;
+const EGA_BLUE: ColorCode = ColorCode::new_rgb(0x00, 0x00, 0xaa);
+const EGA_GREEN: ColorCode = ColorCode::new_rgb(0x00, 0xaa, 0x00);
+const EGA_CYAN: ColorCode = ColorCode::new_rgb(0x00, 0xaa, 0xaa);
+const EGA_RED: ColorCode = ColorCode::new_rgb(0xaa, 0x00, 0x00);
+const EGA_MAGENTA: ColorCode = ColorCode::new_rgb(0xaa, 0x00, 0xaa);
+const EGA_BROWN: ColorCode = ColorCode::new_rgb(0xaa, 0x55, 0x00);
+const EGA_LIGHT_GRAY: ColorCode = ColorCode::new_rgb(0xaa, 0xaa, 0xaa);
+const EGA_DARK_GRAY: ColorCode = ColorCode::new_rgb(0x55, 0x55, 0x55);
+const EGA_LIGHT_BLUE: ColorCode = ColorCode::new_rgb(0x55, 0x55, 0xff);
+const EGA_LIGHT_GREEN: ColorCode = ColorCode::new_rgb(0x55, 0xff, 0x55);
+const EGA_LIGHT_CYAN: ColorCode = ColorCode::new_rgb(0x55, 0xff, 0xff);
+const EGA_LIGHT_RED: ColorCode = ColorCode::new_rgb(0xff, 0x55, 0x55);
+const EGA_LIGHT_MAGENTA: ColorCode = ColorCode::new_rgb(0xff, 0x55, 0xff);
+const EGA_YELLOW: ColorCode = ColorCode::new_rgb(0xff, 0xff, 0x55);
+const EGA_WHITE: ColorCode = BASE_WHITE;
+
+#[allow(unused)]
+const EGA_THEME: Theme = Theme {
+    back_color: EGA_BLACK,
+    fore_color: EGA_LIGHT_GREEN,
+    sample_rect_colors: [
+        EGA_BLACK,
+        EGA_BLUE,
+        EGA_GREEN,
+        EGA_CYAN,
+        EGA_RED,
+        EGA_MAGENTA,
+        EGA_BROWN,
+        EGA_LIGHT_GRAY,
+        EGA_DARK_GRAY,
+        EGA_LIGHT_BLUE,
+        EGA_LIGHT_GREEN,
+        EGA_LIGHT_CYAN,
+        EGA_LIGHT_RED,
+        EGA_LIGHT_MAGENTA,
+        EGA_YELLOW,
+        EGA_WHITE,
+    ],
+    log_color_error: EGA_LIGHT_RED,
+    log_color_warn: EGA_BROWN,
+    log_color_info: EGA_LIGHT_CYAN,
+    log_color_debug: EGA_YELLOW,
+    log_color_trace: EGA_LIGHT_MAGENTA,
+    wm_component_back_color: EGA_BLACK,
+    wm_component_fore_color: EGA_LIGHT_GREEN,
+    wm_component_border_color1: EGA_LIGHT_GREEN,
+    wm_component_border_color2: EGA_LIGHT_GREEN,
+    wm_component_border_flat: true,
+    wm_window_titlebar_back_color: EGA_BLACK,
+    wm_window_titlebar_fore_color: EGA_LIGHT_GREEN,
+    io_buf_default_back_color: EGA_BLACK,
+    io_buf_default_fore_color: EGA_BLACK,
+};
+
+#[allow(unused)]
 pub struct Theme {
     // framebuffer
-    pub transparent_color: ColorCode,
     pub back_color: ColorCode,
     pub fore_color: ColorCode,
     pub sample_rect_colors: [ColorCode; 16],
@@ -129,4 +182,85 @@ pub struct Theme {
     // io buffer
     pub io_buf_default_back_color: ColorCode,
     pub io_buf_default_fore_color: ColorCode,
+}
+
+#[allow(unused)]
+pub fn debug_global_theme() {
+    let theme = &GLOBAL_THEME;
+
+    let _ = frame_buf_console::set_fore_color(theme.back_color);
+    println!("back_color: {:?}", theme.back_color);
+
+    let _ = frame_buf_console::set_fore_color(theme.fore_color);
+    println!("fore_color: {:?}", theme.fore_color);
+
+    for (i, color_code) in theme.sample_rect_colors.iter().enumerate() {
+        let _ = frame_buf_console::set_fore_color(*color_code);
+        println!("sample_rect_colors[{}]: {:?}", i, *color_code);
+    }
+
+    let _ = frame_buf_console::set_fore_color(theme.log_color_error);
+    println!("log_color_error: {:?}", theme.log_color_error);
+
+    let _ = frame_buf_console::set_fore_color(theme.log_color_warn);
+    println!("log_color_warn: {:?}", theme.log_color_warn);
+
+    let _ = frame_buf_console::set_fore_color(theme.log_color_info);
+    println!("log_color_info: {:?}", theme.log_color_info);
+
+    let _ = frame_buf_console::set_fore_color(theme.log_color_debug);
+    println!("log_color_debug: {:?}", theme.log_color_debug);
+
+    let _ = frame_buf_console::set_fore_color(theme.log_color_trace);
+    println!("log_color_trace: {:?}", theme.log_color_trace);
+
+    let _ = frame_buf_console::set_fore_color(theme.wm_component_back_color);
+    println!(
+        "wm_component_back_color: {:?}",
+        theme.wm_component_back_color
+    );
+
+    let _ = frame_buf_console::set_fore_color(theme.wm_component_fore_color);
+    println!(
+        "wm_component_fore_color: {:?}",
+        theme.wm_component_fore_color
+    );
+
+    let _ = frame_buf_console::set_fore_color(theme.wm_component_border_color1);
+    println!(
+        "wm_component_border_color1: {:?}",
+        theme.wm_component_border_color1
+    );
+
+    let _ = frame_buf_console::set_fore_color(theme.wm_component_border_color2);
+    println!(
+        "wm_component_border_color2: {:?}",
+        theme.wm_component_border_color2
+    );
+
+    let _ = frame_buf_console::set_fore_color(theme.wm_window_titlebar_back_color);
+    println!(
+        "wm_window_titlebar_back_color: {:?}",
+        theme.wm_window_titlebar_back_color
+    );
+
+    let _ = frame_buf_console::set_fore_color(theme.wm_window_titlebar_fore_color);
+    println!(
+        "wm_window_titlebar_fore_color: {:?}",
+        theme.wm_window_titlebar_fore_color
+    );
+
+    let _ = frame_buf_console::set_fore_color(theme.io_buf_default_back_color);
+    println!(
+        "io_buf_default_back_color: {:?}",
+        theme.io_buf_default_back_color
+    );
+
+    let _ = frame_buf_console::set_fore_color(theme.io_buf_default_fore_color);
+    println!(
+        "io_buf_default_fore_color: {:?}",
+        theme.io_buf_default_fore_color
+    );
+
+    let _ = frame_buf_console::reset_fore_color();
 }

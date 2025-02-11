@@ -1,3 +1,4 @@
+use super::uart;
 use crate::{
     error::{Error, Result},
     graphics::{color::*, frame_buf_console},
@@ -6,8 +7,6 @@ use crate::{
 };
 use alloc::{boxed::Box, string::String};
 use core::fmt::{self, Write};
-
-use super::uart;
 
 const IO_BUF_LEN: usize = 512;
 const IO_BUF_DEFAULT_VALUE: ConsoleCharacter = ConsoleCharacter {

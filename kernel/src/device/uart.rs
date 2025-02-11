@@ -112,6 +112,7 @@ impl DeviceDriverFunction for UartDriver {
         io_port_addr.offset(4).out8(0x0f);
 
         self.io_port_addr = Some(io_port_addr);
+
         self.device_driver_info.attached = true;
         Ok(())
     }
@@ -125,6 +126,14 @@ impl DeviceDriverFunction for UartDriver {
     }
 
     fn poll_int(&mut self) -> Result<Self::PollInterruptOutput> {
+        unimplemented!()
+    }
+
+    fn open(&mut self) -> Result<()> {
+        unimplemented!()
+    }
+
+    fn close(&mut self) -> Result<()> {
         unimplemented!()
     }
 
@@ -150,6 +159,26 @@ pub fn probe_and_attach() -> Result<()> {
     info!("{}: Attached!", info.name);
 
     Ok(())
+}
+
+pub fn open() -> Result<()> {
+    let mut driver = unsafe { UART_DRIVER.try_lock() }?;
+    driver.open()
+}
+
+pub fn close() -> Result<()> {
+    let mut driver = unsafe { UART_DRIVER.try_lock() }?;
+    driver.close()
+}
+
+pub fn read() -> Result<Vec<u8>> {
+    let mut driver = unsafe { UART_DRIVER.try_lock() }?;
+    driver.read()
+}
+
+pub fn write(data: &[u8]) -> Result<()> {
+    let mut driver = unsafe { UART_DRIVER.try_lock() }?;
+    driver.write(data)
 }
 
 pub fn poll_normal() -> Result<()> {

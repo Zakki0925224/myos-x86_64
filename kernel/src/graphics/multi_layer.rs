@@ -13,13 +13,12 @@ use alloc::vec::Vec;
 use common::graphic_info::PixelFormat;
 use core::sync::atomic::{AtomicUsize, Ordering};
 
-static mut LAYER_MAN: Mutex<Option<LayerManager>> = Mutex::new(None);
+static mut LAYER_MAN: Mutex<LayerManager> = Mutex::new(LayerManager::new());
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum LayerError {
     OutsideBufferAreaError { layer_id: usize, x: usize, y: usize },
     InvalidLayerIdError(usize),
-    LayerManagerNotInitialized,
 }
 
 #[derive(Debug, Clone)]
@@ -244,22 +243,18 @@ impl Layer {
 
 struct LayerManager {
     layers: Vec<Layer>,
-    pub transparent_color: ColorCode,
 }
 
 impl LayerManager {
-    pub fn new(transparent_color: ColorCode) -> Self {
-        Self {
-            layers: Vec::new(),
-            transparent_color,
-        }
+    const fn new() -> Self {
+        Self { layers: Vec::new() }
     }
 
-    pub fn push_layer(&mut self, layer: Layer) {
+    fn push_layer(&mut self, layer: Layer) {
         self.layers.push(layer);
     }
 
-    pub fn remove_layer(&mut self, layer_id: &LayerId) -> Result<()> {
+    fn remove_layer(&mut self, layer_id: &LayerId) -> Result<()> {
         if self.get_layer(layer_id).is_err() {
             return Err(LayerError::InvalidLayerIdError(layer_id.get()).into());
         }
@@ -269,14 +264,14 @@ impl LayerManager {
         Ok(())
     }
 
-    pub fn get_layer(&mut self, layer_id: &LayerId) -> Result<&mut Layer> {
+    fn get_layer(&mut self, layer_id: &LayerId) -> Result<&mut Layer> {
         self.layers
             .iter_mut()
             .find(|l| l.id.get() == layer_id.get())
             .ok_or(LayerError::InvalidLayerIdError(layer_id.get()).into())
     }
 
-    pub fn draw_to_frame_buf(&mut self) -> Result<()> {
+    fn draw_to_frame_buf(&mut self) -> Result<()> {
         self.layers
             .sort_by(|a, b| a.always_on_top.cmp(&b.always_on_top));
 
@@ -285,21 +280,16 @@ impl LayerManager {
                 continue;
             }
 
-            frame_buf::apply_layer_buf(layer, self.transparent_color)?;
+            frame_buf::apply_layer_buf(layer)?;
         }
 
         Ok(())
     }
 
-    pub fn get_layer_pos_info(&mut self, layer_id: &LayerId) -> Result<LayerPositionInfo> {
+    fn get_layer_pos_info(&mut self, layer_id: &LayerId) -> Result<LayerPositionInfo> {
         let layer = self.get_layer(layer_id)?;
         Ok(layer.pos_info.clone())
     }
-}
-
-pub fn init(transparent_color: ColorCode) -> Result<()> {
-    *unsafe { LAYER_MAN.get_force_mut() } = Some(LayerManager::new(transparent_color));
-    Ok(())
 }
 
 pub fn create_layer(x: usize, y: usize, width: usize, height: usize) -> Result<Layer> {
@@ -332,47 +322,30 @@ pub fn create_layer_from_bitmap_image(
 }
 
 pub fn push_layer(layer: Layer) -> Result<()> {
-    unsafe { LAYER_MAN.try_lock() }?
-        .as_mut()
-        .ok_or(LayerError::LayerManagerNotInitialized)?
-        .push_layer(layer);
+    unsafe { LAYER_MAN.try_lock() }?.push_layer(layer);
     Ok(())
 }
 
 pub fn draw_to_frame_buf() -> Result<()> {
-    unsafe { LAYER_MAN.try_lock() }?
-        .as_mut()
-        .ok_or(LayerError::LayerManagerNotInitialized)?
-        .draw_to_frame_buf()
+    unsafe { LAYER_MAN.try_lock() }?.draw_to_frame_buf();
+    Ok(())
 }
 
 pub fn draw_layer<F: Fn(&mut dyn Draw) -> Result<()>>(layer_id: &LayerId, draw: F) -> Result<()> {
-    draw(
-        unsafe { LAYER_MAN.try_lock() }?
-            .as_mut()
-            .ok_or(LayerError::LayerManagerNotInitialized)?
-            .get_layer(layer_id)?,
-    )
+    draw(unsafe { LAYER_MAN.try_lock() }?.get_layer(layer_id)?)
 }
 
 pub fn move_layer(layer_id: &LayerId, to_x: usize, to_y: usize) -> Result<()> {
     unsafe { LAYER_MAN.try_lock() }?
-        .as_mut()
-        .ok_or(LayerError::LayerManagerNotInitialized)?
         .get_layer(layer_id)?
         .move_to(to_x, to_y)
 }
 
 pub fn remove_layer(layer_id: &LayerId) -> Result<()> {
-    unsafe { LAYER_MAN.try_lock() }?
-        .as_mut()
-        .ok_or(LayerError::LayerManagerNotInitialized)?
-        .remove_layer(layer_id)
+    unsafe { LAYER_MAN.try_lock() }?.remove_layer(layer_id);
+    Ok(())
 }
 
 pub fn get_layer_pos_info(layer_id: &LayerId) -> Result<LayerPositionInfo> {
-    unsafe { LAYER_MAN.try_lock() }?
-        .as_mut()
-        .ok_or(LayerError::LayerManagerNotInitialized)?
-        .get_layer_pos_info(layer_id)
+    unsafe { LAYER_MAN.try_lock() }?.get_layer_pos_info(layer_id)
 }

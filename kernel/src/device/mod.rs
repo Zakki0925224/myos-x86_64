@@ -42,6 +42,10 @@ pub trait DeviceDriverFunction {
     fn poll_normal(&mut self) -> Result<Self::PollNormalOutput>;
     // interrupt polling
     fn poll_int(&mut self) -> Result<Self::PollInterruptOutput>;
+    // open device
+    fn open(&mut self) -> Result<()>;
+    // close device
+    fn close(&mut self) -> Result<()>;
     // read data from device
     fn read(&mut self) -> Result<Vec<u8>>;
     // write data to device

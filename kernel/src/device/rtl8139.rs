@@ -3,6 +3,7 @@ use crate::{
     addr::IoPortAddress,
     device,
     error::{Error, Result},
+    fs::vfs,
     net::{
         self,
         eth::{EtherType, EthernetAddress, EthernetFrame, EthernetPayload},
@@ -293,6 +294,14 @@ impl DeviceDriverFunction for Rtl8139Driver {
             Ok(())
         })?;
 
+        let dev_desc = vfs::DeviceFileDescriptor {
+            get_device_driver_info,
+            open,
+            close,
+            read,
+            write,
+        };
+        vfs::add_dev_file(dev_desc, self.device_driver_info.name)?;
         self.device_driver_info.attached = true;
         Ok(())
     }
@@ -347,8 +356,22 @@ impl DeviceDriverFunction for Rtl8139Driver {
         unimplemented!()
     }
 
+    fn open(&mut self) -> Result<()> {
+        info!("{}: open", self.device_driver_info.name);
+
+        Ok(())
+    }
+
+    fn close(&mut self) -> Result<()> {
+        info!("{}: close", self.device_driver_info.name);
+
+        Ok(())
+    }
+
     fn read(&mut self) -> Result<Vec<u8>> {
-        unimplemented!()
+        info!("{}: read", self.device_driver_info.name);
+        let s = "RTL8139!";
+        Ok(s.as_bytes().to_vec())
     }
 
     fn write(&mut self, _data: &[u8]) -> Result<()> {
@@ -367,6 +390,26 @@ pub fn probe_and_attach() -> Result<()> {
     driver.attach(())?;
     info!("{}: Attached!", driver.get_device_driver_info()?.name);
     Ok(())
+}
+
+pub fn open() -> Result<()> {
+    let mut driver = unsafe { RTL8139_DRIVER.try_lock() }?;
+    driver.open()
+}
+
+pub fn close() -> Result<()> {
+    let mut driver = unsafe { RTL8139_DRIVER.try_lock() }?;
+    driver.close()
+}
+
+pub fn read() -> Result<Vec<u8>> {
+    let mut driver = unsafe { RTL8139_DRIVER.try_lock() }?;
+    driver.read()
+}
+
+pub fn write(data: &[u8]) -> Result<()> {
+    let mut driver = unsafe { RTL8139_DRIVER.try_lock() }?;
+    driver.write(data)
 }
 
 pub fn poll_normal() -> Result<()> {

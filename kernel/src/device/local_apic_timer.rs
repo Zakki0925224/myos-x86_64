@@ -98,6 +98,7 @@ impl DeviceDriverFunction for LocalApicTimerDriver {
             self.start();
         }
 
+        self.device_driver_info.attached = true;
         Ok(())
     }
 
@@ -116,6 +117,14 @@ impl DeviceDriverFunction for LocalApicTimerDriver {
         }
 
         Ok(())
+    }
+
+    fn open(&mut self) -> Result<()> {
+        unimplemented!()
+    }
+
+    fn close(&mut self) -> Result<()> {
+        unimplemented!()
     }
 
     fn read(&mut self) -> Result<Vec<u8>> {
@@ -139,6 +148,22 @@ pub fn probe_and_attach() -> Result<()> {
     }
 
     Ok(())
+}
+
+pub fn open() -> Result<()> {
+    unsafe { LOCAL_APIC_TIMER_DRIVER.open() }
+}
+
+pub fn close() -> Result<()> {
+    unsafe { LOCAL_APIC_TIMER_DRIVER.close() }
+}
+
+pub fn read() -> Result<Vec<u8>> {
+    unsafe { LOCAL_APIC_TIMER_DRIVER.read() }
+}
+
+pub fn write(data: &[u8]) -> Result<()> {
+    unsafe { LOCAL_APIC_TIMER_DRIVER.write(data) }
 }
 
 pub fn get_current_tick() -> usize {

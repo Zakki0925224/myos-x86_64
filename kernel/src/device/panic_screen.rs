@@ -184,6 +184,14 @@ impl DeviceDriverFunction for PanicScreenDriver {
         unimplemented!()
     }
 
+    fn open(&mut self) -> Result<()> {
+        unimplemented!()
+    }
+
+    fn close(&mut self) -> Result<()> {
+        unimplemented!()
+    }
+
     fn read(&mut self) -> Result<Vec<u8>> {
         unimplemented!()
     }
@@ -206,6 +214,26 @@ pub fn probe_and_attach(graphic_info: GraphicInfo) -> Result<()> {
     info!("{}: Attached!", info.name);
 
     Ok(())
+}
+
+pub fn open() -> Result<()> {
+    let mut driver = unsafe { PANIC_SCREEN_DRIVER.try_lock() }?;
+    driver.open()
+}
+
+pub fn close() -> Result<()> {
+    let mut driver = unsafe { PANIC_SCREEN_DRIVER.try_lock() }?;
+    driver.close()
+}
+
+pub fn read() -> Result<Vec<u8>> {
+    let mut driver = unsafe { PANIC_SCREEN_DRIVER.try_lock() }?;
+    driver.read()
+}
+
+pub fn write(data: &[u8]) -> Result<()> {
+    let mut driver = unsafe { PANIC_SCREEN_DRIVER.try_lock() }?;
+    driver.write(data)
 }
 
 pub fn write_fmt(args: fmt::Arguments) -> Result<()> {

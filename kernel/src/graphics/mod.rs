@@ -33,14 +33,7 @@ pub fn enable_shadow_buf() {
     info!("graphics: Enabled shadow buffer");
 }
 
-pub fn init_layer_man(graphic_info: &GraphicInfo, transparent_color: ColorCode) {
-    if let Err(err) = multi_layer::init(transparent_color) {
-        error!("graphics: Failed to initialize layer manager: {:?}", err);
-        return;
-    }
-
-    info!("graphics: Initialized layer manager");
-
+pub fn init_layer_man(graphic_info: &GraphicInfo) {
     let (res_x, res_y) = graphic_info.resolution;
     let console_layer = match multi_layer::create_layer(0, 0, res_x, res_y - 30) {
         Ok(l) => l,

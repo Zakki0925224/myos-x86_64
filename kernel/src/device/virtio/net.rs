@@ -7,6 +7,7 @@ use crate::{
         DeviceDriverFunction, DeviceDriverInfo,
     },
     error::{Error, Result},
+    fs::vfs,
     idt,
     mem::{bitmap, paging::PAGE_SIZE},
     util::mutex::Mutex,
@@ -267,6 +268,14 @@ impl DeviceDriverFunction for VirtioNetDriver {
             Ok(())
         })?;
 
+        let dev_desc = vfs::DeviceFileDescriptor {
+            get_device_driver_info,
+            open,
+            close,
+            read,
+            write,
+        };
+        vfs::add_dev_file(dev_desc, self.device_driver_info.name)?;
         self.device_driver_info.attached = true;
         Ok(())
     }
@@ -302,6 +311,14 @@ impl DeviceDriverFunction for VirtioNetDriver {
         unimplemented!()
     }
 
+    fn open(&mut self) -> Result<()> {
+        unimplemented!()
+    }
+
+    fn close(&mut self) -> Result<()> {
+        unimplemented!()
+    }
+
     fn read(&mut self) -> Result<Vec<u8>> {
         unimplemented!()
     }
@@ -324,6 +341,26 @@ pub fn probe_and_attach() -> Result<()> {
         info!("{}: Attached!", driver.get_device_driver_info()?.name);
         Result::Ok(())
     })
+}
+
+pub fn open() -> Result<()> {
+    let mut driver = unsafe { VIRTIO_NET_DRIVER.try_lock() }?;
+    driver.open()
+}
+
+pub fn close() -> Result<()> {
+    let mut driver = unsafe { VIRTIO_NET_DRIVER.try_lock() }?;
+    driver.close()
+}
+
+pub fn read() -> Result<Vec<u8>> {
+    let mut driver = unsafe { VIRTIO_NET_DRIVER.try_lock() }?;
+    driver.read()
+}
+
+pub fn write(data: &[u8]) -> Result<()> {
+    let mut driver = unsafe { VIRTIO_NET_DRIVER.try_lock() }?;
+    driver.write(data)
 }
 
 pub fn poll_normal() -> Result<()> {

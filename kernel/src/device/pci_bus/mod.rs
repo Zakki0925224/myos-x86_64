@@ -1,6 +1,7 @@
 use super::{DeviceDriverFunction, DeviceDriverInfo};
 use crate::{
     error::{Error, Result},
+    fs::vfs,
     println,
     util::mutex::Mutex,
 };
@@ -151,6 +152,14 @@ impl DeviceDriverFunction for PciBusDriver {
     }
 
     fn attach(&mut self, _arg: Self::AttachInput) -> Result<()> {
+        let dev_desc = vfs::DeviceFileDescriptor {
+            get_device_driver_info,
+            open,
+            close,
+            read,
+            write,
+        };
+        vfs::add_dev_file(dev_desc, self.device_driver_info.name)?;
         self.device_driver_info.attached = true;
         Ok(())
     }
@@ -160,6 +169,14 @@ impl DeviceDriverFunction for PciBusDriver {
     }
 
     fn poll_int(&mut self) -> Result<Self::PollInterruptOutput> {
+        unimplemented!()
+    }
+
+    fn open(&mut self) -> Result<()> {
+        unimplemented!()
+    }
+
+    fn close(&mut self) -> Result<()> {
         unimplemented!()
     }
 
@@ -187,6 +204,22 @@ pub fn probe_and_attach() -> Result<()> {
     info!("{}: Scanning devices...", driver_name);
     driver.scan_pci_devices();
     Ok(())
+}
+
+pub fn open() -> Result<()> {
+    unsafe { PCI_BUS_DRIVER.try_lock() }?.open()
+}
+
+pub fn close() -> Result<()> {
+    unsafe { PCI_BUS_DRIVER.try_lock() }?.close()
+}
+
+pub fn read() -> Result<Vec<u8>> {
+    unsafe { PCI_BUS_DRIVER.try_lock() }?.read()
+}
+
+pub fn write(data: &[u8]) -> Result<()> {
+    unsafe { PCI_BUS_DRIVER.try_lock() }?.write(data)
 }
 
 pub fn lspci() -> Result<()> {

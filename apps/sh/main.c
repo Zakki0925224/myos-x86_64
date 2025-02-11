@@ -86,6 +86,7 @@ void exec_cmd(char *cmd)
             // clear
             cwdenames[i] = '\0';
         }
+        printf("\n");
     }
     else if (strcmp(splitted_buf[0], "cat") == 0)
     {

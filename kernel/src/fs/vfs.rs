@@ -1,11 +1,17 @@
 use super::{fat::Fat, path::Path};
 use crate::{
+    device::DeviceDriverInfo,
     error::{Error, Result},
     fs::fat::dir_entry::Attribute,
     util::mutex::Mutex,
 };
-use alloc::{collections::btree_map::BTreeMap, string::String, vec::Vec};
+use alloc::{
+    collections::btree_map::BTreeMap,
+    string::{String, ToString},
+    vec::Vec,
+};
 use core::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use log::debug;
 
 static mut VFS: Mutex<VirtualFileSystem> = Mutex::new(VirtualFileSystem::new());
 
@@ -58,14 +64,19 @@ pub struct FileDescriptor {
     file_id: FileId,
 }
 
-#[derive(Debug, PartialEq, Eq)]
-enum SpecialFile {
-    Device, // TODO
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DeviceFileDescriptor {
+    pub get_device_driver_info: fn() -> Result<DeviceDriverInfo>,
+    pub open: fn() -> Result<()>,
+    pub close: fn() -> Result<()>,
+    pub read: fn() -> Result<Vec<u8>>,
+    pub write: fn(&[u8]) -> Result<()>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum FileType {
-    File,
+    VirtualFile, // for file system
+    DeviceFile(DeviceFileDescriptor),
     Directory,
 }
 
@@ -84,9 +95,9 @@ struct FileInfo {
 }
 
 impl FileInfo {
-    fn new_directory(name: String, parent: FileId) -> Self {
+    fn new(ty: FileType, name: String, parent: FileId) -> Self {
         Self {
-            ty: FileType::Directory,
+            ty,
             name,
             fs: None,
             parent,
@@ -119,6 +130,7 @@ impl FileInfo {
 pub enum VirtualFileSystemError {
     NotInitialized,
     NoSuchFileOrDirectoryError(Option<Path>),
+    FileOrDirectoryAlreadyExistsError(Path),
     InvalidFileTypeError((FileType, Option<Path>)),
     BlockingFileResourceError(FileDescriptorNumber),
     ReleasedFileResourceError(FileDescriptorNumber),
@@ -162,24 +174,14 @@ impl VirtualFileSystem {
         let dev_dir_path = root_dir_path.join("dev");
         let initramfs_dir_path = mnt_dir_path.join("initramfs");
 
+        // create root directory
         let root_id = FileId::new();
-        let mnt_id = FileId::new();
-        let dev_id = FileId::new();
-        let initramfs_id = FileId::new();
-
-        let mut root_dir = FileInfo::new_directory(root_dir_path.name(), root_id);
-        let mut mnt_dir = FileInfo::new_directory(mnt_dir_path.name(), root_id);
-        let dev_dir = FileInfo::new_directory(dev_dir_path.name(), root_id);
-        let initramfs_dir = FileInfo::new_directory(initramfs_dir_path.name(), mnt_id);
-
-        root_dir.children.push(mnt_id);
-        root_dir.children.push(dev_id);
-        mnt_dir.children.push(initramfs_id);
-
+        let root_dir = FileInfo::new(FileType::Directory, root_dir_path.name(), root_id);
         self.insert_file(root_id, root_dir)?;
-        self.insert_file(mnt_id, mnt_dir)?;
-        self.insert_file(dev_id, dev_dir)?;
-        self.insert_file(initramfs_id, initramfs_dir)?;
+
+        self.mkdir(&mnt_dir_path)?;
+        self.mkdir(&dev_dir_path)?;
+        self.mkdir(&initramfs_dir_path)?;
 
         Ok(())
     }
@@ -206,7 +208,6 @@ impl VirtualFileSystem {
                 Path::CURRENT_DIR => continue,
                 Path::PARENT_DIR => {
                     let parent_id = file_ref.parent;
-                    file_ref.check_integrity().ok()?;
                     file_ref = self.find_file(&parent_id)?;
                     file_id = parent_id;
                     continue;
@@ -267,7 +268,7 @@ impl VirtualFileSystem {
         )?;
         if file_ref.ty != FileType::Directory {
             return Err(VirtualFileSystemError::InvalidFileTypeError((
-                file_ref.ty,
+                file_ref.ty.clone(),
                 Some(path.clone()),
             ))
             .into());
@@ -278,6 +279,55 @@ impl VirtualFileSystem {
         Ok(())
     }
 
+    fn add_file(&mut self, path: &Path, file_ty: FileType) -> Result<()> {
+        if self.root_id.is_none() {
+            return Err(VirtualFileSystemError::NotInitialized.into());
+        }
+
+        let (parent_id, parent_ref) = self.find_file_by_path(&path.parent()).ok_or(
+            VirtualFileSystemError::NoSuchFileOrDirectoryError(Some(path.clone())),
+        )?;
+
+        if parent_ref.ty != FileType::Directory {
+            return Err(VirtualFileSystemError::InvalidFileTypeError((
+                parent_ref.ty.clone(),
+                Some(path.clone()),
+            ))
+            .into());
+        }
+
+        let file_name = path.name();
+        let children_ids = parent_ref.children.clone();
+        if children_ids
+            .iter()
+            .any(|id| self.find_file(id).map_or(false, |f| f.name == file_name))
+        {
+            return Err(
+                VirtualFileSystemError::FileOrDirectoryAlreadyExistsError(path.clone()).into(),
+            );
+        }
+
+        let file_id = FileId::new();
+        let file_ref = FileInfo::new(file_ty, file_name, parent_id);
+
+        // reacquire parent_ref
+        let (_, parent_ref) = self.find_file_by_path_mut(&path.parent()).unwrap();
+        parent_ref.children.push(file_id);
+
+        self.insert_file(file_id, file_ref)?;
+
+        Ok(())
+    }
+
+    fn mkdir(&mut self, path: &Path) -> Result<()> {
+        self.add_file(path, FileType::Directory)
+    }
+
+    fn add_dev_file(&mut self, desc: DeviceFileDescriptor, file_name: &str) -> Result<()> {
+        let dev_file_path = Path::root().join("dev").join(file_name);
+        self.add_file(&dev_file_path, FileType::DeviceFile(desc))
+    }
+
     fn mount_fs(&mut self, path: &Path, fs: FileSystem) -> Result<()> {
         let (mp_file_id, mp_file_ref) = self.find_file_by_path_mut(path).ok_or(
             VirtualFileSystemError::NoSuchFileOrDirectoryError(Some(path.clone())),
@@ -285,7 +335,7 @@ impl VirtualFileSystem {
 
         if mp_file_ref.ty != FileType::Directory {
             return Err(VirtualFileSystemError::InvalidFileTypeError((
-                mp_file_ref.ty,
+                mp_file_ref.ty.clone(),
                 Some(path.clone()),
             ))
             .into());
@@ -295,6 +345,7 @@ impl VirtualFileSystem {
         mp_file_ref.children.clear();
 
         // cache fs
+        // TODO: use add_file()
         let cached_files: Vec<(FileId, FileInfo)> = match &fs {
             FileSystem::Fat(fat) => {
                 fn cache_recursively(
@@ -316,7 +367,7 @@ impl VirtualFileSystem {
                         let mut file_info = FileInfo {
                             ty: match meta.attr {
                                 Attribute::Directory => FileType::Directory,
-                                _ => FileType::File,
+                                _ => FileType::VirtualFile,
                             },
                             name: meta.name,
                             fs: None,
@@ -346,7 +397,6 @@ impl VirtualFileSystem {
         };
 
         mp_file_ref.fs = Some(fs);
-        mp_file_ref.check_integrity()?;
 
         for (id, info) in cached_files {
             self.insert_file(id, info)?;
@@ -387,7 +437,7 @@ impl VirtualFileSystem {
             }
 
             let parent_ref = self.find_file(&parent_id)?;
-            s = format!("{}/{}", parent_ref.name, s);
+            s = format!("{}{}{}", parent_ref.name, Path::SEPARATOR, s);
             parent_id = parent_ref.parent;
         }
 
@@ -399,12 +449,16 @@ impl VirtualFileSystem {
         let (file_id, file_ref) = self.find_file_by_path(path).ok_or(
             VirtualFileSystemError::NoSuchFileOrDirectoryError(Some(path.clone())),
         )?;
-        if file_ref.ty != FileType::File {
-            return Err(VirtualFileSystemError::InvalidFileTypeError((
-                file_ref.ty,
-                Some(path.clone()),
-            ))
-            .into());
+
+        match &file_ref.ty {
+            FileType::VirtualFile | FileType::DeviceFile(_) => (),
+            _ => {
+                return Err(VirtualFileSystemError::InvalidFileTypeError((
+                    file_ref.ty.clone(),
+                    Some(path.clone()),
+                ))
+                .into());
+            }
         }
 
         if let Some(fd) = self.fds.iter().find(|fd| fd.file_id == file_id) {
@@ -417,13 +471,34 @@ impl VirtualFileSystem {
             status: FileDescriptorStatus::Open,
             file_id,
         };
-        self.fds.push(fd.clone());
 
+        // device file
+        match &file_ref.ty {
+            FileType::DeviceFile(desc) => {
+                (desc.open)()?;
+            }
+            _ => (),
+        }
+
+        self.fds.push(fd.clone());
         Ok(fd)
     }
 
     fn close_file(&mut self, fd_num: FileDescriptorNumber) -> Result<()> {
         if let Some(index) = self.fds.iter().position(|f| f.num == fd_num) {
+            let file_id = self.fds[index].file_id;
+            let file_ref = self
+                .find_file(&file_id)
+                .ok_or(VirtualFileSystemError::NoSuchFileOrDirectoryError(None))?;
+
+            // device file
+            match &file_ref.ty {
+                FileType::DeviceFile(desc) => {
+                    (desc.close)()?;
+                }
+                _ => (),
+            }
+
             self.fds.remove(index);
         } else {
             return Err(VirtualFileSystemError::ReleasedFileResourceError(fd_num).into());
@@ -449,27 +524,27 @@ impl VirtualFileSystem {
         let file_path = self
             .abs_path_by_file(file_ref)
             .ok_or(VirtualFileSystemError::NoSuchFileOrDirectoryError(None))?;
-
-        if file_ref.ty != FileType::File {
-            return Err(VirtualFileSystemError::InvalidFileTypeError((
-                file_ref.ty,
-                Some(file_path),
-            ))
-            .into());
-        }
-
-        if let Some((fs, path)) = self.find_fs(file_ref) {
-            let diffed_path = path.diff(&file_path);
-
-            match fs {
-                FileSystem::Fat(fat) => {
-                    let (_, bytes) = fat.get_file_by_abs_path(&diffed_path)?;
-                    return Ok(bytes);
+        match &file_ref.ty {
+            FileType::VirtualFile => {
+                let (fs, fs_path) = self.find_fs(file_ref).unwrap();
+                match fs {
+                    FileSystem::Fat(fat) => {
+                        let (_, bytes) = fat.get_file_by_abs_path(&file_path.diff(&fs_path))?;
+                        return Ok(bytes);
+                    }
                 }
             }
+            FileType::DeviceFile(desc) => {
+                return (desc.read)();
+            }
+            _ => {
+                return Err(VirtualFileSystemError::InvalidFileTypeError((
+                    file_ref.ty.clone(),
+                    Some(file_path),
+                ))
+                .into());
+            }
         }
-
-        unimplemented!()
     }
 }
 
@@ -523,4 +598,9 @@ pub fn close_file(fd_num: &FileDescriptorNumber) -> Result<()> {
 pub fn read_file(fd_num: &FileDescriptorNumber) -> Result<Vec<u8>> {
     let vfs = unsafe { VFS.try_lock() }?;
     vfs.read_file(*fd_num)
+}
+
+pub fn add_dev_file(desc: DeviceFileDescriptor, file_name: &str) -> Result<()> {
+    let mut vfs = unsafe { VFS.try_lock() }?;
+    vfs.add_dev_file(desc, file_name)
 }

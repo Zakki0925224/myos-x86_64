@@ -1,5 +1,5 @@
 use super::{DeviceDriverFunction, DeviceDriverInfo};
-use crate::{arch, error::Result, util::sleep};
+use crate::{arch, error::Result, fs::vfs, util::sleep};
 use alloc::vec::Vec;
 use core::num::NonZeroU8;
 use log::info;
@@ -100,6 +100,14 @@ impl DeviceDriverFunction for SpeakerDriver {
     }
 
     fn attach(&mut self, _arg: Self::AttachInput) -> Result<()> {
+        let dev_desc = vfs::DeviceFileDescriptor {
+            get_device_driver_info,
+            open,
+            close,
+            read,
+            write,
+        };
+        vfs::add_dev_file(dev_desc, self.device_driver_info.name)?;
         self.device_driver_info.attached = true;
         Ok(())
     }
@@ -109,6 +117,14 @@ impl DeviceDriverFunction for SpeakerDriver {
     }
 
     fn poll_int(&mut self) -> Result<Self::PollInterruptOutput> {
+        unimplemented!()
+    }
+
+    fn open(&mut self) -> Result<()> {
+        unimplemented!()
+    }
+
+    fn close(&mut self) -> Result<()> {
         unimplemented!()
     }
 
@@ -133,6 +149,22 @@ pub fn probe_and_attach() -> Result<()> {
     }
 
     Ok(())
+}
+
+pub fn open() -> Result<()> {
+    unsafe { SPEAKER_DRIVER.open() }
+}
+
+pub fn close() -> Result<()> {
+    unsafe { SPEAKER_DRIVER.close() }
+}
+
+pub fn read() -> Result<Vec<u8>> {
+    unsafe { SPEAKER_DRIVER.read() }
+}
+
+pub fn write(data: &[u8]) -> Result<()> {
+    unsafe { SPEAKER_DRIVER.write(data) }
 }
 
 pub fn beep() {

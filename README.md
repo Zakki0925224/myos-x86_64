@@ -34,9 +34,10 @@ This is a replacement project for the previous **[myos](https://github.com/Zakki
     -   [ ] xHCI (WIP)
     -   [ ] VirtIO (WIP)
         -   [ ] virtio-net (WIP)
+-   [x] File system
+    -   [x] Own VFS
+    -   [x] FAT32 (read only)
 -   [x] GUI support by using UEFI GOP
--   [x] Initramfs (FAT32 formatted image)
--   [x] My own virtual file system (WIP, read only)
 -   [x] [Userland applications](/apps/) (libc for myos available [here](/apps/libc/))
 -   [x] Async runtime
 -   [x] DOOM challenge!
