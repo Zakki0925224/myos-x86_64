@@ -357,21 +357,15 @@ impl DeviceDriverFunction for Rtl8139Driver {
     }
 
     fn open(&mut self) -> Result<()> {
-        info!("{}: open", self.device_driver_info.name);
-
-        Ok(())
+        unimplemented!()
     }
 
     fn close(&mut self) -> Result<()> {
-        info!("{}: close", self.device_driver_info.name);
-
-        Ok(())
+        unimplemented!()
     }
 
     fn read(&mut self) -> Result<Vec<u8>> {
-        info!("{}: read", self.device_driver_info.name);
-        let s = "RTL8139!";
-        Ok(s.as_bytes().to_vec())
+        unimplemented!()
     }
 
     fn write(&mut self, _data: &[u8]) -> Result<()> {

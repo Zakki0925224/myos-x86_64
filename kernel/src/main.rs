@@ -98,6 +98,9 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
     // clear console input for PS/2 keyboard magic byte
     let _ = device::console::clear_input_buf();
 
+    // initialize my flavor driver
+    device::zakki::probe_and_attach().unwrap();
+
     // initialize pci-bus driver
     if let Err(err) = device::pci_bus::probe_and_attach() {
         let name = device::pci_bus::get_device_driver_info().unwrap().name;

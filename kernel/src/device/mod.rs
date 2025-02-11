@@ -12,6 +12,7 @@ pub mod speaker;
 pub mod uart;
 pub mod usb;
 pub mod virtio;
+pub mod zakki;
 
 #[derive(Debug, Clone)]
 pub struct DeviceDriverInfo {
