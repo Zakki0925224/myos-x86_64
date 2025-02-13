@@ -327,8 +327,7 @@ pub fn push_layer(layer: Layer) -> Result<()> {
 }
 
 pub fn draw_to_frame_buf() -> Result<()> {
-    unsafe { LAYER_MAN.try_lock() }?.draw_to_frame_buf();
-    Ok(())
+    unsafe { LAYER_MAN.try_lock() }?.draw_to_frame_buf()
 }
 
 pub fn draw_layer<F: Fn(&mut dyn Draw) -> Result<()>>(layer_id: &LayerId, draw: F) -> Result<()> {
@@ -342,8 +341,7 @@ pub fn move_layer(layer_id: &LayerId, to_x: usize, to_y: usize) -> Result<()> {
 }
 
 pub fn remove_layer(layer_id: &LayerId) -> Result<()> {
-    unsafe { LAYER_MAN.try_lock() }?.remove_layer(layer_id);
-    Ok(())
+    unsafe { LAYER_MAN.try_lock() }?.remove_layer(layer_id)
 }
 
 pub fn get_layer_pos_info(layer_id: &LayerId) -> Result<LayerPositionInfo> {

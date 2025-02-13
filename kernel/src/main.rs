@@ -51,13 +51,27 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
     let _ = device::uart::probe_and_attach();
 
     // initialize memory management
-    mem::init(boot_info.mem_map);
+    mem::init(boot_info.mem_map).unwrap();
 
     // initialize GDT
     gdt::init();
     // initialize PIC and IDT
     idt::init_pic();
-    idt::init_idt();
+    idt::init_idt().unwrap();
+
+    // initialize frame buffer, console
+    graphics::init(
+        &boot_info.graphic_info,
+        GLOBAL_THEME.back_color,
+        GLOBAL_THEME.fore_color,
+    )
+    .unwrap();
+
+    // initialize graphics shadow buffer and layer manager
+    graphics::enable_shadow_buf().unwrap();
+    graphics::init_layer_man(&boot_info.graphic_info).unwrap();
+    // initialize simple window manager
+    graphics::init_simple_wm().unwrap();
 
     // initialize ACPI
     acpi::init(boot_info.rsdp_virt_addr.unwrap().into()).unwrap();
@@ -65,24 +79,12 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
     // initialize and start local APIC timer
     device::local_apic_timer::probe_and_attach().unwrap();
 
-    // initialize frame buffer, console
-    graphics::init(
-        &boot_info.graphic_info,
-        GLOBAL_THEME.back_color,
-        GLOBAL_THEME.fore_color,
-    );
-
-    // initialize graphics shadow buffer and layer manager
-    graphics::enable_shadow_buf();
-    graphics::init_layer_man(&boot_info.graphic_info);
-    // initialize simple window manager
-    graphics::init_simple_wm();
-
     // initialize initramfs, VFS
     fs::init(
         boot_info.initramfs_start_virt_addr.into(),
         &boot_info.kernel_config,
-    );
+    )
+    .unwrap();
 
     // initialize PS/2 keyboard and mouse
     if let Err(err) = device::ps2_keyboard::probe_and_attach() {
@@ -102,10 +104,7 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
     device::zakki::probe_and_attach().unwrap();
 
     // initialize pci-bus driver
-    if let Err(err) = device::pci_bus::probe_and_attach() {
-        let name = device::pci_bus::get_device_driver_info().unwrap().name;
-        error!("{}: Failed to probe or attach device: {:?}", name, err);
-    }
+    device::pci_bus::probe_and_attach().unwrap();
 
     // initialize xhc driver
     // if let Err(err) = device::usb::xhc::probe_and_attach() {

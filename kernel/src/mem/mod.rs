@@ -1,38 +1,35 @@
 use crate::{
+    error::Result,
     mem::paging::{EntryMode, PageWriteThroughLevel, ReadWrite, PAGE_SIZE},
     println,
 };
 use common::mem_desc::MemoryDescriptor;
-use log::{error, info};
+use log::info;
 
 pub mod allocator;
 pub mod bitmap;
 pub mod paging;
 
-pub fn init(mem_map: &[MemoryDescriptor]) {
-    if let Err(err) = bitmap::init(mem_map) {
-        panic!("mem: {:?}", err);
-    }
+pub fn init(mem_map: &[MemoryDescriptor]) -> Result<()> {
+    bitmap::init(mem_map)?;
     info!("mem: Bitmap memory manager initialized");
 
     let start = PAGE_SIZE as u64;
-    let end = bitmap::get_total_mem_size().unwrap() as u64;
+    let end = bitmap::get_total_mem_size()? as u64;
 
-    if let Err(err) = paging::create_new_page_table(
+    paging::create_new_page_table(
         start.into(),
         end.into(),
         start.into(),
         ReadWrite::Write,
         EntryMode::Supervisor,
         PageWriteThroughLevel::WriteBack,
-    ) {
-        error!("paging: Failed to create new page table: {:?}", err);
-    }
+    )?;
 
-    if let Err(err) = allocator::init_heap() {
-        panic!("mem: {:?}", err);
-    }
+    allocator::init_heap()?;
     info!("mem: Heap allocator initialized");
+
+    Ok(())
 }
 
 pub fn free() {

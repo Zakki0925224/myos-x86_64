@@ -4,7 +4,11 @@ use super::{
     font::{FONT, TAB_DISP_STR},
     multi_layer::{Layer, LayerPositionInfo},
 };
-use crate::{arch::addr::*, error::Result, util::mutex::Mutex};
+use crate::{
+    arch::{self, addr::*},
+    error::Result,
+    util::mutex::Mutex,
+};
 use alloc::vec::Vec;
 use common::graphic_info::{GraphicInfo, PixelFormat};
 use core::slice;
@@ -151,11 +155,9 @@ impl FrameBuffer {
         let mut shadow_buf = vec![0; len];
 
         // copy data from frame buf
-        let shadow_buf_ptr = shadow_buf.as_mut_ptr();
-        let frame_buf_ptr = self.frame_buf_virt_addr.as_ptr();
-
         unsafe {
-            shadow_buf_ptr.copy_from_nonoverlapping(frame_buf_ptr, len);
+            let slice = slice::from_raw_parts(self.frame_buf_virt_addr.as_ptr(), len);
+            shadow_buf.copy_from_slice(slice);
         }
 
         self.shadow_buf = Some(shadow_buf);
@@ -193,30 +195,17 @@ impl FrameBuffer {
         for y in layer_y..layer_y_end {
             let layer_buf_offset = (layer_width * (y - layer_y) * 4) as isize;
             let frame_buf_offset = ((res_x * y + layer_x) * 4) as isize;
+            let bytes_count = layer_width.min(res_x - layer_x) * 4;
 
             unsafe {
                 let buf = slice::from_raw_parts_mut(
-                    layer_buf_ptr.offset(layer_buf_offset).cast::<u32>(),
-                    layer_width,
+                    layer_buf_ptr.offset(layer_buf_offset),
+                    layer_width * 4,
                 );
-
-                // TODO: replace transparent color to frame buf color
-                //but hangged up in this code
-                // for (i, data) in buf.iter_mut().enumerate() {
-                //     if *data == transparent_color {
-                //         *data = frame_buf_ptr
-                //             .offset(frame_buf_offset + (i as isize) * 4)
-                //             .cast::<u32>()
-                //             .read();
-                //     }
-                // }
 
                 frame_buf_ptr
                     .offset(frame_buf_offset)
-                    .copy_from_nonoverlapping(
-                        buf.as_ptr().cast::<u8>(),
-                        layer_width.min(res_x - layer_x) * 4,
-                    );
+                    .copy_from_nonoverlapping(buf.as_ptr(), bytes_count);
             }
         }
 
@@ -276,29 +265,35 @@ impl FrameBuffer {
 }
 
 pub fn init(graphic_info: &GraphicInfo) -> Result<()> {
-    *unsafe { FRAME_BUF.get_force_mut() } = Some(FrameBuffer::new(graphic_info));
-    Ok(())
+    arch::disabled_int(|| {
+        let mut frame_buf = unsafe { FRAME_BUF.try_lock() }?;
+        *frame_buf = Some(FrameBuffer::new(graphic_info));
+        Ok(())
+    })
 }
 
 pub fn get_resolution() -> Result<(usize, usize)> {
-    Ok(unsafe { FRAME_BUF.try_lock() }?
-        .as_ref()
-        .ok_or(FrameBufferError::NotInitialized)?
-        .get_resolution())
+    arch::disabled_int(|| {
+        let frame_buf = unsafe { FRAME_BUF.try_lock() }?;
+        let frame_buf = frame_buf.as_ref().ok_or(FrameBufferError::NotInitialized)?;
+        Ok(frame_buf.get_resolution())
+    })
 }
 
 pub fn get_stride() -> Result<usize> {
-    Ok(unsafe { FRAME_BUF.try_lock() }?
-        .as_ref()
-        .ok_or(FrameBufferError::NotInitialized)?
-        .get_stride())
+    arch::disabled_int(|| {
+        let frame_buf = unsafe { FRAME_BUF.try_lock() }?;
+        let frame_buf = frame_buf.as_ref().ok_or(FrameBufferError::NotInitialized)?;
+        Ok(frame_buf.get_stride())
+    })
 }
 
 pub fn get_format() -> Result<PixelFormat> {
-    Ok(unsafe { FRAME_BUF.try_lock() }?
-        .as_ref()
-        .ok_or(FrameBufferError::NotInitialized)?
-        .get_format())
+    arch::disabled_int(|| {
+        let frame_buf = unsafe { FRAME_BUF.try_lock() }?;
+        let frame_buf = frame_buf.as_ref().ok_or(FrameBufferError::NotInitialized)?;
+        Ok(frame_buf.get_format())
+    })
 }
 
 pub fn draw_rect(
@@ -308,52 +303,64 @@ pub fn draw_rect(
     height: usize,
     color_code: ColorCode,
 ) -> Result<()> {
-    unsafe { FRAME_BUF.try_lock() }?
-        .as_mut()
-        .ok_or(FrameBufferError::NotInitialized)?
-        .draw_rect(x, y, width, height, color_code)
+    arch::disabled_int(|| {
+        let mut frame_buf = unsafe { FRAME_BUF.try_lock() }?;
+        let frame_buf = frame_buf.as_mut().ok_or(FrameBufferError::NotInitialized)?;
+        frame_buf.draw_rect(x, y, width, height, color_code)?;
+        Ok(())
+    })
 }
 
 pub fn draw_font(x: usize, y: usize, c: char, color_code: ColorCode) -> Result<()> {
-    unsafe { FRAME_BUF.try_lock() }?
-        .as_mut()
-        .ok_or(FrameBufferError::NotInitialized)?
-        .draw_font(x, y, c, color_code)
+    arch::disabled_int(|| {
+        let mut frame_buf = unsafe { FRAME_BUF.try_lock() }?;
+        let frame_buf = frame_buf.as_mut().ok_or(FrameBufferError::NotInitialized)?;
+        frame_buf.draw_font(x, y, c, color_code)?;
+        Ok(())
+    })
 }
 
 pub fn copy(x: usize, y: usize, to_x: usize, to_y: usize) -> Result<()> {
-    unsafe { FRAME_BUF.try_lock() }?
-        .as_mut()
-        .ok_or(FrameBufferError::NotInitialized)?
-        .copy(x, y, to_x, to_y)
+    arch::disabled_int(|| {
+        let mut frame_buf = unsafe { FRAME_BUF.try_lock() }?;
+        let frame_buf = frame_buf.as_mut().ok_or(FrameBufferError::NotInitialized)?;
+        frame_buf.copy(x, y, to_x, to_y)?;
+        Ok(())
+    })
 }
 
 pub fn fill(color_code: ColorCode) -> Result<()> {
-    unsafe { FRAME_BUF.try_lock() }?
-        .as_mut()
-        .ok_or(FrameBufferError::NotInitialized)?
-        .fill(color_code)
+    arch::disabled_int(|| {
+        let mut frame_buf = unsafe { FRAME_BUF.try_lock() }?;
+        let frame_buf = frame_buf.as_mut().ok_or(FrameBufferError::NotInitialized)?;
+        frame_buf.fill(color_code)?;
+        Ok(())
+    })
 }
 
 pub fn enable_shadow_buf() -> Result<()> {
-    unsafe { FRAME_BUF.try_lock() }?
-        .as_mut()
-        .ok_or(FrameBufferError::NotInitialized)?
-        .enable_shadow_buf();
-    Ok(())
+    arch::disabled_int(|| {
+        let mut frame_buf = unsafe { FRAME_BUF.try_lock() }?;
+        let frame_buf = frame_buf.as_mut().ok_or(FrameBufferError::NotInitialized)?;
+        frame_buf.enable_shadow_buf();
+        Ok(())
+    })
 }
 
 pub fn apply_layer_buf(layer: &mut Layer) -> Result<()> {
-    unsafe { FRAME_BUF.try_lock() }?
-        .as_mut()
-        .ok_or(FrameBufferError::NotInitialized)?
-        .apply_layer_buf(layer)
+    arch::disabled_int(|| {
+        let mut frame_buf = unsafe { FRAME_BUF.try_lock() }?;
+        let frame_buf = frame_buf.as_mut().ok_or(FrameBufferError::NotInitialized)?;
+        frame_buf.apply_layer_buf(layer)?;
+        Ok(())
+    })
 }
 
 pub fn apply_shadow_buf() -> Result<()> {
-    unsafe { FRAME_BUF.try_lock() }?
-        .as_mut()
-        .ok_or(FrameBufferError::NotInitialized)?
-        .apply_shadow_buf();
-    Ok(())
+    arch::disabled_int(|| {
+        let frame_buf = unsafe { FRAME_BUF.try_lock() }?;
+        let frame_buf = frame_buf.as_ref().ok_or(FrameBufferError::NotInitialized)?;
+        frame_buf.apply_shadow_buf();
+        Ok(())
+    })
 }

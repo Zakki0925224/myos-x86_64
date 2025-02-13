@@ -109,12 +109,9 @@ impl DeviceDriverFunction for LocalApicTimerDriver {
     fn poll_int(&mut self) -> Result<Self::PollInterruptOutput> {
         self.inc_tick();
 
-        if get_current_ms().is_some() {
-            let _ = multi_layer::draw_to_frame_buf();
-            let _ = frame_buf::apply_shadow_buf();
-
-            let _ = task::poll();
-        }
+        let _ = multi_layer::draw_to_frame_buf();
+        let _ = frame_buf::apply_shadow_buf();
+        let _ = task::poll();
 
         Ok(())
     }

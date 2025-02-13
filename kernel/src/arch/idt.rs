@@ -312,47 +312,42 @@ pub fn init_pic() {
     info!("idt: PIC initialized");
 }
 
-pub fn init_idt() {
-    let mut idt = unsafe { IDT.try_lock() }.unwrap();
+pub fn init_idt() -> Result<()> {
+    let mut idt = unsafe { IDT.try_lock() }?;
     idt.set_handler(
         VEC_BREAKPOINT,
         InterruptHandler::WithStackFrame(breakpoint_handler),
         GateType::Trap,
-    )
-    .unwrap();
+    )?;
     idt.set_handler(
         VEC_GENERAL_PROTECTION,
         InterruptHandler::WithStackFrame(general_protection_fault_handler),
         GateType::Interrupt,
-    )
-    .unwrap();
+    )?;
     idt.set_handler(
         VEC_PAGE_FAULT,
         InterruptHandler::PageFault(page_fault_handler),
         GateType::Interrupt,
-    )
-    .unwrap();
+    )?;
     idt.set_handler(
         VEC_DOUBLE_FAULT,
         InterruptHandler::Normal(double_fault_handler),
         GateType::Interrupt,
-    )
-    .unwrap();
+    )?;
     idt.set_handler(
         VEC_PS2_KBD,
         InterruptHandler::Normal(device::ps2_keyboard::poll_int_ps2_kbd_driver),
         GateType::Interrupt,
-    )
-    .unwrap();
+    )?;
     idt.set_handler(
         VEC_PS2_MOUSE,
         InterruptHandler::Normal(device::ps2_mouse::poll_int_ps2_mouse_driver),
         GateType::Interrupt,
-    )
-    .unwrap();
+    )?;
     idt.load();
 
     info!("idt: Initialized");
+    Ok(())
 }
 
 pub fn set_handler(vec_num: usize, handler: InterruptHandler, gate_type: GateType) -> Result<()> {
