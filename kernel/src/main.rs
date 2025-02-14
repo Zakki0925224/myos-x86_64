@@ -54,7 +54,7 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
     mem::init(boot_info.mem_map).unwrap();
 
     // initialize GDT
-    gdt::init();
+    gdt::init().unwrap();
     // initialize PIC and IDT
     idt::init_pic();
     idt::init_idt().unwrap();

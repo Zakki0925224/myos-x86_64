@@ -258,9 +258,7 @@ def make_img():
 
 def make_iso():
     make_img()
-    run_cmd(
-        f"dd if=./{OUTPUT_DIR}/{IMG_FILE} of=./{OUTPUT_DIR}/{ISO_FILE} bs=1M count=128"
-    )
+    run_cmd(f"dd if=./{OUTPUT_DIR}/{IMG_FILE} of=./{OUTPUT_DIR}/{ISO_FILE} bs=1M")
 
 
 def run():

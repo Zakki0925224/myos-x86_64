@@ -7,6 +7,7 @@ use crate::{
         },
         tss,
     },
+    error::Result,
     util::mutex::Mutex,
 };
 use core::mem::size_of;
@@ -142,7 +143,7 @@ impl GlobalDescriptorTable {
     }
 }
 
-pub fn init() {
+pub fn init() -> Result<()> {
     let mut gdt1 = SegmentDescriptor::new();
     let mut gdt2 = SegmentDescriptor::new();
     let mut gdt3 = SegmentDescriptor::new();
@@ -156,7 +157,7 @@ pub fn init() {
     gdt3.set_data_seg(SegmentType::DataReadWrite, 3, 0, 0x000f_ffff);
     gdt4.set_code_seg(SegmentType::CodeExecuteRead, 3, 0, 0x000f_ffff);
 
-    let tss_addr = tss::init().expect("gdt: Failed to initialize TSS");
+    let tss_addr = tss::init()?;
 
     {
         let mut gdt = unsafe { GDT.try_lock() }.unwrap();
@@ -175,4 +176,5 @@ pub fn init() {
 
     info!("gdt: Initialized");
     info!("gdt: TSS initialized");
+    Ok(())
 }
