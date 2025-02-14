@@ -13,11 +13,16 @@ pub mod simple_window_manager;
 
 pub fn init(
     graphic_info: &GraphicInfo,
-    back_color: ColorCode,
-    fore_color: ColorCode,
+    console_back_color: ColorCode,
+    console_fore_color: ColorCode,
+    console_is_scrollable: bool,
 ) -> Result<()> {
     frame_buf::init(graphic_info)?;
-    frame_buf_console::init(back_color, fore_color)?;
+    frame_buf_console::init(
+        console_back_color,
+        console_fore_color,
+        console_is_scrollable,
+    )?;
 
     info!("graphics: Initialized frame buffer");
     Ok(())

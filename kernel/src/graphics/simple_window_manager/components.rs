@@ -248,6 +248,7 @@ impl Component for Window {
                 7,
                 &format!("<{}> {}", self.layer_id.get(), self.title),
                 GLOBAL_THEME.wm_window_titlebar_fore_color,
+                GLOBAL_THEME.wm_window_titlebar_back_color,
             )?;
             Ok(())
         })?;
@@ -427,7 +428,13 @@ impl Panel {
 
     pub fn draw_string(&self, x: usize, y: usize, s: &str) -> Result<()> {
         multi_layer::draw_layer(&self.layer_id, |l| {
-            l.draw_string(x, y, s, GLOBAL_THEME.wm_component_fore_color)
+            l.draw_string(
+                x,
+                y,
+                s,
+                GLOBAL_THEME.wm_component_fore_color,
+                GLOBAL_THEME.wm_component_back_color,
+            )
         })
     }
 }
@@ -517,6 +524,7 @@ impl Component for Button {
                 height / 2 - f_h / 2,
                 &self.title,
                 GLOBAL_THEME.wm_component_fore_color,
+                GLOBAL_THEME.wm_component_back_color,
             )?;
 
             Ok(())
@@ -594,7 +602,7 @@ impl Component for Label {
             let mut c_y = 0;
 
             for line in self.label.lines() {
-                l.draw_string(c_x, c_y, line, self.fore_color)?;
+                l.draw_string(c_x, c_y, line, self.fore_color, self.back_color)?;
                 c_y += f_h;
             }
 

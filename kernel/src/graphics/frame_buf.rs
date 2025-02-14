@@ -54,7 +54,14 @@ impl Draw for FrameBuffer {
         Ok(())
     }
 
-    fn draw_string(&mut self, x: usize, y: usize, s: &str, color_code: ColorCode) -> Result<()> {
+    fn draw_string(
+        &mut self,
+        x: usize,
+        y: usize,
+        s: &str,
+        back_color_code: ColorCode,
+        fore_color_code: ColorCode,
+    ) -> Result<()> {
         let font_width = FONT.get_width();
         let font_height = FONT.get_height();
         let mut char_x = x;
@@ -68,30 +75,38 @@ impl Draw for FrameBuffer {
                 }
                 '\t' => {
                     for c in TAB_DISP_STR.chars() {
-                        self.draw_font(char_x, char_y, c, color_code)?;
+                        self.draw_font(char_x, char_y, c, fore_color_code, back_color_code)?;
                         char_x += font_width;
                     }
                 }
                 _ => (),
             }
 
-            self.draw_font(char_x, char_y, c, color_code)?;
+            self.draw_font(char_x, char_y, c, fore_color_code, back_color_code)?;
             char_x += font_width;
         }
 
         Ok(())
     }
 
-    fn draw_font(&mut self, x: usize, y: usize, c: char, color_code: ColorCode) -> Result<()> {
+    fn draw_font(
+        &mut self,
+        x: usize,
+        y: usize,
+        c: char,
+        back_color_code: ColorCode,
+        fore_color_code: ColorCode,
+    ) -> Result<()> {
         let glyph = FONT.get_glyph(FONT.unicode_char_to_glyph_index(c))?;
 
         for h in 0..FONT.get_height() {
             for w in 0..FONT.get_width() {
-                if !(glyph[h] << w) & 0x80 == 0x80 {
-                    continue;
-                }
-
-                self.draw_rect(x + w, y + h, 1, 1, color_code)?;
+                let color = if (glyph[h] << w) & 0x80 == 0x80 {
+                    fore_color_code
+                } else {
+                    back_color_code
+                };
+                self.draw_rect(x + w, y + h, 1, 1, color)?;
             }
         }
 
@@ -311,11 +326,17 @@ pub fn draw_rect(
     })
 }
 
-pub fn draw_font(x: usize, y: usize, c: char, color_code: ColorCode) -> Result<()> {
+pub fn draw_font(
+    x: usize,
+    y: usize,
+    c: char,
+    fore_color_code: ColorCode,
+    back_color_code: ColorCode,
+) -> Result<()> {
     arch::disabled_int(|| {
         let mut frame_buf = unsafe { FRAME_BUF.try_lock() }?;
         let frame_buf = frame_buf.as_mut().ok_or(FrameBufferError::NotInitialized)?;
-        frame_buf.draw_font(x, y, c, color_code)?;
+        frame_buf.draw_font(x, y, c, fore_color_code, back_color_code)?;
         Ok(())
     })
 }

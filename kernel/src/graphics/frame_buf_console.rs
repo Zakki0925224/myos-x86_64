@@ -8,11 +8,6 @@ use core::fmt::{self, Write};
 
 static mut FRAME_BUF_CONSOLE: Mutex<Option<FrameBufferConsole>> = Mutex::new(None);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FrameBufferConsoleError {
-    NotInitialized,
-}
-
 pub struct FrameBufferConsole {
     back_color: ColorCode,
     default_fore_color: ColorCode,
@@ -24,10 +19,11 @@ pub struct FrameBufferConsole {
     cursor_x: usize,
     cursor_y: usize,
     target_layer_id: Option<LayerId>,
+    is_scrollable: bool,
 }
 
 impl FrameBufferConsole {
-    pub fn new(back_color: ColorCode, fore_color: ColorCode) -> Result<Self> {
+    pub fn new(back_color: ColorCode, fore_color: ColorCode, is_scrollable: bool) -> Result<Self> {
         let max_x_res = frame_buf::get_stride()?;
         let max_y_res = frame_buf::get_resolution()?.1;
         let char_max_x_len = max_x_res / FONT.get_width() - 1;
@@ -44,6 +40,7 @@ impl FrameBufferConsole {
             cursor_x: 0,
             cursor_y: 0,
             target_layer_id: None,
+            is_scrollable,
         });
     }
 
@@ -101,6 +98,7 @@ impl FrameBufferConsole {
             self.cursor_y * FONT.get_height(),
             c,
             self.fore_color,
+            self.back_color,
         )?;
 
         self.inc_cursor()?;
@@ -127,7 +125,11 @@ impl FrameBufferConsole {
         if self.cursor_y > self.char_max_y_len {
             self.scroll()?;
             self.cursor_x = 0;
-            self.cursor_y = self.char_max_y_len;
+            self.cursor_y = if self.is_scrollable {
+                self.char_max_y_len
+            } else {
+                0
+            };
         }
 
         Ok(())
@@ -160,28 +162,28 @@ impl FrameBufferConsole {
 
         if self.cursor_y > self.char_max_y_len {
             self.scroll()?;
-            self.cursor_y = self.char_max_y_len;
+            self.cursor_y = if self.is_scrollable {
+                self.char_max_y_len
+            } else {
+                0
+            };
         }
 
         Ok(())
     }
 
     fn scroll(&self) -> Result<()> {
-        let font_glyph_size_y = FONT.get_height();
+        if !self.is_scrollable {
+            return Ok(());
+        }
+
+        let font_glyph_size_y = FONT.get_height() - 2;
 
         for y in font_glyph_size_y..self.max_y_res {
             for x in 0..self.max_x_res {
                 self.copy(x, y, x, y - font_glyph_size_y)?;
             }
         }
-
-        self.draw_rect(
-            0,
-            self.max_y_res - font_glyph_size_y,
-            self.max_x_res,
-            font_glyph_size_y,
-            self.back_color,
-        )?;
 
         Ok(())
     }
@@ -213,11 +215,20 @@ impl FrameBufferConsole {
         Ok(())
     }
 
-    fn draw_font(&self, x: usize, y: usize, c: char, color_code: ColorCode) -> Result<()> {
+    fn draw_font(
+        &self,
+        x: usize,
+        y: usize,
+        c: char,
+        fore_color_code: ColorCode,
+        back_color_code: ColorCode,
+    ) -> Result<()> {
         if let Some(layer_id) = &self.target_layer_id {
-            multi_layer::draw_layer(layer_id, |l| l.draw_font(x, y, c, color_code))?;
+            multi_layer::draw_layer(layer_id, |l| {
+                l.draw_font(x, y, c, fore_color_code, back_color_code)
+            })?;
         } else {
-            frame_buf::draw_font(x, y, c, color_code)?;
+            frame_buf::draw_font(x, y, c, fore_color_code, back_color_code)?;
         }
 
         Ok(())
@@ -254,9 +265,9 @@ impl fmt::Write for FrameBufferConsole {
     }
 }
 
-pub fn init(back_color: ColorCode, fore_color: ColorCode) -> Result<()> {
+pub fn init(back_color: ColorCode, fore_color: ColorCode, is_scrollable: bool) -> Result<()> {
     let fbc = arch::disabled_int(|| {
-        let mut fbc = FrameBufferConsole::new(back_color, fore_color)?;
+        let mut fbc = FrameBufferConsole::new(back_color, fore_color, is_scrollable)?;
         fbc.init_console()?;
         Result::Ok(fbc)
     })?;
@@ -268,14 +279,14 @@ pub fn init(back_color: ColorCode, fore_color: ColorCode) -> Result<()> {
 pub fn set_target_layer_id(layer_id: &LayerId) -> Result<()> {
     unsafe { FRAME_BUF_CONSOLE.try_lock() }?
         .as_mut()
-        .ok_or(FrameBufferConsoleError::NotInitialized)?
+        .ok_or("FrameBufferConsole is not initialized")?
         .set_target_layer_id(layer_id)
 }
 
 pub fn set_fore_color(fore_color: ColorCode) -> Result<()> {
     unsafe { FRAME_BUF_CONSOLE.try_lock() }?
         .as_mut()
-        .ok_or(FrameBufferConsoleError::NotInitialized)?
+        .ok_or("FrameBufferConsole is not initialized")?
         .set_fore_color(fore_color);
     Ok(())
 }
@@ -283,7 +294,7 @@ pub fn set_fore_color(fore_color: ColorCode) -> Result<()> {
 pub fn reset_fore_color() -> Result<()> {
     unsafe { FRAME_BUF_CONSOLE.try_lock() }?
         .as_mut()
-        .ok_or(FrameBufferConsoleError::NotInitialized)?
+        .ok_or("FrameBufferConsole is not initialized")?
         .reset_fore_color();
     Ok(())
 }
@@ -291,7 +302,7 @@ pub fn reset_fore_color() -> Result<()> {
 pub fn write_fmt(args: fmt::Arguments) -> Result<()> {
     let _ = unsafe { FRAME_BUF_CONSOLE.try_lock() }?
         .as_mut()
-        .ok_or(FrameBufferConsoleError::NotInitialized)?
+        .ok_or("FrameBufferConsole is not initialized")?
         .write_fmt(args);
     Ok(())
 }

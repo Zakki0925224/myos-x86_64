@@ -9,8 +9,8 @@ use crate::{
     },
     fs::vfs::VirtualFileSystemError,
     graphics::{
-        font::FontError, frame_buf::FrameBufferError, frame_buf_console::FrameBufferConsoleError,
-        multi_layer::LayerError, simple_window_manager::SimpleWindowManagerError,
+        font::FontError, frame_buf::FrameBufferError, multi_layer::LayerError,
+        simple_window_manager::SimpleWindowManagerError,
     },
     mem::{bitmap::BitmapMemoryManagerError, paging::PageManagerError},
     util::{ascii::AsciiCodeError, fifo::FifoError, lifo::LifoError, mutex::MutexError},
@@ -25,7 +25,6 @@ pub enum Error {
     FontError(FontError),
     FrameBufferError(FrameBufferError),
     LayerError(LayerError),
-    FrameBufferConsoleError(FrameBufferConsoleError),
     BitmapMemoryManagerError(BitmapMemoryManagerError),
     PageManagerError(PageManagerError),
     ConsoleError(ConsoleError),
@@ -75,12 +74,6 @@ impl From<FrameBufferError> for Error {
 impl From<LayerError> for Error {
     fn from(err: LayerError) -> Self {
         Self::LayerError(err)
-    }
-}
-
-impl From<FrameBufferConsoleError> for Error {
-    fn from(err: FrameBufferConsoleError) -> Self {
-        Self::FrameBufferConsoleError(err)
     }
 }
 
