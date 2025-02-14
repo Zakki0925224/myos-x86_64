@@ -157,6 +157,19 @@ impl FrameBufferConsole {
     }
 
     fn new_line(&mut self) -> Result<()> {
+        if !self.is_scrollable {
+            // fill line
+            let font_width = FONT.get_width();
+            let font_height = FONT.get_height();
+            self.draw_rect(
+                self.cursor_x * font_width,
+                self.cursor_y * font_height,
+                self.max_x_res - self.cursor_x * font_width,
+                font_height,
+                self.back_color,
+            )?;
+        }
+
         self.cursor_x = 0;
         self.cursor_y += 1;
 
