@@ -5,4 +5,3 @@ pub mod lifo;
 pub mod logger;
 pub mod mutex;
 pub mod random;
-pub mod sleep;

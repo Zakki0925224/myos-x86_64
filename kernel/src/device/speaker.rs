@@ -1,5 +1,5 @@
 use super::{DeviceDriverFunction, DeviceDriverInfo};
-use crate::{arch, error::Result, fs::vfs, util::sleep};
+use crate::{arch, error::Result, fs::vfs};
 use alloc::vec::Vec;
 use core::num::NonZeroU8;
 use log::info;
@@ -63,25 +63,25 @@ impl SpeakerDriver {
     fn beep(&self) {
         let octave = NonZeroU8::new(1).unwrap();
         self.play(Pitch::C.to_freq(octave));
-        sleep::sleep_ms(100);
+        // sleep::sleep_ms(100);
         self.stop();
         self.play(Pitch::D.to_freq(octave));
-        sleep::sleep_ms(100);
+        // sleep::sleep_ms(100);
         self.stop();
         self.play(Pitch::E.to_freq(octave));
-        sleep::sleep_ms(100);
+        // sleep::sleep_ms(100);
         self.stop();
         self.play(Pitch::F.to_freq(octave));
-        sleep::sleep_ms(100);
+        // sleep::sleep_ms(100);
         self.stop();
         self.play(Pitch::G.to_freq(octave));
-        sleep::sleep_ms(100);
+        // sleep::sleep_ms(100);
         self.stop();
         self.play(Pitch::A.to_freq(octave));
-        sleep::sleep_ms(100);
+        // sleep::sleep_ms(100);
         self.stop();
         self.play(Pitch::B.to_freq(octave));
-        sleep::sleep_ms(100);
+        // sleep::sleep_ms(100);
         self.stop();
     }
 }

@@ -31,7 +31,7 @@ impl log::Log for SimpleLogger {
 
         let _ = frame_buf_console::set_fore_color(fore_color);
 
-        if let Some(ms) = device::local_apic_timer::get_current_ms() {
+        if let Ok(ms) = device::local_apic_timer::get_current_ms() {
             print!("[{:06}.{:03}]", ms / 1000, ms % 1000,);
         } else {
             print!("[??????.???]");
