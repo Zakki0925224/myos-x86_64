@@ -250,7 +250,7 @@ pub fn probe_and_attach() -> Result<()> {
         driver.probe()?;
         driver.attach(())?;
         info!("{}: Attached!", driver.get_device_driver_info()?.name);
-        Result::Ok(())
+        Ok(())
     })
 }
 

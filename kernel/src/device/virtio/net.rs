@@ -339,7 +339,7 @@ pub fn probe_and_attach() -> Result<()> {
         driver.probe()?;
         driver.attach(())?;
         info!("{}: Attached!", driver.get_device_driver_info()?.name);
-        Result::Ok(())
+        Ok(())
     })
 }
 
@@ -367,7 +367,7 @@ pub fn poll_normal() -> Result<()> {
     arch::disabled_int(|| {
         let mut driver = unsafe { VIRTIO_NET_DRIVER.try_lock() }?;
         driver.poll_normal()?;
-        Result::Ok(())
+        Ok(())
     })
 }
 

@@ -17,6 +17,23 @@ const CURR_CNT_VIRT_ADDR: VirtualAddress = VirtualAddress::new(0xfee00390);
 const DIV_CONF_VIRT_ADDR: VirtualAddress = VirtualAddress::new(0xfee003e0);
 const END_OF_INT_REG_ADDR: VirtualAddress = VirtualAddress::new(0xfee000b0);
 
+const DIV_VALUE: DivideValue = DivideValue::By4;
+const INT_INTERVAL_MS: usize = 10; // must be >= 10ms
+
+#[allow(dead_code)]
+#[derive(Debug)]
+#[repr(u8)]
+enum DivideValue {
+    By1 = 0b1011,
+    By2 = 0b0000,
+    By4 = 0b0001,
+    By8 = 0b0010,
+    By16 = 0b0011,
+    By32 = 0b1000,
+    By64 = 0b1001,
+    By128 = 0b1010,
+}
+
 static mut LOCAL_APIC_TIMER_DRIVER: Mutex<LocalApicTimerDriver> =
     Mutex::new(LocalApicTimerDriver::new());
 
@@ -37,7 +54,7 @@ impl LocalApicTimerDriver {
 
     unsafe fn start(&self) {
         let init_cnt = if let Some(freq) = self.freq {
-            (freq / 1000) as u32 // 1ms
+            (freq / 1000 * INT_INTERVAL_MS) as u32
         } else {
             u32::MAX // -1
         };
@@ -85,7 +102,7 @@ impl DeviceDriverFunction for LocalApicTimerDriver {
         unsafe {
             // calc freq
             self.stop();
-            (DIV_CONF_VIRT_ADDR.as_ptr_mut() as *mut u32).write_volatile(0b1011); // 1:1
+            (DIV_CONF_VIRT_ADDR.as_ptr_mut() as *mut u32).write_volatile(DIV_VALUE as u32);
             (LVT_TIMER_VIRT_ADDR.as_ptr_mut() as *mut u32)
                 .write_volatile((2 << 16) | vec_num as u32);
             // non masked, periodic
@@ -95,7 +112,10 @@ impl DeviceDriverFunction for LocalApicTimerDriver {
             self.stop();
 
             assert!(tick > 0);
-            debug!("{}: Timer frequency was detected: {}Hz", device_name, tick);
+            debug!(
+                "{}: Timer frequency was detected: {}Hz ({:?})",
+                device_name, tick, DIV_VALUE
+            );
 
             self.freq = Some(tick);
 
@@ -184,7 +204,7 @@ pub fn get_current_ms() -> Result<usize> {
     let driver = unsafe { LOCAL_APIC_TIMER_DRIVER.try_lock() }?;
     let _freq = driver.freq.ok_or("Frequency not set")?;
     let current_tick = unsafe { driver.tick() };
-    Ok(current_tick)
+    Ok(current_tick * INT_INTERVAL_MS)
 }
 
 extern "x86-interrupt" fn poll_int_local_apic_timer() {

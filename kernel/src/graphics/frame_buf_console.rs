@@ -3,7 +3,7 @@ use super::{
     frame_buf,
     multi_layer::{self, LayerId, LayerPositionInfo},
 };
-use crate::{arch, error::Result, theme::GLOBAL_THEME, util::mutex::Mutex, ColorCode};
+use crate::{error::Result, theme::GLOBAL_THEME, util::mutex::Mutex, ColorCode};
 use core::fmt::{self, Write};
 
 static mut FRAME_BUF_CONSOLE: Mutex<Option<FrameBufferConsole>> = Mutex::new(None);
@@ -279,12 +279,8 @@ impl fmt::Write for FrameBufferConsole {
 }
 
 pub fn init(back_color: ColorCode, fore_color: ColorCode, is_scrollable: bool) -> Result<()> {
-    let fbc = arch::disabled_int(|| {
-        let mut fbc = FrameBufferConsole::new(back_color, fore_color, is_scrollable)?;
-        fbc.init_console()?;
-        Result::Ok(fbc)
-    })?;
-
+    let mut fbc = FrameBufferConsole::new(back_color, fore_color, is_scrollable)?;
+    fbc.init_console()?;
     *unsafe { FRAME_BUF_CONSOLE.get_force_mut() } = Some(fbc);
     Ok(())
 }

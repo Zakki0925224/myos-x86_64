@@ -307,6 +307,10 @@ impl DeviceDriverFunction for Rtl8139Driver {
     }
 
     fn poll_normal(&mut self) -> Result<Self::PollNormalOutput> {
+        if !self.device_driver_info.attached {
+            return Err(Error::Failed("Device driver is not attached"));
+        }
+
         let name = self.device_driver_info.name;
 
         let io_register = self.io_register()?;

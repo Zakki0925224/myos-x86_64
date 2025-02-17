@@ -227,7 +227,7 @@ impl SimpleWindowManager {
 
 pub fn init() -> Result<()> {
     let (res_x, res_y) = frame_buf::get_resolution()?;
-    *unsafe { SIMPLE_WM.get_force_mut() } = Some(SimpleWindowManager::new(res_x, res_y));
+    *unsafe { SIMPLE_WM.try_lock() }? = Some(SimpleWindowManager::new(res_x, res_y));
     Ok(())
 }
 

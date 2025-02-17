@@ -5,11 +5,6 @@ use core::{
     sync::atomic::{AtomicBool, Ordering},
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum MutexError {
-    Locked,
-}
-
 // reference https://github.com/hikalium/wasabi/blob/main/os/src/mutex.rs
 pub struct Mutex<T> {
     value: SyncUnsafeCell<T>,
@@ -33,7 +28,7 @@ impl<T: Sized> Mutex<T> {
             return Ok(unsafe { MutexGuard::new(self, &self.value) });
         }
 
-        Err(MutexError::Locked.into())
+        Err("Mutex is already locked".into())
     }
 
     pub unsafe fn get_force_mut(&mut self) -> &mut T {

@@ -13,15 +13,13 @@ use crate::{
         simple_window_manager::SimpleWindowManagerError,
     },
     mem::{bitmap::BitmapMemoryManagerError, paging::PageManagerError},
-    util::{ascii::AsciiCodeError, fifo::FifoError, lifo::LifoError, mutex::MutexError},
+    util::{fifo::FifoError, lifo::LifoError},
 };
 use common::elf::Elf64Error;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Error {
     Failed(&'static str),
-    MutexError(MutexError),
-    AsciiCodeError(AsciiCodeError),
     FontError(FontError),
     FrameBufferError(FrameBufferError),
     LayerError(LayerError),
@@ -44,18 +42,6 @@ pub enum Error {
 impl From<&'static str> for Error {
     fn from(s: &'static str) -> Self {
         Self::Failed(s)
-    }
-}
-
-impl From<MutexError> for Error {
-    fn from(err: MutexError) -> Self {
-        Self::MutexError(err)
-    }
-}
-
-impl From<AsciiCodeError> for Error {
-    fn from(err: AsciiCodeError) -> Self {
-        Self::AsciiCodeError(err)
     }
 }
 

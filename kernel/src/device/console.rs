@@ -181,9 +181,9 @@ impl fmt::Write for Console {
     fn write_str(&mut self, s: &str) -> fmt::Result {
         let buf_type = BufferType::Output;
         for c in s.chars() {
-            let ascii_code = match (c as u8).try_into() {
-                Ok(c) => c,
-                Err(_) => continue,
+            let ascii_code = match AsciiCode::from_u8(c as u8) {
+                Some(c) => c,
+                None => AsciiCode::Null,
             };
 
             if self.is_full(buf_type) {

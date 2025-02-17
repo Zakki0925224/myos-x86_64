@@ -132,11 +132,12 @@ impl PanicScreenDriver {
 
         for h in 0..font_height {
             for w in 0..font_width {
-                if !(font_glyph[h] << w) & 0x80 == 0x80 {
-                    self.write_pixel(x + w, y + h, BACK_COLOR);
+                let color_code = if (font_glyph[h] << w) & 0x80 == 0x80 {
+                    FORE_COLOR
                 } else {
-                    self.write_pixel(x + w, y + h, FORE_COLOR);
-                }
+                    BACK_COLOR
+                };
+                self.write_pixel(x + w, y + h, color_code);
             }
         }
 

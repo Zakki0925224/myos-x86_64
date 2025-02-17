@@ -134,18 +134,11 @@ pub enum AsciiCode {
     Delete,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AsciiCodeError {
-    FailedToTryFromU8(u8),
-}
-
-impl TryFrom<u8> for AsciiCode {
-    type Error = AsciiCodeError;
-
-    fn try_from(value: u8) -> Result<AsciiCode, AsciiCodeError> {
+impl AsciiCode {
+    pub fn from_u8(value: u8) -> Option<Self> {
         match value {
-            0..=0x7f => Ok(unsafe { transmute(value) }),
-            _ => Err(AsciiCodeError::FailedToTryFromU8(value)),
+            0..=0x7f => Some(unsafe { transmute(value) }),
+            _ => None,
         }
     }
 }
