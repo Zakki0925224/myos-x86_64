@@ -31,24 +31,33 @@ impl PciBusDriver {
     fn scan_pci_devices(&mut self) {
         let mut devices = Vec::new();
 
-        for bus in 0..PCI_DEVICE_BUS_LEN {
+        'b: for bus in 0..PCI_DEVICE_BUS_LEN {
             for device in 0..PCI_DEVICE_DEVICE_LEN {
                 for func in 0..PCI_DEVICE_FUNC_LEN {
-                    if let Some(pci_device) = PciDevice::try_new(bus, device, func) {
-                        debug!(
-                            "{}: {}.{}.{} {} found",
-                            self.device_driver_info.name,
-                            bus,
-                            device,
-                            func,
-                            pci_device
-                                .read_conf_space_header()
-                                .unwrap()
-                                .get_device_name()
-                                .unwrap_or("<UNKNOWN NAME>")
-                        );
-                        devices.push(pci_device);
-                    }
+                    let pci_device = match PciDevice::try_new(bus, device, func) {
+                        Some(dev) => dev,
+                        None => {
+                            if func == 0 {
+                                continue 'b;
+                            } else {
+                                continue;
+                            }
+                        }
+                    };
+
+                    debug!(
+                        "{}: {}.{}.{} {} found",
+                        self.device_driver_info.name,
+                        bus,
+                        device,
+                        func,
+                        pci_device
+                            .read_conf_space_header()
+                            .unwrap()
+                            .get_device_name()
+                            .unwrap_or("<UNKNOWN NAME>")
+                    );
+                    devices.push(pci_device);
                 }
             }
         }
