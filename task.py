@@ -30,15 +30,20 @@ GIT_CHECKOUT_TO_LATEST_TAG = "git fetch --tags && latestTag=$(git describe --tag
 QEMU_ARCH = "qemu-system-x86_64"
 QEMU_TARGET_ARCH = "x86_64-softmmu"
 
+NETDEV_TAP = "tap0"
+NETDEV_BR = "br0"
+NETDEV_IP = "192.168.100.1/24"
+
 QEMU_DEVICES = [
     # "-device nec-usb-xhci,id=xhci",
+    # "-device usb-kbd",
+    # "-device virtio-net,netdev=net0,mac=52:54:00:12:34:56 -netdev user,id=net0",
+    # f"-device rtl8139,netdev=net0, -netdev user,id=net0,hostfwd=tcp:127.0.0.1:1234-:80 -object filter-dump,id=f0,netdev=net0,file={DUMP_DIR}/dump.pcap",  # <- curl localhost:1234
     "-device ahci,id=ahci",
     "-device ide-cd,drive=disk,bus=ahci.0,bootindex=1",
-    # "-device usb-kbd",
     "-device isa-debug-exit,iobase=0xf4,iosize=0x04",
-    # "-device virtio-net,netdev=net0,mac=52:54:00:12:34:56 -netdev user,id=net0",
     "-audiodev pa,id=speaker -machine pcspk-audiodev=speaker",
-    f"-device rtl8139,netdev=net0, -netdev user,id=net0,hostfwd=tcp:127.0.0.1:1234-:80 -object filter-dump,id=f0,netdev=net0,file={DUMP_DIR}/dump.pcap",  # <- curl localhost:1234
+    f"-device rtl8139,netdev=net0, -netdev tap,id=net0,ifname={NETDEV_TAP},script=no,downscript=no -object filter-dump,id=f0,netdev=net0,file={DUMP_DIR}/dump.pcap",  # <- ping -4 192.168.100.2
 ]
 
 QEMU_DRIVES = [
@@ -261,6 +266,22 @@ def make_iso():
     run_cmd(f"dd if=./{OUTPUT_DIR}/{IMG_FILE} of=./{OUTPUT_DIR}/{ISO_FILE} bs=1M")
 
 
+def make_netdev():
+    run_cmd(f"sudo ip link add name {NETDEV_BR} type bridge")
+    run_cmd(f"sudo ip addr add {NETDEV_IP} dev {NETDEV_BR}")
+    run_cmd(f"sudo ip link set {NETDEV_BR} up")
+
+    run_cmd(f"sudo ip tuntap add {NETDEV_TAP} mode tap")
+    run_cmd(f"sudo ip link set {NETDEV_TAP} up")
+
+    run_cmd(f"sudo ip link set {NETDEV_TAP} master {NETDEV_BR}")
+
+
+def del_netdev():
+    run_cmd(f"sudo ip link del {NETDEV_BR}")
+    run_cmd(f"sudo ip link del {NETDEV_TAP}")
+
+
 def run():
     global is_kernel_test
 
@@ -347,6 +368,8 @@ TASKS = [
     make_initramfs,
     make_img,
     make_iso,
+    make_netdev,
+    del_netdev,
     run,
     run_nographic,
     run_with_gdb,

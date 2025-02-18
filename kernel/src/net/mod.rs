@@ -19,7 +19,7 @@ type ArpTable = BTreeMap<Ipv4Addr, EthernetAddress>;
 type TcpSocketTable = BTreeMap<u16, TcpSocket>;
 
 static mut NETWORK_MAN: Mutex<NetworkManager> =
-    Mutex::new(NetworkManager::new(Ipv4Addr::new(10, 0, 2, 15)));
+    Mutex::new(NetworkManager::new(Ipv4Addr::new(192, 168, 100, 2)));
 
 struct NetworkManager {
     my_ipv4_addr: Ipv4Addr,
