@@ -1,4 +1,5 @@
 use super::{arp::ArpPacket, ip::Ipv4Packet};
+use crate::error::{Error, Result};
 use alloc::vec::Vec;
 use core::fmt::Debug;
 
@@ -18,14 +19,14 @@ impl Debug for EthernetAddress {
 }
 
 impl From<[u8; 6]> for EthernetAddress {
-    fn from(mac: [u8; 6]) -> Self {
-        Self(mac)
+    fn from(data: [u8; 6]) -> Self {
+        Self(data)
     }
 }
 
-impl Into<[u8; 6]> for EthernetAddress {
-    fn into(self) -> [u8; 6] {
-        self.0
+impl From<EthernetAddress> for [u8; 6] {
+    fn from(addr: EthernetAddress) -> Self {
+        addr.0
     }
 }
 
@@ -55,9 +56,9 @@ impl From<[u8; 2]> for EtherType {
     }
 }
 
-impl Into<[u8; 2]> for EtherType {
-    fn into(self) -> [u8; 2] {
-        match self {
+impl From<EtherType> for [u8; 2] {
+    fn from(value: EtherType) -> Self {
+        match value {
             EtherType::Ipv4 => [0x08, 0x00],
             EtherType::Ipv6 => [0x86, 0xdd],
             EtherType::Arp => [0x08, 0x06],
@@ -77,8 +78,13 @@ pub enum EthernetPayload {
 impl EthernetPayload {
     pub fn to_vec(&self) -> Vec<u8> {
         match self {
-            EthernetPayload::Arp(packet) => packet.raw().to_vec(),
-            EthernetPayload::Ipv4(_) => todo!(),
+            EthernetPayload::Arp(packet) => {
+                let packet: [u8; 28] = (*packet).into();
+                packet.to_vec()
+            }
+            EthernetPayload::Ipv4(packet) => {
+                todo!()
+            }
             EthernetPayload::None => Vec::new(),
         }
     }
@@ -94,25 +100,29 @@ pub struct EthernetFrame<'a> {
 
 impl<'a> Debug for EthernetFrame<'a> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "EthernetFrame {{ dst: {:?}, src: {:?}, ether_type: {:?}, payload: {:?} }}",
-            self.dst_mac_addr,
-            self.src_mac_addr,
-            self.ether_type,
-            self.payload()
-        )
+        f.debug_struct("EthernetFrame")
+            .field("dst_mac_addr", &self.dst_mac_addr)
+            .field("src_mac_addr", &self.src_mac_addr)
+            .field("ether_type", &self.ether_type)
+            .field("payload", &self.payload())
+            .finish()
     }
 }
 
-impl<'a> EthernetFrame<'a> {
-    pub fn new(data: &'a [u8]) -> Self {
-        let dst_mac = &data[0..6];
-        let src_mac = &data[6..12];
-        let ether_type = [data[12], data[13]].into();
-        let payload = &data[14..];
+impl<'a> TryFrom<&'a [u8]> for EthernetFrame<'a> {
+    type Error = Error;
 
-        Self {
+    fn try_from(value: &'a [u8]) -> Result<Self> {
+        if value.len() < 14 {
+            return Err("Invalid data length".into());
+        }
+
+        let dst_mac = &value[0..6];
+        let src_mac = &value[6..12];
+        let ether_type = [value[12], value[13]].into();
+        let payload = &value[14..];
+
+        Ok(Self {
             dst_mac_addr: [
                 dst_mac[0], dst_mac[1], dst_mac[2], dst_mac[3], dst_mac[4], dst_mac[5],
             ]
@@ -123,9 +133,11 @@ impl<'a> EthernetFrame<'a> {
             .into(),
             ether_type,
             payload,
-        }
+        })
     }
+}
 
+impl<'a> EthernetFrame<'a> {
     pub fn new_with(
         dst_mac_addr: EthernetAddress,
         src_mac_addr: EthernetAddress,
@@ -140,16 +152,15 @@ impl<'a> EthernetFrame<'a> {
         }
     }
 
-    pub fn to_vec(&self) -> Vec<u8> {
+    pub fn to_vec(&self) -> Result<Vec<u8>> {
         let mut vec = Vec::new();
         let dst_mac_addr: [u8; 6] = self.dst_mac_addr.into();
         let src_mac_addr: [u8; 6] = self.src_mac_addr.into();
         let ether_type: [u8; 2] = self.ether_type.into();
-        let mut payload = self.payload().to_vec();
 
-        if payload.len() < 46 {
-            payload.resize(46, 0);
-        }
+        let payload = self.payload()?.to_vec();
+        let payload_len = payload.len().max(46);
+        let frame_len = (14 + payload_len).max(64);
 
         vec.extend_from_slice(&dst_mac_addr);
         vec.extend_from_slice(&src_mac_addr);
@@ -157,24 +168,22 @@ impl<'a> EthernetFrame<'a> {
         vec.extend_from_slice(&payload);
 
         // padding
-        if vec.len() < 64 {
-            vec.resize(64, 0);
-        }
+        vec.resize(frame_len, 0);
 
-        vec
+        Ok(vec)
     }
 
-    pub fn payload(&self) -> EthernetPayload {
-        match self.ether_type {
+    pub fn payload(&self) -> Result<EthernetPayload> {
+        let payload = match self.ether_type {
             EtherType::Arp => {
-                let arp_packet = ArpPacket::new(&self.payload);
-                EthernetPayload::Arp(arp_packet)
+                let arp_packet: [u8; 28] = self.payload[..28]
+                    .try_into()
+                    .map_err(|_| "Invalid payload")?;
+                EthernetPayload::Arp(ArpPacket::from(arp_packet))
             }
-            EtherType::Ipv4 => {
-                let ipv4_packet = Ipv4Packet::new(&self.payload);
-                EthernetPayload::Ipv4(ipv4_packet)
-            }
+            EtherType::Ipv4 => EthernetPayload::Ipv4(Ipv4Packet::try_from(self.payload)?),
             _ => EthernetPayload::None,
-        }
+        };
+        Ok(payload)
     }
 }

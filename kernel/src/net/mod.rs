@@ -2,15 +2,21 @@ use crate::{
     error::{Error, Result},
     util::mutex::Mutex,
 };
-use arp::{ArpOperation, ArpPacket, ArpTable};
+use alloc::collections::btree_map::BTreeMap;
+use arp::{ArpOperation, ArpPacket};
 use core::net::Ipv4Addr;
 use eth::{EthernetAddress, EthernetPayload};
-use ip::Ipv4Packet;
+use ip::{Ipv4Packet, Ipv4Payload};
 use log::info;
+use tcp::{TcpPacket, TcpSocket};
 
 pub mod arp;
 pub mod eth;
 pub mod ip;
+pub mod tcp;
+
+type ArpTable = BTreeMap<Ipv4Addr, EthernetAddress>;
+type TcpSocketTable = BTreeMap<u16, TcpSocket>;
 
 static mut NETWORK_MAN: Mutex<NetworkManager> =
     Mutex::new(NetworkManager::new(Ipv4Addr::new(10, 0, 2, 15)));
@@ -18,15 +24,17 @@ static mut NETWORK_MAN: Mutex<NetworkManager> =
 struct NetworkManager {
     my_ipv4_addr: Ipv4Addr,
     my_mac_addr: Option<EthernetAddress>,
-    arp_table: Option<ArpTable>,
+    arp_table: ArpTable,
+    tcp_socket_table: TcpSocketTable,
 }
 
 impl NetworkManager {
-    pub const fn new(ipv4_addr: Ipv4Addr) -> Self {
+    const fn new(ipv4_addr: Ipv4Addr) -> Self {
         Self {
             my_ipv4_addr: ipv4_addr,
             my_mac_addr: None,
-            arp_table: None,
+            arp_table: ArpTable::new(),
+            tcp_socket_table: TcpSocketTable::new(),
         }
     }
 
@@ -41,12 +49,18 @@ impl NetworkManager {
             .ok_or(Error::Failed("MAC address is not set"))
     }
 
-    fn arp_table(&mut self) -> &mut ArpTable {
-        if self.arp_table.is_none() {
-            self.arp_table = Some(ArpTable::new());
-        }
+    fn tcp_socket_mut(&mut self, port: u16) -> &mut TcpSocket {
+        self.tcp_socket_table
+            .entry(port)
+            .or_insert_with(TcpSocket::new)
+    }
 
-        self.arp_table.as_mut().unwrap()
+    fn receive_tcp_packet(&mut self, packet: TcpPacket) -> Result<Option<TcpPacket>> {
+        let dst_port = packet.dst_port;
+        let socket = self.tcp_socket_mut(dst_port);
+        info!("net: TCP socket({}): {:?}", dst_port, socket);
+
+        Ok(None)
     }
 
     fn receive_arp_packet(&mut self, packet: ArpPacket) -> Result<Option<ArpPacket>> {
@@ -59,9 +73,8 @@ impl NetworkManager {
 
         match arp_op {
             ArpOperation::Request => {
-                let arp_table = self.arp_table();
-                arp_table.insert(sender_ipv4_addr, sender_mac_addr);
-                info!("net: ARP table updated: {:?}", arp_table);
+                self.arp_table.insert(sender_ipv4_addr, sender_mac_addr);
+                info!("net: ARP table updated: {:?}", self.arp_table);
 
                 if target_ipv4_addr != self.my_ipv4_addr {
                     return Ok(None);
@@ -86,6 +99,17 @@ impl NetworkManager {
 
     fn receive_ipv4_packet(&mut self, packet: Ipv4Packet) -> Result<Option<Ipv4Packet>> {
         info!("net: Received IPv4 packet: {:?}", packet);
+        packet.validate()?;
+
+        if packet.dst_addr != self.my_ipv4_addr {
+            return Ok(None);
+        }
+
+        match packet.payload()? {
+            Ipv4Payload::Tcp(tcp_packet) => {
+                self.receive_tcp_packet(tcp_packet)?;
+            }
+        }
 
         Ok(None)
     }

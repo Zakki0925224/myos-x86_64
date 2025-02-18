@@ -117,7 +117,7 @@ impl RxBuffer {
         self.packet_ptr = (self.packet_ptr + rtl8139_len as usize + 4) % RX_BUF_SIZE;
 
         let frame = &packet[4..rtl8139_len as usize];
-        Ok(EthernetFrame::new(frame))
+        EthernetFrame::try_from(frame)
     }
 }
 
@@ -190,7 +190,7 @@ impl Rtl8139Driver {
         let io_register = self.io_register()?;
         let tx_packet_ptr = self.tx_buf.packet_ptr;
 
-        let boxed_eth_frame = eth_frame.to_vec().into_boxed_slice();
+        let boxed_eth_frame = eth_frame.to_vec()?.into_boxed_slice();
         let packet_len = boxed_eth_frame.len();
 
         io_register.write_tx_start_addr(boxed_eth_frame.as_ptr() as u32, tx_packet_ptr);
@@ -332,8 +332,9 @@ impl DeviceDriverFunction for Rtl8139Driver {
             debug!("{}: ROK", name);
             let eth_frame = self.receive_packet()?;
             debug!("{}: Received packet: {:?}", name, eth_frame);
+            let payload = eth_frame.payload()?;
 
-            if let Some(reply_payload) = net::receive_eth_payload(eth_frame.payload())? {
+            if let Some(reply_payload) = net::receive_eth_payload(payload)? {
                 let payload_vec = reply_payload.to_vec();
 
                 match reply_payload {
