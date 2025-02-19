@@ -1,10 +1,11 @@
-use super::tcp::TcpPacket;
+use super::{icmp::IcmpPacket, tcp::TcpPacket};
 use crate::error::{Error, Result};
 use alloc::vec::Vec;
 use core::{fmt::Debug, net::Ipv4Addr};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Protocol {
+    Icmp,
     Tcp,
     Udp,
     Other(u8),
@@ -13,6 +14,7 @@ pub enum Protocol {
 impl From<Protocol> for u8 {
     fn from(proto: Protocol) -> Self {
         match proto {
+            Protocol::Icmp => 1,
             Protocol::Tcp => 6,
             Protocol::Udp => 17,
             Protocol::Other(x) => x,
@@ -23,6 +25,7 @@ impl From<Protocol> for u8 {
 impl From<u8> for Protocol {
     fn from(data: u8) -> Self {
         match data {
+            1 => Protocol::Icmp,
             6 => Protocol::Tcp,
             17 => Protocol::Udp,
             _ => Protocol::Other(data),
@@ -32,6 +35,7 @@ impl From<u8> for Protocol {
 
 #[derive(Debug)]
 pub enum Ipv4Payload {
+    Icmp(IcmpPacket),
     Tcp(TcpPacket),
 }
 
@@ -120,11 +124,14 @@ impl Ipv4Packet {
     }
 
     pub fn payload(&self) -> Result<Ipv4Payload> {
+        let data_slice = self.data.as_slice();
+
         let payload = match self.protocol {
-            Protocol::Tcp => TcpPacket::try_from(self.data.as_slice())?,
+            Protocol::Icmp => Ipv4Payload::Icmp(IcmpPacket::try_from(data_slice)?),
+            Protocol::Tcp => Ipv4Payload::Tcp(TcpPacket::try_from(data_slice)?),
             _ => return Err("Unsupported protocol".into()),
         };
 
-        Ok(Ipv4Payload::Tcp(payload))
+        Ok(payload)
     }
 }

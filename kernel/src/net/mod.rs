@@ -6,12 +6,14 @@ use alloc::collections::btree_map::BTreeMap;
 use arp::{ArpOperation, ArpPacket};
 use core::net::Ipv4Addr;
 use eth::{EthernetAddress, EthernetPayload};
+use icmp::{IcmpPacket, IcmpType};
 use ip::{Ipv4Packet, Ipv4Payload};
-use log::info;
+use log::debug;
 use tcp::{TcpPacket, TcpSocket};
 
 pub mod arp;
 pub mod eth;
+pub mod icmp;
 pub mod ip;
 pub mod tcp;
 
@@ -41,7 +43,7 @@ impl NetworkManager {
     fn set_my_mac_addr(&mut self, mac_addr: EthernetAddress) {
         self.my_mac_addr = Some(mac_addr);
 
-        info!("net: MAC address set to {:?}", mac_addr);
+        debug!("net: MAC address set to {:?}", mac_addr);
     }
 
     fn my_mac_addr(&self) -> Result<EthernetAddress> {
@@ -55,17 +57,32 @@ impl NetworkManager {
             .or_insert_with(TcpSocket::new)
     }
 
+    fn receive_icmp_packet(&mut self, packet: IcmpPacket) -> Result<Option<IcmpPacket>> {
+        let ty = packet.ty;
+
+        match ty {
+            IcmpType::EchoRequest => {
+                let mut reply_packet = packet.clone();
+                reply_packet.ty = IcmpType::EchoReply;
+                reply_packet.calc_checksum();
+                debug!("net: ICMP Echo Reply: {:?}", reply_packet);
+                return Ok(Some(reply_packet));
+            }
+            _ => (),
+        }
+
+        Ok(None)
+    }
+
     fn receive_tcp_packet(&mut self, packet: TcpPacket) -> Result<Option<TcpPacket>> {
         let dst_port = packet.dst_port;
         let socket = self.tcp_socket_mut(dst_port);
-        info!("net: TCP socket({}): {:?}", dst_port, socket);
+        debug!("net: TCP socket({}): {:?}", dst_port, socket);
 
         Ok(None)
     }
 
     fn receive_arp_packet(&mut self, packet: ArpPacket) -> Result<Option<ArpPacket>> {
-        info!("net: Received ARP packet: {:?}", packet);
-
         let arp_op = packet.op()?;
         let sender_ipv4_addr = packet.sender_ipv4_addr;
         let sender_mac_addr = packet.sender_eth_addr;
@@ -74,7 +91,7 @@ impl NetworkManager {
         match arp_op {
             ArpOperation::Request => {
                 self.arp_table.insert(sender_ipv4_addr, sender_mac_addr);
-                info!("net: ARP table updated: {:?}", self.arp_table);
+                debug!("net: ARP table updated: {:?}", self.arp_table);
 
                 if target_ipv4_addr != self.my_ipv4_addr {
                     return Ok(None);
@@ -87,7 +104,6 @@ impl NetworkManager {
                     sender_mac_addr,
                     sender_ipv4_addr,
                 );
-                info!("net: Generated ARP reply packet: {:?}", reply_packet);
 
                 Ok(Some(reply_packet))
             }
@@ -98,17 +114,26 @@ impl NetworkManager {
     }
 
     fn receive_ipv4_packet(&mut self, packet: Ipv4Packet) -> Result<Option<Ipv4Packet>> {
-        info!("net: Received IPv4 packet: {:?}", packet);
         packet.validate()?;
 
         if packet.dst_addr != self.my_ipv4_addr {
             return Ok(None);
         }
 
+        let mut reply_payload = None;
         match packet.payload()? {
+            Ipv4Payload::Icmp(icmp_packet) => {
+                if let Some(reply_icmp_packet) = self.receive_icmp_packet(icmp_packet)? {
+                    reply_payload = Some(Ipv4Payload::Icmp(reply_icmp_packet));
+                }
+            }
             Ipv4Payload::Tcp(tcp_packet) => {
                 self.receive_tcp_packet(tcp_packet)?;
             }
+        }
+
+        if let Some(reply_payload) = reply_payload {
+            // TODO
         }
 
         Ok(None)
@@ -129,7 +154,7 @@ impl NetworkManager {
                 }
             }
             EthernetPayload::None => {
-                info!("net: None payload");
+                debug!("net: None payload");
             }
         }
 
