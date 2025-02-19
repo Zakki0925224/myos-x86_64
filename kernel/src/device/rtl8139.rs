@@ -64,6 +64,10 @@ impl IoRegister {
         self.io_port_base().offset(0x37).out8(data);
     }
 
+    fn write_current_addr_packet_read(&self, value: u16) {
+        self.io_port_base().offset(0x38).out16(value);
+    }
+
     fn write_int_mask(&self, imr: u16) {
         self.io_port_base().offset(0x3c).out16(imr);
     }
@@ -103,7 +107,7 @@ impl RxBuffer {
         self.buf.as_ptr()
     }
 
-    fn pop_eth_frame(&mut self) -> Result<EthernetFrame> {
+    fn pop_eth_frame(&mut self) -> Result<(EthernetFrame, usize)> {
         let packet = &self.buf[self.packet_ptr..];
 
         // RTL8139 metadata
@@ -114,10 +118,12 @@ impl RxBuffer {
             return Err(Error::Failed("Invalid packet"));
         }
 
-        self.packet_ptr = (self.packet_ptr + rtl8139_len as usize + 4) % RX_BUF_SIZE;
+        // 4 bytes aligned
+        self.packet_ptr = ((self.packet_ptr + rtl8139_len as usize + 4 + 3) & !3) % RX_BUF_SIZE;
 
         let frame = &packet[4..rtl8139_len as usize];
-        EthernetFrame::try_from(frame)
+        let eth_frame = EthernetFrame::try_from(frame)?;
+        Ok((eth_frame, self.packet_ptr))
     }
 }
 
@@ -182,7 +188,7 @@ impl Rtl8139Driver {
         Ok(self.io_register()?.read_mac_addr().into())
     }
 
-    fn receive_packet(&mut self) -> Result<EthernetFrame> {
+    fn receive_packet(&mut self) -> Result<(EthernetFrame, usize)> {
         self.rx_buf.pop_eth_frame()
     }
 
@@ -327,10 +333,11 @@ impl DeviceDriverFunction for Rtl8139Driver {
         // ROK
         if status & 1 != 0 {
             // clear ROK
-            io_register.write_int_status(0x01);
+            io_register.write_int_status(0x11);
 
             debug!("{}: ROK", name);
-            let eth_frame = self.receive_packet()?;
+            let (eth_frame, new_read_ptr) = self.receive_packet()?;
+
             debug!("{}: Received packet: {:?}", name, eth_frame);
             let payload = eth_frame.payload()?;
 
@@ -351,6 +358,9 @@ impl DeviceDriverFunction for Rtl8139Driver {
                 debug!("{}: Send packet: {:?}", name, reply_eth_frame);
                 self.send_packet(reply_eth_frame)?;
             }
+
+            let io_register = self.io_register()?; // re-borrow
+            io_register.write_current_addr_packet_read(new_read_ptr as u16);
         }
 
         Ok(())
