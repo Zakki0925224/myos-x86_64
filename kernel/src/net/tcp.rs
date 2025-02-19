@@ -73,3 +73,19 @@ impl TryFrom<&[u8]> for TcpPacket {
         })
     }
 }
+
+impl TcpPacket {
+    pub fn to_vec(&self) -> Vec<u8> {
+        let mut vec = Vec::new();
+        vec.extend_from_slice(&self.src_port.to_be_bytes());
+        vec.extend_from_slice(&self.dst_port.to_be_bytes());
+        vec.extend_from_slice(&self.seq_num.to_be_bytes());
+        vec.extend_from_slice(&self.ack_num.to_be_bytes());
+        vec.extend_from_slice(&self.flags.to_be_bytes());
+        vec.extend_from_slice(&self.window_size.to_be_bytes());
+        vec.extend_from_slice(&self.checksum.to_be_bytes());
+        vec.extend_from_slice(&self.urgent_ptr.to_be_bytes());
+        vec.extend_from_slice(&self.options);
+        vec
+    }
+}

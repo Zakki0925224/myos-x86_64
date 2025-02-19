@@ -78,13 +78,8 @@ pub enum EthernetPayload {
 impl EthernetPayload {
     pub fn to_vec(&self) -> Vec<u8> {
         match self {
-            EthernetPayload::Arp(packet) => {
-                let packet: [u8; 28] = (*packet).into();
-                packet.to_vec()
-            }
-            EthernetPayload::Ipv4(packet) => {
-                todo!()
-            }
+            EthernetPayload::Arp(packet) => packet.to_vec(),
+            EthernetPayload::Ipv4(packet) => packet.to_vec(),
             EthernetPayload::None => Vec::new(),
         }
     }
@@ -175,12 +170,7 @@ impl<'a> EthernetFrame<'a> {
 
     pub fn payload(&self) -> Result<EthernetPayload> {
         let payload = match self.ether_type {
-            EtherType::Arp => {
-                let arp_packet: [u8; 28] = self.payload[..28]
-                    .try_into()
-                    .map_err(|_| "Invalid payload")?;
-                EthernetPayload::Arp(ArpPacket::from(arp_packet))
-            }
+            EtherType::Arp => EthernetPayload::Arp(ArpPacket::try_from(self.payload)?),
             EtherType::Ipv4 => EthernetPayload::Ipv4(Ipv4Packet::try_from(self.payload)?),
             _ => EthernetPayload::None,
         };

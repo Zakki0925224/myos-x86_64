@@ -190,13 +190,21 @@ impl FrameBufferConsole {
             return Ok(());
         }
 
-        let font_glyph_size_y = FONT.get_height() - 2;
+        let font_glyph_size_y = FONT.get_height();
 
         for y in font_glyph_size_y..self.max_y_res {
             for x in 0..self.max_x_res {
                 self.copy(x, y, x, y - font_glyph_size_y)?;
             }
         }
+
+        self.draw_rect(
+            0,
+            self.max_y_res - font_glyph_size_y,
+            self.max_x_res,
+            font_glyph_size_y,
+            self.back_color,
+        )?;
 
         Ok(())
     }

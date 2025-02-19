@@ -1,3 +1,5 @@
+use alloc::vec::Vec;
+
 use super::eth::{EtherType, EthernetAddress};
 use crate::error::{Error, Result};
 use core::net::Ipv4Addr;
@@ -41,66 +43,37 @@ pub struct ArpPacket {
     pub target_ipv4_addr: Ipv4Addr,
 }
 
-impl From<ArpPacket> for [u8; 28] {
-    fn from(value: ArpPacket) -> Self {
-        let protocol_ty: [u8; 2] = value.protocol_ty.into();
-        let sender_eth_addr: [u8; 6] = value.sender_eth_addr.into();
-        let sender_ipv4_addr: [u8; 4] = value.sender_ipv4_addr.octets();
-        let target_eth_addr: [u8; 6] = value.target_eth_addr.into();
-        let target_ipv4_addr: [u8; 4] = value.target_ipv4_addr.octets();
+impl TryFrom<&[u8]> for ArpPacket {
+    type Error = Error;
 
-        [
-            value.hardware_ty[0],
-            value.hardware_ty[1],
-            protocol_ty[0],
-            protocol_ty[1],
-            value.hardware_len,
-            value.protocol_len,
-            value.op[0],
-            value.op[1],
-            sender_eth_addr[0],
-            sender_eth_addr[1],
-            sender_eth_addr[2],
-            sender_eth_addr[3],
-            sender_eth_addr[4],
-            sender_eth_addr[5],
-            sender_ipv4_addr[0],
-            sender_ipv4_addr[1],
-            sender_ipv4_addr[2],
-            sender_ipv4_addr[3],
-            target_eth_addr[0],
-            target_eth_addr[1],
-            target_eth_addr[2],
-            target_eth_addr[3],
-            target_eth_addr[4],
-            target_eth_addr[5],
-            target_ipv4_addr[0],
-            target_ipv4_addr[1],
-            target_ipv4_addr[2],
-            target_ipv4_addr[3],
-        ]
-    }
-}
-
-impl From<[u8; 28]> for ArpPacket {
-    fn from(value: [u8; 28]) -> Self {
-        Self {
-            hardware_ty: [value[0], value[1]],
-            protocol_ty: [value[2], value[3]].into(),
-            hardware_len: value[4],
-            protocol_len: value[5],
-            op: [value[6], value[7]],
-            sender_eth_addr: [
-                value[8], value[9], value[10], value[11], value[12], value[13],
-            ]
-            .into(),
-            sender_ipv4_addr: [value[14], value[15], value[16], value[17]].into(),
-            target_eth_addr: [
-                value[18], value[19], value[20], value[21], value[22], value[23],
-            ]
-            .into(),
-            target_ipv4_addr: [value[24], value[25], value[26], value[27]].into(),
+    fn try_from(data: &[u8]) -> Result<Self> {
+        if data.len() < 28 {
+            return Err(Error::Failed("Invalid data length"));
         }
+
+        let hardware_ty = [data[0], data[1]];
+        let protocol_ty = EtherType::from([data[2], data[3]]);
+        let hardware_len = data[4];
+        let protocol_len = data[5];
+        let op = [data[6], data[7]];
+        let sender_eth_addr =
+            EthernetAddress::from([data[8], data[9], data[10], data[11], data[12], data[13]]);
+        let sender_ipv4_addr = Ipv4Addr::new(data[14], data[15], data[16], data[17]);
+        let target_eth_addr =
+            EthernetAddress::from([data[18], data[19], data[20], data[21], data[22], data[23]]);
+        let target_ipv4_addr = Ipv4Addr::new(data[24], data[25], data[26], data[27]);
+
+        Ok(Self {
+            hardware_ty,
+            protocol_ty,
+            hardware_len,
+            protocol_len,
+            op,
+            sender_eth_addr,
+            sender_ipv4_addr,
+            target_eth_addr,
+            target_ipv4_addr,
+        })
     }
 }
 
@@ -127,5 +100,23 @@ impl ArpPacket {
 
     pub fn op(&self) -> Result<ArpOperation> {
         ArpOperation::try_from(self.op)
+    }
+
+    pub fn to_vec(&self) -> Vec<u8> {
+        let protocol_ty: [u8; 2] = self.protocol_ty.into();
+        let sender_eth_addr: [u8; 6] = self.sender_eth_addr.into();
+        let target_eth_addr: [u8; 6] = self.target_eth_addr.into();
+
+        let mut vec = Vec::new();
+        vec.extend_from_slice(&self.hardware_ty);
+        vec.extend_from_slice(&protocol_ty);
+        vec.push(self.hardware_len);
+        vec.push(self.protocol_len);
+        vec.extend_from_slice(&self.op);
+        vec.extend_from_slice(&sender_eth_addr);
+        vec.extend_from_slice(&self.sender_ipv4_addr.octets());
+        vec.extend_from_slice(&target_eth_addr);
+        vec.extend_from_slice(&self.target_ipv4_addr.octets());
+        vec
     }
 }

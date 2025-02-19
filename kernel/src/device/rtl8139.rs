@@ -336,21 +336,20 @@ impl DeviceDriverFunction for Rtl8139Driver {
 
             if let Some(reply_payload) = net::receive_eth_payload(payload)? {
                 let payload_vec = reply_payload.to_vec();
+                let ether_type = match reply_payload {
+                    EthernetPayload::Arp(_) => EtherType::Arp,
+                    EthernetPayload::Ipv4(_) => EtherType::Ipv4,
+                    _ => unimplemented!(),
+                };
+                let reply_eth_frame = EthernetFrame::new_with(
+                    eth_frame.src_mac_addr,
+                    net::my_mac_addr()?,
+                    ether_type,
+                    &payload_vec,
+                );
 
-                match reply_payload {
-                    EthernetPayload::Arp(_) => {
-                        let reply_eth_frame = EthernetFrame::new_with(
-                            eth_frame.src_mac_addr,
-                            net::my_mac_addr()?,
-                            EtherType::Arp,
-                            &payload_vec,
-                        );
-                        self.send_packet(reply_eth_frame)?;
-                    }
-                    _ => {
-                        unimplemented!()
-                    }
-                }
+                debug!("{}: Send packet: {:?}", name, reply_eth_frame);
+                self.send_packet(reply_eth_frame)?;
             }
         }
 

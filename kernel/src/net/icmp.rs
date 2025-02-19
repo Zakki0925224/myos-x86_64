@@ -95,4 +95,15 @@ impl IcmpPacket {
 
         self.checksum = !(sum as u16);
     }
+
+    pub fn to_vec(&self) -> Vec<u8> {
+        let mut vec = Vec::new();
+        vec.push(self.ty.into());
+        vec.push(self.code);
+        vec.extend_from_slice(&self.checksum.to_be_bytes());
+        vec.extend_from_slice(&self.id.to_be_bytes());
+        vec.extend_from_slice(&self.seq.to_be_bytes());
+        vec.extend_from_slice(&self.data);
+        vec
+    }
 }

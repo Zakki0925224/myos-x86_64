@@ -41,11 +41,11 @@ pub enum Ipv4Payload {
 
 #[derive(Clone)]
 pub struct Ipv4Packet {
-    version_ihl: u8,
-    dscp_ecn: u8,
-    len: u16,
-    id: u16,
-    flags: u16,
+    pub version_ihl: u8,
+    pub dscp_ecn: u8,
+    pub len: u16,
+    pub id: u16,
+    pub flags: u16,
     ttl: u8,
     pub protocol: Protocol,
     checksum: u16,
@@ -109,6 +109,79 @@ impl TryFrom<&[u8]> for Ipv4Packet {
 }
 
 impl Ipv4Packet {
+    pub fn new_with(
+        version_ihl: u8,
+        dscp_ecn: u8,
+        id: u16,
+        flags: u16,
+        protocol: Protocol,
+        src_addr: Ipv4Addr,
+        dst_addr: Ipv4Addr,
+        payload: Ipv4Payload,
+    ) -> Self {
+        let payload_vec = match payload {
+            Ipv4Payload::Icmp(packet) => packet.to_vec(),
+            Ipv4Payload::Tcp(packet) => packet.to_vec(),
+        };
+
+        Self {
+            version_ihl,
+            dscp_ecn,
+            len: 20 + payload_vec.len() as u16,
+            id,
+            flags,
+            ttl: 64,
+            protocol,
+            checksum: 0,
+            src_addr,
+            dst_addr,
+            data: payload_vec,
+        }
+    }
+
+    pub fn calc_checksum(&mut self) {
+        self.checksum = 0;
+        let mut sum: u32 = 0;
+
+        let header = [
+            self.version_ihl,
+            self.dscp_ecn,
+            (self.len >> 8) as u8,
+            (self.len & 0xff) as u8,
+            (self.id >> 8) as u8,
+            (self.id & 0xff) as u8,
+            (self.flags >> 8) as u8,
+            (self.flags & 0xff) as u8,
+            self.ttl,
+            self.protocol.into(),
+            0,
+            0, // checksum
+            self.src_addr.octets()[0],
+            self.src_addr.octets()[1],
+            self.src_addr.octets()[2],
+            self.src_addr.octets()[3],
+            self.dst_addr.octets()[0],
+            self.dst_addr.octets()[1],
+            self.dst_addr.octets()[2],
+            self.dst_addr.octets()[3],
+        ];
+
+        for chunk in header.chunks(2).chain(self.data.chunks(2)) {
+            let word = match chunk {
+                [h, l] => u16::from_be_bytes([*h, *l]),
+                [h] => u16::from_be_bytes([*h, 0]),
+                _ => 0,
+            };
+            sum = sum.wrapping_add(word as u32);
+        }
+
+        while (sum >> 16) > 0 {
+            sum = (sum & 0xffff) + (sum >> 16);
+        }
+
+        self.checksum = !(sum as u16);
+    }
+
     pub fn validate(&self) -> Result<()> {
         let version = self.version_ihl >> 4;
 
@@ -133,5 +206,23 @@ impl Ipv4Packet {
         };
 
         Ok(payload)
+    }
+
+    pub fn to_vec(&self) -> Vec<u8> {
+        let mut vec = Vec::new();
+
+        vec.push(self.version_ihl);
+        vec.push(self.dscp_ecn);
+        vec.extend_from_slice(&self.len.to_be_bytes());
+        vec.extend_from_slice(&self.id.to_be_bytes());
+        vec.extend_from_slice(&self.flags.to_be_bytes());
+        vec.push(self.ttl);
+        vec.push(self.protocol.into());
+        vec.extend_from_slice(&self.checksum.to_be_bytes());
+        vec.extend_from_slice(&self.src_addr.octets());
+        vec.extend_from_slice(&self.dst_addr.octets());
+        vec.extend_from_slice(&self.data);
+
+        vec
     }
 }
