@@ -282,18 +282,6 @@ impl DeviceDriverFunction for Rtl8139Driver {
             // enable rx/tx
             io_register.write_cmd(0x0c); // TE, RE
 
-            // configure interrupt
-            // TODO: not working
-            // let vec_num = idt::set_handler_dyn_vec(
-            //     idt::InterruptHandler::Normal(poll_int_rt8139_driver),
-            //     idt::GateType::Interrupt,
-            // )?;
-            // debug!(
-            //     "{}: Interrupt vector number: {}",
-            //     self.device_driver_info.name, vec_num
-            // );
-            // d.write_interrupt_line(vec_num)?;
-
             let mac_addr = self.mac_addr()?;
             net::set_my_mac_addr(mac_addr)?;
 
@@ -346,7 +334,7 @@ impl DeviceDriverFunction for Rtl8139Driver {
                 let ether_type = match reply_payload {
                     EthernetPayload::Arp(_) => EtherType::Arp,
                     EthernetPayload::Ipv4(_) => EtherType::Ipv4,
-                    _ => unimplemented!(),
+                    EthernetPayload::None => return Ok(()),
                 };
                 let reply_eth_frame = EthernetFrame::new_with(
                     eth_frame.src_mac_addr,
@@ -421,15 +409,6 @@ pub fn write(data: &[u8]) -> Result<()> {
 }
 
 pub fn poll_normal() -> Result<()> {
-    if let Ok(mut driver) = unsafe { RTL8139_DRIVER.try_lock() } {
-        driver.poll_normal()?;
-    }
-    Ok(())
+    let mut driver = unsafe { RTL8139_DRIVER.try_lock() }?;
+    driver.poll_normal()
 }
-
-// extern "x86-interrupt" fn poll_int_rt8139_driver() {
-//     if let Ok(mut driver) = unsafe { RTL8139_DRIVER.try_lock() } {
-//         let _ = driver.poll_int();
-//     }
-//     idt::notify_end_of_int();
-// }

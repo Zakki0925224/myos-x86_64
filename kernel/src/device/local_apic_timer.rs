@@ -74,6 +74,12 @@ impl LocalApicTimerDriver {
         let current_cnt = (CURR_CNT_VIRT_ADDR.as_ptr_mut() as *mut u32).read_volatile();
         u32::MAX as usize - current_cnt as usize
     }
+
+    fn current_ms(&self) -> Result<usize> {
+        let _freq = self.freq.ok_or("Frequency not set")?;
+        let current_tick = unsafe { self.tick() };
+        Ok(current_tick * INT_INTERVAL_MS)
+    }
 }
 
 impl DeviceDriverFunction for LocalApicTimerDriver {
@@ -202,9 +208,7 @@ pub fn write(data: &[u8]) -> Result<()> {
 
 pub fn get_current_ms() -> Result<usize> {
     let driver = unsafe { LOCAL_APIC_TIMER_DRIVER.try_lock() }?;
-    let _freq = driver.freq.ok_or("Frequency not set")?;
-    let current_tick = unsafe { driver.tick() };
-    Ok(current_tick * INT_INTERVAL_MS)
+    driver.current_ms()
 }
 
 extern "x86-interrupt" fn poll_int_local_apic_timer() {
