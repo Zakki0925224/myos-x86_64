@@ -123,7 +123,7 @@ impl RxBuffer {
 
         let frame = &packet[4..rtl8139_len as usize];
         let eth_frame = EthernetFrame::try_from(frame)?;
-        Ok((eth_frame, self.packet_ptr))
+        Ok((eth_frame, self.packet_ptr - 0x10))
     }
 }
 
@@ -310,19 +310,16 @@ impl DeviceDriverFunction for Rtl8139Driver {
         let io_register = self.io_register()?;
         let status = io_register.read_int_status();
 
+        // clear TOK and ROK
+        io_register.write_int_status(0x5);
+
         // TOK
         if status & (1 << 2) != 0 {
-            // clear TOK
-            io_register.write_int_status(0x04);
-
             debug!("{}: TOK", name);
         }
 
         // ROK
         if status & 1 != 0 {
-            // clear ROK
-            io_register.write_int_status(0x11);
-
             debug!("{}: ROK", name);
             let (eth_frame, new_read_ptr) = self.receive_packet()?;
 
