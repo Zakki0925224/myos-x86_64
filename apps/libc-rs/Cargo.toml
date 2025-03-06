@@ -8,4 +8,4 @@ authors = ["Zakki <zakki0925224@gmail.com>"]
 [dependencies]
 
 [build-dependencies]
-bindgen = "0.69.4"
+bindgen = "0.71.1"

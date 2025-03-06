@@ -4,6 +4,9 @@ version = "0.1.0"
 edition = "2021"
 authors = ["Zakki <zakki0925224@gmail.com>"]
 
+[package.metadata.rust-analyzer]
+rustc_private = true
+
 [dependencies]
 common = { path = "../common" }
 uefi = { version = "0.32.0", features = ["alloc", "global_allocator", "panic_handler", "logger"] }

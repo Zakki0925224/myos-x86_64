@@ -168,19 +168,15 @@ def build_doom():
 
 
 def build_bootloader():
-    d = f"./{BOOTLOADER_DIR}"
-
     init()
-    run_cmd("cargo build", d)
+    run_cmd("cargo build", f"./{BOOTLOADER_DIR}")
     run_cmd(
-        f"cp ./target/x86_64-unknown-uefi/debug/bootloader.efi ../{OUTPUT_DIR}/{BOOTLOADER_FILE}",
-        d,
+        f"cp ./target/x86_64-unknown-uefi/debug/bootloader.efi ./{OUTPUT_DIR}/{BOOTLOADER_FILE}"
     )
 
 
 def build_kernel():
     global is_kernel_test, test_kernel_path
-    d = f"./{KERNEL_DIR}"
     kernel_path = (
         test_kernel_path
         if is_kernel_test and test_kernel_path != ""
@@ -188,8 +184,8 @@ def build_kernel():
     )
 
     init()
-    run_cmd("cargo build", d)
-    run_cmd(f"cp {kernel_path} ../{OUTPUT_DIR}/{KERNEL_FILE}", d)
+    run_cmd("cargo build", f"./{KERNEL_DIR}")
+    run_cmd(f"cp {kernel_path} ./{OUTPUT_DIR}/{KERNEL_FILE}")
 
 
 def build():

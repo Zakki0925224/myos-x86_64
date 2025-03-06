@@ -1,6 +1,5 @@
 #![no_std]
 #![no_main]
-#![feature(start)]
 #![feature(abi_x86_interrupt)]
 #![feature(panic_info_message)]
 #![feature(alloc_error_handler)]
@@ -36,7 +35,6 @@ use theme::GLOBAL_THEME;
 use util::logger;
 
 #[no_mangle]
-#[start]
 pub extern "sysv64" fn kernel_entry(boot_info: &BootInfo) -> ! {
     context::switch_kernel_stack(kernel_main, boot_info);
 }
