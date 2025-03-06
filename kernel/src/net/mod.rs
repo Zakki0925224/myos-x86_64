@@ -161,23 +161,23 @@ impl NetworkManager {
     fn receive_eth_payload(&mut self, payload: EthernetPayload) -> Result<Option<EthernetPayload>> {
         info!("net: Received Ethernet payload");
 
-        let mut replay_payload = None;
+        let mut reply_payload = None;
 
         match payload {
             EthernetPayload::Arp(arp_packet) => {
                 if let Some(reply_arp_packet) = self.receive_arp_packet(arp_packet)? {
-                    replay_payload = Some(EthernetPayload::Arp(reply_arp_packet));
+                    reply_payload = Some(EthernetPayload::Arp(reply_arp_packet));
                 }
             }
             EthernetPayload::Ipv4(ipv4_packet) => {
                 if let Some(reply_ipv4_packet) = self.receive_ipv4_packet(ipv4_packet)? {
-                    replay_payload = Some(EthernetPayload::Ipv4(reply_ipv4_packet));
+                    reply_payload = Some(EthernetPayload::Ipv4(reply_ipv4_packet));
                 }
             }
             EthernetPayload::None => (),
         }
 
-        Ok(replay_payload)
+        Ok(reply_payload)
     }
 }
 
