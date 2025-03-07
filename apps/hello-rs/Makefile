@@ -1,5 +1,5 @@
 FILE_NAME := hello-rs
-OUT_FILE := ../$(FILE_NAME).elf
+OUT_FILE := ../bin/$(FILE_NAME)
 TARGET := x86_64-app
 
 $(OUT_FILE):

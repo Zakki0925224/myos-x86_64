@@ -16,6 +16,8 @@ static char buf[BUF_LEN] = {0};
 static char *splitted_buf[BUF_LEN];
 static char cwd_path[BUF_LEN] = {0};
 static char cwdenames[BUF_LEN * 10] = {0};
+static char envpath[BUF_LEN] = {0};
+static char filename_buf[BUF_LEN] = {0};
 
 void exec_cmd(char *cmd)
 {
@@ -31,7 +33,27 @@ void exec_cmd(char *cmd)
         return;
     }
 
-    if (strcmp(splitted_buf[0], "exit") == 0)
+    if (strcmp(splitted_buf[0], "help") == 0)
+    {
+        printf("sh: Built-in commands:\n");
+        printf("  help\n");
+        printf("  exit\n");
+        printf("  break\n");
+        printf("  cd\n");
+        printf("  ls\n");
+        printf("  cat\n");
+        printf("  hexdump\n");
+        printf("  uptime\n");
+        printf("  exec\n");
+        printf("  window\n");
+
+        if (strlen(envpath) > 0)
+        {
+            printf("sh: envpath available\n");
+            printf("  <COMMAND> is alias for \"exec %s/<COMMAND>\"\n", envpath);
+        }
+    }
+    else if (strcmp(splitted_buf[0], "exit") == 0)
     {
         sys_exit(0);
     }
@@ -258,15 +280,45 @@ void exec_cmd(char *cmd)
             return;
         }
     }
+    // execute command with envpath
+    else if (strlen(envpath) > 0)
+    {
+        snprintf(filename_buf, sizeof(filename_buf), "%s/%s", envpath, splitted_buf[0]);
+        splitted_buf[0] = filename_buf;
+        char *args = splitted_buf[0];
+        if (cmdargs_len > 1)
+        {
+            args = concatenate((const char **)splitted_buf, cmdargs_len, " ");
+
+            if (args == NULL)
+            {
+                printf("sh: exec: failed to concatenate arguments\n");
+                return;
+            }
+        }
+
+        if (sys_exec(args) == -1)
+        {
+            printf("sh: exec: failed to execute\n");
+            return;
+        }
+    }
+    // unreachable
     else
     {
         printf("sh: %s: command not found\n", cmd);
     }
 }
 
-int main(void)
+int main(int argc, char const *argv[])
 {
     int getcwd_ret;
+
+    if (argc > 1)
+    {
+        strncpy(envpath, argv[1], strlen(argv[1]));
+        printf("sh: set envpath: %s\n", envpath);
+    }
 
     while (1)
     {

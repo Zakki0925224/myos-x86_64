@@ -163,7 +163,7 @@ def build_doom():
     run_cmd("git checkout master", dir=d)
     run_cmd("make -f Makefile.myos", dir=d)
     # run_cmd("make", dir=d)
-    run_cmd(f"cp {d}/doomgeneric ./{APPS_DIR}/doom.elf")
+    run_cmd(f"cp {d}/doomgeneric ./{APPS_DIR}/bin/doom")
     run_cmd(f"cp ./{THIRD_PARTY_DIR}/{DOOM_WAD_FILE} ./{INITRAMFS_DIR}")
 
 

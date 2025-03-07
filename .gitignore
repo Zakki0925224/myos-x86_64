@@ -2,6 +2,7 @@ target
 build
 dump
 qemu_debug.log
+apps/bin
 third-party/font.psf
 third-party/OVMF_VARS.fd
 third-party/doom1.wad

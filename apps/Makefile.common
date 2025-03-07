@@ -8,6 +8,7 @@ LIB_DIR := ../libc
 LIB := -L$(LIB_DIR) -lc
 
 $(OUT_FILE): $(OBJ_FILES)
+	mkdir -p ../bin
 	make -C $(LIB_DIR)
 	$(LD) $(OBJ_FILES) $(LIB) -o $@ $(LDFLAGS)
 

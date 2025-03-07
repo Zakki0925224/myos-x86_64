@@ -1,5 +1,5 @@
 SRC_FILES := main.c
 OBJ_FILES := $(SRC_FILES:.c=.o)
-OUT_FILE := ../sh.elf
+OUT_FILE := ../bin/sh
 
 include ../Makefile.common
