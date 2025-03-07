@@ -25,52 +25,6 @@ pub struct DescriptorTableArgs {
     pub base: u64,
 }
 
-pub fn enable_sse() -> Result<()> {
-    let cpu_vi = cpu::version_info();
-
-    if !cpu_vi.feature_sse {
-        return Err(Error::Failed("CPU does not support SSE"));
-    }
-
-    if !cpu_vi.feature_sse2 {
-        return Err(Error::Failed("CPU does not support SSE2"));
-    }
-
-    if !cpu_vi.feature_sse3 {
-        return Err(Error::Failed("CPU does not support SSE3"));
-    }
-
-    if !cpu_vi.feature_ssse3 {
-        return Err(Error::Failed("CPU does not support SSSE3"));
-    }
-
-    if !cpu_vi.feature_sse4_1 {
-        return Err(Error::Failed("CPU does not support SSE4.1"));
-    }
-
-    if !cpu_vi.feature_sse4_2 {
-        return Err(Error::Failed("CPU does not support SSE4.2"));
-    }
-
-    let mut cr0 = Cr0::read();
-    cr0.set_emulation(false);
-    cr0.set_monitor_coprocessor(true);
-    cr0.write();
-    cr0 = Cr0::read();
-    assert_eq!(cr0.emulation(), false);
-    assert_eq!(cr0.monitor_coprocessor(), true);
-
-    let mut cr4 = Cr4::read();
-    cr4.set_osfxsr(true);
-    cr4.set_osxmmexcept(true);
-    cr4.write();
-    cr4 = Cr4::read();
-    assert_eq!(cr4.osfxsr(), true);
-    assert_eq!(cr4.osxmmexcept(), true);
-
-    Ok(())
-}
-
 pub fn hlt() {
     unsafe { asm!("hlt") }
 }

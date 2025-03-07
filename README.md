@@ -29,14 +29,17 @@ This is a replacement project for the previous **[myos](https://github.com/Zakki
     -   [x] USB
 -   Device support
     -   [x] PS/2 Keyboard and Mouse
-    -   [x] Serial connection (UART 16650A)
-    -   [ ] RTL8139 (WIP)
+    -   [x] UART 16650A
+    -   [x] RTL8139
     -   [ ] xHCI (WIP)
     -   [ ] VirtIO (WIP)
         -   [ ] virtio-net (WIP)
 -   [x] File system
     -   [x] Own VFS
     -   [x] FAT32 (read only)
+-   [x] Networking
+    -   [x] ARP
+    -   [ ] IPv4 (ICMP, TCP) (WIP)
 -   [x] GUI support by using UEFI GOP
 -   [x] [Userland applications](/apps/) (libc for myos available [here](/apps/libc/))
 -   [x] Async runtime

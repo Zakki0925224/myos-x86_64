@@ -15,14 +15,13 @@ impl Register<u16> for Cs {
     }
 
     fn write(&self) {
-        // reference: https://github.com/hikalium/wasabi/blob/main/os/src/x86_64.rs
         unsafe {
             asm!(
-                "lea rax, [rip + 1f]",
+                "lea rax, [rip + 55f]",
                 "push cx",
                 "push rax",
                 "ljmp [rsp]",
-                "1:",
+                "55:",
                 "add rsp, 8 + 2",
                 in("cx") self.0
             );

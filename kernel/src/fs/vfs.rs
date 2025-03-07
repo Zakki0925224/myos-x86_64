@@ -5,13 +5,8 @@ use crate::{
     fs::fat::dir_entry::Attribute,
     util::mutex::Mutex,
 };
-use alloc::{
-    collections::btree_map::BTreeMap,
-    string::{String, ToString},
-    vec::Vec,
-};
+use alloc::{collections::btree_map::BTreeMap, string::String, vec::Vec};
 use core::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
-use log::debug;
 
 static mut VFS: Mutex<VirtualFileSystem> = Mutex::new(VirtualFileSystem::new());
 

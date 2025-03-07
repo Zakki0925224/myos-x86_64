@@ -21,13 +21,13 @@ use common::{
     graphic_info::PixelFormat,
     libm::{Stat, Utsname},
 };
-use core::{arch::asm, slice};
+use core::{arch::naked_asm, slice};
 use log::*;
 
 #[naked]
 extern "sysv64" fn asm_syscall_handler() {
     unsafe {
-        asm!(
+        naked_asm!(
             "push rbp",
             "push rcx",
             "push r11",
@@ -39,8 +39,7 @@ extern "sysv64" fn asm_syscall_handler() {
             "pop r11",
             "pop rcx",
             "pop rbp",
-            "sysretq",
-            options(noreturn)
+            "sysretq"
         );
     }
 }

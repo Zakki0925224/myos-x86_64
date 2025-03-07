@@ -5,9 +5,6 @@ edition = "2021"
 authors = ["Zakki <zakki0925224@gmail.com>"]
 description = "A hobby operating system written in Rust."
 
-[package.metadata.rust-analyzer]
-rustc_private = true
-
 [dependencies]
 common = { path = "../common" }
 log = "0.4.18"

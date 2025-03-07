@@ -89,7 +89,7 @@ impl<'a> GifImage<'a> {
 
     pub fn blocks(&self) -> Result<Vec<Block>> {
         let header = self.header();
-        let mut offset =
+        let offset =
             size_of::<Header>() + size_of::<ColorCode>() * header.global_color_table_size();
 
         let mut blocks = Vec::new();
@@ -116,13 +116,13 @@ impl<'a> GifImage<'a> {
             // TODO
             break;
 
-            while self.data[offset] != 0x0 {
-                offset += 1;
-            }
+            // while self.data[offset] != 0x0 {
+            //     offset += 1;
+            // }
 
-            if offset != self.data.len() - 1 {
-                offset += 1;
-            }
+            // if offset != self.data.len() - 1 {
+            //     offset += 1;
+            // }
         }
 
         Ok(blocks)

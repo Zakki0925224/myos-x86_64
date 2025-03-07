@@ -120,14 +120,6 @@ impl IoPortAddress {
         Self(addr)
     }
 
-    pub fn get(&self) -> u32 {
-        self.0
-    }
-
-    pub fn set(&mut self, addr: u32) {
-        self.0 = addr;
-    }
-
     pub fn offset(&self, offset: usize) -> Self {
         Self::new(self.0 + offset as u32)
     }

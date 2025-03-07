@@ -5,7 +5,6 @@ use core::{
     sync::atomic::{AtomicBool, Ordering},
 };
 
-// reference https://github.com/hikalium/wasabi/blob/main/os/src/mutex.rs
 pub struct Mutex<T> {
     value: SyncUnsafeCell<T>,
     locked: AtomicBool,

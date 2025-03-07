@@ -1,7 +1,6 @@
 #![no_std]
 #![no_main]
 #![feature(abi_x86_interrupt)]
-#![feature(panic_info_message)]
 #![feature(alloc_error_handler)]
 #![feature(sync_unsafe_cell)]
 #![feature(naked_functions)]

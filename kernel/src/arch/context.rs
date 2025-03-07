@@ -3,7 +3,7 @@ use super::{
     register::{control::Cr3, Register},
 };
 use common::boot_info::BootInfo;
-use core::arch::asm;
+use core::arch::{asm, naked_asm};
 
 const KERNEL_STACK_SIZE: usize = 1024 * 1024;
 static KERNEL_STACK: KernelStack = KernelStack::new();
@@ -46,7 +46,7 @@ pub fn switch_kernel_stack(
 #[naked]
 extern "sysv64" fn switch_context(next_ctx: &Context, current_ctx: &Context) {
     unsafe {
-        asm!(
+        naked_asm!(
             // save context
             "pushfq",
             "pop qword ptr [rsi + 0x10]", // rflags
@@ -105,8 +105,7 @@ extern "sysv64" fn switch_context(next_ctx: &Context, current_ctx: &Context) {
             "mov r14, [rdi + 0xb0]",
             "mov r15, [rdi + 0xb8]",
             "mov rdi, [rdi + 0x60]",
-            "iretq",
-            options(noreturn)
+            "iretq"
         );
     }
 }
