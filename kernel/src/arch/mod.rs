@@ -1,9 +1,4 @@
-use crate::error::{Error, Result};
 use core::arch::asm;
-use register::{
-    control::{Cr0, Cr4},
-    Register,
-};
 
 pub mod acpi;
 pub mod addr;

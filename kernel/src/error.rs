@@ -12,7 +12,7 @@ use crate::{
         font::FontError, frame_buf::FrameBufferError, multi_layer::LayerError,
         simple_window_manager::SimpleWindowManagerError,
     },
-    mem::{bitmap::BitmapMemoryManagerError, paging::PageManagerError},
+    mem::{allocator::AllocationError, bitmap::BitmapMemoryManagerError, paging::PageManagerError},
     util::{fifo::FifoError, lifo::LifoError},
 };
 use common::elf::Elf64Error;
@@ -37,6 +37,7 @@ pub enum Error {
     Elf64Error(Elf64Error),
     SimpleWindowManagerError(SimpleWindowManagerError),
     AcpiError(AcpiError),
+    AllocationError(AllocationError),
 }
 
 impl From<&'static str> for Error {
@@ -138,6 +139,12 @@ impl From<SimpleWindowManagerError> for Error {
 impl From<AcpiError> for Error {
     fn from(err: AcpiError) -> Self {
         Self::AcpiError(err)
+    }
+}
+
+impl From<AllocationError> for Error {
+    fn from(err: AllocationError) -> Self {
+        Self::AllocationError(err)
     }
 }
 

@@ -27,30 +27,28 @@ INITRAMFS_IMG_FILE = "initramfs.img"
 
 GIT_CHECKOUT_TO_LATEST_TAG = "git fetch --tags && latestTag=$(git describe --tags `git rev-list --tags --max-count=1`) && git checkout $latestTag && git gc"
 
-QEMU_ARCH = "qemu-system-x86_64"
-QEMU_TARGET_ARCH = "x86_64-softmmu"
-
 NETDEV_TAP = "tap0"
 NETDEV_BR = "br0"
 NETDEV_IP = "192.168.100.1/24"
 
+QEMU_ARCH = "qemu-system-x86_64"
+QEMU_TARGET_ARCH = "x86_64-softmmu"
+QEMU_MONITOR_PORT = 5678
+QEMU_GDB_PORT = 3333
 QEMU_DEVICES = [
     # "-device nec-usb-xhci,id=xhci",
     # "-device usb-kbd",
     # "-device virtio-net,netdev=net0,mac=52:54:00:12:34:56 -netdev user,id=net0",
-    # f"-device rtl8139,netdev=net0, -netdev user,id=net0,hostfwd=tcp:127.0.0.1:1234-:80 -object filter-dump,id=f0,netdev=net0,file={DUMP_DIR}/dump.pcap",  # <- curl localhost:1234
     "-device ahci,id=ahci",
     "-device ide-cd,drive=disk,bus=ahci.0,bootindex=1",
     "-device isa-debug-exit,iobase=0xf4,iosize=0x04",
     "-audiodev pa,id=speaker -machine pcspk-audiodev=speaker",
     f"-device rtl8139,netdev=net0, -netdev tap,id=net0,ifname={NETDEV_TAP},script=no,downscript=no -object filter-dump,id=f0,netdev=net0,file={DUMP_DIR}/dump.pcap",  # <- ping -4 192.168.100.2
 ]
-
 QEMU_DRIVES = [
     f"-drive id=disk,if=none,format=raw,file=./{OUTPUT_DIR}/{IMG_FILE}",
     f"-drive if=pflash,format=raw,readonly=on,file=./{THIRD_PARTY_DIR}/{OVMF_CODE_FILE}",
 ]
-
 QEMU_ARGS = [
     "-accel kvm",
     "-cpu host",
@@ -58,8 +56,8 @@ QEMU_ARGS = [
     "-no-shutdown",
     "-m 512M",
     "-serial mon:stdio",
-    "-monitor telnet::5678,server,nowait",
-    "-gdb tcp::3333",
+    f"-monitor telnet::{QEMU_MONITOR_PORT},server,nowait",
+    f"-gdb tcp::{QEMU_GDB_PORT}",
 ]
 
 is_kernel_test = False
@@ -162,7 +160,6 @@ def build_doom():
     run_cmd(git_submodule_update_cmd(d))
     run_cmd("git checkout master", dir=d)
     run_cmd("make -f Makefile.myos", dir=d)
-    # run_cmd("make", dir=d)
     run_cmd(f"cp {d}/doomgeneric ./{APPS_DIR}/bin/doom")
     run_cmd(f"cp ./{THIRD_PARTY_DIR}/{DOOM_WAD_FILE} ./{INITRAMFS_DIR}")
 
@@ -300,11 +297,13 @@ def run_with_gdb():
 
 
 def monitor():
-    run_cmd("telnet localhost 5678")
+    run_cmd(f"telnet localhost {QEMU_MONITOR_PORT}")
 
 
 def gdb():
-    run_cmd(f'rust-gdb ./{OUTPUT_DIR}/{KERNEL_FILE} -ex "target remote :3333"')
+    run_cmd(
+        f'rust-gdb ./{OUTPUT_DIR}/{KERNEL_FILE} -ex "target remote :{QEMU_GDB_PORT}"'
+    )
 
 
 def dump():

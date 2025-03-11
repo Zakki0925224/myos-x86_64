@@ -9,4 +9,3 @@ description = "A hobby operating system written in Rust."
 common = { path = "../common" }
 log = "0.4.18"
 pci-ids = "0.2.5"
-linked_list_allocator = "0.10.5"
