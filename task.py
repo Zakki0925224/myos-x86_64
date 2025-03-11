@@ -333,9 +333,7 @@ def clean():
     run_cmd(f"rm -rf ./{THIRD_PARTY_DIR}/{DOOM_DIR}/build")
     run_cmd(f"rm -f ./{APPS_DIR}/doom.elf")
     run_cmd(f"rm -rf ./{THIRD_PARTY_DIR}/{QEMU_DIR}/build")
-    run_cmd("cargo clean", dir=f"./{BOOTLOADER_DIR}")
-    run_cmd("cargo clean", dir="./common")
-    run_cmd("cargo clean", dir="./kernel")
+    run_cmd("cargo clean")
 
     # clean apps
     apps_dir = f"./{APPS_DIR}"
