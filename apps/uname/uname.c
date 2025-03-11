@@ -9,7 +9,7 @@ int main(int argc, const char *argv[])
     utsname *buf = (utsname *)malloc(sizeof(utsname));
     if (buf == NULL)
     {
-        exit(1);
+        return 1;
     }
 
     sys_uname(buf);
@@ -17,7 +17,7 @@ int main(int argc, const char *argv[])
     if (argc == 1)
     {
         printf("%s", buf->sysname);
-        exit(0);
+        return 0;
     }
 
     if (strcmp(argv[1], "--help") == 0)
@@ -31,7 +31,7 @@ int main(int argc, const char *argv[])
         printf(" -v\tprint the kernel version\n");
         printf(" -m\tprint the machine hardware name\n");
         printf(" -d\tprint the domain name\n");
-        exit(0);
+        return 0;
     }
 
     for (int i = 1; i < argc; i++)
@@ -39,7 +39,7 @@ int main(int argc, const char *argv[])
         if (strcmp(argv[i], "-a") == 0)
         {
             printf("%s %s %s %s %s %s", buf->sysname, buf->nodename, buf->release, buf->version, buf->machine, buf->domainname);
-            exit(0);
+            return 0;
         }
     }
 

@@ -18,4 +18,6 @@ int main(int argc, char *argv[])
 
     printf("%d ms\n", uptime_ms);
     printf("%d days %d hours %d minutes %d seconds %d milliseconds\n", days, hours, minutes, seconds, milliseconds);
+
+    return 0;
 }

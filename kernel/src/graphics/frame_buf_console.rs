@@ -20,6 +20,7 @@ pub struct FrameBufferConsole {
     cursor_y: usize,
     target_layer_id: Option<LayerId>,
     is_scrollable: bool,
+    color_swapped: bool,
 }
 
 impl FrameBufferConsole {
@@ -41,6 +42,7 @@ impl FrameBufferConsole {
             cursor_y: 0,
             target_layer_id: None,
             is_scrollable,
+            color_swapped: false,
         });
     }
 
@@ -180,6 +182,21 @@ impl FrameBufferConsole {
             } else {
                 0
             };
+
+            // swap color
+            if !self.is_scrollable {
+                self.color_swapped = !self.color_swapped;
+                let tmp = self.default_fore_color;
+                if self.color_swapped {
+                    self.fore_color = self.back_color;
+                    self.default_fore_color = self.back_color;
+                    self.back_color = tmp;
+                } else {
+                    self.fore_color = self.back_color;
+                    self.default_fore_color = self.back_color;
+                    self.back_color = tmp;
+                }
+            }
         }
 
         Ok(())
