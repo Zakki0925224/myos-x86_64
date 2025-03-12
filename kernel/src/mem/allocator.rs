@@ -296,7 +296,7 @@ impl Cursor {
         }
     }
 
-    fn try_insert_after(&mut self, mut node: NonNull<Hole>) -> core::result::Result<(), ()> {
+    fn try_insert_after(&mut self, mut node: NonNull<Hole>) -> Result<()> {
         let node_u8: *mut u8 = node.as_ptr().cast();
         let node_size = unsafe { node.as_ref().size };
 
@@ -305,7 +305,7 @@ impl Cursor {
                 let node_u8 = node_u8 as *const u8;
                 assert!(node_u8.wrapping_add(node_size) <= next.as_ptr().cast::<u8>());
             } else {
-                return Err(());
+                return Err(Error::Failed("Invalid node"));
             }
         }
 
@@ -385,8 +385,8 @@ impl Heap {
     }
 
     fn alloc_first_fit(&mut self, layout: Layout) -> Result<NonNull<u8>> {
-        let (ptr, _) = self.holes.alloc_first_fit(layout)?;
-        self.used += layout.size();
+        let (ptr, aligned_layout) = self.holes.alloc_first_fit(layout)?;
+        self.used += aligned_layout.size();
         Ok(ptr)
     }
 
@@ -499,7 +499,7 @@ fn dealloc(list: &mut HoleList, addr: *mut u8, size: usize) -> Result<()> {
     let (cursor, n) = match cursor.try_insert_back(hole, list.bottom) {
         Ok(cursor) => (cursor, 1),
         Err(mut curosr) => {
-            while let Err(()) = curosr.try_insert_after(hole) {
+            while let Err(_) = curosr.try_insert_after(hole) {
                 curosr = curosr.next().ok_or(Error::Failed("No next cursor"))?;
             }
             (curosr, 2)
@@ -516,11 +516,9 @@ fn alloc_error_handler(layout: Layout) -> ! {
 
 #[test_case]
 fn test_alloc_string() {
-    use alloc::string::String;
-
-    let s1 = String::from("Hello, World!");
+    let s1 = "Hello, World!".to_string();
     assert_eq!(s1, "Hello, World!");
-    let s2 = String::from("hoge huga hogera piyo 012345!\"#$%&");
+    let s2 = "hoge huga hogera piyo 012345!\"#$%&".to_string();
     assert_eq!(s2, "hoge huga hogera piyo 012345!\"#$%&");
 }
 
