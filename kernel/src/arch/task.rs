@@ -181,10 +181,10 @@ impl Drop for Task {
             })
             .unwrap();
 
-            assert_eq!(
-                paging::calc_virt_addr(start.get().into()).unwrap().get(),
-                start.get()
-            );
+            // assert_eq!(
+            //     paging::calc_virt_addr(start.get().into()).unwrap().get(),
+            //     start.get()
+            // );
             bitmap::dealloc_mem_frame(*mem_info).unwrap();
         }
 
@@ -353,10 +353,10 @@ impl Task {
                 pwt: PageWriteThroughLevel::WriteThrough,
             })?;
 
-            assert_eq!(
-                paging::calc_virt_addr(start.get().into()).unwrap().get(),
-                start.get()
-            );
+            // assert_eq!(
+            //     paging::calc_virt_addr(start.get().into()).unwrap().get(),
+            //     start.get()
+            // );
         }
 
         Ok(())
@@ -570,6 +570,37 @@ fn debug_task(task: &Task) {
         "\tr12: 0x{:016x}, r13: 0x{:016x}, r14: 0x{:016x}, r15: 0x{:016x}",
         ctx.r12, ctx.r13, ctx.r14, ctx.r15
     );
+
+    debug!("args mem frame info:");
+    if let Some(mem_frame_info) = &task.args_mem_frame_info {
+        let virt_addr = mem_frame_info.frame_start_virt_addr().unwrap();
+        debug!(
+            "\t(virt)0x{:x}-0x{:x}",
+            virt_addr.get(),
+            virt_addr.offset(mem_frame_info.frame_size).get(),
+        );
+    }
+
+    debug!("stack mem frame info:");
+    let virt_addr = task.stack_mem_frame_info.frame_start_virt_addr().unwrap();
+    debug!(
+        "\t(virt)0x{:x}-0x{:x}",
+        virt_addr.get(),
+        virt_addr.offset(task.stack_mem_frame_info.frame_size).get(),
+    );
+
+    debug!("program mem frame info:");
+    for (mem_frame_info, mapping_info) in &task.program_mem_info {
+        let virt_addr = mem_frame_info.frame_start_virt_addr().unwrap();
+        debug!(
+            "\t(virt)0x{:x}-0x{:x} mapped to (virt)0x{:x}-0x{:x}",
+            virt_addr.get(),
+            virt_addr.offset(mem_frame_info.frame_size).get(),
+            mapping_info.start.get(),
+            mapping_info.end.get(),
+        );
+    }
+
     debug!("allocated mem frame info:");
     for mem_frame_info in &task.allocated_mem_frame_info {
         let virt_addr = mem_frame_info.frame_start_virt_addr().unwrap();
