@@ -8,11 +8,6 @@ pub const TAB_DISP_STR: &str = "    ";
 
 pub static FONT: PsfFont = PsfFont::new();
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FontError {
-    FontGlyphError,
-}
-
 pub struct PsfFont {
     binary_len: usize,
     height: usize,
@@ -25,7 +20,7 @@ pub struct PsfFont {
 }
 
 impl PsfFont {
-    pub const fn new() -> Self {
+    const fn new() -> Self {
         const fn get_magic_num() -> u32 {
             (FONT_BIN[3] as u32) << 24
                 | (FONT_BIN[2] as u32) << 16
@@ -106,16 +101,12 @@ impl PsfFont {
         }
     }
 
-    pub fn get_height(&self) -> usize {
-        self.height
-    }
-
-    pub fn get_width(&self) -> usize {
-        self.width
+    pub fn get_wh(&self) -> (usize, usize) {
+        (self.width, self.height)
     }
 
     // ascii char only
-    pub fn unicode_char_to_glyph_index(&self, c: char) -> usize {
+    fn unicode_char_to_glyph_index(&self, c: char) -> usize {
         if !self.has_unicode_table {
             return c as usize;
         }
@@ -136,9 +127,11 @@ impl PsfFont {
         index
     }
 
-    pub fn get_glyph(&self, index: usize) -> Result<&'static [u8]> {
+    pub fn get_glyph(&self, c: char) -> Result<&'static [u8]> {
+        let index = self.unicode_char_to_glyph_index(c);
+
         if index > self.glyphs_len {
-            return Err(FontError::FontGlyphError.into());
+            return Err("Invalid glyph index".into());
         }
 
         let offset = self.header_size + self.glyph_size * index;

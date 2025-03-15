@@ -41,9 +41,11 @@ impl PanicScreenDriver {
     }
 
     fn char_max_xy_len(&self) -> (usize, usize) {
+        let (font_width, font_height) = FONT.get_wh();
+
         (
-            self.res_x.unwrap_or(0) / FONT.get_width() - 1,
-            self.res_y.unwrap_or(0) / FONT.get_height() - 1,
+            self.res_x.unwrap_or(0) / font_width - 1,
+            self.res_y.unwrap_or(0) / font_height - 1,
         )
     }
 
@@ -124,9 +126,8 @@ impl PanicScreenDriver {
         }
 
         // draw font
-        let font_glyph = FONT.get_glyph(FONT.unicode_char_to_glyph_index(c))?;
-        let font_width = FONT.get_width();
-        let font_height = FONT.get_height();
+        let font_glyph = FONT.get_glyph(c)?;
+        let (font_width, font_height) = FONT.get_wh();
         let x = self.curosr_x.unwrap_or(0) * font_width;
         let y = self.cursor_y.unwrap_or(0) * font_height;
 

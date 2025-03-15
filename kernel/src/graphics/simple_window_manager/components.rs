@@ -518,10 +518,10 @@ impl Component for Button {
             l.draw_rect(0, 0, border_width, 2, border_color1)?;
 
             // title
-            let (f_w, f_h) = (FONT.get_width(), FONT.get_height());
+            let (font_width, font_height) = FONT.get_wh();
             l.draw_string(
-                width / 2 - f_w * self.title.len() / 2,
-                height / 2 - f_h / 2,
+                width / 2 - font_width * self.title.len() / 2,
+                height / 2 - font_height / 2,
                 &self.title,
                 GLOBAL_THEME.wm_component_fore_color,
                 GLOBAL_THEME.wm_component_back_color,
@@ -597,13 +597,13 @@ impl Component for Label {
             l.fill(self.back_color)?;
 
             // label
-            let (_, f_h) = (FONT.get_width(), FONT.get_height());
+            let (_, font_height) = FONT.get_wh();
             let c_x = 0;
             let mut c_y = 0;
 
             for line in self.label.lines() {
                 l.draw_string(c_x, c_y, line, self.fore_color, self.back_color)?;
-                c_y += f_h;
+                c_y += font_height;
             }
 
             Ok(())
@@ -620,9 +620,9 @@ impl Label {
         fore_color: ColorCode,
     ) -> Result<Self> {
         // calc width and height
-        let (f_w, f_h) = (FONT.get_width(), FONT.get_height());
-        let width = label.lines().map(|s| s.len()).max().unwrap_or(0) * f_w;
-        let height = label.lines().count() * f_h;
+        let (font_width, font_height) = FONT.get_wh();
+        let width = label.lines().map(|s| s.len()).max().unwrap_or(0) * font_width;
+        let height = label.lines().count() * font_height;
 
         let layer = multi_layer::create_layer(x, y, width, height)?;
         let layer_id = layer.id.clone();

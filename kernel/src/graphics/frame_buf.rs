@@ -55,11 +55,10 @@ impl Draw for FrameBuffer {
         x: usize,
         y: usize,
         s: &str,
-        back_color_code: ColorCode,
-        fore_color_code: ColorCode,
+        back_color: ColorCode,
+        fore_color: ColorCode,
     ) -> Result<()> {
-        let font_width = FONT.get_width();
-        let font_height = FONT.get_height();
+        let (font_width, font_height) = FONT.get_wh();
         let mut char_x = x;
         let mut char_y = y;
 
@@ -71,14 +70,14 @@ impl Draw for FrameBuffer {
                 }
                 '\t' => {
                     for c in TAB_DISP_STR.chars() {
-                        self.draw_font(char_x, char_y, c, fore_color_code, back_color_code)?;
+                        self.draw_font(char_x, char_y, c, fore_color, back_color)?;
                         char_x += font_width;
                     }
                 }
                 _ => (),
             }
 
-            self.draw_font(char_x, char_y, c, fore_color_code, back_color_code)?;
+            self.draw_font(char_x, char_y, c, fore_color, back_color)?;
             char_x += font_width;
         }
 
@@ -90,17 +89,18 @@ impl Draw for FrameBuffer {
         x: usize,
         y: usize,
         c: char,
-        fore_color_code: ColorCode,
-        back_color_code: ColorCode,
+        fore_color: ColorCode,
+        back_color: ColorCode,
     ) -> Result<()> {
-        let glyph = FONT.get_glyph(FONT.unicode_char_to_glyph_index(c))?;
+        let (font_width, font_height) = FONT.get_wh();
+        let glyph = FONT.get_glyph(c)?;
 
-        for h in 0..FONT.get_height() {
-            for w in 0..FONT.get_width() {
+        for h in 0..font_height {
+            for w in 0..font_width {
                 let color = if (glyph[h] << w) & 0x80 == 0x80 {
-                    fore_color_code
+                    fore_color
                 } else {
-                    back_color_code
+                    back_color
                 };
                 self.draw_rect(x + w, y + h, 1, 1, color)?;
             }
@@ -315,12 +315,12 @@ pub fn draw_font(
     x: usize,
     y: usize,
     c: char,
-    fore_color_code: ColorCode,
-    back_color_code: ColorCode,
+    fore_color: ColorCode,
+    back_color: ColorCode,
 ) -> Result<()> {
     let mut frame_buf = unsafe { FRAME_BUF.try_lock() }?;
     let frame_buf = frame_buf.as_mut().ok_or(FrameBufferError::NotInitialized)?;
-    frame_buf.draw_font(x, y, c, fore_color_code, back_color_code)
+    frame_buf.draw_font(x, y, c, fore_color, back_color)
 }
 
 pub fn copy(x: usize, y: usize, to_x: usize, to_y: usize) -> Result<()> {

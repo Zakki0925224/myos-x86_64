@@ -42,7 +42,7 @@ fn efi_main() -> Status {
     info!("{:?}", graphic_info);
 
     // load kernel
-    let kernel_entry_point_addr = load_elf(config.kernel_path);
+    let kernel_entry_point_addr = load_kernel(config.kernel_path);
     info!("Kernel entry point: 0x{:x}", kernel_entry_point_addr);
 
     // load initramfs
@@ -115,7 +115,7 @@ fn read_file(path: &str) -> RegularFile {
     }
 }
 
-fn load_elf(path: &str) -> u64 {
+fn load_kernel(path: &str) -> u64 {
     let mut file = read_file(path);
 
     let file_info = file.get_boxed_info::<FileInfo>().unwrap();

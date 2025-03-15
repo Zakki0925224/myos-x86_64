@@ -1,6 +1,6 @@
 use common::graphic_info::PixelFormat;
 
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(C)]
 pub struct ColorCode {
     pub r: u8,
@@ -10,6 +10,15 @@ pub struct ColorCode {
 }
 
 impl ColorCode {
+    pub const fn default() -> Self {
+        Self {
+            r: 0,
+            g: 0,
+            b: 0,
+            a: 0,
+        }
+    }
+
     pub const fn new_rgb(r: u8, g: u8, b: u8) -> Self {
         Self { r, g, b, a: 0 }
     }

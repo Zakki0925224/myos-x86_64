@@ -9,7 +9,7 @@ use crate::{
     },
     fs::vfs::VirtualFileSystemError,
     graphics::{
-        font::FontError, frame_buf::FrameBufferError, multi_layer::LayerError,
+        frame_buf::FrameBufferError, multi_layer::LayerError,
         simple_window_manager::SimpleWindowManagerError,
     },
     mem::{allocator::AllocationError, bitmap::BitmapMemoryManagerError, paging::PageManagerError},
@@ -20,7 +20,6 @@ use common::elf::Elf64Error;
 #[derive(Debug, Clone, PartialEq)]
 pub enum Error {
     Failed(&'static str),
-    FontError(FontError),
     FrameBufferError(FrameBufferError),
     LayerError(LayerError),
     BitmapMemoryManagerError(BitmapMemoryManagerError),
@@ -43,12 +42,6 @@ pub enum Error {
 impl From<&'static str> for Error {
     fn from(s: &'static str) -> Self {
         Self::Failed(s)
-    }
-}
-
-impl From<FontError> for Error {
-    fn from(err: FontError) -> Self {
-        Self::FontError(err)
     }
 }
 

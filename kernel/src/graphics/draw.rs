@@ -15,16 +15,16 @@ pub trait Draw {
         x: usize,
         y: usize,
         s: &str,
-        fore_color_code: ColorCode,
-        back_color_code: ColorCode,
+        fore_color: ColorCode,
+        back_color: ColorCode,
     ) -> Result<()>;
     fn draw_font(
         &mut self,
         x: usize,
         y: usize,
         c: char,
-        fore_color_code: ColorCode,
-        back_color_code: ColorCode,
+        fore_color: ColorCode,
+        back_color: ColorCode,
     ) -> Result<()>;
     fn fill(&mut self, color_code: ColorCode) -> Result<()>;
     fn copy(&mut self, x: usize, y: usize, to_x: usize, to_y: usize) -> Result<()>;
