@@ -71,7 +71,7 @@ impl Fat {
         let dir_entries = self
             .volume
             .read_chained_dir_entries(file.target_cluster_num);
-        let mut bytes: Vec<u8> = dir_entries.iter().flat_map(|de| de.raw()).collect();
+        let mut bytes: Vec<u8> = dir_entries.iter().flat_map(|de| *de.raw()).collect();
         bytes.resize(file.size, 0);
 
         Ok((file.clone(), bytes))
@@ -86,7 +86,8 @@ impl Fat {
             current_dir_cluster_num = self.cluster_num(dir_name, Some(current_dir_cluster_num))?;
         }
 
-        self.get_file(&path.name(), Some(current_dir_cluster_num))
+        let file = self.get_file(&path.name(), Some(current_dir_cluster_num))?;
+        Ok(file)
     }
 
     pub fn scan_dir(&self, dir_cluster_num: Option<usize>) -> Vec<FileMetaData> {

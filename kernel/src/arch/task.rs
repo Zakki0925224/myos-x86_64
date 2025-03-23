@@ -20,6 +20,8 @@ use core::{
 };
 use log::{debug, trace};
 
+const USER_TASK_STACK_SIZE: usize = 1024 * 1024; // 1MiB
+
 static mut TASK_EXECUTOR: Mutex<Executor> = Mutex::new(Executor::new());
 
 static mut KERNEL_TASK: Mutex<Option<Task>> = Mutex::new(None);
@@ -396,7 +398,7 @@ pub fn exec_user_task(elf64: Elf64, path: &Path, args: &[&str]) -> Result<u64> {
     }
 
     let user_task = Task::new(
-        1024 * 1024,
+        USER_TASK_STACK_SIZE,
         Some(elf64),
         Some(&[&[path.to_string().as_str()], args].concat()),
         ContextMode::User,
@@ -412,6 +414,7 @@ pub fn exec_user_task(elf64: Elf64, path: &Path, args: &[&str]) -> Result<u64> {
         }
     };
 
+    // debug_task(&task);
     user_tasks.push(task);
 
     let is_user = user_tasks.len() > 1;

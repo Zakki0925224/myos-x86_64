@@ -190,15 +190,19 @@ pub fn poll_normal() -> Result<()> {
         None => return Ok(()),
     };
 
-    let ascii_code = match AsciiCode::from_u8(received_data) {
+    let mut ascii_code = match AsciiCode::from_u8(received_data) {
         Some(code) => code,
         None => {
             return Ok(());
         }
     };
 
+    if ascii_code == AsciiCode::CarriageReturn {
+        ascii_code = AsciiCode::NewLine;
+    }
+
     match ascii_code {
-        AsciiCode::CarriageReturn => {
+        AsciiCode::NewLine => {
             println!();
         }
         code => {

@@ -64,7 +64,7 @@ is_kernel_test = False
 test_kernel_path = ""
 
 
-def qemu_cmd() -> str:
+def _qemu_cmd() -> str:
     global is_kernel_test
 
     qemu_args = " ".join(QEMU_ARGS)
@@ -77,15 +77,15 @@ def qemu_cmd() -> str:
     return f"{QEMU_ARCH} {qemu_args} {qemu_drives} {qemu_devices}"
 
 
-def own_qemu_cmd() -> str:
-    return f"./{THIRD_PARTY_DIR}/{QEMU_DIR}/build/{qemu_cmd()} --display sdl --trace events=./{QEMU_TRACE_FILE}"
+def _own_qemu_cmd() -> str:
+    return f"./{THIRD_PARTY_DIR}/{QEMU_DIR}/build/{_qemu_cmd()} --display sdl --trace events=./{QEMU_TRACE_FILE}"
 
 
-def git_submodule_update_cmd(path: str) -> str:
+def _git_submodule_update_cmd(path: str) -> str:
     return f"git submodule update --init --recursive {path}"
 
 
-def run_cmd(
+def _run_cmd(
     cmd: str,
     dir: str = "./",
     ignore_error: bool = False,
@@ -109,32 +109,33 @@ def run_cmd(
         exit(exit_code)
 
 
-# tasks
-def init():
-    run_cmd(f"mkdir -p ./{OUTPUT_DIR}")
+def _init():
+    _run_cmd(f"mkdir -p ./{OUTPUT_DIR}")
+    _run_cmd(f"mkdir -p ./{DUMP_DIR}")
+    _run_cmd(f"mkdir -p ./{APPS_DIR}/bin")
 
 
-def build_cozette():
+def _build_cozette():
     d = f"./{THIRD_PARTY_DIR}"
 
     if not os.path.exists(f"{d}/{FONT_FILE}"):
-        run_cmd(
+        _run_cmd(
             f'wget -qO- https://api.github.com/repos/slavfox/Cozette/releases/latest | grep "{COZETTE_BDF}" | cut -d : -f 2,3 | tr -d \\" | wget -O ./{COZETTE_BDF} -i -',
             dir=d,
             ignore_error=True,
         )
-        run_cmd(
+        _run_cmd(
             f"bdf2psf --fb ./{COZETTE_BDF} /usr/share/bdf2psf/standard.equivalents /usr/share/bdf2psf/fontsets/Uni2.512 512 ./{FONT_FILE}",
             dir=d,
         )
-        run_cmd(f"rm ./{COZETTE_BDF}", dir=d)
+        _run_cmd(f"rm ./{COZETTE_BDF}", dir=d)
 
 
-def build_qemu():
+def _build_qemu():
     global is_kernel_test
 
     d = f"./{THIRD_PARTY_DIR}/{QEMU_DIR}"
-    run_cmd(git_submodule_update_cmd(d))
+    _run_cmd(_git_submodule_update_cmd(d))
 
     if is_kernel_test:
         return
@@ -143,36 +144,35 @@ def build_qemu():
         # run_cmd(f"{GIT_CHECKOUT_TO_LATEST_TAG}", dir=d)
         extra_cflags = '--extra-cflags="-DDEBUG_RTL8139"'
         # extra_cflags = ""
-        run_cmd(
+        _run_cmd(
             f"mkdir -p build && cd build && ../configure --target-list={QEMU_TARGET_ARCH} --enable-trace-backends=log --enable-sdl {extra_cflags} && make -j$(nproc)",
             dir=d,
         )
 
 
-def build_doom():
+def _build_doom():
     # download doom1.wad
     if not os.path.exists(f"./{THIRD_PARTY_DIR}/{DOOM_WAD_FILE}"):
-        run_cmd(
+        _run_cmd(
             f"wget -P ./{THIRD_PARTY_DIR} https://distro.ibiblio.org/slitaz/sources/packages/d/doom1.wad"
         )
 
     d = f"./{THIRD_PARTY_DIR}/{DOOM_DIR}"
-    run_cmd(git_submodule_update_cmd(d))
-    run_cmd("git checkout master", dir=d)
-    run_cmd("make -f Makefile.myos", dir=d)
-    run_cmd(f"cp {d}/doomgeneric ./{APPS_DIR}/bin/doom")
-    run_cmd(f"cp ./{THIRD_PARTY_DIR}/{DOOM_WAD_FILE} ./{INITRAMFS_DIR}")
+    _run_cmd(_git_submodule_update_cmd(d))
+    _run_cmd("git checkout master", dir=d)
+    _run_cmd("make -f Makefile.myos", dir=d)
+    _run_cmd(f"cp {d}/doomgeneric ./{APPS_DIR}/bin/doom")
+    _run_cmd(f"cp ./{THIRD_PARTY_DIR}/{DOOM_WAD_FILE} ./{INITRAMFS_DIR}")
 
 
-def build_bootloader():
-    init()
-    run_cmd("cargo build", f"./{BOOTLOADER_DIR}")
-    run_cmd(
+def _build_bootloader():
+    _run_cmd("cargo build", f"./{BOOTLOADER_DIR}")
+    _run_cmd(
         f"cp ./target/x86_64-unknown-uefi/debug/bootloader.efi ./{OUTPUT_DIR}/{BOOTLOADER_FILE}"
     )
 
 
-def build_kernel():
+def _build_kernel():
     global is_kernel_test, test_kernel_path
     kernel_path = (
         test_kernel_path
@@ -180,20 +180,24 @@ def build_kernel():
         else "./target/x86_64-kernel/debug/kernel"
     )
 
-    init()
-    run_cmd("cargo build", f"./{KERNEL_DIR}")
-    run_cmd(f"cp {kernel_path} ./{OUTPUT_DIR}/{KERNEL_FILE}")
+    _run_cmd("cargo build", f"./{KERNEL_DIR}")
+    _run_cmd(f"cp {kernel_path} ./{OUTPUT_DIR}/{KERNEL_FILE}")
 
 
 def build():
-    init()
-    build_cozette()
-    build_qemu()
-    build_bootloader()
-    build_kernel()
+    global is_kernel_test
+
+    if not is_kernel_test:
+        _build_apps()
+
+    _init()
+    _build_cozette()
+    _build_qemu()
+    _build_bootloader()
+    _build_kernel()
 
 
-def build_apps():
+def _build_apps():
     d = f"./{APPS_DIR}"
     dirs = [f for f in os.listdir(d) if os.path.isdir(os.path.join(d, f))]
     dirs.sort()
@@ -203,114 +207,109 @@ def build_apps():
         pwd = f"{d}/{dir_name}"
 
         if os.path.exists(f"{pwd}/Makefile"):
-            run_cmd("make clean", dir=pwd)
-            run_cmd("make", dir=pwd)
+            _run_cmd("make clean", dir=pwd)
+            _run_cmd("make", dir=pwd)
 
     # copy apps dir to initramfs dir
-    run_cmd(f"rm -rf ./{INITRAMFS_DIR}/{APPS_DIR}")
-    run_cmd(f"cp -r {d} ./{INITRAMFS_DIR}/")
+    _run_cmd(f"rm -rf ./{INITRAMFS_DIR}/{APPS_DIR}")
+    _run_cmd(f"cp -r {d} ./{INITRAMFS_DIR}/")
 
     # remove `target` directory
-    run_cmd(f'find ./{INITRAMFS_DIR} -type d -name "target" | xargs rm -rf')
+    _run_cmd(f'find ./{INITRAMFS_DIR} -type d -name "target" | xargs rm -rf')
+
+    _build_doom()
 
 
-def make_initramfs():
-    global is_kernel_test
-
-    build_doom()
-
-    if not is_kernel_test:
-        build_apps()
-
-    run_cmd(
+def _make_initramfs():
+    _run_cmd(
         f"dd if=/dev/zero of=./{OUTPUT_DIR}/{INITRAMFS_IMG_FILE} bs=1M count=128"
     )  # 128MiB
-    run_cmd(
+    _run_cmd(
         f'mkfs.fat -n "INITRAMFS" -F 32 -s 2 ./{OUTPUT_DIR}/{INITRAMFS_IMG_FILE}'
     )  # format for FAT32
-    run_cmd(f"sudo mount -o loop ./{OUTPUT_DIR}/{INITRAMFS_IMG_FILE} {MNT_DIR_PATH}")
-    run_cmd(f"sudo rm -rf {MNT_DIR_PATH}/*")  # clear initramfs
-    run_cmd(f"sudo cp -r ./{INITRAMFS_DIR}/* {MNT_DIR_PATH}/")
-    run_cmd("sleep 0.5")
-    run_cmd(f"sudo umount {MNT_DIR_PATH}")
+    _run_cmd(f"sudo mount -o loop ./{OUTPUT_DIR}/{INITRAMFS_IMG_FILE} {MNT_DIR_PATH}")
+    _run_cmd(f"sudo rm -rf {MNT_DIR_PATH}/*")  # clear initramfs
+    _run_cmd(f"sudo cp -r ./{INITRAMFS_DIR}/* {MNT_DIR_PATH}/")
+    _run_cmd("sleep 0.5")
+    _run_cmd(f"sudo umount {MNT_DIR_PATH}")
 
 
-def make_img():
-    build()
-    make_initramfs()
-    run_cmd(f"qemu-img create -f raw ./{OUTPUT_DIR}/{IMG_FILE} 200M")
-    run_cmd(
+def _make_img():
+    _make_initramfs()
+    _run_cmd(f"qemu-img create -f raw ./{OUTPUT_DIR}/{IMG_FILE} 200M")
+    _run_cmd(
         f'mkfs.fat -n "MYOS" -F 32 -s 2 ./{OUTPUT_DIR}/{IMG_FILE}'
     )  # format for FAT32
-    run_cmd(f"sudo mount -o loop ./{OUTPUT_DIR}/{IMG_FILE} {MNT_DIR_PATH}")
-    run_cmd(f"sudo mkdir -p {MNT_DIR_PATH}/EFI/BOOT")
-    run_cmd(f"sudo mkdir -p {MNT_DIR_PATH}/EFI/myos")
-    run_cmd(
+    _run_cmd(f"sudo mount -o loop ./{OUTPUT_DIR}/{IMG_FILE} {MNT_DIR_PATH}")
+    _run_cmd(f"sudo mkdir -p {MNT_DIR_PATH}/EFI/BOOT")
+    _run_cmd(f"sudo mkdir -p {MNT_DIR_PATH}/EFI/myos")
+    _run_cmd(
         f"sudo cp ./{OUTPUT_DIR}/{BOOTLOADER_FILE} {MNT_DIR_PATH}/EFI/BOOT/BOOTX64.EFI"
     )
-    run_cmd(f"sudo cp ./{OUTPUT_DIR}/{KERNEL_FILE} {MNT_DIR_PATH}/EFI/myos/kernel.elf")
-    run_cmd(f"sudo cp ./{OUTPUT_DIR}/{INITRAMFS_IMG_FILE} {MNT_DIR_PATH}/initramfs.img")
-    run_cmd("sleep 0.5")
-    run_cmd(f"sudo umount {MNT_DIR_PATH}")
+    _run_cmd(f"sudo cp ./{OUTPUT_DIR}/{KERNEL_FILE} {MNT_DIR_PATH}/EFI/myos/kernel.elf")
+    _run_cmd(
+        f"sudo cp ./{OUTPUT_DIR}/{INITRAMFS_IMG_FILE} {MNT_DIR_PATH}/initramfs.img"
+    )
+    _run_cmd("sleep 0.5")
+    _run_cmd(f"sudo umount {MNT_DIR_PATH}")
 
 
 def make_iso():
-    make_img()
-    run_cmd(f"dd if=./{OUTPUT_DIR}/{IMG_FILE} of=./{OUTPUT_DIR}/{ISO_FILE} bs=1M")
+    build()
+    _make_img()
+    _run_cmd(f"dd if=./{OUTPUT_DIR}/{IMG_FILE} of=./{OUTPUT_DIR}/{ISO_FILE} bs=1M")
 
 
 def make_netdev():
-    run_cmd(f"sudo ip link add name {NETDEV_BR} type bridge")
-    run_cmd(f"sudo ip addr add {NETDEV_IP} dev {NETDEV_BR}")
-    run_cmd(f"sudo ip link set {NETDEV_BR} up")
+    _run_cmd(f"sudo ip link add name {NETDEV_BR} type bridge")
+    _run_cmd(f"sudo ip addr add {NETDEV_IP} dev {NETDEV_BR}")
+    _run_cmd(f"sudo ip link set {NETDEV_BR} up")
 
-    run_cmd(f"sudo ip tuntap add {NETDEV_TAP} mode tap")
-    run_cmd(f"sudo ip link set {NETDEV_TAP} up")
+    _run_cmd(f"sudo ip tuntap add {NETDEV_TAP} mode tap")
+    _run_cmd(f"sudo ip link set {NETDEV_TAP} up")
 
-    run_cmd(f"sudo ip link set {NETDEV_TAP} master {NETDEV_BR}")
+    _run_cmd(f"sudo ip link set {NETDEV_TAP} master {NETDEV_BR}")
 
 
 def del_netdev():
-    run_cmd(f"sudo ip link del {NETDEV_BR}")
-    run_cmd(f"sudo ip link del {NETDEV_TAP}")
+    _run_cmd(f"sudo ip link del {NETDEV_BR}")
+    _run_cmd(f"sudo ip link del {NETDEV_TAP}")
 
 
 def run():
     global is_kernel_test
 
-    make_img()
+    _make_img()
     # cmd = qemu_cmd() if is_kernel_test else own_qemu_cmd()
-    cmd = qemu_cmd()
+    cmd = _qemu_cmd()
 
-    run_cmd(f"mkdir -p ./{DUMP_DIR}")
-    run_cmd(cmd, ignore_error=not is_kernel_test, check_qemu_exit_code=is_kernel_test)
+    _run_cmd(cmd, ignore_error=not is_kernel_test, check_qemu_exit_code=is_kernel_test)
 
 
 def run_nographic():
-    make_img()
-    run_cmd(f"{qemu_cmd()} -nographic", ignore_error=True)
+    _make_img()
+    _run_cmd(f"{_qemu_cmd()} -nographic", ignore_error=True)
 
 
 def run_with_gdb():
-    make_img()
-    run_cmd(f"{qemu_cmd()} -S")
+    _make_img()
+    _run_cmd(f"{_qemu_cmd()} -S")
 
 
 def monitor():
-    run_cmd(f"telnet localhost {QEMU_MONITOR_PORT}")
+    _run_cmd(f"telnet localhost {QEMU_MONITOR_PORT}")
 
 
 def gdb():
-    run_cmd(
+    _run_cmd(
         f'rust-gdb ./{OUTPUT_DIR}/{KERNEL_FILE} -ex "target remote :{QEMU_GDB_PORT}"'
     )
 
 
 def dump():
     build()
-    run_cmd(f"mkdir -p ./{DUMP_DIR}")
-    run_cmd(f"objdump -d ./{OUTPUT_DIR}/{KERNEL_FILE} > ./{DUMP_DIR}/dump_kernel.txt")
-    run_cmd(
+    _run_cmd(f"objdump -d ./{OUTPUT_DIR}/{KERNEL_FILE} > ./{DUMP_DIR}/dump_kernel.txt")
+    _run_cmd(
         f"objdump -d ./{OUTPUT_DIR}/{BOOTLOADER_FILE} > ./{DUMP_DIR}/dump_bootloader.txt"
     )
 
@@ -324,15 +323,14 @@ def kernel_test_runner(kernel_path: str):
 
 
 def clean():
-    run_cmd(f"rm -rf ./{OUTPUT_DIR}")
-    run_cmd(f"rm -rf ./{DUMP_DIR}")
-    run_cmd(f"rm -f ./{THIRD_PARTY_DIR}/{DOOM_WAD_FILE}")
-    run_cmd(f"rm -f ./{THIRD_PARTY_DIR}/{FONT_FILE}")
-    run_cmd(f"rm -f ./{THIRD_PARTY_DIR}/{COZETTE_BDF}")
-    run_cmd(f"rm -rf ./{THIRD_PARTY_DIR}/{DOOM_DIR}/build")
-    run_cmd(f"rm -f ./{APPS_DIR}/doom.elf")
-    run_cmd(f"rm -rf ./{THIRD_PARTY_DIR}/{QEMU_DIR}/build")
-    run_cmd("cargo clean")
+    _run_cmd(f"rm -rf ./{OUTPUT_DIR}")
+    _run_cmd(f"rm -rf ./{DUMP_DIR}")
+    _run_cmd(f"rm -f ./{THIRD_PARTY_DIR}/{DOOM_WAD_FILE}")
+    _run_cmd(f"rm -f ./{THIRD_PARTY_DIR}/{FONT_FILE}")
+    _run_cmd(f"rm -f ./{THIRD_PARTY_DIR}/{COZETTE_BDF}")
+    _run_cmd(f"rm -rf ./{THIRD_PARTY_DIR}/{DOOM_DIR}/build")
+    _run_cmd(f"rm -rf ./{THIRD_PARTY_DIR}/{QEMU_DIR}/build")
+    _run_cmd("cargo clean")
 
     # clean apps
     apps_dir = f"./{APPS_DIR}"
@@ -344,22 +342,15 @@ def clean():
         pwd = f"{apps_dir}/{dir_name}"
 
         if os.path.exists(f"{pwd}/Makefile"):
-            run_cmd("make clean", dir=pwd)
+            _run_cmd("make clean", dir=pwd)
         else:
-            run_cmd("cargo clean", dir=pwd)
+            _run_cmd("cargo clean", dir=pwd)
+
+    _run_cmd(f"rm -rf ./{APPS_DIR}/bin")
 
 
 TASKS = [
-    init,
-    build_cozette,
-    build_qemu,
-    build_doom,
-    build_bootloader,
-    build_kernel,
     build,
-    build_apps,
-    make_initramfs,
-    make_img,
     make_iso,
     make_netdev,
     del_netdev,

@@ -35,8 +35,8 @@ pub trait LongFileNameEntry {
 pub struct DirectoryEntry([u8; 32]);
 
 impl DirectoryEntry {
-    pub fn raw(&self) -> [u8; 32] {
-        self.0
+    pub fn raw(&self) -> &[u8; 32] {
+        &self.0
     }
 
     pub fn attr(&self) -> Option<Attribute> {
@@ -67,18 +67,16 @@ impl DirectoryEntry {
     }
 
     pub fn first_cluster_num(&self) -> usize {
-        ((u16::from_le_bytes([self.raw()[20], self.raw()[21]]) as u32) << 16
-            | u16::from_le_bytes([self.raw()[26], self.raw()[27]]) as u32) as usize
+        let raw = self.raw();
+
+        ((u16::from_le_bytes([raw[20], raw[21]]) as u32) << 16
+            | u16::from_le_bytes([raw[26], raw[27]]) as u32) as usize
     }
 
     // bytes
     pub fn file_size(&self) -> usize {
-        u32::from_le_bytes([
-            self.raw()[28],
-            self.raw()[29],
-            self.raw()[30],
-            self.raw()[31],
-        ]) as usize
+        let raw = self.raw();
+        u32::from_le_bytes([raw[28], raw[29], raw[30], raw[31]]) as usize
     }
 
     fn is_lf_name_entry(&self) -> bool {
@@ -121,7 +119,7 @@ impl LongFileNameEntry for DirectoryEntry {
         }
 
         let mut utf16_buf = Vec::new();
-        let raw_s = &self.raw();
+        let raw_s = self.raw();
 
         for i in (1..11).step_by(2) {
             if utf16_buf.iter().find(|&&f| f == 0x0).is_some() {

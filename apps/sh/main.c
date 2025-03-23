@@ -132,11 +132,10 @@ int main(int argc, char const *argv[])
         if (sys_read(0, buf, BUF_LEN) == -1)
         {
             printf("Failed to read stdin\n");
-            sys_exit(1);
+            return 1;
         }
 
         replace(buf, '\n', '\0');
-        replace(buf, '\r', '\0');
         exec_cmd(buf);
     }
 

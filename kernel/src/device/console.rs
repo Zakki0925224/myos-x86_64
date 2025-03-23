@@ -232,7 +232,7 @@ pub fn input(ascii_code: AsciiCode) -> Result<()> {
 
     console.write(ascii_code, BufferType::Input)?;
 
-    if ascii_code == AsciiCode::CarriageReturn || ascii_code == AsciiCode::NewLine {
+    if ascii_code == AsciiCode::NewLine {
         console.is_ready_get_line = true;
     }
 

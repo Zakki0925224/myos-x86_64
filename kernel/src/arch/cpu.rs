@@ -1,8 +1,6 @@
 use alloc::string::{String, ToString};
 use core::arch::asm;
 
-use crate::println;
-
 const CPUID_EAX_VENDOR_ID: u32 = 0;
 const CPUID_EAX_VERSION_INFO: u32 = 1;
 
@@ -190,11 +188,6 @@ pub fn vendor_id() -> String {
 pub fn version_info() -> VersionInfo {
     let (eax, ebx, ecx, edx) = cpuid(CPUID_EAX_VERSION_INFO);
     VersionInfo::parse(eax, ebx, ecx, edx)
-}
-
-pub fn print_cpuid() {
-    println!("vendor_id: {}", vendor_id());
-    println!("version_info: {:?}", version_info());
 }
 
 #[test_case]

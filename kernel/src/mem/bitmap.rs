@@ -286,46 +286,42 @@ impl BitmapMemoryManager {
         }
 
         let mut start_mem_frame_index = None;
-        let mut end_mem_frame_index = None;
+        let mut found_len = 0;
 
         'outer: for i in 0..self.bitmap_len() {
             let bitmap = self.bitmap(i)?;
+            if bitmap.is_allocated_all() {
+                continue;
+            }
 
             if len == BITMAP_SIZE && bitmap.is_free_all() {
                 start_mem_frame_index = Some(i * BITMAP_SIZE);
-                end_mem_frame_index = Some(i * BITMAP_SIZE + 7);
+                found_len = len;
                 break 'outer;
             }
 
             for j in 0..BITMAP_SIZE {
-                // found all free area
-                if let (Some(s_i), Some(e_i)) = (start_mem_frame_index, end_mem_frame_index) {
-                    if e_i == s_i + len {
-                        break 'outer;
-                    }
-                }
-
                 if !bitmap.get(j)? {
-                    if let Some(s_i) = start_mem_frame_index {
-                        if let Some(e_i) = end_mem_frame_index.as_mut() {
-                            *e_i += 1;
-                        } else {
-                            end_mem_frame_index = Some(s_i + 1);
-                        }
-                    } else {
+                    if start_mem_frame_index.is_none() {
                         start_mem_frame_index = Some(i * BITMAP_SIZE + j);
+                        found_len = 1;
+                    } else {
+                        found_len += 1;
+                    }
+
+                    if found_len == len {
+                        break 'outer;
                     }
                 } else {
                     start_mem_frame_index = None;
-                    end_mem_frame_index = None;
+                    found_len = 0;
                 }
             }
         }
 
         let start_mem_frame_index = start_mem_frame_index
             .ok_or(BitmapMemoryManagerError::FreeMemoryFrameWasNotFoundError)?;
-        let end_mem_frame_index =
-            end_mem_frame_index.ok_or(BitmapMemoryManagerError::FreeMemoryFrameWasNotFoundError)?;
+        let end_mem_frame_index = start_mem_frame_index + len - 1;
 
         for i in start_mem_frame_index..=end_mem_frame_index {
             self.alloc_frame(i)?;
@@ -344,12 +340,8 @@ impl BitmapMemoryManager {
     unsafe fn mem_clear(&self, mem_frame_info: &MemoryFrameInfo) -> Result<()> {
         let frame_size = mem_frame_info.frame_size;
         let start_virt_addr = mem_frame_info.frame_start_virt_addr()?;
-
-        // TODO: replace to other methods
-        for offset in (0..frame_size).step_by(8) {
-            let ref_value = start_virt_addr.offset(offset).as_ptr_mut() as *mut u64;
-            *ref_value = 0;
-        }
+        let ptr: *mut u8 = start_virt_addr.as_ptr_mut();
+        ptr.write_bytes(0, frame_size);
 
         Ok(())
     }

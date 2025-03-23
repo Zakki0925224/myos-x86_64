@@ -288,13 +288,17 @@ pub fn poll_normal() -> Result<()> {
         return Ok(());
     }
 
-    let ascii_code = match key_event.ascii {
+    let mut ascii_code = match key_event.ascii {
         Some(c) => c,
         None => return Ok(()),
     };
 
+    if ascii_code == AsciiCode::CarriageReturn {
+        ascii_code = AsciiCode::NewLine;
+    }
+
     match ascii_code {
-        AsciiCode::CarriageReturn => {
+        AsciiCode::NewLine => {
             println!();
         }
         code => {

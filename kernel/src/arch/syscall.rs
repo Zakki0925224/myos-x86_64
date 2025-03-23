@@ -53,8 +53,8 @@ extern "sysv64" fn syscall_handler(
     arg4: u64, // (sysv abi) r8
     arg5: u64, // (sysv abi) r9
 ) -> i64 /* rax */ {
-    //let args = [arg0, arg1, arg2, arg3, arg4, arg5];
-    //info!("syscall: Called!(args: {:?})", args);
+    // let args = [arg0, arg1, arg2, arg3, arg4, arg5];
+    // trace!("syscall: Called!(args: {:?})", args);
 
     match arg0 {
         // read syscall
@@ -316,9 +316,7 @@ fn sys_read(fd: FileDescriptorNumber, buf_addr: VirtualAddress, buf_len: usize) 
                     .unwrap()
                     .into_bytes_with_nul();
                 buf_addr.copy_from_nonoverlapping(c_s.as_ptr(), buf_len);
-            }
-            // buf_len == 1
-            else {
+            } else if buf_len == 1 {
                 let ascii = super::disabled_int(|| console::get_ascii())?;
                 buf_addr.copy_from_nonoverlapping(&(ascii as u8), 1);
             }
