@@ -39,7 +39,10 @@ This is a replacement project for the previous **[myos](https://github.com/Zakki
     -   [x] FAT32 (read only)
 -   [x] Networking
     -   [x] ARP
-    -   [ ] IPv4 (ICMP, TCP) (WIP)
+    -   [x] IPv4
+        -   [x] ICMP
+        -   [ ] TCP (WIP)
+        -   [x] UDP (receive only)
 -   [x] GUI support by using UEFI GOP
 -   [x] [Userland applications](/apps/) (libc for myos available [here](/apps/libc/))
 -   [x] Async runtime
