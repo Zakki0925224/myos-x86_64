@@ -1,4 +1,4 @@
-use super::{icmp::IcmpPacket, tcp::TcpPacket};
+use super::{icmp::IcmpPacket, tcp::TcpPacket, udp::UdpPacket};
 use crate::error::{Error, Result};
 use alloc::vec::Vec;
 use core::{fmt::Debug, net::Ipv4Addr};
@@ -25,10 +25,10 @@ impl From<Protocol> for u8 {
 impl From<u8> for Protocol {
     fn from(data: u8) -> Self {
         match data {
-            1 => Protocol::Icmp,
-            6 => Protocol::Tcp,
-            17 => Protocol::Udp,
-            _ => Protocol::Other(data),
+            1 => Self::Icmp,
+            6 => Self::Tcp,
+            17 => Self::Udp,
+            _ => Self::Other(data),
         }
     }
 }
@@ -37,6 +37,7 @@ impl From<u8> for Protocol {
 pub enum Ipv4Payload {
     Icmp(IcmpPacket),
     Tcp(TcpPacket),
+    Udp(UdpPacket),
 }
 
 #[derive(Clone)]
@@ -122,6 +123,7 @@ impl Ipv4Packet {
         let payload_vec = match payload {
             Ipv4Payload::Icmp(packet) => packet.to_vec(),
             Ipv4Payload::Tcp(packet) => packet.to_vec(),
+            Ipv4Payload::Udp(packet) => packet.to_vec(),
         };
 
         Self {
@@ -202,7 +204,8 @@ impl Ipv4Packet {
         let payload = match self.protocol {
             Protocol::Icmp => Ipv4Payload::Icmp(IcmpPacket::try_from(data_slice)?),
             Protocol::Tcp => Ipv4Payload::Tcp(TcpPacket::try_from(data_slice)?),
-            _ => return Err("Unsupported protocol".into()),
+            Protocol::Udp => Ipv4Payload::Udp(UdpPacket::try_from(data_slice)?),
+            Protocol::Other(_) => return Err("Unsupported protocol".into()),
         };
 
         Ok(payload)

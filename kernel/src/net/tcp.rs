@@ -1,34 +1,6 @@
 use crate::error::{Error, Result};
 use alloc::vec::Vec;
 
-#[derive(Debug)]
-pub enum TcpSocketState {
-    Listen,
-    SynSent,
-    SynReceived,
-    Established,
-    FinWait1,
-    FinWait2,
-    CloseWait,
-    Closing,
-    LastAck,
-    TimeWait,
-    Closed,
-}
-
-#[derive(Debug)]
-pub struct TcpSocket {
-    state: TcpSocketState,
-}
-
-impl TcpSocket {
-    pub fn new() -> Self {
-        Self {
-            state: TcpSocketState::Closed,
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct TcpPacket {
     src_port: u16,

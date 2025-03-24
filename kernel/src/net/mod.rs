@@ -8,17 +8,19 @@ use core::net::Ipv4Addr;
 use eth::{EthernetAddress, EthernetPayload};
 use icmp::{IcmpPacket, IcmpType};
 use ip::{Ipv4Packet, Ipv4Payload};
-use log::info;
-use tcp::{TcpPacket, TcpSocket};
+use log::{debug, info};
+use tcp::TcpPacket;
+use udp::{UdpPacket, UdpSocket};
 
 pub mod arp;
 pub mod eth;
 pub mod icmp;
 pub mod ip;
 pub mod tcp;
+pub mod udp;
 
 type ArpTable = BTreeMap<Ipv4Addr, EthernetAddress>;
-type TcpSocketTable = BTreeMap<u16, TcpSocket>;
+type UdpSocketTable = BTreeMap<u16, UdpSocket>;
 
 static mut NETWORK_MAN: Mutex<NetworkManager> =
     Mutex::new(NetworkManager::new(Ipv4Addr::new(192, 168, 100, 2)));
@@ -27,7 +29,7 @@ struct NetworkManager {
     my_ipv4_addr: Ipv4Addr,
     my_mac_addr: Option<EthernetAddress>,
     arp_table: ArpTable,
-    tcp_socket_table: TcpSocketTable,
+    udp_socket_table: UdpSocketTable,
 }
 
 impl NetworkManager {
@@ -36,7 +38,7 @@ impl NetworkManager {
             my_ipv4_addr: ipv4_addr,
             my_mac_addr: None,
             arp_table: ArpTable::new(),
-            tcp_socket_table: TcpSocketTable::new(),
+            udp_socket_table: UdpSocketTable::new(),
         }
     }
 
@@ -44,6 +46,7 @@ impl NetworkManager {
         self.my_mac_addr = Some(mac_addr);
 
         info!("net: MAC address set to {:?}", mac_addr);
+        info!("net: IP address: {:?}", self.my_ipv4_addr);
     }
 
     fn my_mac_addr(&self) -> Result<EthernetAddress> {
@@ -51,10 +54,10 @@ impl NetworkManager {
             .ok_or(Error::Failed("MAC address is not set"))
     }
 
-    fn tcp_socket_mut(&mut self, port: u16) -> &mut TcpSocket {
-        self.tcp_socket_table
+    fn udp_socket_mut(&mut self, port: u16) -> &mut UdpSocket {
+        self.udp_socket_table
             .entry(port)
-            .or_insert_with(TcpSocket::new)
+            .or_insert(UdpSocket::new())
     }
 
     fn receive_icmp_packet(&mut self, packet: IcmpPacket) -> Result<Option<IcmpPacket>> {
@@ -79,8 +82,18 @@ impl NetworkManager {
         info!("net: Received TCP packet");
 
         let dst_port = packet.dst_port;
-        let socket = self.tcp_socket_mut(dst_port);
-        info!("net: TCP socket({}): {:?}", dst_port, socket);
+
+        Ok(None)
+    }
+
+    fn receive_udp_packet(&mut self, packet: UdpPacket) -> Result<Option<UdpPacket>> {
+        info!("net: Received UDP packet");
+
+        let dst_port = packet.dst_port;
+        let socket_mut = self.udp_socket_mut(dst_port);
+        socket_mut.receive(&packet.data);
+        let s = socket_mut.buf_to_string_utf8_lossy();
+        debug!("net: UDP data: {:?}", s);
 
         Ok(None)
     }
@@ -136,6 +149,9 @@ impl NetworkManager {
             }
             Ipv4Payload::Tcp(tcp_packet) => {
                 self.receive_tcp_packet(tcp_packet)?;
+            }
+            Ipv4Payload::Udp(udp_packet) => {
+                self.receive_udp_packet(udp_packet)?;
             }
         }
 
