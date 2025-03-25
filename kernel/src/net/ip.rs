@@ -145,30 +145,8 @@ impl Ipv4Packet {
         self.checksum = 0;
         let mut sum: u32 = 0;
 
-        let header = [
-            self.version_ihl,
-            self.dscp_ecn,
-            (self.len >> 8) as u8,
-            (self.len & 0xff) as u8,
-            (self.id >> 8) as u8,
-            (self.id & 0xff) as u8,
-            (self.flags >> 8) as u8,
-            (self.flags & 0xff) as u8,
-            self.ttl,
-            self.protocol.into(),
-            0,
-            0, // checksum
-            self.src_addr.octets()[0],
-            self.src_addr.octets()[1],
-            self.src_addr.octets()[2],
-            self.src_addr.octets()[3],
-            self.dst_addr.octets()[0],
-            self.dst_addr.octets()[1],
-            self.dst_addr.octets()[2],
-            self.dst_addr.octets()[3],
-        ];
-
-        for chunk in header.chunks(2).chain(self.data.chunks(2)) {
+        let packet = self.to_vec();
+        for chunk in packet.chunks(2) {
             let word = match chunk {
                 [h, l] => u16::from_be_bytes([*h, *l]),
                 [h] => u16::from_be_bytes([*h, 0]),

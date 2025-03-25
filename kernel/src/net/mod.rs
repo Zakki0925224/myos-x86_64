@@ -8,8 +8,8 @@ use core::net::Ipv4Addr;
 use eth::{EthernetAddress, EthernetPayload};
 use icmp::{IcmpPacket, IcmpType};
 use ip::{Ipv4Packet, Ipv4Payload};
-use log::{debug, info};
-use tcp::TcpPacket;
+use log::{debug, info, warn};
+use tcp::{TcpPacket, TcpSocket, TcpSocketState};
 use udp::{UdpPacket, UdpSocket};
 
 pub mod arp;
@@ -21,6 +21,7 @@ pub mod udp;
 
 type ArpTable = BTreeMap<Ipv4Addr, EthernetAddress>;
 type UdpSocketTable = BTreeMap<u16, UdpSocket>;
+type TcpSocketTable = BTreeMap<u16, TcpSocket>;
 
 static mut NETWORK_MAN: Mutex<NetworkManager> =
     Mutex::new(NetworkManager::new(Ipv4Addr::new(192, 168, 100, 2)));
@@ -30,6 +31,7 @@ struct NetworkManager {
     my_mac_addr: Option<EthernetAddress>,
     arp_table: ArpTable,
     udp_socket_table: UdpSocketTable,
+    tcp_socket_table: TcpSocketTable,
 }
 
 impl NetworkManager {
@@ -39,6 +41,7 @@ impl NetworkManager {
             my_mac_addr: None,
             arp_table: ArpTable::new(),
             udp_socket_table: UdpSocketTable::new(),
+            tcp_socket_table: TcpSocketTable::new(),
         }
     }
 
@@ -60,8 +63,14 @@ impl NetworkManager {
             .or_insert(UdpSocket::new())
     }
 
+    fn tcp_socket_mut(&mut self, port: u16) -> &mut TcpSocket {
+        self.tcp_socket_table
+            .entry(port)
+            .or_insert(TcpSocket::new())
+    }
+
     fn receive_icmp_packet(&mut self, packet: IcmpPacket) -> Result<Option<IcmpPacket>> {
-        info!("net: Received ICMP packet");
+        info!("net: ICMP packet received");
 
         let ty = packet.ty;
 
@@ -79,15 +88,73 @@ impl NetworkManager {
     }
 
     fn receive_tcp_packet(&mut self, packet: TcpPacket) -> Result<Option<TcpPacket>> {
-        info!("net: Received TCP packet");
+        info!("net: TCP packet received");
 
+        let src_port = packet.src_port;
         let dst_port = packet.dst_port;
+        let seq_num = packet.seq_num;
+        let window_size = packet.window_size;
+        let options = &packet.options;
+        let socket_mut = self.tcp_socket_mut(dst_port);
+
+        // TODO: Remove after
+        if socket_mut.state() == TcpSocketState::Closed {
+            socket_mut.start_passive(dst_port)?;
+        }
+
+        match socket_mut.state() {
+            TcpSocketState::Closed => {
+                warn!("net: TCP received but socket is closed");
+            }
+            TcpSocketState::Listen => {
+                if !packet.flags_syn() {
+                    warn!("net: TCP-SYN not received");
+                    return Ok(None);
+                }
+
+                let next_seq_num = socket_mut.receive_syn()?;
+
+                // send SYN-ACK
+                // TODO
+                let mut reply_packet = TcpPacket::new_with(
+                    dst_port,
+                    src_port,
+                    next_seq_num,
+                    seq_num.wrapping_add(1),
+                    TcpPacket::FLAGS_SYN | TcpPacket::FLAGS_ACK,
+                    window_size,
+                    0,
+                    options.to_vec(),
+                );
+                reply_packet.calc_checksum();
+                return Ok(Some(reply_packet));
+            }
+            TcpSocketState::SynReceived => {
+                if !packet.flags_ack() {
+                    warn!("net: TCP-ACK not received");
+                    return Ok(None);
+                }
+
+                socket_mut.receive_ack()?;
+            }
+            TcpSocketState::Established => {
+                if packet.flags_fin() {
+                    todo!();
+                }
+
+                // send ACK
+                todo!();
+            }
+            state => {
+                warn!("net: Unsupported TCP state: {:?}", state);
+            }
+        }
 
         Ok(None)
     }
 
     fn receive_udp_packet(&mut self, packet: UdpPacket) -> Result<Option<UdpPacket>> {
-        info!("net: Received UDP packet");
+        info!("net: UDP packet received");
 
         let dst_port = packet.dst_port;
         let socket_mut = self.udp_socket_mut(dst_port);
@@ -99,7 +166,7 @@ impl NetworkManager {
     }
 
     fn receive_arp_packet(&mut self, packet: ArpPacket) -> Result<Option<ArpPacket>> {
-        info!("net: Received ARP packet");
+        info!("net: ARP packet received");
 
         let arp_op = packet.op()?;
         let sender_ipv4_addr = packet.sender_ipv4_addr;
@@ -132,7 +199,7 @@ impl NetworkManager {
     }
 
     fn receive_ipv4_packet(&mut self, packet: Ipv4Packet) -> Result<Option<Ipv4Packet>> {
-        info!("net: Received IPv4 packet");
+        info!("net: IPv4 packet received");
 
         packet.validate()?;
 
@@ -148,7 +215,9 @@ impl NetworkManager {
                 }
             }
             Ipv4Payload::Tcp(tcp_packet) => {
-                self.receive_tcp_packet(tcp_packet)?;
+                if let Some(reply_tcp_packet) = self.receive_tcp_packet(tcp_packet)? {
+                    reply_payload = Some(Ipv4Payload::Tcp(reply_tcp_packet));
+                }
             }
             Ipv4Payload::Udp(udp_packet) => {
                 self.receive_udp_packet(udp_packet)?;
@@ -175,7 +244,7 @@ impl NetworkManager {
     }
 
     fn receive_eth_payload(&mut self, payload: EthernetPayload) -> Result<Option<EthernetPayload>> {
-        info!("net: Received Ethernet payload");
+        info!("net: Ethernet payload received");
 
         let mut reply_payload = None;
 
