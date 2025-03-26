@@ -108,7 +108,7 @@ pub struct TcpPacket {
     pub window_size: u16,
     checksum: u16,
     urgent_ptr: u16,
-    pub options: Vec<u8>,
+    pub options_and_data: Vec<u8>,
 }
 
 impl TryFrom<&[u8]> for TcpPacket {
@@ -129,7 +129,7 @@ impl TryFrom<&[u8]> for TcpPacket {
         let urgent_ptr = u16::from_be_bytes([value[18], value[19]]);
 
         let data_offset = (flags >> 12) as usize * 4;
-        let options = value[20..data_offset].to_vec();
+        let options_and_data = value[20..data_offset].to_vec();
 
         Ok(Self {
             src_port,
@@ -140,7 +140,7 @@ impl TryFrom<&[u8]> for TcpPacket {
             window_size,
             checksum,
             urgent_ptr,
-            options,
+            options_and_data,
         })
     }
 }
@@ -164,13 +164,13 @@ impl TcpPacket {
         flags_without_header_len: u16,
         window_size: u16,
         urgent_ptr: u16,
-        mut options: Vec<u8>,
+        mut options_and_data: Vec<u8>,
     ) -> Self {
-        let header_len = ((20 + options.len() + 3) / 4) as u16;
+        let header_len = ((20 + options_and_data.len() + 3) / 4) as u16;
         let flags = header_len << 12 | flags_without_header_len & 0x0fff;
 
         // resize options
-        options.resize((header_len as usize * 4 - 20) as usize, 0);
+        options_and_data.resize((header_len as usize * 4 - 20) as usize, 0);
 
         Self {
             src_port,
@@ -181,7 +181,7 @@ impl TcpPacket {
             window_size,
             checksum: 0,
             urgent_ptr,
-            options,
+            options_and_data,
         }
     }
 
@@ -256,7 +256,7 @@ impl TcpPacket {
         vec.extend_from_slice(&self.window_size.to_be_bytes());
         vec.extend_from_slice(&self.checksum.to_be_bytes());
         vec.extend_from_slice(&self.urgent_ptr.to_be_bytes());
-        vec.extend_from_slice(&self.options);
+        vec.extend_from_slice(&self.options_and_data);
         vec
     }
 }

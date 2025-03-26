@@ -192,7 +192,7 @@ def build():
 
     _init()
     _build_cozette()
-    _build_qemu()
+    # _build_qemu()
     _build_bootloader()
     _build_kernel()
 

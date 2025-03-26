@@ -2,7 +2,7 @@ use crate::{
     error::{Error, Result},
     util::mutex::Mutex,
 };
-use alloc::collections::btree_map::BTreeMap;
+use alloc::{collections::btree_map::BTreeMap, vec::Vec};
 use arp::{ArpOperation, ArpPacket};
 use core::net::Ipv4Addr;
 use eth::{EthernetAddress, EthernetPayload};
@@ -93,8 +93,6 @@ impl NetworkManager {
         let src_port = packet.src_port;
         let dst_port = packet.dst_port;
         let seq_num = packet.seq_num;
-        let window_size = packet.window_size;
-        let options = &packet.options;
         let socket_mut = self.tcp_socket_mut(dst_port);
 
         // TODO: Remove after
@@ -115,16 +113,15 @@ impl NetworkManager {
                 let next_seq_num = socket_mut.receive_syn()?;
 
                 // send SYN-ACK
-                // TODO
                 let mut reply_packet = TcpPacket::new_with(
                     dst_port,
                     src_port,
                     next_seq_num,
                     seq_num.wrapping_add(1),
                     TcpPacket::FLAGS_SYN | TcpPacket::FLAGS_ACK,
-                    window_size,
+                    u16::MAX,
                     0,
-                    options.to_vec(),
+                    Vec::new(),
                 );
                 reply_packet.calc_checksum();
                 return Ok(Some(reply_packet));
