@@ -10,8 +10,6 @@ use components::*;
 
 pub mod components;
 
-const MOUSE_POINTER_MOVE_THRESHOLD: isize = 40;
-
 static mut SIMPLE_WM: Mutex<SimpleWindowManager> = Mutex::new(SimpleWindowManager::new((0, 0)));
 
 #[derive(Debug, Clone, PartialEq)]
@@ -73,10 +71,8 @@ impl SimpleWindowManager {
             wh: (m_w, m_h),
         } = mouse_pointer.get_layer_pos_info()?;
 
-        let rel_x = (mouse_event.rel_x as isize)
-            .clamp(-MOUSE_POINTER_MOVE_THRESHOLD, MOUSE_POINTER_MOVE_THRESHOLD);
-        let rel_y = (mouse_event.rel_y as isize)
-            .clamp(-MOUSE_POINTER_MOVE_THRESHOLD, MOUSE_POINTER_MOVE_THRESHOLD);
+        let rel_x = mouse_event.rel_x as isize;
+        let rel_y = mouse_event.rel_y as isize;
 
         let m_x_after =
             (m_x_before as isize + rel_x).clamp(0, res_x as isize - m_w as isize) as usize;

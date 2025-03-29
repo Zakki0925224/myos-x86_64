@@ -23,22 +23,42 @@ pub struct MouseEvent {
     pub rel_y: i16,
 }
 
+enum Ps2MousePhase {
+    WaitingAck,
+    WaitingData0,
+    WaitingData1,
+    WaitingData2,
+}
+
+impl Ps2MousePhase {
+    const fn default() -> Self {
+        Self::WaitingAck
+    }
+
+    fn next(&self) -> Self {
+        match self {
+            Self::WaitingAck => Self::WaitingData0,
+            Self::WaitingData0 => Self::WaitingData1,
+            Self::WaitingData1 => Self::WaitingData2,
+            Self::WaitingData2 => Self::WaitingData0,
+        }
+    }
+}
+
 struct Ps2MouseDriver {
     device_driver_info: DeviceDriverInfo,
-    data_buf: Fifo<u8, 128>,
-    data_0: Option<u8>,
-    data_1: Option<u8>,
-    data_2: Option<u8>,
+    mouse_phase: Ps2MousePhase,
+    data_buf: Fifo<u8, 256>,
+    data_buf2: [u8; 3],
 }
 
 impl Ps2MouseDriver {
     const fn new() -> Self {
         Self {
             device_driver_info: DeviceDriverInfo::new("ps2-mouse"),
+            mouse_phase: Ps2MousePhase::default(),
             data_buf: Fifo::new(0),
-            data_0: None,
-            data_1: None,
-            data_2: None,
+            data_buf2: [0; 3],
         }
     }
 
@@ -47,70 +67,67 @@ impl Ps2MouseDriver {
     }
 
     fn get_event(&mut self) -> Result<Option<MouseEvent>> {
-        fn is_data0_valid(data_0: u8) -> bool {
-            data_0 & 0x08 != 0
-        }
-
         let data = self.data_buf.dequeue()?;
+        let e = match self.mouse_phase {
+            Ps2MousePhase::WaitingAck => {
+                if data == 0xfa {
+                    self.mouse_phase = self.mouse_phase.next();
+                }
 
-        if data == 0xfa {
-            self.data_0 = None;
-            self.data_1 = None;
-            self.data_2 = None;
-            return Ok(None);
-        }
-
-        if self.data_0.is_none() && is_data0_valid(data) {
-            self.data_0 = Some(data);
-        } else if self.data_1.is_none() {
-            self.data_1 = Some(data);
-        } else if self.data_2.is_none() {
-            self.data_2 = Some(data);
-        } else if is_data0_valid(data) {
-            self.data_0 = Some(data);
-            self.data_1 = None;
-            self.data_2 = None;
-        }
-
-        if let (Some(data_0), Some(data_1), Some(data_2)) = (self.data_0, self.data_1, self.data_2)
-        {
-            let button_m = data_0 & 0x4 != 0;
-            let button_r = data_0 & 0x2 != 0;
-            let button_l = data_0 & 0x1 != 0;
-            let x_of = data_0 & 0x40 != 0;
-            let y_of = data_0 & 0x80 != 0;
-            let x_sign = data_0 & 0x10 != 0;
-            let y_sign = data_0 & 0x20 != 0;
-
-            if x_of || y_of {
-                return Ok(None);
+                None
             }
+            Ps2MousePhase::WaitingData0 => {
+                // validation check
+                let one = data & 0x08 != 0;
+                let x_of = data & 0x40 != 0;
+                let y_of = data & 0x80 != 0;
 
-            let mut rel_x = data_1 as i16;
-            let mut rel_y = data_2 as i16;
+                if one && !x_of && !y_of {
+                    self.data_buf2[0] = data;
+                    self.mouse_phase = self.mouse_phase.next();
+                }
 
-            if x_sign {
-                rel_x |= !0xff;
+                None
             }
-
-            if y_sign {
-                rel_y |= !0xff;
+            Ps2MousePhase::WaitingData1 => {
+                self.data_buf2[1] = data;
+                self.mouse_phase = self.mouse_phase.next();
+                None
             }
+            Ps2MousePhase::WaitingData2 => {
+                self.data_buf2[2] = data;
+                self.mouse_phase = self.mouse_phase.next();
 
-            rel_y = -rel_y;
+                let button_m = self.data_buf2[0] & 0x4 != 0;
+                let button_r = self.data_buf2[0] & 0x2 != 0;
+                let button_l = self.data_buf2[0] & 0x1 != 0;
+                let x_sign = self.data_buf2[0] & 0x10 != 0;
+                let y_sign = self.data_buf2[0] & 0x20 != 0;
 
-            let e = MouseEvent {
-                middle: button_m,
-                right: button_r,
-                left: button_l,
-                rel_x,
-                rel_y,
-            };
+                let mut rel_x = self.data_buf2[1] as i16;
+                let mut rel_y = self.data_buf2[2] as i16;
 
-            return Ok(Some(e));
-        }
+                if x_sign {
+                    rel_x |= 0xff00u16 as i16;
+                }
 
-        Ok(None)
+                if y_sign {
+                    rel_y |= 0xff00u16 as i16;
+                }
+
+                rel_y = -rel_y;
+
+                Some(MouseEvent {
+                    middle: button_m,
+                    right: button_r,
+                    left: button_l,
+                    rel_x,
+                    rel_y,
+                })
+            }
+        };
+
+        Ok(e)
     }
 
     fn wait_ready(&self) {
