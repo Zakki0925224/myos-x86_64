@@ -45,7 +45,6 @@ pub enum XhcDriverError {
     InvalidDoorbellRegisterIndexError(usize),
     InvalidDeviceContextArrayIndexError(usize),
     HostControllerIsNotHaltedError,
-    NotInitialized,
     NotRunning,
     PortWasNotFoundError(usize),
     PortIsNotEnabledError(usize),
@@ -99,7 +98,7 @@ impl XhcDriver {
         let DeviceDriverInfo { name, attached } = self.device_driver_info;
 
         if !attached {
-            return Err(XhcDriverError::NotInitialized.into());
+            return Err(Error::NotInitialized);
         }
 
         // start controller
@@ -138,7 +137,7 @@ impl XhcDriver {
         let DeviceDriverInfo { name, attached } = self.device_driver_info;
 
         if !attached {
-            return Err(XhcDriverError::NotInitialized.into());
+            return Err(Error::NotInitialized);
         }
 
         if !self.is_running() {
@@ -165,7 +164,7 @@ impl XhcDriver {
         let DeviceDriverInfo { name, attached } = self.device_driver_info;
 
         if !attached {
-            return Err(XhcDriverError::NotInitialized.into());
+            return Err(Error::NotInitialized);
         }
 
         if !self.is_running() {
@@ -203,7 +202,7 @@ impl XhcDriver {
 
     fn alloc_address_to_device(&mut self, port_id: usize) -> Result<UsbDevice> {
         if !self.device_driver_info.attached {
-            return Err(XhcDriverError::NotInitialized.into());
+            return Err(Error::NotInitialized);
         }
 
         if !self.is_running() {

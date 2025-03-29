@@ -146,12 +146,12 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
     mem::free();
 
     // tasks
-    let task_poll_virtio_net = async {
-        loop {
-            let _ = device::virtio::net::poll_normal();
-            task::exec_yield().await;
-        }
-    };
+    // let task_poll_virtio_net = async {
+    //     loop {
+    //         let _ = device::virtio::net::poll_normal();
+    //         task::exec_yield().await;
+    //     }
+    // };
 
     let task_poll_uart = async {
         loop {
@@ -174,7 +174,7 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
         }
     };
 
-    task::spawn(task_poll_virtio_net).unwrap();
+    // task::spawn(task_poll_virtio_net).unwrap();
     task::spawn(task_poll_uart).unwrap();
     task::spawn(task_poll_ps2_keyboard).unwrap();
     task::spawn(task_poll_rtl8139).unwrap();

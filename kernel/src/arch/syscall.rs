@@ -193,12 +193,12 @@ extern "sysv64" fn syscall_handler(
         // create_window syscall
         13 => {
             let title_ptr = arg1 as *const u8;
-            let x_pos = arg2 as usize;
-            let y_pos = arg3 as usize;
-            let width = arg4 as usize;
-            let height = arg5 as usize;
+            let x = arg2 as usize;
+            let y = arg3 as usize;
+            let w = arg4 as usize;
+            let h = arg5 as usize;
 
-            match sys_create_window(title_ptr, x_pos, y_pos, width, height) {
+            match sys_create_window(title_ptr, (x, y), (w, h)) {
                 Ok(wd) => return wd.get() as i64,
                 Err(err) => {
                     error!("syscall: create_window: {:?}", err);
@@ -270,13 +270,12 @@ extern "sysv64" fn syscall_handler(
                     return -1;
                 }
             };
-            let width = arg2 as usize;
-            let height = arg3 as usize;
+            let w = arg2 as usize;
+            let h = arg3 as usize;
             let pixel_format = (arg4 as u8).into();
             let framebuf_virt_addr = arg5.into();
 
-            if let Err(err) =
-                sys_add_image_to_window(wd, width, height, pixel_format, framebuf_virt_addr)
+            if let Err(err) = sys_add_image_to_window(wd, (w, h), pixel_format, framebuf_virt_addr)
             {
                 error!("syscall: add_image_to_window: {:?}", err);
                 return -1;
@@ -458,13 +457,11 @@ fn sys_chdir(path_ptr: *const u8) -> Result<()> {
 
 fn sys_create_window(
     title_ptr: *const u8,
-    x_pos: usize,
-    y_pos: usize,
-    width: usize,
-    height: usize,
+    xy: (usize, usize),
+    wh: (usize, usize),
 ) -> Result<LayerId> {
     let title = unsafe { util::cstring::from_cstring_ptr(title_ptr) };
-    let wd = simple_window_manager::create_window(title, x_pos, y_pos, width, height)?;
+    let wd = simple_window_manager::create_window(title, xy, wh)?;
     task::push_wd(wd.clone());
 
     Ok(wd)
@@ -506,16 +503,13 @@ fn sys_flush_window(wd: LayerId) -> Result<()> {
 
 fn sys_add_image_to_window(
     wd: LayerId,
-    width: usize,
-    height: usize,
+    wh: (usize, usize),
     pixel_format: PixelFormat,
     framebuf_virt_addr: VirtualAddress,
 ) -> Result<()> {
     let image = simple_window_manager::components::Image::create_and_push_from_framebuf(
-        0,
-        0,
-        width,
-        height,
+        (0, 0),
+        wh,
         framebuf_virt_addr,
         pixel_format,
     )?;

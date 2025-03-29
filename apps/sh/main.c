@@ -43,7 +43,7 @@ void exec_cmd(char *cmd)
     }
     else if (strcmp(splitted_buf[0], "exit") == 0)
     {
-        sys_exit(0);
+        exit(0);
     }
     else if (strcmp(splitted_buf[0], "break") == 0)
     {

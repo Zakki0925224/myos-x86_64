@@ -107,7 +107,6 @@ impl From<u8> for Bitmap {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BitmapMemoryManagerError {
-    NotInitialized,
     FreeMemoryFrameWasNotFoundError,
     MemoryFrameWasAlreadyAllocatedError(usize), // memory frame index,
     MemoryFrameWasAlreadyDeallocatedError(usize), // memory frame index,
@@ -436,7 +435,7 @@ pub fn init(mem_map: &[MemoryDescriptor]) -> Result<()> {
 pub fn get_total_mem_size() -> Result<usize> {
     let total = unsafe { BITMAP_MEM_MAN.try_lock() }?
         .as_ref()
-        .ok_or(BitmapMemoryManagerError::NotInitialized)?
+        .ok_or(Error::NotInitialized)?
         .total_frame_len
         * PAGE_SIZE;
     Ok(total)
@@ -444,9 +443,7 @@ pub fn get_total_mem_size() -> Result<usize> {
 
 pub fn get_mem_size() -> Result<(usize, usize)> {
     let binding = unsafe { BITMAP_MEM_MAN.try_lock() }?;
-    let bitmap_mem_man = binding
-        .as_ref()
-        .ok_or(BitmapMemoryManagerError::NotInitialized)?;
+    let bitmap_mem_man = binding.as_ref().ok_or(Error::NotInitialized)?;
     let used = bitmap_mem_man.allocated_frame_len_in_available_mem * PAGE_SIZE;
     let total = bitmap_mem_man.total_available_mem_size;
     Ok((used, total))
@@ -455,14 +452,14 @@ pub fn get_mem_size() -> Result<(usize, usize)> {
 pub fn alloc_mem_frame(len: usize) -> Result<MemoryFrameInfo> {
     unsafe { BITMAP_MEM_MAN.try_lock() }?
         .as_mut()
-        .ok_or(BitmapMemoryManagerError::NotInitialized)?
+        .ok_or(Error::NotInitialized)?
         .alloc_multi_mem_frame(len)
 }
 
 pub fn dealloc_mem_frame(mem_frame_info: MemoryFrameInfo) -> Result<()> {
     unsafe { BITMAP_MEM_MAN.try_lock() }?
         .as_mut()
-        .ok_or(BitmapMemoryManagerError::NotInitialized)?
+        .ok_or(Error::NotInitialized)?
         .dealloc_mem_frame(mem_frame_info)
 }
 
@@ -471,7 +468,7 @@ pub fn mem_clear(mem_frame_info: &MemoryFrameInfo) -> Result<()> {
         BITMAP_MEM_MAN
             .try_lock()?
             .as_mut()
-            .ok_or(BitmapMemoryManagerError::NotInitialized)?
+            .ok_or(Error::NotInitialized)?
             .mem_clear(mem_frame_info)
     }
 }

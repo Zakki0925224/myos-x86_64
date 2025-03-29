@@ -1,5 +1,5 @@
 use super::addr::{IoPortAddress, VirtualAddress};
-use crate::error::Result;
+use crate::error::{Error, Result};
 use alloc::vec::Vec;
 use core::{mem::size_of, ptr::read_unaligned, slice};
 use log::info;
@@ -92,7 +92,6 @@ pub enum AcpiError {
     InvalidRevisionError(u8),
     InvalidChecksumError,
     FixedAcpiDescriptionTableWasNotFound,
-    NotInitialized,
 }
 
 struct Acpi {
@@ -129,7 +128,7 @@ impl Acpi {
     fn rsdp(&self) -> Result<&RootSystemDescriptorPointer> {
         self.rsdp_virt_addr
             .map(|addr| unsafe { &*(addr.as_ptr() as *const RootSystemDescriptorPointer) })
-            .ok_or(AcpiError::NotInitialized.into())
+            .ok_or(Error::NotInitialized)
     }
 
     // XSDT header, entries

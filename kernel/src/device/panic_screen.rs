@@ -1,11 +1,7 @@
 use super::{DeviceDriverFunction, DeviceDriverInfo};
 use crate::{
-    addr::VirtualAddress,
-    error::Result,
-    graphics::font::{FONT, TAB_DISP_STR},
-    theme::GLOBAL_THEME,
-    util::mutex::Mutex,
-    ColorCode,
+    addr::VirtualAddress, error::Result, graphics::font::FONT, theme::GLOBAL_THEME,
+    util::mutex::Mutex, ColorCode,
 };
 use alloc::vec::Vec;
 use common::graphic_info::{GraphicInfo, PixelFormat};
@@ -117,8 +113,8 @@ impl PanicScreenDriver {
                 return Ok(());
             }
             '\t' => {
-                for c in TAB_DISP_STR.chars() {
-                    self.write_char(c)?;
+                for _ in 0..4 {
+                    self.write_char(' ')?;
                 }
                 return Ok(());
             }

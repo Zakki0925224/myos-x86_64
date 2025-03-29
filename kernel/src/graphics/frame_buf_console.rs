@@ -1,5 +1,5 @@
 use super::{
-    font::{FONT, TAB_DISP_STR},
+    font::FONT,
     frame_buf,
     multi_layer::{self, LayerId},
 };
@@ -8,7 +8,7 @@ use core::fmt::{self, Write};
 
 static mut FRAME_BUF_CONSOLE: Mutex<FrameBufferConsole> = Mutex::new(FrameBufferConsole::new());
 
-pub struct FrameBufferConsole {
+struct FrameBufferConsole {
     back_color: ColorCode,
     default_fore_color: ColorCode,
     fore_color: ColorCode,
@@ -35,10 +35,10 @@ impl FrameBufferConsole {
 
     fn screen_wh(&self) -> Result<(usize, usize)> {
         if let Some(layer_id) = &self.target_layer_id {
-            let layer_info = multi_layer::get_layer_pos_info(layer_id)?;
-            Ok((layer_info.width, layer_info.height))
+            let wh = multi_layer::get_layer_pos_info(layer_id)?.wh;
+            Ok(wh)
         } else {
-            Ok((frame_buf::get_stride()?, frame_buf::get_resolution()?.1))
+            frame_buf::resolution()
         }
     }
 
@@ -58,8 +58,10 @@ impl FrameBufferConsole {
 
         self.fill(self.back_color)?;
 
-        for (i, color_code) in GLOBAL_THEME.sample_rect_colors.iter().enumerate() {
-            self.draw_rect(i * 20, 0, 20, 20, *color_code)?;
+        for (i, color) in GLOBAL_THEME.sample_rect_colors.iter().enumerate() {
+            let xy = (i * 20, 0);
+            let wh = (20, 20);
+            self.draw_rect(xy, wh, *color)?;
         }
 
         Ok(())
@@ -88,15 +90,9 @@ impl FrameBufferConsole {
             _ => (),
         }
 
-        let (font_width, font_height) = FONT.get_wh();
-
-        self.draw_font(
-            self.cursor_x * font_width,
-            self.cursor_y * font_height,
-            c,
-            self.fore_color,
-            self.back_color,
-        )?;
+        let (f_w, f_h) = FONT.get_wh();
+        let xy = (self.cursor_x * f_w, self.cursor_y * f_h);
+        self.draw_font(xy, c, self.fore_color, self.back_color)?;
 
         self.inc_cursor()?;
 
@@ -112,12 +108,9 @@ impl FrameBufferConsole {
     }
 
     fn inc_cursor(&mut self) -> Result<()> {
-        let (screen_width, screen_height) = self.screen_wh()?;
-        let (font_width, font_height) = FONT.get_wh();
-        let (char_max_x_len, char_max_y_len) = (
-            screen_width / font_width - 1,
-            screen_height / font_height - 1,
-        );
+        let (s_w, s_h) = self.screen_wh()?;
+        let (f_w, f_h) = FONT.get_wh();
+        let (char_max_x_len, char_max_y_len) = (s_w / f_w - 1, s_h / f_h - 1);
 
         self.cursor_x += 1;
 
@@ -140,9 +133,9 @@ impl FrameBufferConsole {
     }
 
     fn dec_cursor(&mut self) -> Result<()> {
-        let (screen_width, _) = self.screen_wh()?;
-        let (font_width, _) = FONT.get_wh();
-        let char_max_x_len = screen_width / font_width - 1;
+        let (s_w, _) = self.screen_wh()?;
+        let (f_w, _) = FONT.get_wh();
+        let char_max_x_len = s_w / f_w - 1;
 
         if self.cursor_x == 0 {
             if self.cursor_y > 0 {
@@ -157,27 +150,23 @@ impl FrameBufferConsole {
     }
 
     fn tab(&mut self) -> Result<()> {
-        for c in TAB_DISP_STR.chars() {
-            self.write_char(c)?;
+        for _ in 0..4 {
+            self.write_char(' ')?;
         }
 
         Ok(())
     }
 
     fn new_line(&mut self) -> Result<()> {
-        let (screen_width, screen_height) = self.screen_wh()?;
-        let (font_width, font_height) = FONT.get_wh();
-        let char_max_y_len = screen_height / font_height - 1;
+        let (s_w, s_h) = self.screen_wh()?;
+        let (f_w, f_h) = FONT.get_wh();
+        let char_max_y_len = s_h / f_h - 1;
 
         if !self.is_scrollable {
             // fill line
-            self.draw_rect(
-                self.cursor_x * font_width,
-                self.cursor_y * font_height,
-                screen_width - self.cursor_x * font_width,
-                font_height,
-                self.back_color,
-            )?;
+            let xy = (self.cursor_x * f_w, self.cursor_y * f_h);
+            let wh = (s_w - self.cursor_x * f_w, f_h);
+            self.draw_rect(xy, wh, self.back_color)?;
         }
 
         self.cursor_x = 0;
@@ -215,48 +204,47 @@ impl FrameBufferConsole {
             return Ok(());
         }
 
-        let (_, font_height) = FONT.get_wh();
-        let (screen_width, screen_height) = self.screen_wh()?;
+        let (_, f_h) = FONT.get_wh();
+        let (s_w, s_h) = self.screen_wh()?;
+        // copy
+        self.copy_rect((0, f_h), (0, 0), (s_w, s_h - f_h))?;
 
-        for y in font_height..screen_height {
-            for x in 0..screen_width {
-                self.copy(x, y, x, y - font_height)?;
-            }
-        }
-
-        self.draw_rect(
-            0,
-            screen_height - font_height,
-            screen_width,
-            font_height,
-            self.back_color,
-        )?;
+        // fill last line
+        self.draw_rect((0, s_h - f_h), (s_w, f_h), self.back_color)?;
 
         Ok(())
     }
 
-    fn fill(&self, color_code: ColorCode) -> Result<()> {
+    fn fill(&self, color: ColorCode) -> Result<()> {
         if let Some(layer_id) = &self.target_layer_id {
-            multi_layer::draw_layer(layer_id, |l| l.fill(color_code))?;
+            multi_layer::draw_layer(layer_id, |l| l.fill(color))?;
         } else {
-            frame_buf::fill(color_code)?;
+            frame_buf::fill(color)?;
         }
 
         Ok(())
     }
 
-    fn draw_rect(
+    fn draw_rect(&self, xy: (usize, usize), wh: (usize, usize), color: ColorCode) -> Result<()> {
+        if let Some(layer_id) = &self.target_layer_id {
+            multi_layer::draw_layer(layer_id, |l| l.draw_rect(xy, wh, color))?;
+        } else {
+            frame_buf::draw_rect(xy, wh, color)?;
+        }
+
+        Ok(())
+    }
+
+    fn copy_rect(
         &self,
-        x: usize,
-        y: usize,
-        width: usize,
-        height: usize,
-        color_code: ColorCode,
+        src_xy: (usize, usize),
+        dst_xy: (usize, usize),
+        wh: (usize, usize),
     ) -> Result<()> {
         if let Some(layer_id) = &self.target_layer_id {
-            multi_layer::draw_layer(layer_id, |l| l.draw_rect(x, y, width, height, color_code))?;
+            multi_layer::draw_layer(layer_id, |l| l.copy_rect(src_xy, dst_xy, wh))?;
         } else {
-            frame_buf::draw_rect(x, y, width, height, color_code)?;
+            frame_buf::copy_rect(src_xy, dst_xy, wh)?;
         }
 
         Ok(())
@@ -264,42 +252,29 @@ impl FrameBufferConsole {
 
     fn draw_font(
         &self,
-        x: usize,
-        y: usize,
+        xy: (usize, usize),
         c: char,
         fore_color: ColorCode,
         back_color: ColorCode,
     ) -> Result<()> {
         if let Some(layer_id) = &self.target_layer_id {
-            multi_layer::draw_layer(layer_id, |l| l.draw_font(x, y, c, fore_color, back_color))?;
+            multi_layer::draw_layer(layer_id, |l| l.draw_char(xy, c, fore_color, back_color))?;
         } else {
-            frame_buf::draw_font(x, y, c, fore_color, back_color)?;
+            frame_buf::draw_char(xy, c, fore_color, back_color)?;
         }
 
         Ok(())
     }
 
     fn backspace(&mut self) -> Result<()> {
-        let (font_width, font_height) = FONT.get_wh();
+        let (f_w, f_h) = FONT.get_wh();
 
         self.dec_cursor()?;
         self.draw_rect(
-            self.cursor_x * font_width,
-            self.cursor_y * font_height,
-            font_width,
-            font_height,
+            (self.cursor_x * f_w, self.cursor_y * f_h),
+            (f_w, f_h),
             self.back_color,
         )?;
-
-        Ok(())
-    }
-
-    fn copy(&self, x: usize, y: usize, to_x: usize, to_y: usize) -> Result<()> {
-        if let Some(layer_id) = &self.target_layer_id {
-            multi_layer::draw_layer(layer_id, |l| l.copy(x, y, to_x, to_y))?;
-        } else {
-            frame_buf::copy(x, y, to_x, to_y)?;
-        }
 
         Ok(())
     }

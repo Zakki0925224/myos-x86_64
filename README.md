@@ -22,7 +22,6 @@ This is a replacement project for the previous **[myos](https://github.com/Zakki
 -   [x] Written in Rust
 -   [x] My own UEFI boot loader by using [uefi-rs](https://github.com/rust-osdev/uefi-rs)
 -   [x] x86_64 kernel
--   [x] PIC (Intel 8259A)
 -   [x] Paging
 -   Bus support
     -   [x] PCI
@@ -43,7 +42,7 @@ This is a replacement project for the previous **[myos](https://github.com/Zakki
         -   [x] ICMP
         -   [ ] TCP (WIP)
         -   [x] UDP (receive only)
--   [x] GUI support by using UEFI GOP
+-   [x] Simple window manager
 -   [x] [Userland applications](/apps/) (libc for myos available [here](/apps/libc/))
 -   [x] Async runtime
 -   [x] DOOM challenge!

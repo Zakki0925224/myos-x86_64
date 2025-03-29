@@ -4,7 +4,6 @@ use crate::error::Result;
 const FONT_BIN: &'static [u8] = include_bytes!("../../../third-party/font.psf");
 const FONT_MAGIC_NUM: u32 = 0x864ab572;
 const UNICODE_TABLE_SEPARATOR: u8 = 0xff;
-pub const TAB_DISP_STR: &str = "    ";
 
 pub static FONT: PsfFont = PsfFont::new();
 

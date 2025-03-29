@@ -56,7 +56,7 @@ impl<'a> BitmapImage<'a> {
         &self.data[offset..]
     }
 
-    pub fn bitmap_to_rgb_color_code(&self) -> Vec<ColorCode> {
+    pub fn bitmap_to_color_code(&self) -> Vec<ColorCode> {
         let bitmap = self.bitmap();
         let info_header = self.info_header();
         let width = info_header.width.abs() as usize;

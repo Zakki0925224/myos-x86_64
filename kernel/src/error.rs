@@ -9,8 +9,7 @@ use crate::{
     },
     fs::vfs::VirtualFileSystemError,
     graphics::{
-        frame_buf::FrameBufferError, multi_layer::LayerError,
-        simple_window_manager::SimpleWindowManagerError,
+        draw::DrawError, multi_layer::LayerError, simple_window_manager::SimpleWindowManagerError,
     },
     mem::{allocator::AllocationError, bitmap::BitmapMemoryManagerError, paging::PageManagerError},
     util::{fifo::FifoError, lifo::LifoError},
@@ -19,8 +18,8 @@ use common::elf::Elf64Error;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Error {
+    NotInitialized,
     Failed(&'static str),
-    FrameBufferError(FrameBufferError),
     LayerError(LayerError),
     BitmapMemoryManagerError(BitmapMemoryManagerError),
     PageManagerError(PageManagerError),
@@ -37,17 +36,12 @@ pub enum Error {
     SimpleWindowManagerError(SimpleWindowManagerError),
     AcpiError(AcpiError),
     AllocationError(AllocationError),
+    DrawError(DrawError),
 }
 
 impl From<&'static str> for Error {
     fn from(s: &'static str) -> Self {
         Self::Failed(s)
-    }
-}
-
-impl From<FrameBufferError> for Error {
-    fn from(err: FrameBufferError) -> Self {
-        Self::FrameBufferError(err)
     }
 }
 
@@ -138,6 +132,12 @@ impl From<AcpiError> for Error {
 impl From<AllocationError> for Error {
     fn from(err: AllocationError) -> Self {
         Self::AllocationError(err)
+    }
+}
+
+impl From<DrawError> for Error {
+    fn from(err: DrawError) -> Self {
+        Self::DrawError(err)
     }
 }
 

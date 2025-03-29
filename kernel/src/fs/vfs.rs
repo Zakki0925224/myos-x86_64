@@ -123,7 +123,6 @@ impl FileInfo {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum VirtualFileSystemError {
-    NotInitialized,
     NoSuchFileOrDirectoryError(Option<Path>),
     FileOrDirectoryAlreadyExistsError(Path),
     InvalidFileTypeError((FileType, Option<Path>)),
@@ -276,7 +275,7 @@ impl VirtualFileSystem {
 
     fn add_file(&mut self, path: &Path, file_ty: FileType) -> Result<()> {
         if self.root_id.is_none() {
-            return Err(VirtualFileSystemError::NotInitialized.into());
+            return Err(Error::NotInitialized);
         }
 
         let (parent_id, parent_ref) = self.find_file_by_path(&path.parent()).ok_or(
@@ -566,13 +565,11 @@ pub fn cwd_entry_names() -> Result<Vec<String>> {
 
 pub fn cwd_path() -> Result<Path> {
     let vfs = unsafe { VFS.try_lock() }?;
-    let cwd_id = vfs.cwd_id.ok_or(VirtualFileSystemError::NotInitialized)?;
-    let file_ref = vfs
-        .find_file(&cwd_id)
-        .ok_or(VirtualFileSystemError::NotInitialized)?;
+    let cwd_id = vfs.cwd_id.ok_or(Error::NotInitialized)?;
+    let file_ref = vfs.find_file(&cwd_id).ok_or(Error::NotInitialized)?;
     let path = vfs
         .abs_path_by_file(file_ref)
-        .ok_or(VirtualFileSystemError::NotInitialized)?;
+        .ok_or(Error::NotInitialized)?;
 
     Ok(path)
 }

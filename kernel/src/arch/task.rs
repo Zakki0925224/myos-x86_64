@@ -73,6 +73,7 @@ impl ExecutorTask {
     }
 
     fn poll(&mut self, context: &mut ExecutorContext) -> Poll<()> {
+        // trace!("task: Polling task (id: {})", self.id.get());
         self.future.as_mut().poll(context)
     }
 }
