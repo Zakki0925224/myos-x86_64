@@ -3,7 +3,7 @@ use crate::{
     acpi,
     addr::VirtualAddress,
     error::Result,
-    graphics::{frame_buf, multi_layer},
+    graphics::{frame_buf, multi_layer, simple_window_manager},
     idt::{self, GateType, InterruptHandler},
     task,
     util::mutex::Mutex,
@@ -148,6 +148,7 @@ impl DeviceDriverFunction for LocalApicTimerDriver {
             self.tick += 1;
         }
 
+        let _ = simple_window_manager::poll();
         let _ = multi_layer::draw_to_frame_buf();
         let _ = frame_buf::apply_shadow_buf();
         let _ = task::poll();

@@ -35,8 +35,8 @@ impl Ps2MousePhase {
         Self::WaitingAck
     }
 
-    fn next(&self) -> Self {
-        match self {
+    fn next(&mut self) {
+        *self = match self {
             Self::WaitingAck => Self::WaitingData0,
             Self::WaitingData0 => Self::WaitingData1,
             Self::WaitingData1 => Self::WaitingData2,
@@ -71,7 +71,7 @@ impl Ps2MouseDriver {
         let e = match self.mouse_phase {
             Ps2MousePhase::WaitingAck => {
                 if data == 0xfa {
-                    self.mouse_phase = self.mouse_phase.next();
+                    self.mouse_phase.next();
                 }
 
                 None
@@ -84,19 +84,19 @@ impl Ps2MouseDriver {
 
                 if one && !x_of && !y_of {
                     self.data_buf2[0] = data;
-                    self.mouse_phase = self.mouse_phase.next();
+                    self.mouse_phase.next();
                 }
 
                 None
             }
             Ps2MousePhase::WaitingData1 => {
                 self.data_buf2[1] = data;
-                self.mouse_phase = self.mouse_phase.next();
+                self.mouse_phase.next();
                 None
             }
             Ps2MousePhase::WaitingData2 => {
                 self.data_buf2[2] = data;
-                self.mouse_phase = self.mouse_phase.next();
+                self.mouse_phase.next();
 
                 let button_m = self.data_buf2[0] & 0x4 != 0;
                 let button_r = self.data_buf2[0] & 0x2 != 0;

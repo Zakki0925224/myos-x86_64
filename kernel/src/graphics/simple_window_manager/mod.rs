@@ -3,14 +3,17 @@ use super::{
     multi_layer::{LayerId, LayerPositionInfo},
 };
 use crate::{
-    device::ps2_mouse::MouseEvent, error::Result, fs::file::bitmap::BitmapImage, util::mutex::Mutex,
+    device::{self, ps2_mouse::MouseEvent},
+    error::Result,
+    fs::file::bitmap::BitmapImage,
+    util::mutex::Mutex,
 };
 use alloc::{boxed::Box, string::String, vec::Vec};
 use components::*;
 
 pub mod components;
 
-static mut SIMPLE_WM: Mutex<SimpleWindowManager> = Mutex::new(SimpleWindowManager::new((0, 0)));
+static mut SIMPLE_WM: Mutex<SimpleWindowManager> = Mutex::new(SimpleWindowManager::new());
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum SimpleWindowManagerError {
@@ -27,12 +30,12 @@ struct SimpleWindowManager {
 }
 
 impl SimpleWindowManager {
-    const fn new(res_xy: (usize, usize)) -> Self {
+    const fn new() -> Self {
         Self {
             windows: Vec::new(),
             taskbar: None,
             mouse_pointer: None,
-            res_xy,
+            res_xy: (0, 0),
         }
     }
 
@@ -201,6 +204,7 @@ impl SimpleWindowManager {
             .taskbar
             .as_mut()
             .ok_or(SimpleWindowManagerError::TaskbarLayerWasNotFound)?;
+        let (w, h) = taskbar.get_layer_pos_info()?.wh;
         taskbar.draw_flush()?;
         let s = format!(
             "{:?}",
@@ -209,7 +213,14 @@ impl SimpleWindowManager {
                 .map(|w| w.title())
                 .collect::<Vec<&str>>()
         );
-        taskbar.draw_string((7, 7), &s)?;
+        taskbar.draw_string((7, h / 2 - 8), &s)?;
+
+        let s = if let Ok(ms) = device::local_apic_timer::get_current_ms() {
+            format!("uptime: {:06}.{:03}", ms / 1000, ms % 1000)
+        } else {
+            format!("uptime: ??????.???")
+        };
+        taskbar.draw_string((w - s.len() * 8, h / 2 - 8), &s)?;
 
         Ok(())
     }
@@ -248,4 +259,8 @@ pub fn flush_window(layer_id: &LayerId) -> Result<()> {
 
 pub fn add_component_to_window(layer_id: &LayerId, component: Box<dyn Component>) -> Result<()> {
     unsafe { SIMPLE_WM.try_lock() }?.add_component_to_window(layer_id, component)
+}
+
+pub fn poll() -> Result<()> {
+    unsafe { SIMPLE_WM.try_lock() }?.update_taskbar()
 }
