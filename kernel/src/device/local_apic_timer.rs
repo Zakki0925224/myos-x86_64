@@ -17,7 +17,7 @@ const CURR_CNT_VIRT_ADDR: VirtualAddress = VirtualAddress::new(0xfee00390);
 const DIV_CONF_VIRT_ADDR: VirtualAddress = VirtualAddress::new(0xfee003e0);
 const END_OF_INT_REG_ADDR: VirtualAddress = VirtualAddress::new(0xfee000b0);
 
-const DIV_VALUE: DivideValue = DivideValue::By4;
+const DIV_VALUE: DivideValue = DivideValue::By1;
 const INT_INTERVAL_MS: usize = 10; // must be >= 10ms
 
 #[allow(dead_code)]
@@ -25,13 +25,28 @@ const INT_INTERVAL_MS: usize = 10; // must be >= 10ms
 #[repr(u8)]
 enum DivideValue {
     By1 = 0b1011,
-    By2 = 0b0000,
-    By4 = 0b0001,
-    By8 = 0b0010,
-    By16 = 0b0011,
-    By32 = 0b1000,
-    By64 = 0b1001,
-    By128 = 0b1010,
+    // By2 = 0b0000,
+    // By4 = 0b0001,
+    // By8 = 0b0010,
+    // By16 = 0b0011,
+    // By32 = 0b1000,
+    // By64 = 0b1001,
+    // By128 = 0b1010,
+}
+
+impl DivideValue {
+    fn divisor(&self) -> usize {
+        match self {
+            Self::By1 => 1,
+            // Self::By2 => 2,
+            // Self::By4 => 4,
+            // Self::By8 => 8,
+            // Self::By16 => 16,
+            // Self::By32 => 32,
+            // Self::By64 => 64,
+            // Self::By128 => 128,
+        }
+    }
 }
 
 static mut LOCAL_APIC_TIMER_DRIVER: Mutex<LocalApicTimerDriver> =
@@ -54,7 +69,7 @@ impl LocalApicTimerDriver {
 
     unsafe fn start(&self) {
         let init_cnt = if let Some(freq) = self.freq {
-            (freq / 1000 * INT_INTERVAL_MS) as u32
+            ((freq / 1000 * INT_INTERVAL_MS) / DIV_VALUE.divisor()) as u32
         } else {
             u32::MAX // -1
         };
@@ -78,7 +93,7 @@ impl LocalApicTimerDriver {
     fn current_ms(&self) -> Result<usize> {
         let _freq = self.freq.ok_or("Frequency not set")?;
         let current_tick = unsafe { self.tick() };
-        Ok(current_tick * INT_INTERVAL_MS)
+        Ok(current_tick * DIV_VALUE.divisor() * INT_INTERVAL_MS)
     }
 }
 
@@ -114,7 +129,7 @@ impl DeviceDriverFunction for LocalApicTimerDriver {
             // non masked, periodic
             self.start();
             acpi::pm_timer_wait_ms(1000)?; // wait 1 sec
-            let tick = self.tick();
+            let tick = self.tick() * DIV_VALUE.divisor();
             self.stop();
 
             assert!(tick > 0);

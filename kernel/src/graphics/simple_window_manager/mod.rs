@@ -216,9 +216,9 @@ impl SimpleWindowManager {
         taskbar.draw_string((7, h / 2 - 8), &s)?;
 
         let s = if let Ok(ms) = device::local_apic_timer::get_current_ms() {
-            format!("uptime: {:06}.{:03}", ms / 1000, ms % 1000)
+            format!("{:06}.{:03}", ms / 1000, ms % 1000)
         } else {
-            format!("uptime: ??????.???")
+            format!("??????.???")
         };
         taskbar.draw_string((w - s.len() * 8, h / 2 - 8), &s)?;
 
