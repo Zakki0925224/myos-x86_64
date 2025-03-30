@@ -50,16 +50,23 @@ impl Component for Image {
     }
 
     fn draw_flush(&mut self) -> Result<()> {
-        if let (Some(framebuf_virt_addr), Some(pixel_format)) =
-            (self.framebuf_virt_addr, self.pixel_format)
-        {
-            let (w, h) = self.get_layer_pos_info()?.wh;
+        let framebuf_virt_addr = match self.framebuf_virt_addr {
+            Some(addr) => addr,
+            None => return Ok(()),
+        };
+        let pixel_format = match self.pixel_format {
+            Some(fmt) => fmt,
+            None => return Ok(()),
+        };
 
+        let (w, h) = self.get_layer_pos_info()?.wh;
+
+        unsafe {
             for y in 0..h {
                 for x in 0..w {
-                    let data =
-                        unsafe { framebuf_virt_addr.offset(y * w + x).as_ptr::<u32>().read() };
-                    let color = ColorCode::from_pixel_data(data, pixel_format);
+                    let pixel_data: *const u32 =
+                        framebuf_virt_addr.offset((y * w + x) * 4).as_ptr();
+                    let color = ColorCode::from_pixel_data(*pixel_data, pixel_format);
                     multi_layer::draw_layer(&self.layer_id, |l| l.draw_pixel((x, y), color))?;
                 }
             }
