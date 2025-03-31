@@ -72,10 +72,6 @@ Retrieves a list of entry names in the current working directory, separated by n
 
 Get the size of memory acquired by sbrk.
 
-### flush_window
-
-Flush a window to framebuffer.
-
 ### add_image_to_window
 
 Add image by framebuffer to window.
@@ -101,5 +97,4 @@ Add image by framebuffer to window.
 | 14     | sys_destroy_window      | 0x0e       | int64_t wd            | -                    | -                     | -                    | -                     | int64_t (success: 0, error: -1)                |
 | 15     | sys_getcwdenames        | 0x0f       | char \*buf            | int buf_len          | -                     | -                    | -                     | int64_t (success: 0, error: -1)                |
 | 16     | sys_sbrksz              | 0x10       | const void \*target   | -                    | -                     | -                    | -                     | size_t (success: size, error: 0)               |
-| 17     | sys_flush_window        | 0x11       | int64_t wd            | -                    | -                     | -                    | -                     | int64_t (success: 0, error: -1)                |
-| 18     | sys_add_image_to_window | 0x12       | int64_t wd            | uint64_t image_width | uint64_t image height | uint8_t pixel_format | const char \*framebuf | int64_t (success: 0, error: -1)                |
+| 17     | sys_add_image_to_window | 0x12       | int64_t wd            | uint64_t image_width | uint64_t image height | uint8_t pixel_format | const char \*framebuf | int64_t (success: 0, error: -1)                |

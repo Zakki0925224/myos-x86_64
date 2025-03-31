@@ -148,7 +148,7 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
     // tasks
     let task_graphics = async {
         loop {
-            let _ = simple_window_manager::poll();
+            let _ = simple_window_manager::flush_components();
             task::exec_yield().await;
             let _ = multi_layer::draw_to_frame_buf();
             task::exec_yield().await;

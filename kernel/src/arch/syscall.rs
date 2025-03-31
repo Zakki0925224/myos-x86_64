@@ -246,23 +246,8 @@ extern "sysv64" fn syscall_handler(
                 }
             };
         }
-        // flush_window syscall
-        17 => {
-            let wd = match LayerId::new_val(arg1 as i64) {
-                Ok(wd) => wd,
-                Err(err) => {
-                    error!("syscall: flush_window: {:?}", err);
-                    return -1;
-                }
-            };
-
-            if let Err(err) = sys_flush_window(wd) {
-                error!("syscall: flush_window: {:?}", err);
-                return -1;
-            }
-        }
         // add_image_to_window syscall
-        18 => {
+        17 => {
             let wd = match LayerId::new_val(arg1 as i64) {
                 Ok(wd) => wd,
                 Err(err) => {
@@ -495,10 +480,6 @@ fn sys_sbrksz(target_addr: VirtualAddress) -> Result<usize> {
     let size = task::get_memory_frame_size_by_virt_addr(target_addr)?
         .ok_or(Error::Failed("Failed to get memory frame size"))?;
     Ok(size)
-}
-
-fn sys_flush_window(wd: LayerId) -> Result<()> {
-    simple_window_manager::flush_window(&wd)
 }
 
 fn sys_add_image_to_window(

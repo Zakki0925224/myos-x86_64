@@ -4,7 +4,7 @@ use super::{
 };
 use crate::{
     device::{self, ps2_mouse::MouseEvent},
-    error::Result,
+    error::{Error, Result},
     fs::file::bitmap::BitmapImage,
     util::mutex::Mutex,
 };
@@ -26,7 +26,7 @@ struct SimpleWindowManager {
     windows: Vec<Window>,
     taskbar: Option<Panel>,
     mouse_pointer: Option<Image>,
-    res_xy: (usize, usize),
+    res_xy: Option<(usize, usize)>,
 }
 
 impl SimpleWindowManager {
@@ -35,7 +35,7 @@ impl SimpleWindowManager {
             windows: Vec::new(),
             taskbar: None,
             mouse_pointer: None,
-            res_xy: (0, 0),
+            res_xy: None,
         }
     }
 
@@ -50,19 +50,17 @@ impl SimpleWindowManager {
     }
 
     fn create_taskbar(&mut self) -> Result<()> {
-        let (res_x, res_y) = self.res_xy;
+        let (res_x, res_y) = self.res_xy.ok_or(Error::NotInitialized)?;
 
         let w = res_x;
         let h = 30;
-        let mut panel = Panel::create_and_push((0, res_y - h), (w, h))?;
-        panel.draw_flush()?;
+        let panel = Panel::create_and_push((0, res_y - h), (w, h))?;
         self.taskbar = Some(panel);
-        self.update_taskbar()?;
         Ok(())
     }
 
     fn mouse_pointer_event(&mut self, mouse_event: MouseEvent) -> Result<()> {
-        let (res_x, res_y) = self.res_xy;
+        let (res_x, res_y) = self.res_xy.ok_or(Error::NotInitialized)?;
 
         let mouse_pointer = self
             .mouse_pointer
@@ -114,7 +112,6 @@ impl SimpleWindowManager {
                 if w.is_close_button_clickable(m_x_before, m_y_before)? {
                     w.is_closed = true;
                     self.windows.retain(|w| !w.is_closed);
-                    self.update_taskbar()?;
                     break;
                 }
             }
@@ -129,7 +126,11 @@ impl SimpleWindowManager {
         xy: (usize, usize),
         wh: (usize, usize),
     ) -> Result<LayerId> {
-        let mut window = Window::create_and_push(title, xy, wh)?;
+        if self.res_xy.is_none() {
+            return Err(Error::NotInitialized);
+        }
+
+        let window = Window::create_and_push(title, xy, wh)?;
 
         // let button1 = Button::create_and_push("button 1".to_string(), (0, 0), (100, 25))?;
         // let button2 = Button::create_and_push("button 2".to_string(), (0, 0), (100, 25))?;
@@ -153,31 +154,19 @@ impl SimpleWindowManager {
         // window.push_child(Box::new(button7))?;
         // window.push_child(Box::new(label))?;
 
-        window.draw_flush()?;
         let layer_id = window.layer_id();
         self.windows.push(window);
-        let _ = self.update_taskbar();
 
         Ok(layer_id)
     }
 
     fn destroy_window(&mut self, layer_id: &LayerId) -> Result<()> {
+        if self.res_xy.is_none() {
+            return Err(Error::NotInitialized);
+        }
+
         self.windows
             .retain(|w| w.layer_id().get() != layer_id.get());
-
-        let _ = self.update_taskbar();
-        Ok(())
-    }
-
-    fn flush_window(&mut self, layer_id: &LayerId) -> Result<()> {
-        let window = self
-            .windows
-            .iter_mut()
-            .find(|w| w.layer_id().get() == layer_id.get())
-            .ok_or(SimpleWindowManagerError::WindowWasNotFound {
-                layer_id: layer_id.get(),
-            })?;
-        window.draw_flush()?;
 
         Ok(())
     }
@@ -187,6 +176,10 @@ impl SimpleWindowManager {
         layer_id: &LayerId,
         component: Box<dyn Component>,
     ) -> Result<()> {
+        if self.res_xy.is_none() {
+            return Err(Error::NotInitialized);
+        }
+
         let window = self
             .windows
             .iter_mut()
@@ -199,7 +192,11 @@ impl SimpleWindowManager {
         Ok(())
     }
 
-    fn update_taskbar(&mut self) -> Result<()> {
+    fn flush_taskbar(&mut self) -> Result<()> {
+        if self.res_xy.is_none() {
+            return Err(Error::NotInitialized);
+        }
+
         let taskbar = self
             .taskbar
             .as_mut()
@@ -224,12 +221,28 @@ impl SimpleWindowManager {
 
         Ok(())
     }
+
+    fn flush_components(&mut self) -> Result<()> {
+        if self.res_xy.is_none() {
+            return Err(Error::NotInitialized);
+        }
+
+        for window in self.windows.iter_mut() {
+            window.draw_flush()?;
+        }
+
+        if self.taskbar.is_some() {
+            self.flush_taskbar()?;
+        }
+
+        Ok(())
+    }
 }
 
 pub fn init() -> Result<()> {
     let mut simple_wm = unsafe { SIMPLE_WM.try_lock() }?;
     let res_xy = frame_buf::resolution()?;
-    simple_wm.res_xy = res_xy;
+    simple_wm.res_xy = Some(res_xy);
     Ok(())
 }
 
@@ -253,14 +266,10 @@ pub fn create_window(title: String, xy: (usize, usize), wh: (usize, usize)) -> R
     unsafe { SIMPLE_WM.try_lock() }?.create_window(title, xy, wh)
 }
 
-pub fn flush_window(layer_id: &LayerId) -> Result<()> {
-    unsafe { SIMPLE_WM.try_lock() }?.flush_window(layer_id)
-}
-
 pub fn add_component_to_window(layer_id: &LayerId, component: Box<dyn Component>) -> Result<()> {
     unsafe { SIMPLE_WM.try_lock() }?.add_component_to_window(layer_id, component)
 }
 
-pub fn poll() -> Result<()> {
-    unsafe { SIMPLE_WM.try_lock() }?.update_taskbar()
+pub fn flush_components() -> Result<()> {
+    unsafe { SIMPLE_WM.try_lock() }?.flush_components()
 }
