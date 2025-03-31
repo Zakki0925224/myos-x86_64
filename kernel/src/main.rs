@@ -28,7 +28,7 @@ use alloc::vec::Vec;
 use arch::*;
 use common::boot_info::BootInfo;
 use fs::{file::bitmap::BitmapImage, vfs};
-use graphics::{color::*, simple_window_manager};
+use graphics::{color::*, frame_buf, multi_layer, simple_window_manager};
 use log::*;
 use theme::GLOBAL_THEME;
 use util::logger;
@@ -146,6 +146,17 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
     mem::free();
 
     // tasks
+    let task_graphics = async {
+        loop {
+            let _ = simple_window_manager::poll();
+            task::exec_yield().await;
+            let _ = multi_layer::draw_to_frame_buf();
+            task::exec_yield().await;
+            let _ = frame_buf::apply_shadow_buf();
+            task::exec_yield().await;
+        }
+    };
+
     // let task_poll_virtio_net = async {
     //     loop {
     //         let _ = device::virtio::net::poll_normal();
@@ -174,6 +185,7 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
         }
     };
 
+    task::spawn(task_graphics).unwrap();
     // task::spawn(task_poll_virtio_net).unwrap();
     task::spawn(task_poll_uart).unwrap();
     task::spawn(task_poll_ps2_keyboard).unwrap();

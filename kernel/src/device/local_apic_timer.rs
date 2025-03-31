@@ -3,7 +3,6 @@ use crate::{
     acpi,
     addr::VirtualAddress,
     error::Result,
-    graphics::{frame_buf, multi_layer, simple_window_manager},
     idt::{self, GateType, InterruptHandler},
     task,
     util::mutex::Mutex,
@@ -118,7 +117,10 @@ impl DeviceDriverFunction for LocalApicTimerDriver {
             InterruptHandler::Normal(poll_int_local_apic_timer),
             GateType::Interrupt,
         )?;
-        debug!("{}: Interrupt vector number: 0x{:x}", device_name, vec_num);
+        debug!(
+            "{}: Interrupt vector number: 0x{:x}, Interrupt occures every {}ms",
+            device_name, vec_num, INT_INTERVAL_MS
+        );
 
         unsafe {
             // calc freq
@@ -163,9 +165,7 @@ impl DeviceDriverFunction for LocalApicTimerDriver {
             self.tick += 1;
         }
 
-        let _ = simple_window_manager::poll();
-        let _ = multi_layer::draw_to_frame_buf();
-        let _ = frame_buf::apply_shadow_buf();
+        // poll async tasks
         let _ = task::poll();
 
         Ok(())
