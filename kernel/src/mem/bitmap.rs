@@ -1,6 +1,6 @@
 use super::paging::{self, EntryMode, MappingInfo, PageWriteThroughLevel, ReadWrite, PAGE_SIZE};
 use crate::{
-    arch::{self, addr::*},
+    arch::addr::*,
     error::{Error, Result},
     util::mutex::Mutex,
 };
@@ -461,22 +461,16 @@ pub fn get_mem_size() -> Result<(usize, usize)> {
 }
 
 pub fn alloc_mem_frame(len: usize) -> Result<MemoryFrameInfo> {
-    arch::disabled_int(|| {
-        let mut bmm = unsafe { BMM.try_lock() }?;
-        bmm.alloc_multi_mem_frame(len)
-    })
+    let mut bmm = unsafe { BMM.try_lock() }?;
+    bmm.alloc_multi_mem_frame(len)
 }
 
 pub fn dealloc_mem_frame(mem_frame_info: MemoryFrameInfo) -> Result<()> {
-    arch::disabled_int(|| {
-        let mut bmm = unsafe { BMM.try_lock() }?;
-        bmm.dealloc_mem_frame(mem_frame_info)
-    })
+    let mut bmm = unsafe { BMM.try_lock() }?;
+    bmm.dealloc_mem_frame(mem_frame_info)
 }
 
 pub fn mem_clear(mem_frame_info: &MemoryFrameInfo) -> Result<()> {
-    arch::disabled_int(|| {
-        let bmm = unsafe { BMM.try_lock() }?;
-        unsafe { bmm.mem_clear(mem_frame_info) }
-    })
+    let bmm = unsafe { BMM.try_lock() }?;
+    unsafe { bmm.mem_clear(mem_frame_info) }
 }

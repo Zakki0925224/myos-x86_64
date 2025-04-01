@@ -1,7 +1,7 @@
 use self::{key_event::KeyEvent, key_map::KeyMap};
 use super::{console, DeviceDriverFunction, DeviceDriverInfo};
 use crate::{
-    arch::addr::IoPortAddress,
+    arch::{self, addr::IoPortAddress},
     device::ps2_keyboard::{
         key_event::{KeyState, ModifierKeysState},
         key_map::ANSI_US_104_KEY_MAP,
@@ -245,11 +245,13 @@ pub fn get_device_driver_info() -> Result<DeviceDriverInfo> {
 }
 
 pub fn probe_and_attach() -> Result<()> {
-    let mut driver = unsafe { PS2_KBD_DRIVER.try_lock() }?;
-    driver.probe()?;
-    driver.attach(())?;
-    info!("{}: Attached!", driver.get_device_driver_info()?.name);
-    Ok(())
+    arch::disabled_int(|| {
+        let mut driver = unsafe { PS2_KBD_DRIVER.try_lock() }?;
+        driver.probe()?;
+        driver.attach(())?;
+        info!("{}: Attached!", driver.get_device_driver_info()?.name);
+        Ok(())
+    })
 }
 
 pub fn open() -> Result<()> {
@@ -273,10 +275,10 @@ pub fn write(data: &[u8]) -> Result<()> {
 }
 
 pub fn poll_normal() -> Result<()> {
-    let key_event = {
+    let key_event = arch::disabled_int(|| {
         let mut driver = unsafe { PS2_KBD_DRIVER.try_lock() }?;
         driver.poll_normal()
-    }?;
+    })?;
     let key_event = match key_event {
         Some(e) => e,
         None => return Ok(()),

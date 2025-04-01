@@ -283,13 +283,13 @@ fn sys_read(fd: FileDescriptorNumber, buf_addr: VirtualAddress, buf_len: usize) 
         FileDescriptorNumber::STDIN => {
             if buf_len > 1 {
                 let mut input_s = None;
-                while input_s.is_none() {
-                    if !console::is_ready_get_line() {
-                        super::hlt();
-                        continue;
-                    }
 
-                    input_s = console::get_line()?;
+                while input_s.is_none() {
+                    if let Ok(s) = crate::arch::disabled_int(|| console::get_line()) {
+                        input_s = s;
+                    } else {
+                        super::hlt();
+                    }
                 }
 
                 let c_s = CString::new(input_s.unwrap())
@@ -297,8 +297,16 @@ fn sys_read(fd: FileDescriptorNumber, buf_addr: VirtualAddress, buf_len: usize) 
                     .into_bytes_with_nul();
                 buf_addr.copy_from_nonoverlapping(c_s.as_ptr(), buf_len);
             } else if buf_len == 1 {
-                let ascii = console::get_ascii()?;
-                buf_addr.copy_from_nonoverlapping(&(ascii as u8), 1);
+                let mut ascii = None;
+                while ascii.is_none() {
+                    if let Ok(c) = crate::arch::disabled_int(|| console::get_ascii()) {
+                        ascii = Some(c);
+                    } else {
+                        super::hlt();
+                    }
+                }
+
+                buf_addr.copy_from_nonoverlapping(&(ascii.unwrap() as u8), 1);
             }
         }
         fd => {

@@ -304,7 +304,7 @@ pub fn init_pic() {
 
         // allow interrupts
         MASTER_PIC_ADDR.offset(1).out8(0xf9);
-        SLAVE_PIC_ADDR.offset(1).out8(0xdf);
+        SLAVE_PIC_ADDR.offset(1).out8(0xef);
     });
 
     info!("idt: PIC initialized");

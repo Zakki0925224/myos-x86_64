@@ -253,10 +253,6 @@ pub fn input(ascii_code: AsciiCode) -> Result<()> {
     Ok(())
 }
 
-pub fn is_ready_get_line() -> bool {
-    unsafe { CONSOLE.get_force_mut() }.is_ready_get_line
-}
-
 pub fn get_line() -> Result<Option<String>> {
     let mut console = unsafe { CONSOLE.try_lock() }?;
 
