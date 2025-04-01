@@ -1,8 +1,7 @@
 use super::{console, DeviceDriverFunction, DeviceDriverInfo};
 use crate::{
-    arch::{self, addr::IoPortAddress},
+    arch::addr::IoPortAddress,
     error::{Error, Result},
-    print, println,
     util::{ascii::AsciiCode, mutex::Mutex},
 };
 use alloc::vec::Vec;
@@ -182,33 +181,20 @@ pub fn write(data: &[u8]) -> Result<()> {
 }
 
 pub fn poll_normal() -> Result<()> {
-    let received_data = match arch::disabled_int(|| {
+    let received_data = match {
         let mut driver = unsafe { UART_DRIVER.try_lock() }?;
         driver.poll_normal()
-    })? {
+    }? {
         Some(data) => data,
         None => return Ok(()),
     };
 
-    let mut ascii_code = match AsciiCode::from_u8(received_data) {
+    let ascii_code = match AsciiCode::from_u8(received_data) {
         Some(code) => code,
         None => {
             return Ok(());
         }
     };
-
-    if ascii_code == AsciiCode::CarriageReturn {
-        ascii_code = AsciiCode::NewLine;
-    }
-
-    match ascii_code {
-        AsciiCode::NewLine => {
-            println!();
-        }
-        code => {
-            print!("{}", code as u8 as char);
-        }
-    }
 
     console::input(ascii_code)
 }

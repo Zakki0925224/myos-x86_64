@@ -1,6 +1,6 @@
 use super::{DeviceDriverFunction, DeviceDriverInfo};
 use crate::{
-    arch::{self, addr::IoPortAddress},
+    arch::addr::IoPortAddress,
     error::{Error, Result},
     fs::vfs,
     idt,
@@ -220,13 +220,11 @@ pub fn get_device_driver_info() -> Result<DeviceDriverInfo> {
 }
 
 pub fn probe_and_attach() -> Result<()> {
-    arch::disabled_int(|| {
-        let mut driver = unsafe { PS2_MOUSE_DRIVER.try_lock() }?;
-        driver.probe()?;
-        driver.attach(())?;
-        info!("{}: Attached!", driver.get_device_driver_info()?.name);
-        Result::Ok(())
-    })
+    let mut driver = unsafe { PS2_MOUSE_DRIVER.try_lock() }?;
+    driver.probe()?;
+    driver.attach(())?;
+    info!("{}: Attached!", driver.get_device_driver_info()?.name);
+    Ok(())
 }
 
 pub fn open() -> Result<()> {
@@ -250,11 +248,8 @@ pub fn write(data: &[u8]) -> Result<()> {
 }
 
 pub fn poll_normal() -> Result<Option<MouseEvent>> {
-    let mouse_event = arch::disabled_int(|| {
-        let mut driver = unsafe { PS2_MOUSE_DRIVER.try_lock() }?;
-        driver.poll_normal()
-    })?;
-    Ok(mouse_event)
+    let mut driver = unsafe { PS2_MOUSE_DRIVER.try_lock() }?;
+    driver.poll_normal()
 }
 
 pub extern "x86-interrupt" fn poll_int_ps2_mouse_driver() {

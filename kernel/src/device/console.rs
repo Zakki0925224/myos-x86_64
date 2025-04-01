@@ -224,6 +224,20 @@ pub fn clear_input_buf() -> Result<()> {
 }
 
 pub fn input(ascii_code: AsciiCode) -> Result<()> {
+    let mut ascii_code = ascii_code;
+    if ascii_code == AsciiCode::CarriageReturn {
+        ascii_code = AsciiCode::NewLine;
+    }
+
+    match ascii_code {
+        AsciiCode::NewLine => {
+            println!();
+        }
+        code => {
+            print!("{}", code as u8 as char);
+        }
+    }
+
     let mut console = unsafe { CONSOLE.try_lock() }?;
 
     if console.is_full(BufferType::Input) {

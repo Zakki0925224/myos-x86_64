@@ -1,15 +1,15 @@
 use self::{key_event::KeyEvent, key_map::KeyMap};
 use super::{console, DeviceDriverFunction, DeviceDriverInfo};
 use crate::{
-    arch::{self, addr::IoPortAddress},
+    arch::addr::IoPortAddress,
     device::ps2_keyboard::{
         key_event::{KeyState, ModifierKeysState},
         key_map::ANSI_US_104_KEY_MAP,
     },
     error::{Error, Result},
     fs::vfs,
-    idt, print, println,
-    util::{ascii::AsciiCode, fifo::Fifo, mutex::Mutex},
+    idt,
+    util::{fifo::Fifo, mutex::Mutex},
 };
 use alloc::vec::Vec;
 use log::info;
@@ -245,13 +245,11 @@ pub fn get_device_driver_info() -> Result<DeviceDriverInfo> {
 }
 
 pub fn probe_and_attach() -> Result<()> {
-    arch::disabled_int(|| {
-        let mut driver = unsafe { PS2_KBD_DRIVER.try_lock() }?;
-        driver.probe()?;
-        driver.attach(())?;
-        info!("{}: Attached!", driver.get_device_driver_info()?.name);
-        Ok(())
-    })
+    let mut driver = unsafe { PS2_KBD_DRIVER.try_lock() }?;
+    driver.probe()?;
+    driver.attach(())?;
+    info!("{}: Attached!", driver.get_device_driver_info()?.name);
+    Ok(())
 }
 
 pub fn open() -> Result<()> {
@@ -275,10 +273,10 @@ pub fn write(data: &[u8]) -> Result<()> {
 }
 
 pub fn poll_normal() -> Result<()> {
-    let key_event = arch::disabled_int(|| {
+    let key_event = {
         let mut driver = unsafe { PS2_KBD_DRIVER.try_lock() }?;
         driver.poll_normal()
-    })?;
+    }?;
     let key_event = match key_event {
         Some(e) => e,
         None => return Ok(()),
@@ -288,23 +286,10 @@ pub fn poll_normal() -> Result<()> {
         return Ok(());
     }
 
-    let mut ascii_code = match key_event.ascii {
+    let ascii_code = match key_event.ascii {
         Some(c) => c,
         None => return Ok(()),
     };
-
-    if ascii_code == AsciiCode::CarriageReturn {
-        ascii_code = AsciiCode::NewLine;
-    }
-
-    match ascii_code {
-        AsciiCode::NewLine => {
-            println!();
-        }
-        code => {
-            print!("{}", code as u8 as char);
-        }
-    }
 
     console::input(ascii_code)
 }

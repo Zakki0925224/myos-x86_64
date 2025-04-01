@@ -285,29 +285,27 @@ extern "x86-interrupt" fn double_fault_handler() {
 }
 
 pub fn init_pic() {
-    // disallow all interrupts
-    MASTER_PIC_ADDR.offset(1).out8(0xff);
-    SLAVE_PIC_ADDR.offset(1).out8(0xff);
+    arch::disabled_int(|| {
+        // disallow all interrupts
+        MASTER_PIC_ADDR.offset(1).out8(0xff);
+        SLAVE_PIC_ADDR.offset(1).out8(0xff);
 
-    // mapping IRQ0 - 7 to IDT entries 0x20 - 0x27
-    MASTER_PIC_ADDR.offset(0).out8(0x11);
-    MASTER_PIC_ADDR.offset(1).out8(0x20);
-    MASTER_PIC_ADDR.offset(1).out8(1 << 2);
-    MASTER_PIC_ADDR.offset(1).out8(0x1); // none buffer mode
+        // mapping IRQ0 - 7 to IDT entries 0x20 - 0x27
+        MASTER_PIC_ADDR.offset(0).out8(0x11);
+        MASTER_PIC_ADDR.offset(1).out8(0x20);
+        MASTER_PIC_ADDR.offset(1).out8(1 << 2);
+        MASTER_PIC_ADDR.offset(1).out8(0x1); // none buffer mode
 
-    // mapping IRQ8 - 15 to IDT entries 0x28 - 0x2f
-    SLAVE_PIC_ADDR.offset(0).out8(0x11); // edge trigger mode
-    SLAVE_PIC_ADDR.offset(1).out8(0x28);
-    SLAVE_PIC_ADDR.offset(1).out8(2);
-    SLAVE_PIC_ADDR.offset(1).out8(0x1); // none buffer mode
+        // mapping IRQ8 - 15 to IDT entries 0x28 - 0x2f
+        SLAVE_PIC_ADDR.offset(0).out8(0x11); // edge trigger mode
+        SLAVE_PIC_ADDR.offset(1).out8(0x28);
+        SLAVE_PIC_ADDR.offset(1).out8(2);
+        SLAVE_PIC_ADDR.offset(1).out8(0x1); // none buffer mode
 
-    // mask all
-    MASTER_PIC_ADDR.offset(1).out8(0xfb);
-    SLAVE_PIC_ADDR.offset(1).out8(0xff);
-
-    // allow interrupts
-    MASTER_PIC_ADDR.offset(1).out8(0xf9);
-    SLAVE_PIC_ADDR.offset(1).out8(0xef);
+        // allow interrupts
+        MASTER_PIC_ADDR.offset(1).out8(0xf9);
+        SLAVE_PIC_ADDR.offset(1).out8(0xdf);
+    });
 
     info!("idt: PIC initialized");
 }

@@ -65,12 +65,9 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
     )
     .unwrap();
 
-    // TODO: If you run it in virtualbox or on an actual device, you need to comment out this block to make it work!
-    {
-        // initialize graphics shadow buffer and layer manager
-        graphics::enable_shadow_buf().unwrap();
-        graphics::init_layer_man(&boot_info.graphic_info).unwrap();
-    }
+    // initialize graphics shadow buffer and layer manager
+    graphics::enable_shadow_buf().unwrap();
+    graphics::init_layer_man(&boot_info.graphic_info).unwrap();
 
     // initialize simple window manager
     graphics::init_simple_wm().unwrap();

@@ -289,11 +289,7 @@ fn sys_read(fd: FileDescriptorNumber, buf_addr: VirtualAddress, buf_len: usize) 
                         continue;
                     }
 
-                    super::disabled_int(|| {
-                        input_s = console::get_line()?;
-                        Result::Ok(())
-                    })?;
-                    break;
+                    input_s = console::get_line()?;
                 }
 
                 let c_s = CString::new(input_s.unwrap())
@@ -301,7 +297,7 @@ fn sys_read(fd: FileDescriptorNumber, buf_addr: VirtualAddress, buf_len: usize) 
                     .into_bytes_with_nul();
                 buf_addr.copy_from_nonoverlapping(c_s.as_ptr(), buf_len);
             } else if buf_len == 1 {
-                let ascii = super::disabled_int(|| console::get_ascii())?;
+                let ascii = console::get_ascii()?;
                 buf_addr.copy_from_nonoverlapping(&(ascii as u8), 1);
             }
         }

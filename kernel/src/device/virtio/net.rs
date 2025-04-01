@@ -1,6 +1,5 @@
 use crate::{
     addr::IoPortAddress,
-    arch,
     device::{
         self,
         virtio::{virt_queue, DeviceStatus, InterruptType, IoRegister, NetworkDeviceFeature},
@@ -292,14 +291,9 @@ impl DeviceDriverFunction for VirtioNetDriver {
                 info!("{}: device configuration updated", name);
             }
             Some(InterruptType::Queue) => {
-                // TODO
-                arch::disabled_int(|| {
-                    let rx_queue = self.rx_queue()?;
-                    let data = rx_queue.read_data()?;
-                    info!("{}: data: {:?}", name, data);
-
-                    Result::Ok(())
-                })?;
+                let rx_queue = self.rx_queue()?;
+                let data = rx_queue.read_data()?;
+                info!("{}: data: {:?}", name, data);
             }
             None => (),
         }
@@ -334,13 +328,11 @@ pub fn get_device_driver_info() -> Result<DeviceDriverInfo> {
 }
 
 pub fn probe_and_attach() -> Result<()> {
-    arch::disabled_int(|| {
-        let mut driver = unsafe { VIRTIO_NET_DRIVER.try_lock() }?;
-        driver.probe()?;
-        driver.attach(())?;
-        info!("{}: Attached!", driver.get_device_driver_info()?.name);
-        Ok(())
-    })
+    let mut driver = unsafe { VIRTIO_NET_DRIVER.try_lock() }?;
+    driver.probe()?;
+    driver.attach(())?;
+    info!("{}: Attached!", driver.get_device_driver_info()?.name);
+    Ok(())
 }
 
 pub fn open() -> Result<()> {
@@ -364,11 +356,8 @@ pub fn write(data: &[u8]) -> Result<()> {
 }
 
 pub fn poll_normal() -> Result<()> {
-    arch::disabled_int(|| {
-        let mut driver = unsafe { VIRTIO_NET_DRIVER.try_lock() }?;
-        driver.poll_normal()?;
-        Ok(())
-    })
+    let mut driver = unsafe { VIRTIO_NET_DRIVER.try_lock() }?;
+    driver.poll_normal()
 }
 
 extern "x86-interrupt" fn poll_int_vtnet_driver() {
