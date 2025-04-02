@@ -1,5 +1,3 @@
-use log::trace;
-
 use crate::error::Result;
 use core::{
     cell::SyncUnsafeCell,
@@ -30,18 +28,6 @@ impl<T: Sized> Mutex<T> {
         }
 
         Err("Mutex is already locked".into())
-    }
-
-    pub fn spin_lock(&self) -> MutexGuard<T> {
-        loop {
-            if let Ok(guard) = self.try_lock() {
-                return guard;
-            }
-            trace!(
-                "{}: Mutex is already locked, spinning...",
-                core::any::type_name::<T>()
-            );
-        }
     }
 
     pub unsafe fn get_force_mut(&mut self) -> &mut T {

@@ -3,7 +3,7 @@ use super::{
     multi_layer::{LayerId, LayerPositionInfo},
 };
 use crate::{
-    device::{self, ps2_mouse::MouseEvent},
+    device::ps2_mouse::MouseEvent,
     error::{Error, Result},
     fs::file::bitmap::BitmapImage,
     util::mutex::Mutex,
@@ -201,23 +201,19 @@ impl SimpleWindowManager {
             .taskbar
             .as_mut()
             .ok_or(SimpleWindowManagerError::TaskbarLayerWasNotFound)?;
-        let (w, h) = taskbar.get_layer_pos_info()?.wh;
+        // let (w, h) = taskbar.get_layer_pos_info()?.wh;
         taskbar.draw_flush()?;
-        let s = format!(
-            "{:?}",
-            self.windows
-                .iter()
-                .map(|w| w.title())
-                .collect::<Vec<&str>>()
-        );
-        taskbar.draw_string((7, h / 2 - 8), &s)?;
 
-        let s = if let Ok(ms) = device::local_apic_timer::get_current_ms() {
-            format!("{:06}.{:03}", ms / 1000, ms % 1000)
-        } else {
-            format!("??????.???")
-        };
-        taskbar.draw_string((w - s.len() * 8, h / 2 - 8), &s)?;
+        // let window_titles: Vec<&str> = self.windows.iter().map(|w| w.title()).collect();
+        // let s = format!("{:?}", window_titles);
+        // taskbar.draw_string((7, h / 2 - 8), &s)?;
+
+        // let s = if let Ok(ms) = device::local_apic_timer::get_current_ms() {
+        //     format!("{:06}.{:03}", ms / 1000, ms % 1000)
+        // } else {
+        //     "??????.???".to_string()
+        // };
+        // taskbar.draw_string((w - s.len() * 8, h / 2 - 8), &s)?;
 
         Ok(())
     }

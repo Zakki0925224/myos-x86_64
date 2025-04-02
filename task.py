@@ -288,11 +288,13 @@ def run():
 
 
 def run_nographic():
+    build()
     _make_img()
     _run_cmd(f"{_qemu_cmd()} -nographic", ignore_error=True)
 
 
 def run_with_gdb():
+    build()
     _make_img()
     _run_cmd(f"{_qemu_cmd()} -S")
 
@@ -302,9 +304,7 @@ def monitor():
 
 
 def gdb():
-    _run_cmd(
-        f'rust-gdb ./{OUTPUT_DIR}/{KERNEL_FILE} -ex "target remote :{QEMU_GDB_PORT}"'
-    )
+    _run_cmd(f'gdb ./{OUTPUT_DIR}/{KERNEL_FILE} -ex "target remote :{QEMU_GDB_PORT}"')
 
 
 def dump():

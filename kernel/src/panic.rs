@@ -17,9 +17,7 @@ fn panic(info: &PanicInfo) -> ! {
         panic_screen::write_fmt(format_args!("{:?}\n", info.location())).unwrap();
 
         qemu::exit(EXIT_FAILURE);
-        loop {
-            arch::hlt();
-        }
+        loop {}
     });
 
     unreachable!();
