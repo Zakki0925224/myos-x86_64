@@ -2,7 +2,7 @@ use crate::{
     error::{Error, Result},
     util::mutex::Mutex,
 };
-use alloc::{collections::btree_map::BTreeMap, vec::Vec};
+use alloc::collections::btree_map::BTreeMap;
 use arp::{ArpOperation, ArpPacket};
 use core::net::Ipv4Addr;
 use eth::{EthernetAddress, EthernetPayload};
@@ -121,7 +121,7 @@ impl NetworkManager {
                     TcpPacket::FLAGS_SYN | TcpPacket::FLAGS_ACK,
                     u16::MAX,
                     0,
-                    Vec::new(),
+                    packet.options_and_data,
                 );
                 reply_packet.calc_checksum();
                 return Ok(Some(reply_packet));
