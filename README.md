@@ -36,6 +36,7 @@ This is a replacement project for the previous **[myos](https://github.com/Zakki
 -   [x] File system
     -   [x] Own VFS
     -   [x] FAT32 (read only)
+    -   [x] Device file (/dev)
 -   [x] Networking
     -   [x] ARP
     -   [x] IPv4

@@ -2,10 +2,9 @@ use super::{DeviceDriverFunction, DeviceDriverInfo};
 use crate::{
     error::{Error, Result},
     fs::vfs,
-    println,
     util::mutex::Mutex,
 };
-use alloc::vec::Vec;
+use alloc::{string::String, vec::Vec};
 use conf_space::*;
 use device::{PciDevice, PciDeviceFunctions};
 use log::{debug, info};
@@ -109,42 +108,6 @@ impl PciBusDriver {
             })
             .ok_or(Error::Failed("PCI device not found"))
     }
-
-    fn debug(&self) {
-        for d in &self.pci_devices {
-            let (bus, device, func) = d.bdf();
-            let conf_space_header = d.read_conf_space_header().unwrap();
-            println!("{}:{}:{}", bus, device, func);
-            println!("{:?}", conf_space_header.get_header_type());
-            println!("{:?}", conf_space_header.get_device_name());
-            println!(
-                "vendor: 0x{:x}, device: 0x{:x}",
-                conf_space_header.vendor_id, conf_space_header.device_id
-            );
-            println!(
-                "class: {}, subclass: {}, if: {}\n",
-                conf_space_header.class_code, conf_space_header.subclass, conf_space_header.prog_if
-            );
-            if let Ok(field) = d.read_conf_space_non_bridge_field() {
-                for bar in field.get_bars().unwrap() {
-                    let ty = match bar.1 {
-                        BaseAddress::MemoryAddress32BitSpace(_, _) => "32 bit memory",
-                        BaseAddress::MemoryAddress64BitSpace(_, _) => "64 bit memory",
-                        BaseAddress::MmioAddressSpace(_) => "I/O",
-                    };
-
-                    let addr = match bar.1 {
-                        BaseAddress::MemoryAddress32BitSpace(addr, _) => addr.get() as usize,
-                        BaseAddress::MemoryAddress64BitSpace(addr, _) => addr.get() as usize,
-                        BaseAddress::MmioAddressSpace(addr) => addr as usize,
-                    };
-
-                    println!("BAR{}: {} at 0x{:x}", bar.0, ty, addr);
-                }
-            }
-            println!("--------------");
-        }
-    }
 }
 
 impl DeviceDriverFunction for PciBusDriver {
@@ -182,15 +145,29 @@ impl DeviceDriverFunction for PciBusDriver {
     }
 
     fn open(&mut self) -> Result<()> {
-        unimplemented!()
+        Ok(())
     }
 
     fn close(&mut self) -> Result<()> {
-        unimplemented!()
+        Ok(())
     }
 
     fn read(&mut self) -> Result<Vec<u8>> {
-        unimplemented!()
+        let mut s = String::new();
+
+        for d in &self.pci_devices {
+            let (bus, device, func) = d.bdf();
+            let conf_space_header = d.read_conf_space_header().unwrap();
+            let header_type = conf_space_header.get_header_type();
+            let device_name = conf_space_header
+                .get_device_name()
+                .unwrap_or("<UNKNOWN NAME>");
+
+            s.push_str(&format!("{}:{}:{}", bus, device, func));
+            s.push_str(&format!(" {:?} - {}\n", header_type, device_name));
+        }
+
+        Ok(s.into_bytes())
     }
 
     fn write(&mut self, _data: &[u8]) -> Result<()> {
@@ -229,11 +206,6 @@ pub fn read() -> Result<Vec<u8>> {
 
 pub fn write(data: &[u8]) -> Result<()> {
     unsafe { PCI_BUS_DRIVER.try_lock() }?.write(data)
-}
-
-pub fn lspci() -> Result<()> {
-    unsafe { PCI_BUS_DRIVER.try_lock() }?.debug();
-    Ok(())
 }
 
 pub fn is_exist_device(bus: usize, device: usize, func: usize) -> Result<bool> {
