@@ -22,9 +22,9 @@
 #define SN_CHDIR 12
 #define SN_CREATE_WINDOW 13
 #define SN_DESTROY_WINDOW 14
-#define SN_GETCWDENAMES 15
-#define SN_SBRKSZ 16
-#define SN_ADD_IMAGE_TO_WINDOW 17
+#define SN_SBRKSZ 15
+#define SN_ADD_IMAGE_TO_WINDOW 16
+#define SN_GETENAMES 17
 
 // defined file descriptor numbers
 #define FDN_STDIN 0
@@ -46,8 +46,8 @@ extern int64_t sys_getcwd(char *buf, int buf_len);
 extern int64_t sys_chdir(const char *path);
 extern int64_t sys_create_window(const char *title, uint64_t x_pos, uint64_t y_pos, uint64_t width, uint64_t height);
 extern int64_t sys_destroy_window(int64_t wd);
-extern int64_t sys_getcwdenames(char *buf, int buf_len);
 extern size_t sys_sbrksz(const void *target);
 extern int64_t sys_add_image_to_window(int64_t wd, uint64_t image_width, uint64_t image_height, uint8_t pixel_format, const char *framebuf);
+extern int64_t sys_getenames(const char *path, char *buf, int buf_len);
 
 #endif

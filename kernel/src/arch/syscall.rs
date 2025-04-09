@@ -221,17 +221,8 @@ extern "sysv64" fn syscall_handler(
                 return -1;
             }
         }
-        // getcwdenames syscall
-        15 => {
-            let buf_addr = arg1.into();
-            let buf_len = arg2 as usize;
-            if let Err(err) = sys_getcwdenames(buf_addr, buf_len) {
-                error!("syscall: getcwdenames: {:?}", err);
-                return -1;
-            }
-        }
         // sbrksz syscall
-        16 => {
+        15 => {
             let target_addr = arg1.into();
 
             return match sys_sbrksz(target_addr) {
@@ -247,7 +238,7 @@ extern "sysv64" fn syscall_handler(
             };
         }
         // add_image_to_window syscall
-        17 => {
+        16 => {
             let wd = match LayerId::new_val(arg1 as i64) {
                 Ok(wd) => wd,
                 Err(err) => {
@@ -263,6 +254,17 @@ extern "sysv64" fn syscall_handler(
             if let Err(err) = sys_add_image_to_window(wd, (w, h), pixel_format, framebuf_virt_addr)
             {
                 error!("syscall: add_image_to_window: {:?}", err);
+                return -1;
+            }
+        }
+        // getenames syscall
+        17 => {
+            let path_ptr = arg1 as *const u8;
+            let buf_addr = arg2.into();
+            let buf_len = arg3 as usize;
+
+            if let Err(err) = sys_getenames(path_ptr, buf_addr, buf_len) {
+                error!("syscall: getenames: {:?}", err);
                 return -1;
             }
         }
@@ -463,23 +465,6 @@ fn sys_destroy_window(wd: LayerId) -> Result<()> {
     Ok(())
 }
 
-fn sys_getcwdenames(buf_addr: VirtualAddress, buf_len: usize) -> Result<()> {
-    let entry_names = fs::vfs::cwd_entry_names()?;
-    let entry_names_s: Vec<u8> = entry_names
-        .iter()
-        .map(|n| CString::new(n.as_str()).unwrap().into_bytes_with_nul())
-        .flatten()
-        .collect();
-
-    if buf_len < entry_names_s.len() {
-        return Err(Error::Failed("Buffer is too small"));
-    }
-
-    buf_addr.copy_from_nonoverlapping(entry_names_s.as_ptr(), entry_names_s.len());
-
-    Ok(())
-}
-
 fn sys_sbrksz(target_addr: VirtualAddress) -> Result<usize> {
     let size = task::get_memory_frame_size_by_virt_addr(target_addr)?
         .ok_or(Error::Failed("Failed to get memory frame size"))?;
@@ -499,6 +484,27 @@ fn sys_add_image_to_window(
         pixel_format,
     )?;
     simple_window_manager::add_component_to_window(&wd, Box::new(image))?;
+
+    Ok(())
+}
+
+fn sys_getenames(path_ptr: *const u8, buf_addr: VirtualAddress, buf_len: usize) -> Result<()> {
+    let path = unsafe { util::cstring::from_cstring_ptr(path_ptr) }
+        .as_str()
+        .into();
+
+    let entry_names = fs::vfs::entry_names(&path)?;
+    let entry_names_s: Vec<u8> = entry_names
+        .iter()
+        .map(|n| CString::new(n.as_str()).unwrap().into_bytes_with_nul())
+        .flatten()
+        .collect();
+
+    if buf_len < entry_names_s.len() {
+        return Err(Error::Failed("Buffer is too small"));
+    }
+
+    buf_addr.copy_from_nonoverlapping(entry_names_s.as_ptr(), entry_names_s.len());
 
     Ok(())
 }

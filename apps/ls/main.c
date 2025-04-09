@@ -5,9 +5,20 @@ static char cwdenames[1280] = {0};
 
 int main(int argc, char *argv[])
 {
-    if (sys_getcwdenames(cwdenames, sizeof(cwdenames)) == -1)
+    char *path;
+
+    if (argc > 1)
     {
-        printf("ls: failed to get entry names in the current working directory\n");
+        path = argv[1];
+    }
+    else
+    {
+        path = ".";
+    }
+
+    if (sys_getenames(path, cwdenames, sizeof(cwdenames)) == -1)
+    {
+        printf("ls: failed to get entry names\n");
         return 1;
     }
 

@@ -234,18 +234,12 @@ impl VirtualFileSystem {
         Some((file_id, file_ref_mut))
     }
 
-    fn cwd_files(&mut self) -> Vec<&FileInfo> {
+    fn files_by_path(&self, path: &Path) -> Result<Vec<&FileInfo>> {
         let mut files = Vec::new();
-        let cwd_id = if let Some(id) = self.cwd_id {
-            id
-        } else {
-            return files;
-        };
-        let file_ref = if let Some(file_ref) = self.find_file(&cwd_id) {
-            file_ref
-        } else {
-            return files;
-        };
+
+        let (_, file_ref) = self.find_file_by_path(&path).ok_or(
+            VirtualFileSystemError::NoSuchFileOrDirectoryError(Some(path.clone())),
+        )?;
 
         for child_id in &file_ref.children {
             if let Some(child_ref) = self.find_file(child_id) {
@@ -253,7 +247,7 @@ impl VirtualFileSystem {
             }
         }
 
-        files
+        Ok(files)
     }
 
     fn chdir(&mut self, path: &Path) -> Result<()> {
@@ -557,9 +551,13 @@ pub fn mount_fs(path: &Path, fs: FileSystem) -> Result<()> {
     vfs.mount_fs(path, fs)
 }
 
-pub fn cwd_entry_names() -> Result<Vec<String>> {
-    let mut vfs = unsafe { VFS.try_lock() }?;
-    let names = vfs.cwd_files().iter().map(|f| f.name.clone()).collect();
+pub fn entry_names(path: &Path) -> Result<Vec<String>> {
+    let vfs = unsafe { VFS.try_lock() }?;
+    let names = vfs
+        .files_by_path(path)?
+        .iter()
+        .map(|f| f.name.clone())
+        .collect();
     Ok(names)
 }
 

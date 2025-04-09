@@ -94,11 +94,6 @@ int64_t sys_destroy_window(int64_t wd)
     return syscall(SN_DESTROY_WINDOW, (uint64_t)wd, 0, 0, 0, 0);
 }
 
-int64_t sys_getcwdenames(char *buf, int buf_len)
-{
-    return syscall(SN_GETCWDENAMES, (uint64_t)buf, (uint64_t)buf_len, 0, 0, 0);
-}
-
 size_t sys_sbrksz(const void *target)
 {
     return (size_t)syscall(SN_SBRKSZ, (uint64_t)target, 0, 0, 0, 0);
@@ -107,4 +102,9 @@ size_t sys_sbrksz(const void *target)
 int64_t sys_add_image_to_window(int64_t wd, uint64_t image_width, uint64_t image_height, uint8_t pixel_format, const char *framebuf)
 {
     return syscall(SN_ADD_IMAGE_TO_WINDOW, (uint64_t)wd, image_width, image_height, (uint64_t)pixel_format, (uint64_t)framebuf);
+}
+
+int64_t sys_getenames(const char *path, char *buf, int buf_len)
+{
+    return syscall(SN_GETENAMES, (uint64_t)path, (uint64_t)buf, (uint64_t)buf_len, 0, 0);
 }

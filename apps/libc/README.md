@@ -64,10 +64,6 @@ Creates a window.
 
 Destroys a window.
 
-### getcwdenames
-
-Retrieves a list of entry names in the current working directory, separated by null characters (\0).
-
 ### sbrksz
 
 Get the size of memory acquired by sbrk.
@@ -75,6 +71,10 @@ Get the size of memory acquired by sbrk.
 ### add_image_to_window
 
 Add image by framebuffer to window.
+
+### getenames
+
+Retrieves a list of entry names in a directory, separated by null characters (\0).
 
 ## Syscall tables
 
@@ -90,11 +90,11 @@ Add image by framebuffer to window.
 | 7      | sys_break               | 0x07       | -                     | -                    | -                     | -                    | -                     | void                                           |
 | 8      | sys_stat                | 0x08       | int64_t fd            | struct stat \*buf    | -                     | -                    | -                     | int64_t (success: 0, error: -1)                |
 | 9      | sys_uptime              | 0x09       | -                     | -                    | -                     | -                    | -                     | uint64_t                                       |
-| 10     | sys_exec                | 0x0a       | char \*args           | -                    | -                     | -                    | -                     | int64_t (success: 0, error: -1)                |
+| 10     | sys_exec                | 0x0a       | const char \*args     | -                    | -                     | -                    | -                     | int64_t (success: 0, error: -1)                |
 | 11     | sys_getcwd              | 0x0b       | char \*buf            | int buf_len          | -                     | -                    | -                     | int64_t (success: 0, error: -1)                |
-| 12     | sys_chdir               | 0x0c       | char \*path           | -                    | -                     | -                    | -                     | int64_t (success: 0, error: -1)                |
-| 13     | sys_create_window       | 0x0d       | char \*title          | uint64_t x_pos       | uint64_t y_pos        | uint64_t width       | uint64_t height       | int64_t (success: wd, error: -1)               |
+| 12     | sys_chdir               | 0x0c       | const char \*path     | -                    | -                     | -                    | -                     | int64_t (success: 0, error: -1)                |
+| 13     | sys_create_window       | 0x0d       | const char \*title    | uint64_t x_pos       | uint64_t y_pos        | uint64_t width       | uint64_t height       | int64_t (success: wd, error: -1)               |
 | 14     | sys_destroy_window      | 0x0e       | int64_t wd            | -                    | -                     | -                    | -                     | int64_t (success: 0, error: -1)                |
-| 15     | sys_getcwdenames        | 0x0f       | char \*buf            | int buf_len          | -                     | -                    | -                     | int64_t (success: 0, error: -1)                |
-| 16     | sys_sbrksz              | 0x10       | const void \*target   | -                    | -                     | -                    | -                     | size_t (success: size, error: 0)               |
-| 17     | sys_add_image_to_window | 0x12       | int64_t wd            | uint64_t image_width | uint64_t image height | uint8_t pixel_format | const char \*framebuf | int64_t (success: 0, error: -1)                |
+| 15     | sys_sbrksz              | 0x10       | const void \*target   | -                    | -                     | -                    | -                     | size_t (success: size, error: 0)               |
+| 16     | sys_add_image_to_window | 0x12       | int64_t wd            | uint64_t image_width | uint64_t image height | uint8_t pixel_format | const char \*framebuf | int64_t (success: 0, error: -1)                |
+| 17     | sys_getenames           | 0x13       | const char \*path     | char \*buf           | int buf_len           | -                    | -                     | int64_t (success: 0, error: -1)                |
