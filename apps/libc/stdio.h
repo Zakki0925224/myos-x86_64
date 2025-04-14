@@ -2,8 +2,8 @@
 #define _STDIO_H
 
 #include <stdarg.h>
-#include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
 
 #include "stat.h"
 

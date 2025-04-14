@@ -1,7 +1,8 @@
-#include <stdint.h>
 #include <stddef.h>
-#include "utsname.h"
+#include <stdint.h>
+
 #include "stat.h"
+#include "utsname.h"
 
 #ifndef _SYSCALLS_H
 #define _SYSCALLS_H

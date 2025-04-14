@@ -3,43 +3,33 @@
 
 static char cwdenames[1280] = {0};
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
     char *path;
 
-    if (argc > 1)
-    {
+    if (argc > 1) {
         path = argv[1];
-    }
-    else
-    {
+    } else {
         path = ".";
     }
 
-    if (sys_getenames(path, cwdenames, sizeof(cwdenames)) == -1)
-    {
+    if (sys_getenames(path, cwdenames, sizeof(cwdenames)) == -1) {
         printf("ls: failed to get entry names\n");
         return 1;
     }
 
     char old_c = '\0';
 
-    for (int i = 0; i < (int)sizeof(cwdenames); i++)
-    {
+    for (int i = 0; i < (int)sizeof(cwdenames); i++) {
         char c = cwdenames[i];
 
         // end of name list
-        if (old_c == '\0' && c == '\0' && i > 0)
-        {
+        if (old_c == '\0' && c == '\0' && i > 0) {
             break;
         }
 
-        if (c == '\0')
-        {
+        if (c == '\0') {
             printf("  ");
-        }
-        else
-        {
+        } else {
             printf("%c", c);
         }
 
