@@ -9,7 +9,6 @@ use crate::{
     mem::paging,
     util::mutex::Mutex,
 };
-use alloc::string::String;
 use core::{mem::size_of, panic};
 use log::*;
 
@@ -33,53 +32,49 @@ impl PageFaultErrorCode {
 
 impl core::fmt::Debug for PageFaultErrorCode {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let mut fmt = String::from("PageFaultErrorCode");
-
-        fmt = format!("{}(0x{:x}) {{ ", fmt, self.0);
+        let mut builder = f.debug_struct("PageFaultErrorCode");
+        builder.field("raw", &format_args!("{:#x}", self.0));
 
         if (self.0 & Self::PROTECTION_VIOLATION) != 0 {
-            fmt = format!("{}PROTECTION_VIOLATION, ", fmt);
+            builder.field("PROTECTION_VIOLATION", &true);
         }
 
         if (self.0 & Self::CAUSED_BY_WRITE) != 0 {
-            fmt = format!("{}CAUSED_BY_WRITE, ", fmt);
+            builder.field("CAUSED_BY_WRITE", &true);
         }
 
         if (self.0 & Self::USER_MODE) != 0 {
-            fmt = format!("{}USER_MODE, ", fmt);
+            builder.field("USER_MODE", &true);
         }
 
         if (self.0 & Self::MALFORMED_TABLE) != 0 {
-            fmt = format!("{}MALFORMED_TABLE, ", fmt);
+            builder.field("MALFORMED_TABLE", &true);
         }
 
         if (self.0 & Self::INSTRUCTION_FETCH) != 0 {
-            fmt = format!("{}INSTRUCTION_FETCH, ", fmt);
+            builder.field("INSTRUCTION_FETCH", &true);
         }
 
         if (self.0 & Self::PROTECTION_KEY) != 0 {
-            fmt = format!("{}PROTECTION_KEY, ", fmt);
+            builder.field("PROTECTION_KEY", &true);
         }
 
         if (self.0 & Self::SHADOW_STACK) != 0 {
-            fmt = format!("{}SHADOW_STACK, ", fmt);
+            builder.field("SHADOW_STACK", &true);
         }
 
         if (self.0 & Self::SGX) != 0 {
-            fmt = format!("{}SGX, ", fmt);
+            builder.field("SGX", &true);
         }
 
         if (self.0 & Self::RMP) != 0 {
-            fmt = format!("{}RMP, ", fmt);
+            builder.field("RMP", &true);
         }
 
-        fmt = format!("{}}}", fmt);
-
-        write!(f, "{}", fmt)
+        builder.finish()
     }
 }
 
-#[derive(Debug)]
 #[repr(C)]
 pub struct InterruptStackFrame {
     pub ins_ptr: u64,
@@ -89,6 +84,18 @@ pub struct InterruptStackFrame {
     pub stack_ptr: u64,
     pub stack_seg: u16,
     reserved1: [u8; 6],
+}
+
+impl core::fmt::Debug for InterruptStackFrame {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("InterruptStackFrame")
+            .field("ins_ptr", &format_args!("{:#x}", self.ins_ptr))
+            .field("code_seg", &format_args!("{:#x}", self.code_seg))
+            .field("cpu_flags", &format_args!("{:#x}", self.cpu_flags))
+            .field("stack_ptr", &format_args!("{:#x}", self.stack_ptr))
+            .field("stack_seg", &format_args!("{:#x}", self.stack_seg))
+            .finish()
+    }
 }
 
 // idt

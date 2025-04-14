@@ -38,7 +38,8 @@ void exec_cmd(char *cmd) {
     } else if (strcmp(splitted_buf[0], "exit") == 0) {
         exit(0);
     } else if (strcmp(splitted_buf[0], "break") == 0) {
-        sys_break();
+        // sys_break();
+        __asm__ volatile("int3");
     } else if (strcmp(splitted_buf[0], "exec") == 0) {
         if (cmdargs_len < 2) {
             printf("sh: exec: missing argument\n");
