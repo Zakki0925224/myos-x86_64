@@ -143,7 +143,12 @@ impl GateDescriptor {
         Self(0)
     }
 
-    fn set_handler(&mut self, handler: InterruptHandler, gate_type: GateType) {
+    fn set_handler(
+        &mut self,
+        handler: InterruptHandler,
+        gate_type: GateType,
+        allow_in_user_mode: bool,
+    ) {
         let handler_addr = match handler {
             InterruptHandler::Normal(handler) => handler as *const (),
             InterruptHandler::WithStackFrame(handler) => handler as *const (),
@@ -152,6 +157,13 @@ impl GateDescriptor {
         self.set_handler_offset(handler_addr);
         self.set_selector(Cs::read().raw());
         self.set_gate_type(gate_type);
+
+        if allow_in_user_mode {
+            self.set_dpl(3);
+        } else {
+            self.set_dpl(0);
+        }
+
         self.set_p(true);
     }
 
@@ -178,6 +190,11 @@ impl GateDescriptor {
         self.0 = (self.0 & !0x8000_0000_0000) | ((value as u128) << 47);
     }
 
+    fn set_dpl(&mut self, dpl: u8) {
+        let dpl = dpl & 0x3;
+        self.0 = (self.0 & !0x6000_0000_0000) | ((dpl as u128) << 45);
+    }
+
     fn is_null(self) -> bool {
         self.0 == 0
     }
@@ -199,6 +216,7 @@ impl InterruptDescriptorTable {
         vec_num: usize,
         handler: InterruptHandler,
         gate_type: GateType,
+        allow_in_user_mode: bool,
     ) -> Result<()> {
         if vec_num >= IDT_LEN {
             return Err(Error::Failed("Invalid interrupt vector number"));
@@ -208,7 +226,7 @@ impl InterruptDescriptorTable {
         if !desc.is_null() {
             return Err(Error::Failed("Interrupt handler already set"));
         }
-        desc.set_handler(handler, gate_type);
+        desc.set_handler(handler, gate_type, allow_in_user_mode);
 
         Ok(())
     }
@@ -221,7 +239,7 @@ impl InterruptDescriptorTable {
         for i in 32..IDT_LEN {
             let desc = &mut self.entries[i];
             if desc.is_null() {
-                desc.set_handler(handler, gate_type);
+                desc.set_handler(handler, gate_type, false);
                 return Ok(i as u8);
             }
         }
@@ -316,31 +334,37 @@ pub fn init_idt() -> Result<()> {
         VEC_BREAKPOINT,
         InterruptHandler::WithStackFrame(breakpoint_handler),
         GateType::Trap,
+        true,
     )?;
     idt.set_handler(
         VEC_GENERAL_PROTECTION,
         InterruptHandler::WithStackFrame(general_protection_fault_handler),
         GateType::Interrupt,
+        true,
     )?;
     idt.set_handler(
         VEC_PAGE_FAULT,
         InterruptHandler::PageFault(page_fault_handler),
         GateType::Interrupt,
+        true,
     )?;
     idt.set_handler(
         VEC_DOUBLE_FAULT,
         InterruptHandler::Normal(double_fault_handler),
         GateType::Interrupt,
+        false,
     )?;
     idt.set_handler(
         VEC_PS2_KBD,
         InterruptHandler::Normal(device::ps2_keyboard::poll_int_ps2_kbd_driver),
         GateType::Interrupt,
+        false,
     )?;
     idt.set_handler(
         VEC_PS2_MOUSE,
         InterruptHandler::Normal(device::ps2_mouse::poll_int_ps2_mouse_driver),
         GateType::Interrupt,
+        false,
     )?;
     idt.load();
 
@@ -350,7 +374,7 @@ pub fn init_idt() -> Result<()> {
 
 pub fn set_handler(vec_num: usize, handler: InterruptHandler, gate_type: GateType) -> Result<()> {
     let mut idt = unsafe { IDT.try_lock() }?;
-    idt.set_handler(vec_num, handler, gate_type)?;
+    idt.set_handler(vec_num, handler, gate_type, false)?;
     idt.load();
     Ok(())
 }
