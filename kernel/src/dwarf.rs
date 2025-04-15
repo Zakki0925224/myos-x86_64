@@ -187,8 +187,11 @@ fn read_uleb128(slice: &[u8], offset: &mut usize) -> u64 {
     res
 }
 
-fn parse_debug_abbrev(debug_abbrev_slice: &[u8]) -> Result<BTreeMap<u64, DebugAbbrev>> {
-    let mut offset = 0;
+fn parse_debug_abbrev(
+    debug_abbrev_slice: &[u8],
+    offset: usize,
+) -> Result<BTreeMap<u64, DebugAbbrev>> {
+    let mut offset = offset;
     let mut debug_abbrevs = BTreeMap::new();
 
     while offset < debug_abbrev_slice.len() {
@@ -238,9 +241,33 @@ fn parse_debug_info(debug_info_slice: &[u8]) -> Result<Vec<DebugInfo>> {
         let debug_info = DebugInfo::try_from(&debug_info_slice[offset..])?;
         offset += debug_info.size();
         debug_infos.push(debug_info);
+        break; // TODO
     }
 
     Ok(debug_infos)
+}
+
+fn parse_die(debug_abbrev_slice: &[u8], debug_info: &DebugInfo) -> Result<()> {
+    let debug_abbrev_offset = debug_info.debug_abbrev_offset as usize;
+    let debug_abbrevs = parse_debug_abbrev(debug_abbrev_slice, debug_abbrev_offset)?;
+    println!("DebugInfo: {:?}", debug_info);
+    println!("DebugAbbrev: {:?}", debug_abbrevs);
+
+    let die_data: &[u8] = &debug_info.data;
+    let mut offset = 0;
+    while offset < die_data.len() {
+        let code = read_uleb128(die_data, &mut offset);
+        if code == 0 {
+            break; // null entry
+        }
+
+        let abbrev = debug_abbrevs
+            .get(&code)
+            .ok_or(Error::Failed("Failed to find abbrev"))?;
+        println!("DIE: {:?}", abbrev);
+    }
+
+    Ok(())
 }
 
 pub fn parse(elf64: &Elf64) -> Result<()> {
@@ -261,9 +288,11 @@ pub fn parse(elf64: &Elf64) -> Result<()> {
         .ok_or(Error::Failed("Failed to get .debug_abbrev section data"))?;
 
     // parse DIE syntax tree
-    let debug_abbrevs = parse_debug_abbrev(debug_abbrev_slice)?;
-    println!("{:?}", debug_abbrevs);
-    // let debug_infos = parse_debug_info(debug_info_slice)?;
+    let debug_infos = parse_debug_info(debug_info_slice)?;
+
+    for debug_info in &debug_infos {
+        parse_die(debug_abbrev_slice, debug_info)?;
+    }
 
     Ok(())
 }
