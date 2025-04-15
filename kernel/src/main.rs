@@ -10,6 +10,7 @@
 
 mod arch;
 mod device;
+mod dwarf;
 mod env;
 mod error;
 mod fs;

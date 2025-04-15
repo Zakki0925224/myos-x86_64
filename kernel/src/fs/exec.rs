@@ -1,5 +1,5 @@
 use super::{path::Path, vfs};
-use crate::{arch::task, error::Result};
+use crate::{arch::task, dwarf, error::Result};
 use common::elf::Elf64;
 use log::info;
 
@@ -13,6 +13,7 @@ pub fn exec_elf(elf_path: &Path, args: &[&str]) -> Result<()> {
 
     vfs::close_file(&fd_num)?;
 
+    dwarf::parse(&elf64)?;
     let exit_code = task::exec_user_task(elf64, elf_path, args)?;
     info!("exec: Exited (code: {})", exit_code);
 
