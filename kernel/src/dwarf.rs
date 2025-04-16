@@ -1,6 +1,6 @@
 use crate::{
     error::{Error, Result},
-    println,
+    println, util,
 };
 use alloc::{collections::BTreeMap, vec::Vec};
 use common::elf::Elf64;
@@ -792,7 +792,12 @@ fn parse_debug_info(debug_info_slice: &[u8]) -> Result<Vec<DebugInfo>> {
     Ok(debug_infos)
 }
 
-fn parse_die(debug_abbrev_slice: &[u8], debug_info: &DebugInfo) -> Result<()> {
+fn parse_die(
+    debug_abbrev_slice: &[u8],
+    debug_str_slice: &[u8],
+    debug_line_str_slice: &[u8],
+    debug_info: &DebugInfo,
+) -> Result<()> {
     println!("DebugInfo: {:?}", debug_info);
 
     let debug_abbrev_offset = debug_info.debug_abbrev_offset as usize;
@@ -813,6 +818,39 @@ fn parse_die(debug_abbrev_slice: &[u8], debug_info: &DebugInfo) -> Result<()> {
 
         for (attr, form) in &abbrev.attributes {
             println!("  Attribute: {:?}, Form: {:?}", attr, form);
+
+            match form {
+                AbbrevForm::Strp => {
+                    let str_offset = u32::from_le_bytes([
+                        die_data[offset],
+                        die_data[offset + 1],
+                        die_data[offset + 2],
+                        die_data[offset + 3],
+                    ]) as usize;
+                    offset += 4;
+                    let s = util::cstring::from_slice(&debug_str_slice[str_offset..]);
+                    println!("    Strp: {:?}", s);
+                }
+                AbbrevForm::LineStrp => {
+                    let str_offset = u32::from_le_bytes([
+                        die_data[offset],
+                        die_data[offset + 1],
+                        die_data[offset + 2],
+                        die_data[offset + 3],
+                    ]) as usize;
+                    offset += 4;
+                    let s = util::cstring::from_slice(&debug_line_str_slice[str_offset..]);
+                    println!("    LineStrp: {:?}", s);
+                }
+                AbbrevForm::Data1 => {
+                    let data = die_data[offset];
+                    offset += 1;
+                    println!("    Data1: 0x{:x}", data);
+                }
+                _ => {
+                    break; // TODO
+                }
+            }
         }
         break; // TODO
     }
@@ -837,11 +875,32 @@ pub fn parse(elf64: &Elf64) -> Result<()> {
         .data_by_section_header(debug_abbrev_sh)
         .ok_or(Error::Failed("Failed to get .debug_abbrev section data"))?;
 
+    let debug_str_sh = elf64
+        .section_header_by_name(".debug_str")
+        .ok_or(Error::Failed("Failed to find .debug_str section"))?;
+
+    let debug_str_slice = elf64
+        .data_by_section_header(debug_str_sh)
+        .ok_or(Error::Failed("Failed to get .debug_str section data"))?;
+
+    let debug_line_str_sh = elf64
+        .section_header_by_name(".debug_line_str")
+        .ok_or(Error::Failed("Failed to find .debug_line_str section"))?;
+
+    let debug_line_str_slice = elf64
+        .data_by_section_header(debug_line_str_sh)
+        .ok_or(Error::Failed("Failed to get .debug_line_str section data"))?;
+
     // parse DIE syntax tree
     let debug_infos = parse_debug_info(debug_info_slice)?;
 
     for debug_info in &debug_infos {
-        parse_die(debug_abbrev_slice, debug_info)?;
+        parse_die(
+            debug_abbrev_slice,
+            debug_str_slice,
+            debug_line_str_slice,
+            debug_info,
+        )?;
     }
 
     Ok(())
