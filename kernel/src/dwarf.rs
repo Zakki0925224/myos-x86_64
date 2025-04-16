@@ -17,8 +17,7 @@ enum UnitType {
     Skeleton,
     SplitCompile,
     SplitType,
-    LowUser,
-    HighUser,
+    User(u8),
 }
 
 impl TryFrom<u8> for UnitType {
@@ -32,8 +31,7 @@ impl TryFrom<u8> for UnitType {
             0x04 => Ok(Self::Skeleton),
             0x05 => Ok(Self::SplitCompile),
             0x06 => Ok(Self::SplitType),
-            0x80 => Ok(Self::LowUser),
-            0xff => Ok(Self::HighUser),
+            0x80..=0xff => Ok(Self::User(value)),
             _ => Err(Error::Failed("Invalid UnitType value")),
         }
     }
@@ -265,8 +263,7 @@ enum AbbrevTag {
     CallSiteParameter,
     SkeletonUnit,
     ImmutableType,
-    LoUser,
-    HiUser,
+    User(u64),
 }
 
 impl TryFrom<u64> for AbbrevTag {
@@ -342,8 +339,7 @@ impl TryFrom<u64> for AbbrevTag {
             0x49 => Ok(Self::CallSiteParameter),
             0x4a => Ok(Self::SkeletonUnit),
             0x4b => Ok(Self::ImmutableType),
-            0x4090 => Ok(Self::LoUser),
-            0xffff => Ok(Self::HiUser),
+            0x4090..=0xffff => Ok(Self::User(value)),
             _ => Err(Error::Failed("Invalid AbbrevTag value")),
         }
     }
@@ -471,8 +467,7 @@ enum AbbrevAttribute {
     Deleted,
     Defaulted,
     LoclistsBase,
-    LoUser,
-    HiUser,
+    User(u64),
 }
 
 impl TryFrom<u64> for AbbrevAttribute {
@@ -599,12 +594,8 @@ impl TryFrom<u64> for AbbrevAttribute {
             0x8a => Ok(Self::Deleted),
             0x8b => Ok(Self::Defaulted),
             0x8c => Ok(Self::LoclistsBase),
-            0x2000 => Ok(Self::LoUser),
-            0x3fff => Ok(Self::HiUser),
-            _ => {
-                println!("value: 0x{:x}", value);
-                Err(Error::Failed("Invalid AbbrevAttribute value"))
-            }
+            0x2000..=0x3fff => Ok(Self::User(value)),
+            _ => Err(Error::Failed("Invalid AbbrevAttribute value")),
         }
     }
 }
@@ -632,7 +623,7 @@ enum AbbrevForm {
     Ref4,
     Ref8,
     RefUdata,
-    Indirect,
+    Indirect(u64),
     SecOffset,
     Exprloc,
     FlagPresent,
@@ -643,7 +634,7 @@ enum AbbrevForm {
     Data16,
     LineStrp,
     RefSig8,
-    ImplicitConst,
+    ImplicitConst(i64),
     Loclistx,
     Rnglistx,
     RefSup8,
@@ -682,7 +673,7 @@ impl TryFrom<u64> for AbbrevForm {
             0x13 => Ok(Self::Ref4),
             0x14 => Ok(Self::Ref8),
             0x15 => Ok(Self::RefUdata),
-            0x16 => Ok(Self::Indirect),
+            0x16 => Ok(Self::Indirect(0)),
             0x17 => Ok(Self::SecOffset),
             0x18 => Ok(Self::Exprloc),
             0x19 => Ok(Self::FlagPresent),
@@ -693,7 +684,7 @@ impl TryFrom<u64> for AbbrevForm {
             0x1e => Ok(Self::Data16),
             0x1f => Ok(Self::LineStrp),
             0x20 => Ok(Self::RefSig8),
-            0x21 => Ok(Self::ImplicitConst),
+            0x21 => Ok(Self::ImplicitConst(0)),
             0x22 => Ok(Self::Loclistx),
             0x23 => Ok(Self::Rnglistx),
             0x24 => Ok(Self::RefSup8),
@@ -735,6 +726,29 @@ fn read_uleb128(slice: &[u8], offset: &mut usize) -> u64 {
     res
 }
 
+fn read_leb128(slice: &[u8], offset: &mut usize) -> i64 {
+    let mut res = 0;
+    let mut shift = 0;
+    let mut byte = 0;
+
+    while *offset < slice.len() {
+        byte = slice[*offset];
+        *offset += 1;
+        res |= ((byte & 0x7f) as i64) << shift;
+        if byte & 0x80 == 0 {
+            break;
+        }
+        shift += 7;
+    }
+
+    // sign extend
+    if (shift < 64) && (byte & 0x40 != 0) {
+        res |= !0 << shift;
+    }
+
+    res
+}
+
 fn parse_debug_abbrev(
     debug_abbrev_slice: &[u8],
     offset: usize,
@@ -765,7 +779,20 @@ fn parse_debug_abbrev(
                 break; // null entry
             }
 
-            attributes.push((name.try_into()?, form.try_into()?));
+            let attr = name.try_into()?;
+            let mut form = form.try_into()?;
+
+            match form {
+                AbbrevForm::Indirect(ref mut v) => {
+                    *v = read_uleb128(debug_abbrev_slice, &mut offset);
+                }
+                AbbrevForm::ImplicitConst(ref mut v) => {
+                    *v = read_leb128(debug_abbrev_slice, &mut offset);
+                }
+                _ => (),
+            }
+
+            attributes.push((attr, form));
         }
 
         debug_abbrevs.insert(
@@ -804,8 +831,6 @@ fn parse_die(
     debug_line_str_slice: &[u8],
     debug_info: &DebugInfo,
 ) -> Result<()> {
-    println!("DebugInfo: {:?}", debug_info);
-
     let debug_abbrev_offset = debug_info.debug_abbrev_offset as usize;
     let debug_abbrevs = parse_debug_abbrev(debug_abbrev_slice, debug_abbrev_offset)?;
 
@@ -820,7 +845,7 @@ fn parse_die(
         let abbrev = debug_abbrevs
             .get(&code)
             .ok_or(Error::Failed("Failed to find abbrev"))?;
-        println!("Abbrev: {} - {:?}", abbrev.code, abbrev.tag);
+        println!("DIE code: 0x{:x}, tag: {:?}", code, abbrev.tag);
 
         for (attr, form) in &abbrev.attributes {
             println!("  Attribute: {:?}, Form: {:?}", attr, form);
