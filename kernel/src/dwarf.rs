@@ -814,10 +814,7 @@ fn parse_debug_info(debug_info_slice: &[u8]) -> Result<Vec<DebugInfo>> {
     let mut offset = 0;
 
     while offset < debug_info_slice.len() {
-        let debug_info = match DebugInfo::try_from(&debug_info_slice[offset..]) {
-            Ok(debug_info) => debug_info,
-            Err(_) => break,
-        };
+        let debug_info = DebugInfo::try_from(&debug_info_slice[offset..])?;
         offset += debug_info.size();
         debug_infos.push(debug_info);
     }
