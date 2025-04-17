@@ -71,7 +71,6 @@ impl TryFrom<&[u8]> for DebugInfo {
 
     fn try_from(value: &[u8]) -> Result<Self> {
         if value.len() < 4 {
-            // Need at least unit_length
             return Err(Error::Failed("Invalid DebugInfo length (unit_length)"));
         }
 
@@ -94,6 +93,10 @@ impl TryFrom<&[u8]> for DebugInfo {
         }
 
         let version = u16::from_le_bytes([value[4], value[5]]);
+        if version != 5 {
+            return Err(Error::Failed("Unsupported DWARF version"));
+        }
+
         let unit_type = value[6].try_into()?;
         let address_size = value[7];
         let debug_abbrev_offset = u32::from_le_bytes([value[8], value[9], value[10], value[11]]);
@@ -172,7 +175,7 @@ impl TryFrom<&[u8]> for DebugInfo {
         }
         let data = value[data_offset..total_unit_size].to_vec();
 
-        Ok(DebugInfo {
+        Ok(Self {
             unit_length,
             version,
             unit_type,
@@ -614,9 +617,9 @@ pub enum AbbrevForm {
     Block1,
     Data1(u8),
     Flag(bool),
-    Sdata,
+    Sdata(i64), // sleb128
     Strp(String),
-    Udata,
+    Udata(u64), // uleb128
     RefAddr,
     Ref1(usize), // offset of .debug_info
     Ref2(usize),
@@ -664,9 +667,9 @@ impl TryFrom<u64> for AbbrevForm {
             0x0a => Ok(Self::Block1),
             0x0b => Ok(Self::Data1(0)),
             0x0c => Ok(Self::Flag(false)),
-            0x0d => Ok(Self::Sdata),
+            0x0d => Ok(Self::Sdata(0)),
             0x0e => Ok(Self::Strp(String::new())),
-            0x0f => Ok(Self::Udata),
+            0x0f => Ok(Self::Udata(0)),
             0x10 => Ok(Self::RefAddr),
             0x11 => Ok(Self::Ref1(0)),
             0x12 => Ok(Self::Ref2(0)),
@@ -709,6 +712,33 @@ pub struct DebugAbbrev {
     pub attributes: Vec<(AbbrevAttribute, AbbrevForm)>,
 }
 
+// Table 7.27: Line number header entry format encodings
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum LineNumberHeaderEntry {
+    Path,
+    DirectoryIndex,
+    Timestamp,
+    Size,
+    Md5,
+    User(u64),
+}
+
+impl TryFrom<u64> for LineNumberHeaderEntry {
+    type Error = Error;
+
+    fn try_from(value: u64) -> Result<Self> {
+        match value {
+            0x01 => Ok(Self::Path),
+            0x02 => Ok(Self::DirectoryIndex),
+            0x03 => Ok(Self::Timestamp),
+            0x04 => Ok(Self::Size),
+            0x05 => Ok(Self::Md5),
+            0x06..=0xffff => Ok(Self::User(value)),
+            _ => Err(Error::Failed("Invalid LineNumberHeaderEntry value")),
+        }
+    }
+}
+
 // 6.2.4 The Line Number Program Header
 #[derive(Debug, Clone)]
 pub struct DebugLine {
@@ -725,20 +755,148 @@ pub struct DebugLine {
     pub opcode_base: u8,
     pub standard_opcode_lengths: Vec<u8>,
     pub directory_entry_format_count: u8,
-    pub direcotry_entry_format: Vec<(u64, u64)>,
+    pub directory_entry_format: Vec<(LineNumberHeaderEntry, AbbrevForm)>,
     pub directories_count: u64,
-    pub directories: Vec<String>,
+    pub directories: Vec<usize>,
     pub file_name_entry_format_count: u8,
-    pub file_name_entry_format: Vec<(u64, u64)>,
+    pub file_name_entry_format: Vec<(LineNumberHeaderEntry, AbbrevForm)>,
     pub file_names_count: u64,
-    pub file_names: Vec<String>,
+    pub file_names: Vec<usize>,
+    program: Vec<u8>,
 }
 
 impl TryFrom<&[u8]> for DebugLine {
     type Error = Error;
 
     fn try_from(value: &[u8]) -> Result<Self> {
-        todo!()
+        if value.len() < 4 {
+            return Err(Error::Failed("Invalid DebugLine length (unit_length)"));
+        }
+
+        let unit_length = u32::from_le_bytes([value[0], value[1], value[2], value[3]]);
+
+        if unit_length == 0xffff_ffff {
+            return Err(Error::Failed("64-bit DWARF format is not supported"));
+        }
+
+        let total_unit_size = 4 + unit_length as usize;
+        if value.len() < total_unit_size {
+            return Err(Error::Failed(
+                "DebugLine data section out of bounds (unit_length mismatch)",
+            ));
+        }
+
+        let version = u16::from_le_bytes([value[4], value[5]]);
+        if version != 5 {
+            return Err(Error::Failed("Unsupported DWARF version"));
+        }
+
+        let address_size = value[6];
+        let segment_selector_size = value[7];
+        let header_length = u32::from_le_bytes([value[8], value[9], value[10], value[11]]);
+        let minimum_instruction_length = value[12];
+        let maximum_operations_per_instruction = value[13];
+        let default_is_stmt = value[14] != 0;
+        let line_base = value[15] as i8;
+        let line_range = value[16];
+        let opcode_base = value[17];
+
+        let mut offset = 18;
+        let mut standard_opcode_lengths = Vec::new();
+        for _ in 0..opcode_base - 1 {
+            standard_opcode_lengths.push(value[offset]);
+            offset += 1;
+        }
+
+        let directory_entry_format_count = value[offset];
+        offset += 1;
+
+        let mut directory_entry_format = Vec::new();
+        for _ in 0..directory_entry_format_count {
+            let entry = read_uleb128(&value, &mut offset);
+            let format = read_uleb128(&value, &mut offset);
+            directory_entry_format.push((entry.try_into()?, format.try_into()?));
+        }
+
+        let directories_count = read_uleb128(&value, &mut offset);
+
+        let mut directories = Vec::new();
+        for _ in 0..directories_count {
+            for (entry, form) in &directory_entry_format {
+                match (entry, form) {
+                    (LineNumberHeaderEntry::Path, AbbrevForm::LineStrp(_)) => {
+                        let s_offset = u32::from_le_bytes([
+                            value[offset],
+                            value[offset + 1],
+                            value[offset + 2],
+                            value[offset + 3],
+                        ]);
+                        offset += 4;
+                        directories.push(s_offset as usize);
+                    }
+                    _ => unimplemented!(),
+                }
+            }
+        }
+
+        let file_name_entry_format_count = value[offset];
+        offset += 1;
+
+        let mut file_name_entry_format = Vec::new();
+        for _ in 0..file_name_entry_format_count {
+            let entry = read_uleb128(&value, &mut offset);
+            let format = read_uleb128(&value, &mut offset);
+            file_name_entry_format.push((entry.try_into()?, format.try_into()?));
+        }
+
+        let file_names_count = read_uleb128(&value, &mut offset);
+
+        let mut file_names = Vec::new();
+        for (entry, form) in &file_name_entry_format {
+            match (entry, form) {
+                (LineNumberHeaderEntry::Path, AbbrevForm::LineStrp(_)) => {
+                    let s_offset = u32::from_le_bytes([
+                        value[offset],
+                        value[offset + 1],
+                        value[offset + 2],
+                        value[offset + 3],
+                    ]);
+                    offset += 4;
+                    file_names.push(s_offset as usize);
+                }
+                (LineNumberHeaderEntry::DirectoryIndex, AbbrevForm::Udata(_)) => {
+                    let s_offset = read_uleb128(&value, &mut offset);
+                    file_names.push(s_offset as usize);
+                }
+                _ => unimplemented!(),
+            }
+        }
+
+        let program = value[offset..total_unit_size].to_vec();
+
+        Ok(Self {
+            unit_length,
+            version,
+            address_size,
+            segment_selector_size,
+            header_length,
+            minimum_instruction_length,
+            maximum_operations_per_instruction,
+            default_is_stmt,
+            line_base,
+            line_range,
+            opcode_base,
+            standard_opcode_lengths,
+            directory_entry_format_count,
+            directory_entry_format,
+            directories_count,
+            directories,
+            file_name_entry_format_count,
+            file_name_entry_format,
+            file_names_count,
+            file_names,
+            program,
+        })
     }
 }
 
@@ -1076,6 +1234,7 @@ fn parse_debug_line(debug_line_slice: &[u8]) -> Result<Vec<DebugLine>> {
 
     while offset < debug_line_slice.len() {
         let debug_line = DebugLine::try_from(&debug_line_slice[offset..])?;
+        println!("{:?}", debug_line);
         offset += debug_line.unit_length as usize + 4; // 4 bytes for unit_length
         debug_lines.push(debug_line);
     }
@@ -1158,6 +1317,7 @@ pub fn parse(elf64: &Elf64) -> Result<Dwarf> {
     let debug_line_slice = elf64
         .data_by_section_header(debug_line_sh)
         .ok_or(Error::Failed("Failed to get .debug_line section data"))?;
+    let _debug_lines = parse_debug_line(debug_line_slice)?;
 
     Ok(Dwarf { die_tree })
 }
