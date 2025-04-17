@@ -10,7 +10,7 @@ use common::elf::Elf64;
 
 // 7.5.1 Unit Headers
 #[derive(Debug, Clone, PartialEq, Eq)]
-enum UnitType {
+pub enum UnitType {
     Compile,
     Type,
     Partial,
@@ -39,15 +39,15 @@ impl TryFrom<u8> for UnitType {
 
 // 7.5.1.1 Full and Partial Compilation Unit Headers
 #[derive(Clone)]
-struct DebugInfo {
-    unit_length: u32,
-    version: u16,
-    unit_type: UnitType,
-    address_size: u8,
-    debug_abbrev_offset: u32,
-    dwo_id: Option<u64>,   // 7.5.1.2 Skeleton and Split Compilation Unit Headers
-    type_sig: Option<u64>, // 7.5.1.3 Type Unit Headers
-    type_offset: Option<u64>,
+pub struct DebugInfo {
+    pub unit_length: u32,
+    pub version: u16,
+    pub unit_type: UnitType,
+    pub address_size: u8,
+    pub debug_abbrev_offset: u32,
+    pub dwo_id: Option<u64>, // 7.5.1.2 Skeleton and Split Compilation Unit Headers
+    pub type_sig: Option<u64>, // 7.5.1.3 Type Unit Headers
+    pub type_offset: Option<u64>,
     data: Vec<u8>,
 }
 
@@ -194,7 +194,7 @@ impl DebugInfo {
 
 // 7.5.3 Abbreviations Tables
 #[derive(Debug, Clone, PartialEq, Eq)]
-enum AbbrevTag {
+pub enum AbbrevTag {
     ArrayType,
     ClassType,
     EntryPoint,
@@ -347,7 +347,7 @@ impl TryFrom<u64> for AbbrevTag {
 
 // 7.5.4 Attribute Encodings
 #[derive(Debug, Clone, PartialEq, Eq)]
-enum AbbrevAttribute {
+pub enum AbbrevAttribute {
     Sibling,
     Location,
     Name,
@@ -602,7 +602,7 @@ impl TryFrom<u64> for AbbrevAttribute {
 
 // 7.5.6 Form Encodings
 #[derive(Debug, Clone, PartialEq, Eq)]
-enum AbbrevForm {
+pub enum AbbrevForm {
     Addr(u64),
     Block2,
     Block4,
@@ -702,11 +702,11 @@ impl TryFrom<u64> for AbbrevForm {
 }
 
 #[derive(Debug, Clone)]
-struct DebugAbbrev {
-    code: u64,
-    tag: AbbrevTag,
-    has_children: bool,
-    attributes: Vec<(AbbrevAttribute, AbbrevForm)>,
+pub struct DebugAbbrev {
+    pub code: u64,
+    pub tag: AbbrevTag,
+    pub has_children: bool,
+    pub attributes: Vec<(AbbrevAttribute, AbbrevForm)>,
 }
 
 fn read_uleb128(slice: &[u8], offset: &mut usize) -> u64 {
@@ -1037,7 +1037,12 @@ fn parse_die(
     Ok(res_debug_abbrevs)
 }
 
-pub fn parse(elf64: &Elf64) -> Result<()> {
+#[derive(Debug, Clone)]
+pub struct Dwarf {
+    pub die_tree: Vec<(DebugInfo, Vec<DebugAbbrev>)>,
+}
+
+pub fn parse(elf64: &Elf64) -> Result<Dwarf> {
     let debug_info_sh = elf64
         .section_header_by_name(".debug_info")
         .ok_or(Error::Failed("Failed to find .debug_info section"))?;
@@ -1081,8 +1086,9 @@ pub fn parse(elf64: &Elf64) -> Result<()> {
     };
 
     // parse DIE syntax tree
-    let debug_infos = parse_debug_info(debug_info_slice)?;
+    let mut die_tree = Vec::new();
 
+    let debug_infos = parse_debug_info(debug_info_slice)?;
     for debug_info in &debug_infos {
         let debug_abbrebs = parse_die(
             debug_abbrev_slice,
@@ -1092,11 +1098,12 @@ pub fn parse(elf64: &Elf64) -> Result<()> {
             debug_info,
         )?;
 
-        println!("{:?}", debug_info);
-        for abbrev in debug_abbrebs {
-            println!("  {:?}", abbrev);
-        }
+        // println!("{:?}", debug_info);
+        // for abbrev in debug_abbrebs {
+        //     println!("  {:?}", abbrev);
+        // }
+        die_tree.push((debug_info.clone(), debug_abbrebs));
     }
 
-    Ok(())
+    Ok(Dwarf { die_tree })
 }

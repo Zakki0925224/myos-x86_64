@@ -1,5 +1,6 @@
 use crate::{
     arch::{addr::VirtualAddress, context::*},
+    dwarf::{self, Dwarf},
     error::*,
     fs::{self, path::Path, vfs::FileDescriptorNumber},
     graphics::{multi_layer::LayerId, simple_window_manager},
@@ -158,6 +159,7 @@ struct Task {
     allocated_mem_frame_info: Vec<MemoryFrameInfo>,
     created_wd: Vec<LayerId>,
     opend_fd: Vec<FileDescriptorNumber>,
+    dwarf: Option<Dwarf>,
 }
 
 impl Drop for Task {
@@ -216,6 +218,7 @@ impl Task {
         elf64: Option<Elf64>,
         args: Option<&[&str]>, // file name + args
         mode: ContextMode,
+        dwarf: Option<Dwarf>,
     ) -> Result<Self> {
         // parse ELF
         let mut entry = None;
@@ -341,6 +344,7 @@ impl Task {
             allocated_mem_frame_info: Vec::new(),
             created_wd: Vec::new(),
             opend_fd: Vec::new(),
+            dwarf,
         })
     }
 
@@ -384,13 +388,18 @@ impl Task {
     }
 }
 
-pub fn exec_user_task(elf64: Elf64, path: &Path, args: &[&str]) -> Result<u64> {
+pub fn exec_user_task(
+    elf64: Elf64,
+    path: &Path,
+    args: &[&str],
+    dwarf: Option<Dwarf>,
+) -> Result<u64> {
     let kernel_task = unsafe { KERNEL_TASK.get_force_mut() };
     let user_tasks = unsafe { USER_TASKS.get_force_mut() };
 
     if kernel_task.is_none() {
         // stack is unused, because already allocated static area for kernel stack
-        *kernel_task = Some(Task::new(0, None, None, ContextMode::Kernel)?);
+        *kernel_task = Some(Task::new(0, None, None, ContextMode::Kernel, None)?);
     }
 
     let is_user = !user_tasks.is_empty();
@@ -403,6 +412,7 @@ pub fn exec_user_task(elf64: Elf64, path: &Path, args: &[&str]) -> Result<u64> {
         Some(elf64),
         Some(&[&[path.to_string().as_str()], args].concat()),
         ContextMode::User,
+        dwarf,
     );
 
     let task = match user_task {
