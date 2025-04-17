@@ -212,7 +212,8 @@ def _build_apps():
 
     # copy apps dir to initramfs dir
     _run_cmd(f"rm -rf ./{INITRAMFS_DIR}/{APPS_DIR}")
-    _run_cmd(f"cp -r {d} ./{INITRAMFS_DIR}/")
+    _run_cmd(f"mkdir -p ./{INITRAMFS_DIR}/{APPS_DIR}")
+    _run_cmd(f"cp -r {d}/bin ./{INITRAMFS_DIR}/{APPS_DIR}/")
 
     # remove `target` directory
     _run_cmd(f'find ./{INITRAMFS_DIR} -type d -name "target" | xargs rm -rf')

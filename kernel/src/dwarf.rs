@@ -603,7 +603,7 @@ impl TryFrom<u64> for AbbrevAttribute {
 // 7.5.6 Form Encodings
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum AbbrevForm {
-    Addr(u32),
+    Addr(u64),
     Block2,
     Block4,
     Data2(u16),
@@ -613,19 +613,19 @@ enum AbbrevForm {
     Block,
     Block1,
     Data1(u8),
-    Flag,
+    Flag(bool),
     Sdata,
     Strp(String),
     Udata,
     RefAddr,
-    Ref1,
-    Ref2,
-    Ref4,
-    Ref8,
+    Ref1(usize), // offset of .debug_info
+    Ref2(usize),
+    Ref4(usize),
+    Ref8(usize),
     RefUdata,
     Indirect(u64),
     SecOffset(Option<u32>),
-    Exprloc,
+    Exprloc(Vec<u8>),
     FlagPresent,
     Strx,
     Addrx,
@@ -663,19 +663,19 @@ impl TryFrom<u64> for AbbrevForm {
             0x09 => Ok(Self::Block),
             0x0a => Ok(Self::Block1),
             0x0b => Ok(Self::Data1(0)),
-            0x0c => Ok(Self::Flag),
+            0x0c => Ok(Self::Flag(false)),
             0x0d => Ok(Self::Sdata),
             0x0e => Ok(Self::Strp(String::new())),
             0x0f => Ok(Self::Udata),
             0x10 => Ok(Self::RefAddr),
-            0x11 => Ok(Self::Ref1),
-            0x12 => Ok(Self::Ref2),
-            0x13 => Ok(Self::Ref4),
-            0x14 => Ok(Self::Ref8),
+            0x11 => Ok(Self::Ref1(0)),
+            0x12 => Ok(Self::Ref2(0)),
+            0x13 => Ok(Self::Ref4(0)),
+            0x14 => Ok(Self::Ref8(0)),
             0x15 => Ok(Self::RefUdata),
             0x16 => Ok(Self::Indirect(0)),
             0x17 => Ok(Self::SecOffset(None)),
-            0x18 => Ok(Self::Exprloc),
+            0x18 => Ok(Self::Exprloc(Vec::new())),
             0x19 => Ok(Self::FlagPresent),
             0x1a => Ok(Self::Strx),
             0x1b => Ok(Self::Addrx),
@@ -828,34 +828,52 @@ fn parse_die(
     debug_line_str_slice: &[u8],
     debug_addr_slice: Option<&[u8]>,
     debug_info: &DebugInfo,
-) -> Result<()> {
-    println!("{:?}", debug_info);
-
+) -> Result<Vec<DebugAbbrev>> {
     let debug_abbrev_offset = debug_info.debug_abbrev_offset as usize;
-    let mut debug_abbrevs = parse_debug_abbrev(debug_abbrev_slice, debug_abbrev_offset)?;
+    let debug_abbrevs = parse_debug_abbrev(debug_abbrev_slice, debug_abbrev_offset)?;
+    let mut res_debug_abbrevs = Vec::new();
 
     let die_data: &[u8] = &debug_info.data;
     let mut offset = 0;
     while offset < die_data.len() {
         let code = read_uleb128(die_data, &mut offset);
         if code == 0 {
-            break; // null entry
+            continue;
         }
 
-        let abbrev = debug_abbrevs
-            .get_mut(&code)
-            .ok_or(Error::Failed("Failed to find abbrev"))?;
+        let mut abbrev = debug_abbrevs
+            .get(&code)
+            .ok_or(Error::Failed("Failed to find abbrev"))?
+            .clone();
 
         for (_, form) in &mut abbrev.attributes {
             match form {
                 AbbrevForm::Addr(ref mut v) => {
-                    *v = u32::from_le_bytes([
-                        die_data[offset],
-                        die_data[offset + 1],
-                        die_data[offset + 2],
-                        die_data[offset + 3],
-                    ]);
-                    offset += 4;
+                    match debug_info.address_size {
+                        4 => {
+                            *v = u32::from_le_bytes([
+                                die_data[offset],
+                                die_data[offset + 1],
+                                die_data[offset + 2],
+                                die_data[offset + 3],
+                            ]) as u64
+                        }
+                        8 => {
+                            *v = u64::from_le_bytes([
+                                die_data[offset],
+                                die_data[offset + 1],
+                                die_data[offset + 2],
+                                die_data[offset + 3],
+                                die_data[offset + 4],
+                                die_data[offset + 5],
+                                die_data[offset + 6],
+                                die_data[offset + 7],
+                            ])
+                        }
+                        _ => unreachable!(),
+                    }
+
+                    offset += debug_info.address_size as usize;
                 }
                 AbbrevForm::SecOffset(ref mut v) => {
                     if let Some(debug_addr_slice) = debug_addr_slice {
@@ -911,6 +929,15 @@ fn parse_die(
                     offset += cs.len() + 1;
                     *s = cs;
                 }
+                AbbrevForm::Exprloc(ref mut v) => {
+                    let expr_len = read_uleb128(die_data, &mut offset) as usize;
+                    *v = die_data[offset..offset + expr_len].to_vec();
+                    offset += expr_len;
+                }
+                AbbrevForm::Flag(ref mut v) => {
+                    *v = die_data[offset] != 0;
+                    offset += 1;
+                }
                 AbbrevForm::Data1(ref mut v) => {
                     *v = die_data[offset];
                     offset += 1;
@@ -962,16 +989,52 @@ fn parse_die(
                     ]);
                     offset += 16;
                 }
-                _ => {
+                AbbrevForm::Ref1(ref mut v) => {
+                    *v = die_data[offset] as usize;
+                    offset += 1;
+                }
+                AbbrevForm::Ref2(ref mut v) => {
+                    *v = u16::from_le_bytes([die_data[offset], die_data[offset + 1]]) as usize;
+                    offset += 2;
+                }
+                AbbrevForm::Ref4(ref mut v) => {
+                    *v = u32::from_le_bytes([
+                        die_data[offset],
+                        die_data[offset + 1],
+                        die_data[offset + 2],
+                        die_data[offset + 3],
+                    ]) as usize;
+                    offset += 4;
+                }
+                AbbrevForm::Ref8(ref mut v) => {
+                    *v = u64::from_le_bytes([
+                        die_data[offset],
+                        die_data[offset + 1],
+                        die_data[offset + 2],
+                        die_data[offset + 3],
+                        die_data[offset + 4],
+                        die_data[offset + 5],
+                        die_data[offset + 6],
+                        die_data[offset + 7],
+                    ]) as usize;
+                    offset += 8;
+                }
+                AbbrevForm::Indirect(_)
+                | AbbrevForm::ImplicitConst(_)
+                | AbbrevForm::FlagPresent => {
+                    // skip
+                }
+                form => {
+                    println!("  (unimplemented){:?}", form);
                     unimplemented!()
                 }
             }
         }
 
-        println!("  {:?}", abbrev);
+        res_debug_abbrevs.push(abbrev);
     }
 
-    Ok(())
+    Ok(res_debug_abbrevs)
 }
 
 pub fn parse(elf64: &Elf64) -> Result<()> {
@@ -1021,13 +1084,18 @@ pub fn parse(elf64: &Elf64) -> Result<()> {
     let debug_infos = parse_debug_info(debug_info_slice)?;
 
     for debug_info in &debug_infos {
-        parse_die(
+        let debug_abbrebs = parse_die(
             debug_abbrev_slice,
             debug_str_slice,
             debug_line_str_slice,
             debug_addr_slice,
             debug_info,
         )?;
+
+        println!("{:?}", debug_info);
+        for abbrev in debug_abbrebs {
+            println!("  {:?}", abbrev);
+        }
     }
 
     Ok(())
