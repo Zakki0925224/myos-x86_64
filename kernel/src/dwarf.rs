@@ -709,6 +709,39 @@ pub struct DebugAbbrev {
     pub attributes: Vec<(AbbrevAttribute, AbbrevForm)>,
 }
 
+// 6.2.4 The Line Number Program Header
+#[derive(Debug, Clone)]
+pub struct DebugLine {
+    pub unit_length: u32,
+    pub version: u16,
+    pub address_size: u8,
+    pub segment_selector_size: u8,
+    pub header_length: u32,
+    pub minimum_instruction_length: u8,
+    pub maximum_operations_per_instruction: u8,
+    pub default_is_stmt: bool,
+    pub line_base: i8,
+    pub line_range: u8,
+    pub opcode_base: u8,
+    pub standard_opcode_lengths: Vec<u8>,
+    pub directory_entry_format_count: u8,
+    pub direcotry_entry_format: Vec<(u64, u64)>,
+    pub directories_count: u64,
+    pub directories: Vec<String>,
+    pub file_name_entry_format_count: u8,
+    pub file_name_entry_format: Vec<(u64, u64)>,
+    pub file_names_count: u64,
+    pub file_names: Vec<String>,
+}
+
+impl TryFrom<&[u8]> for DebugLine {
+    type Error = Error;
+
+    fn try_from(value: &[u8]) -> Result<Self> {
+        todo!()
+    }
+}
+
 fn read_uleb128(slice: &[u8], offset: &mut usize) -> u64 {
     let mut res = 0;
     let mut shift = 0;
@@ -1037,6 +1070,19 @@ fn parse_die(
     Ok(res_debug_abbrevs)
 }
 
+fn parse_debug_line(debug_line_slice: &[u8]) -> Result<Vec<DebugLine>> {
+    let mut debug_lines = Vec::new();
+    let mut offset = 0;
+
+    while offset < debug_line_slice.len() {
+        let debug_line = DebugLine::try_from(&debug_line_slice[offset..])?;
+        offset += debug_line.unit_length as usize + 4; // 4 bytes for unit_length
+        debug_lines.push(debug_line);
+    }
+
+    Ok(debug_lines)
+}
+
 #[derive(Debug, Clone)]
 pub struct Dwarf {
     pub die_tree: Vec<(DebugInfo, Vec<DebugAbbrev>)>,
@@ -1104,6 +1150,14 @@ pub fn parse(elf64: &Elf64) -> Result<Dwarf> {
         // }
         die_tree.push((debug_info.clone(), debug_abbrebs));
     }
+
+    // parse debug line
+    let debug_line_sh = elf64
+        .section_header_by_name(".debug_line")
+        .ok_or(Error::Failed("Failed to find .debug_line section"))?;
+    let debug_line_slice = elf64
+        .data_by_section_header(debug_line_sh)
+        .ok_or(Error::Failed("Failed to get .debug_line section data"))?;
 
     Ok(Dwarf { die_tree })
 }
