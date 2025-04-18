@@ -1,6 +1,6 @@
 use super::{
     gdt::*,
-    register::{control::Cr3, Register},
+    register::{control::Cr3, status::Rflags, Register},
 };
 use common::boot_info::BootInfo;
 use core::arch::{asm, naked_asm};
@@ -122,7 +122,7 @@ pub enum ContextMode {
 pub struct Context {
     /* + 0x00 */ pub cr3: u64,
     /* + 0x08 */ pub rip: u64,
-    /* + 0x10 */ pub rflags: u64,
+    /* + 0x10 */ pub rflags: Rflags,
     /* + 0x18 */ reserved: u64,
     /* + 0x20 */ pub cs: u64,
     /* + 0x28 */ pub ss: u64,
@@ -152,7 +152,7 @@ impl Context {
         Self {
             cr3: 0,
             rip: 0,
-            rflags: 0,
+            rflags: Rflags::default(),
             reserved: 0,
             cs: 0,
             ss: 0,
@@ -178,7 +178,15 @@ impl Context {
         }
     }
 
-    pub fn init(&mut self, rip: u64, rdi: u64, rsi: u64, rsp: u64, mode: ContextMode) {
+    pub fn init(
+        &mut self,
+        rip: u64,
+        rdi: u64,
+        rsi: u64,
+        rsp: u64,
+        mode: ContextMode,
+        trap_flag: bool,
+    ) {
         let (cs, ss) = match mode {
             ContextMode::Kernel => (KERNEL_MODE_CS_VALUE, KERNEL_MODE_SS_VALUE),
             ContextMode::User => (USER_MODE_CS_VALUE, USER_MODE_SS_VALUE),
@@ -190,7 +198,11 @@ impl Context {
         self.rsp = rsp;
         self.rbp = rsp;
         self.cr3 = Cr3::read().raw();
-        self.rflags = 0x202; // TODO: read current rflags
+
+        self.rflags = Rflags::default();
+        self.rflags.set_if_(true); // enable interrupts
+        self.rflags.set_tf(trap_flag);
+
         self.cs = cs as u64;
         self.ss = ss as u64;
     }

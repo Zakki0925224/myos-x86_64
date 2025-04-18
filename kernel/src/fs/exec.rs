@@ -1,5 +1,5 @@
 use super::{path::Path, vfs};
-use crate::{arch::task, dwarf, error::Result};
+use crate::{arch::task, debug::dwarf, error::Result};
 use common::elf::Elf64;
 use log::{error, info};
 

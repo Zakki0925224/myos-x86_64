@@ -1,6 +1,6 @@
 use crate::{
     arch::{addr::VirtualAddress, context::*},
-    dwarf::{self, Dwarf},
+    debug::dwarf::Dwarf,
     error::*,
     fs::{self, path::Path, vfs::FileDescriptorNumber},
     graphics::{multi_layer::LayerId, simple_window_manager},
@@ -333,7 +333,7 @@ impl Task {
 
         // context
         let mut context = Context::new();
-        context.init(rip, arg0, arg1, rsp, mode);
+        context.init(rip, arg0, arg1, rsp, mode, dwarf.is_some());
 
         Ok(Self {
             id: TaskId::new(),
@@ -547,6 +547,15 @@ pub fn debug_user_task() {
     }
 }
 
+pub fn get_running_user_task_dwarf() -> Option<Dwarf> {
+    let user_task = unsafe { USER_TASKS.get_force_mut() }.last();
+    if let Some(task) = user_task {
+        task.dwarf.clone()
+    } else {
+        None
+    }
+}
+
 pub fn is_running_user_task() -> bool {
     unsafe { USER_TASKS.get_force_mut() }.len() > 1
 }
@@ -561,7 +570,7 @@ fn debug_task(task: &Task) {
     );
     debug!("context:");
     debug!(
-        "\tcr3: 0x{:016x}, rip: 0x{:016x}, rflags: 0x{:016x},",
+        "\tcr3: 0x{:016x}, rip: 0x{:016x}, rflags: {:?},",
         ctx.cr3, ctx.rip, ctx.rflags
     );
     debug!(

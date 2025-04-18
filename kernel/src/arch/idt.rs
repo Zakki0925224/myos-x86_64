@@ -1,10 +1,10 @@
-use super::{addr::*, task};
+use super::{addr::*, register::status::Rflags, task};
 use crate::{
     arch::{
         self,
         register::{control::Cr2, segment::Cs, Register},
     },
-    device,
+    debug, device,
     error::{Error, Result},
     mem::paging,
     util::mutex::Mutex,
@@ -80,7 +80,7 @@ pub struct InterruptStackFrame {
     pub ins_ptr: u64,
     pub code_seg: u16,
     reserved0: [u8; 6],
-    pub cpu_flags: u64,
+    pub cpu_flags: Rflags,
     pub stack_ptr: u64,
     pub stack_seg: u16,
     reserved1: [u8; 6],
@@ -91,7 +91,7 @@ impl core::fmt::Debug for InterruptStackFrame {
         f.debug_struct("InterruptStackFrame")
             .field("ins_ptr", &format_args!("{:#x}", self.ins_ptr))
             .field("code_seg", &format_args!("{:#x}", self.code_seg))
-            .field("cpu_flags", &format_args!("{:#x}", self.cpu_flags))
+            .field("cpu_flags", &self.cpu_flags)
             .field("stack_ptr", &format_args!("{:#x}", self.stack_ptr))
             .field("stack_seg", &format_args!("{:#x}", self.stack_seg))
             .finish()
@@ -101,7 +101,7 @@ impl core::fmt::Debug for InterruptStackFrame {
 // idt
 const IDT_LEN: usize = 256;
 const _VEC_DIVIDE_ERR: usize = 0x00;
-const _VEC_DEBUG: usize = 0x01;
+const VEC_DEBUG: usize = 0x01;
 const _VEC_NMI_INT: usize = 0x02;
 const VEC_BREAKPOINT: usize = 0x03;
 const _VEC_OVERFLOW: usize = 0x04;
@@ -267,6 +267,18 @@ pub fn notify_end_of_int() {
     SLAVE_PIC_ADDR.out8(PIC_END_OF_INT_CMD);
 }
 
+extern "x86-interrupt" fn debug_handler(stack_frame: InterruptStackFrame) {
+    info!("int: DEBUG");
+
+    if let Some(dwarf) = task::get_running_user_task_dwarf() {
+        if let Err(err) = debug::user_app_debugger(&stack_frame, &dwarf) {
+            error!("int: Error in user_app_debugger: {:?}", err);
+        }
+    } else {
+        error!("int: No DWARF found for user task");
+    }
+}
+
 extern "x86-interrupt" fn breakpoint_handler(stack_frame: InterruptStackFrame) {
     panic!("int: BREAKPOINT, {:?}", stack_frame);
 }
@@ -337,6 +349,12 @@ pub fn init_pic() {
 
 pub fn init_idt() -> Result<()> {
     let mut idt = unsafe { IDT.try_lock() }?;
+    idt.set_handler(
+        VEC_DEBUG,
+        InterruptHandler::WithStackFrame(debug_handler),
+        GateType::Trap,
+        true,
+    )?;
     idt.set_handler(
         VEC_BREAKPOINT,
         InterruptHandler::WithStackFrame(breakpoint_handler),

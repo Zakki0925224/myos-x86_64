@@ -9,8 +9,8 @@
 #![reexport_test_harness_main = "test_main"]
 
 mod arch;
+mod debug;
 mod device;
-mod dwarf;
 mod env;
 mod error;
 mod fs;

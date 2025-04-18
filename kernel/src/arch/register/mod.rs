@@ -2,6 +2,7 @@ pub mod control;
 pub mod model_specific;
 pub mod msi;
 pub mod segment;
+pub mod status;
 
 pub trait Register<T> {
     fn read() -> Self;

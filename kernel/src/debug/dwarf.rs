@@ -69,6 +69,7 @@ impl core::fmt::Debug for DebugInfo {
 impl TryFrom<&[u8]> for DebugInfo {
     type Error = Error;
 
+    // TODO
     fn try_from(value: &[u8]) -> Result<Self> {
         if value.len() < 4 {
             return Err(Error::Failed("Invalid DebugInfo length (unit_length)"));
@@ -101,7 +102,7 @@ impl TryFrom<&[u8]> for DebugInfo {
         let address_size = value[7];
         let debug_abbrev_offset = u32::from_le_bytes([value[8], value[9], value[10], value[11]]);
 
-        let mut header_size_after_length = 8;
+        let mut header_size_after_length = 10;
 
         let dwo_id = match unit_type {
             UnitType::Skeleton | UnitType::SplitCompile => {
@@ -1087,7 +1088,7 @@ fn parse_die(
                                 die_data[offset + 1],
                                 die_data[offset + 2],
                                 die_data[offset + 3],
-                            ]) as u64
+                            ]) as u64;
                         }
                         8 => {
                             *v = u64::from_le_bytes([
@@ -1099,7 +1100,7 @@ fn parse_die(
                                 die_data[offset + 5],
                                 die_data[offset + 6],
                                 die_data[offset + 7],
-                            ])
+                            ]);
                         }
                         _ => unreachable!(),
                     }
