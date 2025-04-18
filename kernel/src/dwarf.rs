@@ -1,6 +1,6 @@
 use crate::{
     error::{Error, Result},
-    println, util,
+    util,
 };
 use alloc::{collections::BTreeMap, string::String, vec::Vec};
 use common::elf::Elf64;
@@ -740,7 +740,7 @@ impl TryFrom<u64> for LineNumberHeaderEntry {
 }
 
 // 6.2.4 The Line Number Program Header
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct DebugLine {
     pub unit_length: u32,
     pub version: u16,
@@ -757,18 +757,55 @@ pub struct DebugLine {
     pub directory_entry_format_count: u8,
     pub directory_entry_format: Vec<(LineNumberHeaderEntry, AbbrevForm)>,
     pub directories_count: u64,
-    pub directories: Vec<usize>,
+    pub directories: Vec<String>,
     pub file_name_entry_format_count: u8,
     pub file_name_entry_format: Vec<(LineNumberHeaderEntry, AbbrevForm)>,
     pub file_names_count: u64,
-    pub file_names: Vec<usize>,
+    pub file_names: Vec<String>,
     program: Vec<u8>,
 }
 
-impl TryFrom<&[u8]> for DebugLine {
-    type Error = Error;
+impl core::fmt::Debug for DebugLine {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("DebugLine")
+            .field("unit_length", &self.unit_length)
+            .field("version", &self.version)
+            .field("address_size", &self.address_size)
+            .field("segment_selector_size", &self.segment_selector_size)
+            .field("header_length", &self.header_length)
+            .field(
+                "minimum_instruction_length",
+                &self.minimum_instruction_length,
+            )
+            .field(
+                "maximum_operations_per_instruction",
+                &self.maximum_operations_per_instruction,
+            )
+            .field("default_is_stmt", &self.default_is_stmt)
+            .field("line_base", &self.line_base)
+            .field("line_range", &self.line_range)
+            .field("opcode_base", &self.opcode_base)
+            .field("standard_opcode_lengths", &self.standard_opcode_lengths)
+            .field(
+                "directory_entry_format_count",
+                &self.directory_entry_format_count,
+            )
+            .field("directory_entry_format", &self.directory_entry_format)
+            .field("directories_count", &self.directories_count)
+            .field("directories", &self.directories)
+            .field(
+                "file_name_entry_format_count",
+                &self.file_name_entry_format_count,
+            )
+            .field("file_name_entry_format", &self.file_name_entry_format)
+            .field("file_names_count", &self.file_names_count)
+            .field("file_names", &self.file_names)
+            .finish()
+    }
+}
 
-    fn try_from(value: &[u8]) -> Result<Self> {
+impl DebugLine {
+    pub fn try_from(value: &[u8], debug_line_str_slice: &[u8]) -> Result<Self> {
         if value.len() < 4 {
             return Err(Error::Failed("Invalid DebugLine length (unit_length)"));
         }
@@ -832,7 +869,9 @@ impl TryFrom<&[u8]> for DebugLine {
                             value[offset + 3],
                         ]);
                         offset += 4;
-                        directories.push(s_offset as usize);
+                        let s =
+                            util::cstring::from_slice(&debug_line_str_slice[s_offset as usize..]);
+                        directories.push(s);
                     }
                     _ => unimplemented!(),
                 }
@@ -862,11 +901,13 @@ impl TryFrom<&[u8]> for DebugLine {
                         value[offset + 3],
                     ]);
                     offset += 4;
-                    file_names.push(s_offset as usize);
+                    let s = util::cstring::from_slice(&debug_line_str_slice[s_offset as usize..]);
+                    file_names.push(s);
                 }
                 (LineNumberHeaderEntry::DirectoryIndex, AbbrevForm::Udata(_)) => {
                     let s_offset = read_uleb128(&value, &mut offset);
-                    file_names.push(s_offset as usize);
+                    let s = util::cstring::from_slice(&debug_line_str_slice[s_offset as usize..]);
+                    file_names.push(s);
                 }
                 _ => unimplemented!(),
             }
@@ -1019,10 +1060,9 @@ fn parse_die(
     debug_line_str_slice: &[u8],
     debug_addr_slice: Option<&[u8]>,
     debug_info: &DebugInfo,
-) -> Result<Vec<DebugAbbrev>> {
+) -> Result<BTreeMap<u64, DebugAbbrev>> {
     let debug_abbrev_offset = debug_info.debug_abbrev_offset as usize;
-    let debug_abbrevs = parse_debug_abbrev(debug_abbrev_slice, debug_abbrev_offset)?;
-    let mut res_debug_abbrevs = Vec::new();
+    let mut debug_abbrevs = parse_debug_abbrev(debug_abbrev_slice, debug_abbrev_offset)?;
 
     let die_data: &[u8] = &debug_info.data;
     let mut offset = 0;
@@ -1033,7 +1073,7 @@ fn parse_die(
         }
 
         let mut abbrev = debug_abbrevs
-            .get(&code)
+            .get_mut(&code)
             .ok_or(Error::Failed("Failed to find abbrev"))?
             .clone();
 
@@ -1215,26 +1255,25 @@ fn parse_die(
                 | AbbrevForm::FlagPresent => {
                     // skip
                 }
-                form => {
-                    println!("  (unimplemented){:?}", form);
+                _ => {
                     unimplemented!()
                 }
             }
         }
-
-        res_debug_abbrevs.push(abbrev);
     }
 
-    Ok(res_debug_abbrevs)
+    Ok(debug_abbrevs)
 }
 
-fn parse_debug_line(debug_line_slice: &[u8]) -> Result<Vec<DebugLine>> {
+fn parse_debug_line(
+    debug_line_slice: &[u8],
+    debug_line_str_slice: &[u8],
+) -> Result<Vec<DebugLine>> {
     let mut debug_lines = Vec::new();
     let mut offset = 0;
 
     while offset < debug_line_slice.len() {
-        let debug_line = DebugLine::try_from(&debug_line_slice[offset..])?;
-        println!("{:?}", debug_line);
+        let debug_line = DebugLine::try_from(&debug_line_slice[offset..], debug_line_str_slice)?;
         offset += debug_line.unit_length as usize + 4; // 4 bytes for unit_length
         debug_lines.push(debug_line);
     }
@@ -1244,7 +1283,8 @@ fn parse_debug_line(debug_line_slice: &[u8]) -> Result<Vec<DebugLine>> {
 
 #[derive(Debug, Clone)]
 pub struct Dwarf {
-    pub die_tree: Vec<(DebugInfo, Vec<DebugAbbrev>)>,
+    pub die_tree: Vec<(DebugInfo, BTreeMap<u64, DebugAbbrev>)>,
+    pub debug_lines: Vec<DebugLine>,
 }
 
 pub fn parse(elf64: &Elf64) -> Result<Dwarf> {
@@ -1303,10 +1343,6 @@ pub fn parse(elf64: &Elf64) -> Result<Dwarf> {
             debug_info,
         )?;
 
-        // println!("{:?}", debug_info);
-        // for abbrev in debug_abbrebs {
-        //     println!("  {:?}", abbrev);
-        // }
         die_tree.push((debug_info.clone(), debug_abbrebs));
     }
 
@@ -1317,7 +1353,11 @@ pub fn parse(elf64: &Elf64) -> Result<Dwarf> {
     let debug_line_slice = elf64
         .data_by_section_header(debug_line_sh)
         .ok_or(Error::Failed("Failed to get .debug_line section data"))?;
-    let _debug_lines = parse_debug_line(debug_line_slice)?;
 
-    Ok(Dwarf { die_tree })
+    let debug_lines = parse_debug_line(debug_line_slice, debug_line_str_slice)?;
+
+    Ok(Dwarf {
+        die_tree,
+        debug_lines,
+    })
 }
