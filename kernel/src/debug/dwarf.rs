@@ -102,79 +102,68 @@ impl TryFrom<&[u8]> for DebugInfo {
         let address_size = value[7];
         let debug_abbrev_offset = u32::from_le_bytes([value[8], value[9], value[10], value[11]]);
 
-        let mut header_size_after_length = 10;
+        let mut offset = 12;
 
         let dwo_id = match unit_type {
             UnitType::Skeleton | UnitType::SplitCompile => {
-                if value.len() < 4 + header_size_after_length + 8 {
-                    return Err(Error::Failed("Invalid DebugInfo length for dwo_id"));
-                }
-                let dwo_offset = 4 + header_size_after_length;
-                header_size_after_length += 8;
-                Some(u64::from_le_bytes([
-                    value[dwo_offset],
-                    value[dwo_offset + 1],
-                    value[dwo_offset + 2],
-                    value[dwo_offset + 3],
-                    value[dwo_offset + 4],
-                    value[dwo_offset + 5],
-                    value[dwo_offset + 6],
-                    value[dwo_offset + 7],
-                ]))
+                let id = u64::from_le_bytes([
+                    value[offset],
+                    value[offset + 1],
+                    value[offset + 2],
+                    value[offset + 3],
+                    value[offset + 4],
+                    value[offset + 5],
+                    value[offset + 6],
+                    value[offset + 7],
+                ]);
+                offset += 8;
+                Some(id)
             }
             _ => None,
         };
 
         let type_sig = match unit_type {
             UnitType::Type => {
-                if value.len() < 4 + header_size_after_length + 8 {
-                    return Err(Error::Failed("Invalid DebugInfo length for type_sig"));
-                }
-                let sig_offset = 4 + header_size_after_length;
-                header_size_after_length += 8;
-                Some(u64::from_le_bytes([
-                    value[sig_offset],
-                    value[sig_offset + 1],
-                    value[sig_offset + 2],
-                    value[sig_offset + 3],
-                    value[sig_offset + 4],
-                    value[sig_offset + 5],
-                    value[sig_offset + 6],
-                    value[sig_offset + 7],
-                ]))
+                let sig = u64::from_le_bytes([
+                    value[offset],
+                    value[offset + 1],
+                    value[offset + 2],
+                    value[offset + 3],
+                    value[offset + 4],
+                    value[offset + 5],
+                    value[offset + 6],
+                    value[offset + 7],
+                ]);
+                offset += 8;
+                Some(sig)
             }
             _ => None,
         };
 
         let type_offset = match unit_type {
             UnitType::Type => {
-                if value.len() < 4 + header_size_after_length + 8 {
-                    return Err(Error::Failed("Invalid DebugInfo length for type_offset"));
-                }
-                let offset_offset = 4 + header_size_after_length;
-                header_size_after_length += 8;
-                Some(u64::from_le_bytes([
-                    value[offset_offset],
-                    value[offset_offset + 1],
-                    value[offset_offset + 2],
-                    value[offset_offset + 3],
-                    value[offset_offset + 4],
-                    value[offset_offset + 5],
-                    value[offset_offset + 6],
-                    value[offset_offset + 7],
-                ]))
+                let ty_of = u64::from_le_bytes([
+                    value[offset],
+                    value[offset + 1],
+                    value[offset + 2],
+                    value[offset + 3],
+                    value[offset + 4],
+                    value[offset + 5],
+                    value[offset + 6],
+                    value[offset + 7],
+                ]);
+                offset += 8;
+                Some(ty_of)
             }
             _ => None,
         };
 
-        let data_offset = 4 + header_size_after_length;
-
-        if total_unit_size < data_offset {
+        if offset > total_unit_size {
             return Err(Error::Failed(
                 "Calculated data offset exceeds total unit size",
             ));
         }
-        let data = value[data_offset..total_unit_size].to_vec();
+        let data = value[offset..total_unit_size].to_vec();
 
         Ok(Self {
             unit_length,
