@@ -69,7 +69,6 @@ impl core::fmt::Debug for DebugInfo {
 impl TryFrom<&[u8]> for DebugInfo {
     type Error = Error;
 
-    // TODO
     fn try_from(value: &[u8]) -> Result<Self> {
         if value.len() < 4 {
             return Err(Error::Failed("Invalid DebugInfo length (unit_length)"));
@@ -88,8 +87,7 @@ impl TryFrom<&[u8]> for DebugInfo {
             ));
         }
 
-        let minimum_header_size = 12;
-        if value.len() < minimum_header_size {
+        if value.len() < 12 {
             return Err(Error::Failed("Invalid DebugInfo length (header minimum)"));
         }
 
@@ -702,6 +700,31 @@ pub struct DebugAbbrev {
     pub attributes: Vec<(AbbrevAttribute, AbbrevForm)>,
 }
 
+impl DebugAbbrev {
+    pub fn is_contains_by_ip(&self, ip: u64) -> bool {
+        let mut low_pc = None;
+        let mut high_pc = None;
+
+        for (attr, form) in &self.attributes {
+            match (attr, form) {
+                (AbbrevAttribute::LowPc, AbbrevForm::Addr(addr)) => {
+                    low_pc = Some(*addr);
+                }
+                (AbbrevAttribute::HighPc, AbbrevForm::Data8(data)) => {
+                    high_pc = Some(*data);
+                }
+                _ => (),
+            }
+        }
+
+        if let (Some(low), Some(high)) = (low_pc, high_pc) {
+            return low <= ip && ip < (low + high);
+        }
+
+        false
+    }
+}
+
 // Table 7.27: Line number header entry format encodings
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LineNumberHeaderEntry {
@@ -1062,10 +1085,9 @@ fn parse_die(
             continue;
         }
 
-        let mut abbrev = debug_abbrevs
+        let abbrev = debug_abbrevs
             .get_mut(&code)
-            .ok_or(Error::Failed("Failed to find abbrev"))?
-            .clone();
+            .ok_or(Error::Failed("Failed to find abbrev"))?;
 
         for (_, form) in &mut abbrev.attributes {
             match form {
@@ -1275,6 +1297,32 @@ fn parse_debug_line(
 pub struct Dwarf {
     pub die_tree: Vec<(DebugInfo, BTreeMap<u64, DebugAbbrev>)>,
     pub debug_lines: Vec<DebugLine>,
+}
+
+impl Dwarf {
+    pub fn find_debug_info_by_ip(&self, ip: u64) -> Option<Vec<(&DebugInfo, Vec<&DebugAbbrev>)>> {
+        let mut result = Vec::new();
+
+        for (debug_info, debug_abbrevs) in &self.die_tree {
+            let mut abbrevs = Vec::new();
+            for abbrev in debug_abbrevs.values() {
+                if abbrev.is_contains_by_ip(ip) {
+                    abbrevs.extend(debug_abbrevs.values());
+                    break;
+                }
+            }
+
+            if !abbrevs.is_empty() {
+                result.push((debug_info, abbrevs));
+            }
+        }
+
+        if !result.is_empty() {
+            return Some(result);
+        }
+
+        None
+    }
 }
 
 pub fn parse(elf64: &Elf64) -> Result<Dwarf> {

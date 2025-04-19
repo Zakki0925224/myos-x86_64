@@ -62,7 +62,7 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
         &boot_info.graphic_info,
         GLOBAL_THEME.back_color,
         GLOBAL_THEME.fore_color,
-        false,
+        true,
     )
     .unwrap();
 
