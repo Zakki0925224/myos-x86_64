@@ -12,7 +12,7 @@ const RSDP_SIGNATURE: [u8; 8] = *b"RSD PTR ";
 const XSDT_SIGNATURE: [u8; 4] = *b"XSDT";
 const FADT_SIGNATURE: [u8; 4] = *b"FACP";
 
-const PM_TIMER_FREQ: u32 = 3579545;
+pub const PM_TIMER_FREQ: u32 = 3579545;
 
 #[derive(Debug)]
 #[repr(C, packed)]
@@ -94,6 +94,7 @@ pub enum AcpiError {
     InvalidRevision(u8),
     InvalidChecksum,
     FixedAcpiDescriptionTableWasNotFound,
+    PmTimerNotSupported,
 }
 
 impl core::fmt::Display for AcpiError {
@@ -107,6 +108,7 @@ impl core::fmt::Display for AcpiError {
             Self::FixedAcpiDescriptionTableWasNotFound => {
                 write!(f, "Fixed ACPI Description Table was not found")
             }
+            Self::PmTimerNotSupported => write!(f, "PM timer is not supported"),
         }
     }
 }
@@ -196,29 +198,41 @@ impl Acpi {
         Ok(fadt)
     }
 
-    // addr, bit width == 32
-    fn pm_timer_io_addr(&self) -> Result<(IoPortAddress, bool)> {
+    fn pm_timer(&self) -> Result<PmTimer> {
         let fadt = self
             .fadt()?
             .ok_or(AcpiError::FixedAcpiDescriptionTableWasNotFound)?;
-        Ok((fadt.pm_timer_block.into(), ((fadt.flags >> 8) & 1) != 0))
+
+        if fadt.pm_timer_block == 0 {
+            return Err(AcpiError::PmTimerNotSupported.into());
+        }
+
+        let mask = if ((fadt.flags >> 8) & 1) != 0 {
+            0xffff_ffff
+        } else {
+            0x00ff_ffff
+        };
+
+        Ok(PmTimer {
+            io_addr: fadt.pm_timer_block.into(),
+            mask,
+        })
+    }
+}
+
+#[derive(Debug)]
+pub struct PmTimer {
+    io_addr: IoPortAddress,
+    mask: u32,
+}
+
+impl PmTimer {
+    pub fn read(&self) -> u32 {
+        self.io_addr.in32() & self.mask
     }
 
-    fn pm_timer_wait_ms(&self, ms: u32) -> Result<()> {
-        let (io_addr, is_bit_width_32) = self.pm_timer_io_addr()?;
-        let start = io_addr.in32();
-        let mut end = start + (PM_TIMER_FREQ * ms / 1000);
-
-        if !is_bit_width_32 {
-            end &= 0x00ff_ffff;
-        }
-
-        if end < start {
-            while io_addr.in32() >= start {}
-        }
-
-        while io_addr.in32() < end {}
-        Ok(())
+    pub fn elapsed(&self, from: u32, to: u32) -> u32 {
+        to.wrapping_sub(from) & self.mask
     }
 }
 
@@ -230,7 +244,7 @@ pub fn init(rsdp_virt_addr: VirtualAddress) -> Result<()> {
     Ok(())
 }
 
-pub fn pm_timer_wait_ms(ms: u32) -> Result<()> {
+pub fn pm_timer() -> Result<PmTimer> {
     let acpi = &raw const ACPI;
-    unsafe { (*acpi).pm_timer_wait_ms(ms) }
+    unsafe { (*acpi).pm_timer() }
 }

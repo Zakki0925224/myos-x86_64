@@ -122,15 +122,27 @@ impl Component for Image {
 
         let buf_ptr = buf.as_mut_ptr();
 
-        for y in 0..h {
-            for x in 0..w {
-                let offset = (y * w + x) * bytes;
-                let pixel_color =
-                    ColorCode::from_pixel_data(&framebuf_slice[offset..], pixel_format);
-                unsafe {
-                    buf_ptr
-                        .add(y * w + x)
-                        .write(pixel_color.to_color_code(layer_format));
+        let direct_copy = pixel_format == PixelFormat::Bgra
+            && matches!(layer_format, PixelFormat::Bgr | PixelFormat::Bgra);
+        if direct_copy {
+            unsafe {
+                core::ptr::copy_nonoverlapping(
+                    framebuf_slice.as_ptr(),
+                    buf_ptr as *mut u8,
+                    w * h * bytes,
+                );
+            }
+        } else {
+            for y in 0..h {
+                for x in 0..w {
+                    let offset = (y * w + x) * bytes;
+                    let pixel_color =
+                        ColorCode::from_pixel_data(&framebuf_slice[offset..], pixel_format);
+                    unsafe {
+                        buf_ptr
+                            .add(y * w + x)
+                            .write(pixel_color.to_color_code(layer_format));
+                    }
                 }
             }
         }

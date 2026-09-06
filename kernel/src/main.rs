@@ -28,13 +28,14 @@ use crate::{
     error::Result,
     graphics::{multi_layer, window_manager},
     task::{
-        async_task::{self, Priority},
+        async_task::{self, Priority, TimeoutFuture},
         exec, scheduler, syscall,
     },
     theme::GLOBAL_THEME,
 };
 use alloc::{string::ToString, vec::Vec};
 use common::boot_info::BootInfo;
+use core::time::Duration;
 
 #[macro_use]
 extern crate alloc;
@@ -150,11 +151,8 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
     // do not spawn async tasks before initialize scheduler
     // because kernel task id must be 0
     async_task::spawn_with_priority(graphics(), Priority::High).unwrap();
-    async_task::spawn_with_priority(
-        poll_loop(device::ps2_mouse::poll_normal),
-        Priority::High,
-    )
-    .unwrap();
+    async_task::spawn_with_priority(poll_loop(device::ps2_mouse::poll_normal), Priority::High)
+        .unwrap();
     async_task::spawn(poll_loop(device::ps2_keyboard::poll_normal)).unwrap();
     async_task::spawn(poll_loop(device::keyboard::poll_normal)).unwrap();
     async_task::spawn(poll_loop(device::uart::poll_normal)).unwrap();
@@ -162,6 +160,11 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
     async_task::spawn(poll_loop(device::usb::usb_bus::poll_normal)).unwrap();
     async_task::spawn_with_priority(poll_loop(device::rtl8139::poll_normal), Priority::Low)
         .unwrap();
+    async_task::spawn(async {
+        TimeoutFuture::new(Duration::from_secs(5)).await;
+        let _ = device::local_apic_timer::self_check();
+    })
+    .unwrap();
     async_task::ready().unwrap();
 
     // execute init app
@@ -190,11 +193,14 @@ pub extern "sysv64" fn kernel_main(boot_info: &BootInfo) -> ! {
 // async tasks
 
 async fn graphics() {
+    const FRAME_INTERVAL: Duration = Duration::from_millis(20);
+
     loop {
+        let timeout = TimeoutFuture::new(FRAME_INTERVAL);
         let _ = window_manager::flush_components();
         async_task::exec_yield().await;
         let _ = multi_layer::draw_to_frame_buf();
-        async_task::exec_yield().await;
+        timeout.await;
     }
 }
 
