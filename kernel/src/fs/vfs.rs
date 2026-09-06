@@ -9,7 +9,6 @@ use alloc::{
     boxed::Box,
     collections::{vec_deque::VecDeque, BTreeMap},
     string::{String, ToString},
-    sync::Arc,
     vec::Vec,
 };
 use core::{
@@ -23,14 +22,14 @@ static VFS: Mutex<VirtualFileSystem> = Mutex::new(VirtualFileSystem::new());
 enum ReadOutcome {
     Data(Vec<u8>),
     Device {
-        dev: Arc<dyn CharDevice>,
+        dev: &'static dyn CharDevice,
         offset: usize,
     },
 }
 
 enum WriteOutcome {
     Done,
-    Device(Arc<dyn CharDevice>),
+    Device(&'static dyn CharDevice),
 }
 
 #[derive(Debug, Default)]
@@ -113,7 +112,7 @@ pub struct FileDescriptor {
 #[derive(Clone)]
 enum VfsFileType {
     VirtualFile, // for file system
-    DeviceFile(Arc<dyn CharDevice>),
+    DeviceFile(&'static dyn CharDevice),
     Pipe,
     Directory,
 }
@@ -507,7 +506,7 @@ impl VirtualFileSystem {
         self.add_file(path, VfsFileType::Directory)
     }
 
-    fn add_dev_file(&mut self, dev: Arc<dyn CharDevice>, file_name: &str) -> Result<()> {
+    fn add_dev_file(&mut self, dev: &'static dyn CharDevice, file_name: &str) -> Result<()> {
         let dev_file_path = Path::root().join("dev").join(file_name);
         self.add_file(&dev_file_path, VfsFileType::DeviceFile(dev))
     }
@@ -555,7 +554,7 @@ impl VirtualFileSystem {
         &mut self,
         path: &Path,
         create: bool,
-    ) -> Result<(FileDescriptorNumber, Option<Arc<dyn CharDevice>>)> {
+    ) -> Result<(FileDescriptorNumber, Option<&'static dyn CharDevice>)> {
         let mut dev_open = None;
 
         let backing = match self.find_file_by_path(path) {
@@ -576,7 +575,7 @@ impl VirtualFileSystem {
                 }
 
                 if let VfsFileType::DeviceFile(dev) = &file_ref.ty {
-                    dev_open = Some(dev.clone());
+                    dev_open = Some(*dev);
                 }
 
                 FileBacking::Vfs(file_id)
@@ -619,7 +618,10 @@ impl VirtualFileSystem {
         Ok((fd_num, dev_open))
     }
 
-    fn close_file(&mut self, fd_num: FileDescriptorNumber) -> Result<Option<Arc<dyn CharDevice>>> {
+    fn close_file(
+        &mut self,
+        fd_num: FileDescriptorNumber,
+    ) -> Result<Option<&'static dyn CharDevice>> {
         let index = self
             .fds
             .iter()
@@ -631,7 +633,7 @@ impl VirtualFileSystem {
         if let FileBacking::Vfs(file_id) = fd.backing {
             if let Some(file_ref) = self.find_file(file_id) {
                 if let VfsFileType::DeviceFile(dev) = &file_ref.ty {
-                    dev_close = Some(dev.clone());
+                    dev_close = Some(*dev);
                 }
             }
 
@@ -1002,10 +1004,8 @@ pub fn create_file(path: &Path) -> Result<()> {
     vfs.add_file(path, VfsFileType::VirtualFile)
 }
 
-pub fn add_dev(dev: Arc<dyn CharDevice>) -> Result<()> {
-    // must resolve the name before locking VFS, device lock is not reentrant
+pub fn add_dev(dev: &'static dyn CharDevice) -> Result<()> {
     let file_name = dev.info()?.name;
-
     let mut vfs = VFS.spin_lock();
     vfs.add_dev_file(dev, file_name)
 }

@@ -1,18 +1,12 @@
 use crate::{
     arch::IoPortAddress,
-    device::{
-        self,
-        pci_bus::{device::PciDevice, PciDriver},
-        register_pollable, CharDevice, Device, DeviceInfo, Pollable,
-    },
+    device::{self, pci_bus, Driver, DeviceInfo},
     error::{Error, Result},
-    fs::vfs,
-    kdebug,
+    kdebug, kinfo,
     net::{self, eth::*},
     sync::mutex::Mutex,
-    task::async_task::Priority,
 };
-use alloc::{boxed::Box, sync::Arc, vec::Vec};
+use alloc::{boxed::Box, vec::Vec};
 
 const RX_BUF_LEN: usize = 8192;
 const RX_BUF_SIZE: usize = RX_BUF_LEN + 16 + 1536;
@@ -21,7 +15,7 @@ const NAME: &str = "rtl8139";
 const VENDOR_ID: u16 = 0x10ec;
 const DEVICE_ID: u16 = 0x8139;
 
-static RTL8139_ADAPTER: Mutex<Rtl8139Adapter> = Mutex::new(Rtl8139Adapter::new());
+static RTL8139_DRIVER: Mutex<Rtl8139Driver> = Mutex::new(Rtl8139Driver::new());
 
 struct IoRegister(IoPortAddress);
 
@@ -172,8 +166,7 @@ impl TxBuffer {
 }
 
 // https://wiki.osdev.org/RTL8139
-struct Rtl8139Adapter {
-    device_info: DeviceInfo,
+struct Rtl8139Driver {
     pci_device_bdf: Option<(usize, usize, usize)>,
     io_register: Option<IoRegister>,
     rx_buf: RxBuffer,
@@ -181,8 +174,57 @@ struct Rtl8139Adapter {
     tx_queue: Vec<EthernetFrame>,
 }
 
-impl Rtl8139Adapter {
-    fn attach_pci(&mut self, d: &PciDevice) -> Result<()> {
+impl Rtl8139Driver {
+    const fn new() -> Self {
+        Self {
+            pci_device_bdf: None,
+            io_register: None,
+            rx_buf: RxBuffer::new(),
+            tx_buf: TxBuffer::new(),
+            tx_queue: Vec::new(),
+        }
+    }
+
+    fn io_register(&self) -> Result<&IoRegister> {
+        self.io_register
+            .as_ref()
+            .ok_or(Error::NotInitialized.with_context("I/O register"))
+    }
+
+    fn mac_addr(&self) -> Result<EthernetAddress> {
+        Ok(self.io_register()?.read_mac_addr().into())
+    }
+
+    fn receive_packet(&mut self) -> Result<(EthernetFrame, usize)> {
+        self.rx_buf.pop_eth_frame()
+    }
+
+    fn send_packet(&mut self, eth_frame: EthernetFrame) -> Result<()> {
+        let io_register = self.io_register()?;
+        let tx_packet_ptr = self.tx_buf.packet_ptr;
+
+        let boxed_eth_frame = eth_frame.to_vec()?.into_boxed_slice();
+        let packet_len = boxed_eth_frame.len();
+
+        io_register.write_tx_start_addr(boxed_eth_frame.as_ptr() as u32, tx_packet_ptr);
+        // bit 13: own bit (0 = sned packet)
+        let tx_status = packet_len as u32 & 0x1fff;
+        io_register.write_tx_status(tx_status, tx_packet_ptr);
+        self.tx_buf.push(boxed_eth_frame);
+
+        Ok(())
+    }
+}
+
+impl Driver for Rtl8139Driver {
+    fn info(&self) -> DeviceInfo {
+        DeviceInfo::new(NAME)
+    }
+
+    fn attach(&mut self) -> Result<()> {
+        let d = pci_bus::find_device_by_id(VENDOR_ID, DEVICE_ID)?
+            .ok_or(Error::NotFound.with_context("RTL8139 PCI device"))?;
+
         // enable PCI bus mastering and disable interrupt
         let mut conf_space_header = d.read_conf_space_header()?;
         conf_space_header.command.write_bus_master_enable(true);
@@ -248,9 +290,7 @@ impl Rtl8139Adapter {
         Ok(())
     }
 
-    fn poll_normal(&mut self) -> Result<()> {
-        let name = self.device_info.name;
-
+    fn poll(&mut self) -> Result<()> {
         let io_register = self.io_register()?;
         let status = io_register.read_int_status();
 
@@ -260,12 +300,12 @@ impl Rtl8139Adapter {
         // RX
         // TOK
         if status & (1 << 2) != 0 {
-            kdebug!("{}: TOK", name);
+            kdebug!("{}: TOK", NAME);
         }
 
         // ROK
         if status & 1 != 0 {
-            kdebug!("{}: ROK", name);
+            kdebug!("{}: ROK", NAME);
             loop {
                 let cmd = self.io_register()?.read_cmd();
                 if cmd & 1 != 0 {
@@ -309,137 +349,20 @@ impl Rtl8139Adapter {
 
         Ok(())
     }
-
-    const fn new() -> Self {
-        Self {
-            device_info: DeviceInfo::new("rtl8139"),
-            pci_device_bdf: None,
-            io_register: None,
-            rx_buf: RxBuffer::new(),
-            tx_buf: TxBuffer::new(),
-            tx_queue: Vec::new(),
-        }
-    }
-
-    fn io_register(&self) -> Result<&IoRegister> {
-        self.io_register
-            .as_ref()
-            .ok_or(Error::NotInitialized.with_context("I/O register"))
-    }
-
-    fn mac_addr(&self) -> Result<EthernetAddress> {
-        Ok(self.io_register()?.read_mac_addr().into())
-    }
-
-    fn receive_packet(&mut self) -> Result<(EthernetFrame, usize)> {
-        self.rx_buf.pop_eth_frame()
-    }
-
-    fn send_packet(&mut self, eth_frame: EthernetFrame) -> Result<()> {
-        let io_register = self.io_register()?;
-        let tx_packet_ptr = self.tx_buf.packet_ptr;
-
-        let boxed_eth_frame = eth_frame.to_vec()?.into_boxed_slice();
-        let packet_len = boxed_eth_frame.len();
-
-        io_register.write_tx_start_addr(boxed_eth_frame.as_ptr() as u32, tx_packet_ptr);
-        // bit 13: own bit (0 = sned packet)
-        let tx_status = packet_len as u32 & 0x1fff;
-        io_register.write_tx_status(tx_status, tx_packet_ptr);
-        self.tx_buf.push(boxed_eth_frame);
-
-        Ok(())
-    }
 }
 
-impl Rtl8139Adapter {
-    fn probe(&mut self) -> Result<()> {
-        Ok(())
-    }
+pub fn probe_and_attach() -> Result<()> {
+    RTL8139_DRIVER.try_lock()?.attach()?;
+    kinfo!("{}: Attached!", NAME);
 
-    fn attach(&mut self) -> Result<()> {
-        Ok(())
-    }
-
-    fn open(&mut self) -> Result<()> {
-        Err(Error::NotSupported.into())
-    }
-
-    fn close(&mut self) -> Result<()> {
-        Err(Error::NotSupported.into())
-    }
-
-    fn read(&mut self, _offset: usize, _max_len: usize) -> Result<Vec<u8>> {
-        Err(Error::NotSupported.into())
-    }
-
-    fn write(&mut self, _data: &[u8]) -> Result<()> {
-        Err(Error::NotSupported.into())
-    }
-}
-
-pub fn device_info() -> Result<DeviceInfo> {
-    Ok(DeviceInfo::new(NAME))
-}
-
-pub struct Rtl8139Driver;
-
-impl PciDriver for Rtl8139Driver {
-    fn name(&self) -> &'static str {
-        NAME
-    }
-
-    fn probe(&self, dev: &PciDevice) -> Result<bool> {
-        let header = dev.read_conf_space_header()?;
-        if (header.vendor_id, header.device_id) != (VENDOR_ID, DEVICE_ID) {
-            return Ok(false);
-        }
-
-        RTL8139_ADAPTER.try_lock()?.attach_pci(dev)?;
-
-        let device = Arc::new(Rtl8139Device);
-        vfs::add_dev(device.clone())?;
-        register_pollable(device)?;
-
-        Ok(true)
-    }
-}
-
-pub fn poll_normal() -> Result<()> {
-    let mut driver = RTL8139_ADAPTER.try_lock()?;
-    driver.poll_normal()
-}
-
-pub fn push_eth_frame_to_tx_queue(eth_frame: EthernetFrame) -> Result<()> {
-    let mut driver = RTL8139_ADAPTER.try_lock()?;
-    driver.tx_queue.push(eth_frame);
     Ok(())
 }
 
-struct Rtl8139Device;
-
-impl Device for Rtl8139Device {
-    fn info(&self) -> Result<DeviceInfo> {
-        Ok(DeviceInfo::new(NAME))
-    }
+pub fn poll_normal() -> Result<()> {
+    RTL8139_DRIVER.try_lock()?.poll()
 }
 
-impl Pollable for Rtl8139Device {
-    fn poll(&self) -> Result<()> {
-        poll_normal()
-    }
-
-    fn priority(&self) -> Priority {
-        Priority::Low
-    }
-}
-
-impl CharDevice for Rtl8139Device {
-    fn read(&self, _offset: usize, _max_len: usize) -> Result<Vec<u8>> {
-        Err(Error::NotSupported.into())
-    }
-
-    fn write(&self, _data: &[u8]) -> Result<()> {
-        Err(Error::NotSupported.into())
-    }
+pub fn push_eth_frame_to_tx_queue(eth_frame: EthernetFrame) -> Result<()> {
+    RTL8139_DRIVER.try_lock()?.tx_queue.push(eth_frame);
+    Ok(())
 }

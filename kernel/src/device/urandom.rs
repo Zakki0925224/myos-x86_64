@@ -1,35 +1,38 @@
 use crate::{
-    device::{self, CharDevice, Device, DeviceInfo},
-    error::{Error, Result},
+    device::{self, Driver, DeviceInfo},
+    error::Result,
     fs::vfs,
-    kinfo, util,
+    kinfo,
+    sync::mutex::Mutex,
+    util,
 };
-use alloc::{sync::Arc, vec::Vec};
+use alloc::vec::Vec;
 
 const NAME: &str = "urandom";
 
-struct UrandomDevice;
+static URANDOM_DRIVER: Mutex<UrandomDriver> = Mutex::new(UrandomDriver);
 
-impl Device for UrandomDevice {
-    fn info(&self) -> Result<DeviceInfo> {
-        Ok(DeviceInfo::new(NAME))
+struct UrandomDriver;
+
+impl Driver for UrandomDriver {
+    fn info(&self) -> DeviceInfo {
+        DeviceInfo::new(NAME)
     }
-}
 
-impl CharDevice for UrandomDevice {
-    fn read(&self, _offset: usize, max_len: usize) -> Result<Vec<u8>> {
+    fn attach(&mut self) -> Result<()> {
+        Ok(())
+    }
+
+    fn read(&mut self, _offset: usize, max_len: usize) -> Result<Vec<u8>> {
         let uptime_durtion = device::local_apic_timer::global_uptime();
         let seed = uptime_durtion.as_nanos() as u64;
         Ok(util::random::random_bytes_pcg32(max_len, seed))
     }
-
-    fn write(&self, _data: &[u8]) -> Result<()> {
-        Err(Error::NotSupported.into())
-    }
 }
 
 pub fn probe_and_attach() -> Result<()> {
-    vfs::add_dev(Arc::new(UrandomDevice))?;
+    URANDOM_DRIVER.try_lock()?.attach()?;
+    vfs::add_dev(&URANDOM_DRIVER)?;
     kinfo!("{}: Attached!", NAME);
 
     Ok(())

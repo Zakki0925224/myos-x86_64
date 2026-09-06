@@ -1,13 +1,13 @@
-use super::{uart, CharDevice, Device, DeviceInfo};
+use super::{uart, Driver, DeviceInfo};
 use crate::{
-    error::{Error, Result},
+    error::Result,
     fs::vfs,
     graphics::frame_buf_console,
     kinfo,
     sync::mutex::Mutex,
     task,
 };
-use alloc::{string::String, sync::Arc, vec::Vec};
+use alloc::string::String;
 use core::{
     fmt::{self, Write},
     sync::atomic::{AtomicBool, Ordering},
@@ -17,7 +17,7 @@ const IO_BUF_LEN: usize = 512;
 
 const NAME: &str = "tty";
 
-static TTY: Mutex<Tty> = Mutex::new(Tty::new(true));
+static TTY_DRIVER: Mutex<TtyDriver> = Mutex::new(TtyDriver::new(true));
 static FLAG_SIGINT: AtomicBool = AtomicBool::new(false);
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -97,8 +97,7 @@ enum EscState {
     EscBracket,
 }
 
-struct Tty {
-    device_info: DeviceInfo,
+struct TtyDriver {
     input_buf: Buffer<IO_BUF_LEN>,
     output_buf: Buffer<IO_BUF_LEN>,
     err_output_buf: Buffer<IO_BUF_LEN>,
@@ -107,10 +106,9 @@ struct Tty {
     esc_state: EscState,
 }
 
-impl Tty {
+impl TtyDriver {
     const fn new(use_serial_port: bool) -> Self {
         Self {
-            device_info: DeviceInfo::new("tty"),
             input_buf: Buffer::default(),
             output_buf: Buffer::default(),
             err_output_buf: Buffer::default(),
@@ -120,7 +118,7 @@ impl Tty {
         }
     }
 
-    fn write(&mut self, c: char, buf_type: BufferType) -> Result<()> {
+    fn write_char(&mut self, c: char, buf_type: BufferType) -> Result<()> {
         let buf = match buf_type {
             BufferType::Input => &mut self.input_buf,
             BufferType::Output => &mut self.output_buf,
@@ -209,7 +207,7 @@ impl Tty {
         match c {
             '\x08' | '\x7f' => {
                 self.input_buf.push(c);
-                let _ = self.write('\x08', BufferType::Output);
+                let _ = self.write_char('\x08', BufferType::Output);
                 return Ok(());
             }
             _ => {}
@@ -244,46 +242,49 @@ impl Tty {
         };
 
         if echo {
-            let _ = self.write(c, BufferType::Output);
+            let _ = self.write_char(c, BufferType::Output);
         }
 
-        Ok(())
-    }
-}
-
-impl fmt::Write for Tty {
-    fn write_str(&mut self, s: &str) -> fmt::Result {
-        let buf_type = BufferType::Output;
-        for c in s.chars() {
-            self.write(c, buf_type).map_err(|_| fmt::Error)?;
-        }
-
-        Ok(())
-    }
-}
-
-impl Tty {
-    fn probe(&mut self) -> Result<()> {
-        Ok(())
-    }
-
-    fn attach(&mut self) -> Result<()> {
-        vfs::add_dev(Arc::new(TtyDevice))?;
         Ok(())
     }
 
     fn write_bytes(&mut self, data: &[u8]) -> Result<()> {
         for b in data {
-            self.write(*b as char, BufferType::Output)?;
+            self.write_char(*b as char, BufferType::Output)?;
         }
 
         Ok(())
     }
 }
 
+impl fmt::Write for TtyDriver {
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        let buf_type = BufferType::Output;
+        for c in s.chars() {
+            self.write_char(c, buf_type).map_err(|_| fmt::Error)?;
+        }
+
+        Ok(())
+    }
+}
+
+impl Driver for TtyDriver {
+    fn info(&self) -> DeviceInfo {
+        DeviceInfo::new(NAME)
+    }
+
+    fn attach(&mut self) -> Result<()> {
+        Ok(())
+    }
+
+    fn write(&mut self, data: &[u8]) -> Result<()> {
+        self.write_bytes(data)
+    }
+}
+
 #[doc(hidden)]
 pub fn _print(args: fmt::Arguments) {
-    if let Ok(mut tty) = TTY.try_lock() {
+    if let Ok(mut tty) = TTY_DRIVER.try_lock() {
         let _ = tty.write_fmt(args);
     }
 }
@@ -299,14 +300,9 @@ macro_rules! println {
     ($($arg:tt)*) => ($crate::print!("{}\n", format_args!($($arg)*)));
 }
 
-pub fn device_info() -> Result<DeviceInfo> {
-    Ok(DeviceInfo::new(NAME))
-}
-
 pub fn probe_and_attach() -> Result<()> {
-    let mut driver = TTY.try_lock()?;
-    driver.probe()?;
-    driver.attach()?;
+    TTY_DRIVER.try_lock()?.attach()?;
+    vfs::add_dev(&TTY_DRIVER)?;
     kinfo!("{}: Attached!", NAME);
     Ok(())
 }
@@ -322,14 +318,14 @@ pub fn input_str(s: &str) -> Result<()> {
 pub fn input(c: char) -> Result<()> {
     if c == '\x03' {
         FLAG_SIGINT.store(true, Ordering::Relaxed);
-        let mut tty = TTY.try_lock()?;
+        let mut tty = TTY_DRIVER.try_lock()?;
         tty.clear_input();
         return Ok(());
     }
 
     let c = if c == '\r' { '\n' } else { c };
 
-    let mut tty = TTY.try_lock()?;
+    let mut tty = TTY_DRIVER.try_lock()?;
     tty.input_char(c)
 }
 
@@ -342,7 +338,7 @@ pub fn check_sigint() {
 }
 
 pub fn line() -> Result<Option<String>> {
-    let mut tty = TTY.try_lock()?;
+    let mut tty = TTY_DRIVER.try_lock()?;
 
     if tty.is_ready_get_line {
         tty.is_ready_get_line = false;
@@ -353,29 +349,11 @@ pub fn line() -> Result<Option<String>> {
 }
 
 pub fn char() -> Result<Option<char>> {
-    let mut tty = TTY.try_lock()?;
+    let mut tty = TTY_DRIVER.try_lock()?;
     Ok(tty.char(BufferType::Input))
 }
 
 pub fn input_count() -> Result<usize> {
-    let tty = TTY.try_lock()?;
+    let tty = TTY_DRIVER.try_lock()?;
     Ok(tty.input_count())
-}
-
-struct TtyDevice;
-
-impl Device for TtyDevice {
-    fn info(&self) -> Result<DeviceInfo> {
-        Ok(DeviceInfo::new(NAME))
-    }
-}
-
-impl CharDevice for TtyDevice {
-    fn read(&self, _offset: usize, _max_len: usize) -> Result<Vec<u8>> {
-        Err(Error::NotSupported.into())
-    }
-
-    fn write(&self, data: &[u8]) -> Result<()> {
-        TTY.try_lock()?.write_bytes(data)
-    }
 }

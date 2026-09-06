@@ -1,17 +1,16 @@
 use crate::{
-    arch::IoPortAddress,
-    device::{
-        register_irq, register_pollable, CharDevice, Device, DeviceInfo, InterruptSource, Pollable,
+    arch::{
+        x86_64::idt::{self, GateType, InterruptHandler, InterruptStackFrame},
+        IoPortAddress,
     },
-    error::{Error, Result},
+    device::{Driver, DeviceInfo},
+    error::Result,
     fs::vfs,
     graphics::window_manager::{self, MouseEvent},
     kinfo,
     sync::mutex::Mutex,
-    task::async_task::Priority,
     util::fifo::Fifo,
 };
-use alloc::{sync::Arc, vec::Vec};
 
 const PS2_DATA_REG_ADDR: IoPortAddress = IoPortAddress::new(0x60);
 const PS2_CMD_AND_STATE_REG_ADDR: IoPortAddress = IoPortAddress::new(0x64);
@@ -50,13 +49,15 @@ impl MousePhase {
     }
 }
 
-struct Inner {
+static PS2_MOUSE_DRIVER: Mutex<Ps2MouseDriver> = Mutex::new(Ps2MouseDriver::new());
+
+struct Ps2MouseDriver {
     mouse_phase: MousePhase,
     data_buf: Fifo<u8, 256>,
     data_buf2: [u8; 3],
 }
 
-impl Inner {
+impl Ps2MouseDriver {
     const fn new() -> Self {
         Self {
             mouse_phase: MousePhase::default(),
@@ -145,98 +146,65 @@ impl Inner {
     }
 }
 
-pub struct Ps2MouseDevice {
-    inner: Mutex<Inner>,
-}
-
-impl Ps2MouseDevice {
-    const fn new() -> Self {
-        Self {
-            inner: Mutex::new(Inner::new()),
-        }
+impl Driver for Ps2MouseDriver {
+    fn info(&self) -> DeviceInfo {
+        DeviceInfo::new(NAME)
     }
 
-    fn attach(&self) -> Result<()> {
-        let inner = self.inner.try_lock()?;
-
+    fn attach(&mut self) -> Result<()> {
         // send next wrote byte to ps/2 secondary port
         PS2_CMD_AND_STATE_REG_ADDR.out8(0xd4);
-        inner.wait_ready();
+        self.wait_ready();
 
         // init mouse
         PS2_DATA_REG_ADDR.out8(0xff);
-        inner.wait_ready();
+        self.wait_ready();
 
         PS2_CMD_AND_STATE_REG_ADDR.out8(0xd4);
-        inner.wait_ready();
+        self.wait_ready();
 
         // start streaming
         PS2_DATA_REG_ADDR.out8(0xf4);
-        inner.wait_ready();
+        self.wait_ready();
+
+        idt::set_handler(
+            VEC_PS2_MOUSE as usize,
+            InterruptHandler::General(ps2_mouse_isr),
+            GateType::Interrupt,
+        )?;
 
         Ok(())
     }
-}
 
-impl Device for Ps2MouseDevice {
-    fn info(&self) -> Result<DeviceInfo> {
-        Ok(DeviceInfo::new(NAME))
-    }
-}
-
-impl CharDevice for Ps2MouseDevice {
-    fn read(&self, _offset: usize, _max_len: usize) -> Result<Vec<u8>> {
-        Err(Error::NotSupported.into())
-    }
-
-    fn write(&self, _data: &[u8]) -> Result<()> {
-        Err(Error::NotSupported.into())
-    }
-}
-
-impl InterruptSource for Ps2MouseDevice {
-    fn handle_irq(&self) {
-        let data = PS2_DATA_REG_ADDR.in8();
-        if let Ok(mut inner) = self.inner.try_lock() {
-            let _ = inner.receive(data);
-        }
-    }
-}
-
-impl Pollable for Ps2MouseDevice {
-    fn poll(&self) -> Result<()> {
+    fn poll(&mut self) -> Result<()> {
         loop {
-            let event = {
-                let mut inner = match self.inner.try_lock() {
-                    Ok(inner) => inner,
-                    Err(_) => return Ok(()),
-                };
-
-                match inner.event() {
-                    Ok(Some(e)) => e,
-                    Ok(None) => continue,
-                    Err(_) => return Ok(()),
+            match self.event() {
+                Ok(Some(e)) => {
+                    let _ = window_manager::mouse_pointer_event(MouseEvent::Ps2MouseDevice(e));
                 }
-            };
-
-            let _ = window_manager::mouse_pointer_event(MouseEvent::Ps2MouseDevice(event));
+                Ok(None) => continue,
+                Err(_) => return Ok(()),
+            }
         }
     }
+}
 
-    fn priority(&self) -> Priority {
-        Priority::High
+extern "x86-interrupt" fn ps2_mouse_isr(_stack_frame: InterruptStackFrame) {
+    let data = PS2_DATA_REG_ADDR.in8();
+    if let Ok(mut driver) = PS2_MOUSE_DRIVER.try_lock() {
+        let _ = driver.receive(data);
     }
+    idt::pic_notify_eoi();
 }
 
 pub fn probe_and_attach() -> Result<()> {
-    let dev = Arc::new(Ps2MouseDevice::new());
-    dev.attach()?;
-
-    vfs::add_dev(dev.clone())?;
-    register_irq(VEC_PS2_MOUSE, dev.clone())?;
-    register_pollable(dev)?;
-
+    PS2_MOUSE_DRIVER.try_lock()?.attach()?;
+    vfs::add_dev(&PS2_MOUSE_DRIVER)?;
     kinfo!("{}: Attached!", NAME);
 
     Ok(())
+}
+
+pub fn poll_normal() -> Result<()> {
+    PS2_MOUSE_DRIVER.try_lock()?.poll()
 }

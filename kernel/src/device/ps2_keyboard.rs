@@ -1,9 +1,9 @@
 use crate::{
-    arch::IoPortAddress,
-    device::{
-        keyboard, register_irq, register_pollable, CharDevice, Device, DeviceInfo, InterruptSource,
-        Pollable,
+    arch::{
+        x86_64::idt::{self, GateType, InterruptHandler, InterruptStackFrame},
+        IoPortAddress,
     },
+    device::{keyboard, Driver, DeviceInfo},
     error::{Error, Result},
     fs::vfs,
     kinfo,
@@ -14,14 +14,17 @@ use crate::{
         keyboard::{key_event::*, key_map::*, scan_code::*},
     },
 };
-use alloc::{collections::btree_map::BTreeMap, sync::Arc, vec::Vec};
+use alloc::collections::btree_map::BTreeMap;
 
 const PS2_DATA_REG_ADDR: IoPortAddress = IoPortAddress::new(0x60);
 const PS2_CMD_AND_STATE_REG_ADDR: IoPortAddress = IoPortAddress::new(0x64);
 const VEC_PS2_KBD: u8 = 0x21;
 const NAME: &str = "ps2-kbd";
 
-struct Inner {
+static PS2_KEYBOARD_DRIVER: Mutex<Ps2KeyboardDriver> =
+    Mutex::new(Ps2KeyboardDriver::new(JIS_JP_109_KEY_MAP));
+
+struct Ps2KeyboardDriver {
     key_map: KeyMap,
     key_map_cache: Option<BTreeMap<[u8; 6], ScanCode>>,
     mod_keys_state: ModifierKeysState,
@@ -29,7 +32,7 @@ struct Inner {
     data: [Option<u8>; 6],
 }
 
-impl Inner {
+impl Ps2KeyboardDriver {
     const fn new(key_map: KeyMap) -> Self {
         Self {
             key_map,
@@ -85,84 +88,57 @@ impl Inner {
             continue;
         }
     }
+}
 
-    fn attach(&mut self) {
+impl Driver for Ps2KeyboardDriver {
+    fn info(&self) -> DeviceInfo {
+        DeviceInfo::new(NAME)
+    }
+
+    fn attach(&mut self) -> Result<()> {
         PS2_CMD_AND_STATE_REG_ADDR.out8(0x60); // write configuration byte
         self.wait_ready();
         PS2_DATA_REG_ADDR.out8(0x47); // enable interrupt
         self.wait_ready();
 
         self.key_map_cache = Some(self.key_map.to_ps2_map());
-    }
-}
 
-pub struct Ps2KeyboardDevice {
-    inner: Mutex<Inner>,
-}
+        idt::set_handler(
+            VEC_PS2_KBD as usize,
+            InterruptHandler::General(ps2_kbd_isr),
+            GateType::Interrupt,
+        )?;
 
-impl Ps2KeyboardDevice {
-    const fn new(key_map: KeyMap) -> Self {
-        Self {
-            inner: Mutex::new(Inner::new(key_map)),
-        }
-    }
-}
-
-impl Device for Ps2KeyboardDevice {
-    fn info(&self) -> Result<DeviceInfo> {
-        Ok(DeviceInfo::new(NAME))
-    }
-}
-
-impl CharDevice for Ps2KeyboardDevice {
-    fn read(&self, _offset: usize, _max_len: usize) -> Result<Vec<u8>> {
-        Err(Error::NotSupported.into())
+        Ok(())
     }
 
-    fn write(&self, _data: &[u8]) -> Result<()> {
-        Err(Error::NotSupported.into())
-    }
-}
-
-impl InterruptSource for Ps2KeyboardDevice {
-    fn handle_irq(&self) {
-        let data = PS2_DATA_REG_ADDR.in8();
-        if let Ok(mut inner) = self.inner.try_lock() {
-            let _ = inner.input(data);
-        }
-    }
-}
-
-impl Pollable for Ps2KeyboardDevice {
-    fn poll(&self) -> Result<()> {
+    fn poll(&mut self) -> Result<()> {
         loop {
-            let key_event = {
-                let mut inner = match self.inner.try_lock() {
-                    Ok(inner) => inner,
-                    Err(_) => return Ok(()),
-                };
-
-                match inner.event() {
-                    Ok(Some(e)) => e,
-                    Ok(None) => continue,
-                    Err(_) => return Ok(()),
-                }
-            };
-
-            keyboard::push_key_event(key_event)?;
+            match self.event() {
+                Ok(Some(e)) => keyboard::push_key_event(e)?,
+                Ok(None) => continue,
+                Err(_) => return Ok(()),
+            }
         }
     }
+}
+
+extern "x86-interrupt" fn ps2_kbd_isr(_stack_frame: InterruptStackFrame) {
+    let data = PS2_DATA_REG_ADDR.in8();
+    if let Ok(mut driver) = PS2_KEYBOARD_DRIVER.try_lock() {
+        let _ = driver.input(data);
+    }
+    idt::pic_notify_eoi();
 }
 
 pub fn probe_and_attach() -> Result<()> {
-    let dev = Arc::new(Ps2KeyboardDevice::new(JIS_JP_109_KEY_MAP));
-    dev.inner.try_lock()?.attach();
-
-    vfs::add_dev(dev.clone())?;
-    register_irq(VEC_PS2_KBD, dev.clone())?;
-    register_pollable(dev)?;
-
+    PS2_KEYBOARD_DRIVER.try_lock()?.attach()?;
+    vfs::add_dev(&PS2_KEYBOARD_DRIVER)?;
     kinfo!("{}: Attached!", NAME);
 
     Ok(())
+}
+
+pub fn poll_normal() -> Result<()> {
+    PS2_KEYBOARD_DRIVER.try_lock()?.poll()
 }

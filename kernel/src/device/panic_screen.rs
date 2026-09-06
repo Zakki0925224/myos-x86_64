@@ -1,6 +1,6 @@
 use crate::{
     arch::VirtualAddress,
-    device::DeviceInfo,
+    device::{Driver, DeviceInfo},
     error::Result,
     graphics::{color::ColorCode, font::FONT},
     kinfo,
@@ -15,10 +15,9 @@ const FORE_COLOR: ColorCode = ColorCode::RED;
 
 const NAME: &str = "panic-screen";
 
-static PANIC_SCREEN: Mutex<PanicScreen> = Mutex::new(PanicScreen::new());
+static PANIC_SCREEN_DRIVER: Mutex<PanicScreenDriver> = Mutex::new(PanicScreenDriver::new());
 
-struct PanicScreen {
-    device_info: DeviceInfo,
+struct PanicScreenDriver {
     cursor_x: Option<usize>,
     cursor_y: Option<usize>,
     res_x: Option<usize>,
@@ -27,10 +26,9 @@ struct PanicScreen {
     frame_buf_virt_addr: Option<VirtualAddress>,
 }
 
-impl PanicScreen {
+impl PanicScreenDriver {
     const fn new() -> Self {
         Self {
-            device_info: DeviceInfo::new("panic-screen"),
             cursor_x: None,
             cursor_y: None,
             res_x: None,
@@ -147,43 +145,38 @@ impl PanicScreen {
     }
 }
 
-impl fmt::Write for PanicScreen {
+impl fmt::Write for PanicScreenDriver {
     fn write_str(&mut self, s: &str) -> fmt::Result {
         let _ = self.write_str(s);
         Ok(())
     }
 }
 
-impl PanicScreen {
-    fn probe(&mut self) -> Result<()> {
-        Ok(())
+impl Driver for PanicScreenDriver {
+    fn info(&self) -> DeviceInfo {
+        DeviceInfo::new(NAME)
     }
 
-    fn attach(&mut self, arg: GraphicInfo) -> Result<()> {
+    fn attach(&mut self) -> Result<()> {
         self.cursor_x = Some(0);
         self.cursor_y = Some(0);
-        self.res_x = Some(arg.resolution.width);
-        self.res_y = Some(arg.resolution.height);
-        self.pixel_format = Some(arg.format);
-        self.frame_buf_virt_addr = Some(arg.framebuf_addr.into());
         Ok(())
     }
-}
-
-pub fn device_info() -> Result<DeviceInfo> {
-    Ok(DeviceInfo::new(NAME))
 }
 
 pub fn probe_and_attach(graphic_info: GraphicInfo) -> Result<()> {
-    let mut driver = PANIC_SCREEN.try_lock()?;
-    driver.probe()?;
-    driver.attach(graphic_info)?;
+    let mut driver = PANIC_SCREEN_DRIVER.try_lock()?;
+    driver.res_x = Some(graphic_info.resolution.width);
+    driver.res_y = Some(graphic_info.resolution.height);
+    driver.pixel_format = Some(graphic_info.format);
+    driver.frame_buf_virt_addr = Some(graphic_info.framebuf_addr.into());
+    driver.attach()?;
     kinfo!("{}: Attached!", NAME);
 
     Ok(())
 }
 
 pub fn write_fmt(args: fmt::Arguments) -> Result<()> {
-    let _ = PANIC_SCREEN.try_lock()?.write_fmt(args);
+    let _ = PANIC_SCREEN_DRIVER.try_lock()?.write_fmt(args);
     Ok(())
 }

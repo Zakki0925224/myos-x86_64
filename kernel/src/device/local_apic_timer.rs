@@ -54,10 +54,10 @@ impl DivideValue {
 
 const NAME: &str = "local-apic-timer";
 
-static LOCAL_APIC_TIMER: Mutex<LocalApicTimer> = Mutex::new(LocalApicTimer::new());
+static LOCAL_APIC_TIMER_DRIVER: Mutex<LocalApicTimerDriver> =
+    Mutex::new(LocalApicTimerDriver::new());
 
-struct LocalApicTimer {
-    device_info: DeviceInfo,
+struct LocalApicTimerDriver {
     tick: usize,
     freq: Option<usize>,
 
@@ -67,7 +67,7 @@ struct LocalApicTimer {
     div_conf_reg: Option<Mmio<Volatile<u32>>>,
 }
 
-impl LocalApicTimer {
+impl LocalApicTimerDriver {
     fn poll_int(&mut self) -> Result<()> {
         if !ATTACHED.load(Ordering::Acquire) {
             return Ok(());
@@ -86,7 +86,6 @@ impl LocalApicTimer {
 
     const fn new() -> Self {
         Self {
-            device_info: DeviceInfo::new("local-apic-timer"),
             tick: 0,
             freq: None,
 
@@ -164,21 +163,19 @@ impl LocalApicTimer {
     }
 }
 
-impl LocalApicTimer {
-    fn probe(&mut self) -> Result<()> {
-        Ok(())
+impl Driver for LocalApicTimerDriver {
+    fn info(&self) -> DeviceInfo {
+        DeviceInfo::new(NAME)
     }
 
     fn attach(&mut self) -> Result<()> {
-        let device_name = self.device_info.name;
-
         let vec_num = idt::set_handler_dyn_vec(
             idt::InterruptHandler::Naked(preempt_timer_isr),
             idt::GateType::Interrupt,
         )?;
         kdebug!(
             "{}: Interrupt vector number: {:#x}, Interrupt occures every {}ms",
-            device_name,
+            NAME,
             vec_num,
             INT_INTERVAL_MS
         );
@@ -205,7 +202,7 @@ impl LocalApicTimer {
             assert!(ticks_per_second > 0);
             kdebug!(
                 "{}: Timer frequency: {}Hz ({:?})",
-                device_name,
+                NAME,
                 ticks_per_second,
                 DIV_VALUE
             );
@@ -221,21 +218,15 @@ impl LocalApicTimer {
     }
 }
 
-pub fn device_info() -> Result<DeviceInfo> {
-    Ok(DeviceInfo::new(NAME))
-}
-
 pub fn probe_and_attach() -> Result<()> {
-    let mut driver = LOCAL_APIC_TIMER.try_lock()?;
-    driver.probe()?;
-    driver.attach()?;
-    kinfo!("{}: Attached!", driver.device_info.name);
+    LOCAL_APIC_TIMER_DRIVER.try_lock()?.attach()?;
+    kinfo!("{}: Attached!", NAME);
 
     Ok(())
 }
 
 pub fn global_uptime() -> Duration {
-    let driver = unsafe { LOCAL_APIC_TIMER.get_force_mut() };
+    let driver = unsafe { LOCAL_APIC_TIMER_DRIVER.get_force_mut() };
     let ms = driver.current_ms().unwrap_or(0);
     Duration::from_millis(ms as u64)
 }
@@ -291,7 +282,7 @@ unsafe extern "C" fn preempt_timer_isr() {
 unsafe extern "sysv64" fn timer_preempt_handler(
     interrupted: *const InterruptedContext,
 ) -> *const Context {
-    let driver = LOCAL_APIC_TIMER.get_force_mut();
+    let driver = LOCAL_APIC_TIMER_DRIVER.get_force_mut();
 
     if !ATTACHED.load(Ordering::Acquire) {
         apic::notify_eoi();

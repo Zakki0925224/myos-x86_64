@@ -1,25 +1,25 @@
-use super::{CharDevice, Device, DeviceInfo};
-use crate::{
-    error::{Error, Result},
-    fs::vfs,
-    kinfo,
-};
-use alloc::{sync::Arc, vec::Vec};
+use super::{Driver, DeviceInfo};
+use crate::{error::Result, fs::vfs, kinfo, sync::mutex::Mutex};
+use alloc::vec::Vec;
 
 const NAME: &str = "zakki";
 const MESSAGE: &str = "Hello! I'm Zakki, a low-level programmer!\nCheck out my links below:\n\tX: https://x.com/zakki0925224\n\tGitHub: https://github.com/zakki0925224\n\tPortfolio: https://zakki0925224.github.io\n";
 
+static ZAKKI_DRIVER: Mutex<ZakkiDriver> = Mutex::new(ZakkiDriver);
+
 // https://github.com/zakki0925224/zakki_driver
-struct ZakkiDevice;
+struct ZakkiDriver;
 
-impl Device for ZakkiDevice {
-    fn info(&self) -> Result<DeviceInfo> {
-        Ok(DeviceInfo::new(NAME))
+impl Driver for ZakkiDriver {
+    fn info(&self) -> DeviceInfo {
+        DeviceInfo::new(NAME)
     }
-}
 
-impl CharDevice for ZakkiDevice {
-    fn read(&self, offset: usize, max_len: usize) -> Result<Vec<u8>> {
+    fn attach(&mut self) -> Result<()> {
+        Ok(())
+    }
+
+    fn read(&mut self, offset: usize, max_len: usize) -> Result<Vec<u8>> {
         kinfo!("{}: Read!", NAME);
 
         let bytes = MESSAGE.as_bytes();
@@ -28,23 +28,20 @@ impl CharDevice for ZakkiDevice {
         Ok(bytes[start..end].to_vec())
     }
 
-    fn write(&self, _data: &[u8]) -> Result<()> {
-        Err(Error::NotSupported.into())
-    }
-
-    fn open(&self) -> Result<()> {
+    fn open(&mut self) -> Result<()> {
         kinfo!("{}: Opened!", NAME);
         Ok(())
     }
 
-    fn close(&self) -> Result<()> {
+    fn close(&mut self) -> Result<()> {
         kinfo!("{}: Closed!", NAME);
         Ok(())
     }
 }
 
 pub fn probe_and_attach() -> Result<()> {
-    vfs::add_dev(Arc::new(ZakkiDevice))?;
+    ZAKKI_DRIVER.try_lock()?.attach()?;
+    vfs::add_dev(&ZAKKI_DRIVER)?;
     kinfo!("{}: Attached!", NAME);
 
     Ok(())

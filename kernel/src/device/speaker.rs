@@ -1,26 +1,25 @@
 use crate::{
     arch::x86_64,
-    device::{CharDevice, Device, DeviceInfo},
+    device::{Driver, DeviceInfo},
     error::{Error, Result},
     fs::vfs,
     kinfo,
     sync::mutex::Mutex,
     util,
 };
-use alloc::{sync::Arc, vec::Vec};
+use alloc::vec::Vec;
 use core::time::Duration;
 
-const NAME: &str = "speaker";
+pub const NAME: &str = "speaker";
 
-static SPEAKER: Mutex<Speaker> = Mutex::new(Speaker::new());
+static SPEAKER_DRIVER: Mutex<SpeakerDriver> = Mutex::new(SpeakerDriver::new());
 
-struct Speaker {
-    device_info: DeviceInfo,
+struct SpeakerDriver {
     current_freq: u32,
 }
 
 // https://wiki.osdev.org/PC_Speaker
-impl Speaker {
+impl SpeakerDriver {
     const PIT_BASE_FREQ: u32 = 1193182;
     const PORT_PIT_CTRL: u16 = 0x43;
     const PORT_TIMER2_CTRL: u16 = 0x42;
@@ -29,10 +28,7 @@ impl Speaker {
     const MODE_SQUARE_WAVE: u8 = 0x06;
 
     const fn new() -> Self {
-        Self {
-            device_info: DeviceInfo::new("speaker"),
-            current_freq: 0,
-        }
+        Self { current_freq: 0 }
     }
 
     fn play(&mut self, freq: u32) {
@@ -71,21 +67,12 @@ impl Speaker {
     }
 }
 
-impl Speaker {
-    fn probe(&mut self) -> Result<()> {
-        Ok(())
+impl Driver for SpeakerDriver {
+    fn info(&self) -> DeviceInfo {
+        DeviceInfo::new(NAME)
     }
 
     fn attach(&mut self) -> Result<()> {
-        vfs::add_dev(Arc::new(SpeakerDevice))?;
-        Ok(())
-    }
-
-    fn open(&mut self) -> Result<()> {
-        Ok(())
-    }
-
-    fn close(&mut self) -> Result<()> {
         Ok(())
     }
 
@@ -105,50 +92,19 @@ impl Speaker {
     }
 }
 
-pub fn device_info() -> Result<DeviceInfo> {
-    Ok(DeviceInfo::new(NAME))
-}
-
 pub fn probe_and_attach() -> Result<()> {
-    let mut driver = SPEAKER.try_lock()?;
-    driver.probe()?;
-    driver.attach()?;
+    SPEAKER_DRIVER.try_lock()?.attach()?;
+    vfs::add_dev(&SPEAKER_DRIVER)?;
     kinfo!("{}: Attached!", NAME);
 
     Ok(())
 }
 
 pub fn play(freq: u32, duration: Duration) -> Result<()> {
-    let mut driver = SPEAKER.try_lock()?;
+    let mut driver = SPEAKER_DRIVER.try_lock()?;
     driver.play(freq);
     util::time::sleep(duration);
     driver.stop();
 
     Ok(())
-}
-
-struct SpeakerDevice;
-
-impl Device for SpeakerDevice {
-    fn info(&self) -> Result<DeviceInfo> {
-        Ok(DeviceInfo::new(NAME))
-    }
-}
-
-impl CharDevice for SpeakerDevice {
-    fn read(&self, offset: usize, max_len: usize) -> Result<Vec<u8>> {
-        SPEAKER.try_lock()?.read(offset, max_len)
-    }
-
-    fn write(&self, data: &[u8]) -> Result<()> {
-        SPEAKER.try_lock()?.write(data)
-    }
-
-    fn open(&self) -> Result<()> {
-        SPEAKER.try_lock()?.open()
-    }
-
-    fn close(&self) -> Result<()> {
-        SPEAKER.try_lock()?.close()
-    }
 }

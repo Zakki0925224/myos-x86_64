@@ -1,38 +1,41 @@
-use super::{register_pollable, Device, DeviceInfo, Pollable};
 use crate::{
-    device::tty,
+    device::{tty, Driver, DeviceInfo},
     error::Result,
+    fs::vfs,
+    kinfo,
     sync::mutex::Mutex,
     util::keyboard::{key_event::*, scan_code::KeyCode},
 };
-use alloc::{collections::vec_deque::VecDeque, sync::Arc};
+use alloc::collections::vec_deque::VecDeque;
 
 const NAME: &str = "keyboard";
 
-static KEYBOARD: Mutex<Option<Arc<KeyboardDevice>>> = Mutex::new(None);
+static KEYBOARD_DRIVER: Mutex<KeyboardDriver> = Mutex::new(KeyboardDriver::new());
 
-pub struct KeyboardDevice {
-    queue: Mutex<VecDeque<KeyEvent>>,
+struct KeyboardDriver {
+    queue: VecDeque<KeyEvent>,
 }
 
-impl KeyboardDevice {
+impl KeyboardDriver {
     const fn new() -> Self {
         Self {
-            queue: Mutex::new(VecDeque::new()),
+            queue: VecDeque::new(),
         }
     }
 }
 
-impl Device for KeyboardDevice {
-    fn info(&self) -> Result<DeviceInfo> {
-        Ok(DeviceInfo::new(NAME))
+impl Driver for KeyboardDriver {
+    fn info(&self) -> DeviceInfo {
+        DeviceInfo::new(NAME)
     }
-}
 
-impl Pollable for KeyboardDevice {
-    fn poll(&self) -> Result<()> {
+    fn attach(&mut self) -> Result<()> {
+        Ok(())
+    }
+
+    fn poll(&mut self) -> Result<()> {
         loop {
-            let event = match self.queue.try_lock()?.pop_front() {
+            let event = match self.queue.pop_front() {
                 Some(e) => e,
                 None => return Ok(()),
             };
@@ -57,19 +60,19 @@ impl Pollable for KeyboardDevice {
 }
 
 pub fn probe_and_attach() -> Result<()> {
-    let dev = Arc::new(KeyboardDevice::new());
-    register_pollable(dev.clone())?;
-    *KEYBOARD.try_lock()? = Some(dev);
+    KEYBOARD_DRIVER.try_lock()?.attach()?;
+    vfs::add_dev(&KEYBOARD_DRIVER)?;
+    kinfo!("{}: Attached!", NAME);
 
     Ok(())
 }
 
 pub fn push_key_event(event: KeyEvent) -> Result<()> {
-    let dev = KEYBOARD.try_lock()?.clone();
-
-    if let Some(dev) = dev {
-        dev.queue.try_lock()?.push_back(event);
-    }
+    KEYBOARD_DRIVER.try_lock()?.queue.push_back(event);
 
     Ok(())
+}
+
+pub fn poll_normal() -> Result<()> {
+    KEYBOARD_DRIVER.try_lock()?.poll()
 }

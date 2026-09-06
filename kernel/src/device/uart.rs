@@ -1,16 +1,15 @@
 use crate::{
     arch::IoPortAddress,
-    device::{register_pollable, tty, CharDevice, Device, DeviceInfo, Pollable},
+    device::{tty, Driver, DeviceInfo},
     error::{Error, Result},
     fs::vfs,
     kinfo,
     sync::mutex::Mutex,
 };
-use alloc::{sync::Arc, vec::Vec};
 
 const NAME: &str = "ttyS0";
 
-static SERIAL_PORT: Mutex<SerialPort> = Mutex::new(SerialPort::new());
+static UART_DRIVER: Mutex<UartDriver> = Mutex::new(UartDriver::new());
 
 #[derive(Debug, Clone, Copy)]
 #[repr(u16)]
@@ -25,15 +24,11 @@ pub enum ComPort {
     // Com8 = 0x4e8,
 }
 
-struct SerialPort {
+struct UartDriver {
     io_port_addr: Option<IoPortAddress>,
 }
 
-impl SerialPort {
-    fn poll_normal(&mut self) -> Result<Option<u8>> {
-        Ok(self.receive_data())
-    }
-
+impl UartDriver {
     const fn new() -> Self {
         Self { io_port_addr: None }
     }
@@ -80,9 +75,9 @@ impl SerialPort {
     }
 }
 
-impl SerialPort {
-    fn probe(&mut self) -> Result<()> {
-        Ok(())
+impl Driver for UartDriver {
+    fn info(&self) -> DeviceInfo {
+        DeviceInfo::new(NAME)
     }
 
     fn attach(&mut self) -> Result<()> {
@@ -108,69 +103,42 @@ impl SerialPort {
         self.io_port_addr = Some(io_port_addr);
         Ok(())
     }
-}
 
-pub fn device_info() -> Result<DeviceInfo> {
-    Ok(DeviceInfo::new(NAME))
-}
+    fn poll(&mut self) -> Result<()> {
+        let received_data = match self.receive_data() {
+            Some(data) => data,
+            None => return Ok(()),
+        };
 
-pub fn probe_and_attach() -> Result<()> {
-    let mut driver = SERIAL_PORT.try_lock()?;
-    driver.probe()?;
-    driver.attach()?;
-    kinfo!("{}: Attached!", NAME);
-
-    Ok(())
-}
-
-pub fn poll_normal() -> Result<()> {
-    let received_data = match SERIAL_PORT.try_lock()?.poll_normal()? {
-        Some(data) => data,
-        None => return Ok(()),
-    };
-
-    tty::input(received_data as char)
-}
-
-pub fn send_data(data: u8) {
-    let driver = unsafe { SERIAL_PORT.get_force_mut() };
-    driver.send_data(data);
-}
-
-struct SerialDevice;
-
-impl Device for SerialDevice {
-    fn info(&self) -> Result<DeviceInfo> {
-        Ok(DeviceInfo::new(NAME))
-    }
-}
-
-impl CharDevice for SerialDevice {
-    fn read(&self, _offset: usize, _max_len: usize) -> Result<Vec<u8>> {
-        Err(Error::NotSupported.into())
+        tty::input(received_data as char)
     }
 
-    fn write(&self, data: &[u8]) -> Result<()> {
-        let driver = SERIAL_PORT.try_lock()?;
-
+    fn write(&mut self, data: &[u8]) -> Result<()> {
         for b in data {
-            driver.send_data(*b);
+            self.send_data(*b);
         }
 
         Ok(())
     }
 }
 
-impl Pollable for SerialDevice {
-    fn poll(&self) -> Result<()> {
-        poll_normal()
-    }
-}
-
-pub fn register() -> Result<()> {
-    let device = Arc::new(SerialDevice);
-    vfs::add_dev(device.clone())?;
-    register_pollable(device)?;
+pub fn probe_and_attach() -> Result<()> {
+    UART_DRIVER.try_lock()?.attach()?;
+    kinfo!("{}: Attached!", NAME);
 
     Ok(())
+}
+
+pub fn register_dev() -> Result<()> {
+    vfs::add_dev(&UART_DRIVER)?;
+    Ok(())
+}
+
+pub fn poll_normal() -> Result<()> {
+    UART_DRIVER.try_lock()?.poll()
+}
+
+pub fn send_data(data: u8) {
+    let driver = unsafe { UART_DRIVER.get_force_mut() };
+    driver.send_data(data);
 }

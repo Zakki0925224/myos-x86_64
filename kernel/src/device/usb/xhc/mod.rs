@@ -2,18 +2,15 @@ use crate::{
     arch::{x86_64::paging::PAGE_SIZE, VirtualAddress},
     device::{
         self,
-        pci_bus::{conf_space::BaseAddress, device::PciDevice, PciDriver},
-        register_pollable,
+        pci_bus::{conf_space::BaseAddress, device::PciDevice},
         usb::{
             usb_bus::*,
             xhc::{context::*, desc::*, register::*, trb::*},
-            UsbHostController,
         },
-        CharDevice, Device, DeviceInfo, Pollable,
+        Driver, DeviceInfo,
     },
     error::{Error, Result},
-    fs::vfs,
-    kdebug, ktrace,
+    kdebug, kinfo, ktrace,
     mem::bitmap,
     sync::mutex::Mutex,
     util::{mmio::Mmio, slice::Sliceable},
@@ -22,7 +19,6 @@ use alloc::{
     boxed::Box,
     rc::Rc,
     string::{String, ToString},
-    sync::Arc,
     vec::Vec,
 };
 use core::{cmp::max, pin::Pin, slice};
@@ -33,8 +29,9 @@ pub mod register;
 pub mod trb;
 
 const NAME: &str = "xhc";
+const XHC_PCI_CLASS: (u8, u8, u8) = (0x0c, 0x03, 0x30);
 
-static XHCI_CONTROLLER: Mutex<XhciController> = Mutex::new(XhciController::new());
+static XHC_DRIVER: Mutex<XhcDriver> = Mutex::new(XhcDriver::new());
 
 #[derive(Debug)]
 pub enum XhcDriverError {
@@ -65,8 +62,7 @@ impl core::fmt::Display for XhcDriverError {
     }
 }
 
-struct XhciController {
-    device_info: DeviceInfo,
+struct XhcDriver {
     pci_device_bdf: Option<(usize, usize, usize)>,
     cap_reg: Option<Mmio<CapabilityRegisters>>,
     ope_reg: Option<Mmio<OperationalRegisters>>,
@@ -78,20 +74,9 @@ struct XhciController {
     doorbell_regs: Vec<Rc<Doorbell>>,
 }
 
-impl XhciController {
-    fn poll_normal(&mut self) -> Result<()> {
-        let driver_name = self.device_info.name;
-
-        if let Some(trb) = self.primary_event_ring()?.pop()? {
-            kdebug!("{}: Processed TRB: {:#x}", driver_name, trb.trb_type());
-        }
-
-        Ok(())
-    }
-
+impl XhcDriver {
     const fn new() -> Self {
         Self {
-            device_info: DeviceInfo::new("xhc"),
             pci_device_bdf: None,
             cap_reg: None,
             ope_reg: None,
@@ -178,8 +163,6 @@ impl XhciController {
     }
 
     fn reset(&mut self) -> Result<()> {
-        let driver_name = self.device_info.name;
-
         // stop controller
         if !self.ope_reg()?.as_ref().usb_status.hchalted() {
             return Err(XhcDriverError::HostControllerIsNotHalted.into());
@@ -192,36 +175,32 @@ impl XhciController {
             .set_host_controller_reset(true);
 
         loop {
-            kdebug!("{}: Waiting xHC...", driver_name);
+            kdebug!("{}: Waiting xHC...", NAME);
             if !self.ope_reg()?.as_ref().usb_cmd.host_controller_reset() {
                 break;
             }
         }
-        kdebug!("{}: xHC reset complete", driver_name);
+        kdebug!("{}: xHC reset complete", NAME);
 
         Ok(())
     }
 
     fn set_max_dev_slots(&mut self) -> Result<()> {
-        let driver_name = self.device_info.name;
-
         let num_of_ports = self.cap_reg()?.as_ref().num_of_ports();
         let num_of_slots = self.cap_reg()?.as_ref().num_of_device_slots();
         self.ope_reg()?
             .as_mut()
             .set_max_device_slots_enabled(num_of_slots as u8);
-        kdebug!("{}: Number of ports: {}", driver_name, num_of_ports);
+        kdebug!("{}: Number of ports: {}", NAME, num_of_ports);
 
         Ok(())
     }
 
     fn init_scratchpad_bufs(&mut self) -> Result<ScratchpadBuffers> {
-        let driver_name = self.device_info.name;
-
         let num_scratchpad_bufs = max(self.cap_reg()?.as_ref().num_scratchpad_bufs(), 1);
         kdebug!(
             "{}: Number of scratchpad buffers: {}",
-            driver_name,
+            NAME,
             num_scratchpad_bufs
         );
 
@@ -250,13 +229,11 @@ impl XhciController {
             bufs.push(buf);
         }
         let scratchpad_bufs = ScratchpadBuffers { table, bufs };
-        kdebug!("{}: Scratchpad buffers initialized", driver_name);
+        kdebug!("{}: Scratchpad buffers initialized", NAME);
         Ok(scratchpad_bufs)
     }
 
     fn init_dev_ctx(&mut self, scratchpad_bufs: ScratchpadBuffers) -> Result<()> {
-        let driver_name = self.device_info.name;
-
         // initialize device context
         let dcbaa = DeviceContextBaseAddressArray::new(scratchpad_bufs);
         self.ope_reg()?
@@ -266,39 +243,33 @@ impl XhciController {
         self.dcbaa = Some(dcbaa);
         kdebug!(
             "{}: Device context base address array initialized",
-            driver_name
+            NAME
         );
 
         Ok(())
     }
 
     fn init_primary_event_ring(&mut self) -> Result<()> {
-        let driver_name = self.device_info.name;
-
         self.primary_event_ring = Some(EventRing::new()?);
         let event_ring = self.primary_event_ring.as_mut().unwrap();
         let rt_reg = unsafe { self.rt_reg.as_mut().unwrap().get_unchecked_mut() };
         rt_reg.init_int_reg_set(0, event_ring)?;
-        kdebug!("{}: Primary event ring initialized", driver_name);
+        kdebug!("{}: Primary event ring initialized", NAME);
 
         Ok(())
     }
 
     fn init_cmd_ring(&mut self) -> Result<()> {
-        let driver_name = self.device_info.name;
-
         self.cmd_ring = Some(CommandRing::default());
         let cmd_ring = self.cmd_ring.as_mut().unwrap();
         let ope_reg = unsafe { self.ope_reg.as_mut().unwrap().get_unchecked_mut() };
         ope_reg.set_cmd_ring_ctrl(cmd_ring);
-        kdebug!("{}: Command ring initialized", driver_name);
+        kdebug!("{}: Command ring initialized", NAME);
 
         Ok(())
     }
 
     fn init_port(&mut self, port: usize) -> Result<u8> {
-        let driver_name = self.device_info.name;
-
         let e = self.portsc()?.get(port).ok_or(Error::IndexOutOfBounds {
             index: port,
             len: None,
@@ -312,12 +283,7 @@ impl XhciController {
         let trb = self.send_cmd(GenericTrbEntry::trb_enable_slot_cmd())?;
         let slot = trb.slot_id();
 
-        kdebug!(
-            "{}: Port {} is connected to slot {}",
-            driver_name,
-            port,
-            slot
-        );
+        kdebug!("{}: Port {} is connected to slot {}", NAME, port, slot);
         Ok(slot)
     }
 
@@ -331,8 +297,6 @@ impl XhciController {
     }
 
     fn address_device(&mut self, port: usize, slot: u8) -> Result<CommandRing> {
-        let driver_name = self.device_info.name;
-
         let output_context = Box::pin(OutputContext::default());
         self.set_output_context_for_slot(slot, output_context)?;
         let mut input_ctrl_context = InputControlContext::default();
@@ -366,7 +330,7 @@ impl XhciController {
 
         kdebug!(
             "{}: Addressed device on port {} with slot {}",
-            driver_name,
+            NAME,
             port,
             slot
         );
@@ -653,8 +617,6 @@ impl XhciController {
     }
 
     fn init_slot(&mut self, port: usize, slot: u8) -> Result<()> {
-        let driver_name = self.device_info.name;
-
         let mut ctrl_ep_ring = self.address_device(port, slot)?;
         let dev_desc = self.request_dev_desc(slot, &mut ctrl_ep_ring)?;
         let mut vendor = None;
@@ -691,7 +653,7 @@ impl XhciController {
         }
 
         let descs = self.request_conf_desc_and_rest(slot, &mut ctrl_ep_ring)?;
-        kdebug!("{}: Slot {} initialized", driver_name, slot);
+        kdebug!("{}: Slot {} initialized", NAME, slot);
 
         // detect and attach usb device
         let xhci_attach_info = XhciAttachInfo {
@@ -705,26 +667,21 @@ impl XhciController {
             ctrl_ep_ring: Box::new(ctrl_ep_ring),
         };
 
-        let usb_device = Arc::new(UsbDevice::new(
-            UsbDeviceAttachInfo::new_xhci(xhci_attach_info),
-            Arc::new(XhciHostController),
-        ));
-        device::usb::usb_bus::attach_usb_device(usb_device)?;
+        device::usb::usb_bus::attach_usb_device(UsbDeviceAttachInfo::new_xhci(xhci_attach_info))?;
 
         Ok(())
     }
 
     fn start(&mut self) -> Result<()> {
-        let driver_name = self.device_info.name;
         self.ope_reg()?.as_mut().usb_cmd.set_run_stop(true);
 
         loop {
-            kdebug!("{}: Waiting xHC...", driver_name);
+            kdebug!("{}: Waiting xHC...", NAME);
             if !self.ope_reg()?.as_ref().usb_status.hchalted() {
                 break;
             }
         }
-        kdebug!("{}: xHC started", driver_name);
+        kdebug!("{}: xHC started", NAME);
 
         // initialize ports
         for port in self.portsc()?.port_range() {
@@ -741,9 +698,7 @@ impl XhciController {
 
         Ok(())
     }
-}
 
-impl XhciController {
     fn attach_pci(&mut self, d: &PciDevice) -> Result<()> {
         // read base address registers
         let conf_space = d.read_conf_space_non_bridge_field()?;
@@ -851,133 +806,77 @@ impl XhciController {
     }
 }
 
-impl XhciController {
-    fn probe(&mut self) -> Result<()> {
-        Ok(())
+impl Driver for XhcDriver {
+    fn info(&self) -> DeviceInfo {
+        DeviceInfo::new(NAME)
     }
 
     fn attach(&mut self) -> Result<()> {
-        Ok(())
+        let d = device::pci_bus::find_device_by_class(XHC_PCI_CLASS)?
+            .ok_or(Error::NotFound.with_context("xHC PCI device"))?;
+
+        self.attach_pci(&d)
     }
 
-    fn open(&mut self) -> Result<()> {
-        Err(Error::NotSupported.into())
-    }
-
-    fn close(&mut self) -> Result<()> {
-        Err(Error::NotSupported.into())
-    }
-
-    fn read(&mut self, _offset: usize, _max_len: usize) -> Result<Vec<u8>> {
-        Err(Error::NotSupported.into())
-    }
-
-    fn write(&mut self, _data: &[u8]) -> Result<()> {
-        Err(Error::NotSupported.into())
-    }
-}
-
-pub fn device_info() -> Result<DeviceInfo> {
-    Ok(DeviceInfo::new(NAME))
-}
-
-pub struct XhciDriver;
-
-impl PciDriver for XhciDriver {
-    fn name(&self) -> &'static str {
-        NAME
-    }
-
-    fn probe(&self, dev: &PciDevice) -> Result<bool> {
-        if dev.device_class() != (0x0c, 0x03, 0x30) {
-            return Ok(false);
+    fn poll(&mut self) -> Result<()> {
+        if let Some(trb) = self.primary_event_ring()?.pop()? {
+            kdebug!("{}: Processed TRB: {:#x}", NAME, trb.trb_type());
         }
 
-        XHCI_CONTROLLER.try_lock()?.attach_pci(dev)?;
-
-        let device = Arc::new(XhciDevice);
-        vfs::add_dev(device.clone())?;
-        register_pollable(device)?;
-
-        Ok(true)
+        Ok(())
     }
+}
+
+pub fn probe_and_attach() -> Result<()> {
+    XHC_DRIVER.try_lock()?.attach()?;
+    kinfo!("{}: Attached!", NAME);
+
+    Ok(())
 }
 
 pub fn poll_normal() -> Result<()> {
-    let mut driver = XHCI_CONTROLLER.try_lock()?;
-    driver.poll_normal()
+    XHC_DRIVER.try_lock()?.poll()
 }
 
-pub struct XhciHostController;
-
-impl UsbHostController for XhciHostController {
-    fn set_config(&self, slot: u8, ctrl_ep_ring: &mut CommandRing, config_value: u8) -> Result<()> {
-        XHCI_CONTROLLER
-            .try_lock()?
-            .set_config(slot, ctrl_ep_ring, config_value)
-    }
-
-    fn set_interface(
-        &self,
-        slot: u8,
-        ctrl_ep_ring: &mut CommandRing,
-        interface_num: u8,
-        alt_setting: u8,
-    ) -> Result<()> {
-        XHCI_CONTROLLER
-            .try_lock()?
-            .set_interface(slot, ctrl_ep_ring, interface_num, alt_setting)
-    }
-
-    fn set_protocol(
-        &self,
-        slot: u8,
-        ctrl_ep_ring: &mut CommandRing,
-        interface_num: u8,
-        protocol: u8,
-    ) -> Result<()> {
-        XHCI_CONTROLLER
-            .try_lock()?
-            .set_protocol(slot, ctrl_ep_ring, interface_num, protocol)
-    }
-
-    fn hid_report(&self, slot: u8, ctrl_ep_ring: &mut CommandRing) -> Result<Vec<u8>> {
-        XHCI_CONTROLLER.try_lock()?.hid_report(slot, ctrl_ep_ring)
-    }
-
-    fn hid_report_desc(
-        &self,
-        slot: u8,
-        ctrl_ep_ring: &mut CommandRing,
-        interface_num: u8,
-        desc_size: usize,
-    ) -> Result<Vec<u8>> {
-        XHCI_CONTROLLER
-            .try_lock()?
-            .hid_report_desc(slot, ctrl_ep_ring, interface_num, desc_size)
-    }
+pub fn set_config(slot: u8, ctrl_ep_ring: &mut CommandRing, config_value: u8) -> Result<()> {
+    XHC_DRIVER
+        .try_lock()?
+        .set_config(slot, ctrl_ep_ring, config_value)
 }
 
-struct XhciDevice;
-
-impl Device for XhciDevice {
-    fn info(&self) -> Result<DeviceInfo> {
-        Ok(DeviceInfo::new(NAME))
-    }
+pub fn set_interface(
+    slot: u8,
+    ctrl_ep_ring: &mut CommandRing,
+    interface_num: u8,
+    alt_setting: u8,
+) -> Result<()> {
+    XHC_DRIVER
+        .try_lock()?
+        .set_interface(slot, ctrl_ep_ring, interface_num, alt_setting)
 }
 
-impl Pollable for XhciDevice {
-    fn poll(&self) -> Result<()> {
-        poll_normal()
-    }
+pub fn set_protocol(
+    slot: u8,
+    ctrl_ep_ring: &mut CommandRing,
+    interface_num: u8,
+    protocol: u8,
+) -> Result<()> {
+    XHC_DRIVER
+        .try_lock()?
+        .set_protocol(slot, ctrl_ep_ring, interface_num, protocol)
 }
 
-impl CharDevice for XhciDevice {
-    fn read(&self, _offset: usize, _max_len: usize) -> Result<Vec<u8>> {
-        Err(Error::NotSupported.into())
-    }
+pub fn hid_report(slot: u8, ctrl_ep_ring: &mut CommandRing) -> Result<Vec<u8>> {
+    XHC_DRIVER.try_lock()?.hid_report(slot, ctrl_ep_ring)
+}
 
-    fn write(&self, _data: &[u8]) -> Result<()> {
-        Err(Error::NotSupported.into())
-    }
+pub fn hid_report_desc(
+    slot: u8,
+    ctrl_ep_ring: &mut CommandRing,
+    interface_num: u8,
+    desc_size: usize,
+) -> Result<Vec<u8>> {
+    XHC_DRIVER
+        .try_lock()?
+        .hid_report_desc(slot, ctrl_ep_ring, interface_num, desc_size)
 }
